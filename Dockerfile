@@ -3,6 +3,9 @@ FROM node:20-alpine AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
+ARG DATABASE_URL=file:./local.db
+ENV DATABASE_URL=${DATABASE_URL}
+
 COPY package.json package-lock.json* ./
 COPY prisma ./prisma
 COPY scripts/patch-prisma-types.cjs ./scripts/patch-prisma-types.cjs
