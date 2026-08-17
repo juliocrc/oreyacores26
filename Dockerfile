@@ -27,6 +27,8 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV PRISMA_DISABLE_WARNINGS=1
 ENV NODE_ENV=production
 ENV DATABASE_URL=file:./local.db
+ENV NEXTAUTH_SECRET=build-placeholder-secret
+ENV AUTH_SECRET=build-placeholder-secret
 
 RUN npm run build
 
