@@ -133,7 +133,7 @@ export async function GET(request: NextRequest) {
         label: compactLabel([e.serial, [e.marca, e.modelo].filter(Boolean).join(" "), e.hexId]),
         href: `/epirbs/${e.id}`,
       })),
-      ...ordensServico.map((os) => ({
+      ...ordensServico.map((os: any) => ({
         type: "Ordem de Serviço",
         label: compactLabel([os.numeroOrdem, os.jangada?.serial ? `Jangada ${os.jangada.serial}` : null, os.status]),
         href: `/ordens-servico/${os.id}`,

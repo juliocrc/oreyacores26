@@ -285,6 +285,7 @@ export function buildAuthOptions(isSecure?: boolean): NextAuthOptions {
     },
   },
 };
+}
 
 export const authOptions: NextAuthOptions = buildAuthOptions();
 

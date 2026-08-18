@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Box, CircularProgress, Typography, Paper, Tabs, Tab, Button, TextField, Alert, Chip, Stack, Divider, IconButton } from "@mui/material";
-import { User, Ship, FileText, ClipboardList, Receipt, Shield, Save, Phone, Mail, MapPin, Edit3, ChevronRight, AlertTriangle, CheckCircle, XCircle, Clock, Flame, LifeBuoy, Radio, Vest } from "lucide-react";
+import { User, Ship, FileText, ClipboardList, Receipt, Shield, Save, Phone, Mail, MapPin, Edit3, ChevronRight, AlertTriangle, CheckCircle, XCircle, Clock, Flame, LifeBuoy, Radio } from "lucide-react";
 import { APP_CONFIG } from "@/lib/app-config";
 
 type TabKey = "dados" | "navios" | "ordens" | "faturas" | "equipamento";

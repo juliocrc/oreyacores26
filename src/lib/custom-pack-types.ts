@@ -217,7 +217,7 @@ export async function findCustomPackTypeByName(name: string, options?: { include
       },
     });
 
-    return row ? serializeCustomPack(row) : null;
+    return row ? serializeCustomPack(row as any) : null;
   } catch (error) {
     if (isCustomPackStorageUnavailableError(error)) return null;
     throw error;

@@ -61,53 +61,6 @@ export async function GET(req: NextRequest) {
             lotacao: true,
             comprimentoMetros: true,
             pirotecnicosBordoJson: true,
-            extintores: {
-              select: {
-                id: true,
-                serial: true,
-                marca: true,
-                modelo: true,
-                capacidadeKg: true,
-                tipoAgente: true,
-                estado: true,
-                localizacao: true,
-                dataFabrico: true,
-                dataUltimaRecarga: true,
-                dataProxRecarga: true,
-                dataTesteHidraulico: true,
-                dataProxTesteHidraulico: true,
-                observacoes: true,
-              },
-            },
-            coletes: {
-              select: {
-                id: true,
-                serial: true,
-                marca: true,
-                modelo: true,
-                tamanho: true,
-                estado: true,
-                dataFabrico: true,
-                dataInspecao: true,
-                dataProxInspecao: true,
-                observacoes: true,
-              },
-            },
-            epirbs: {
-              select: {
-                id: true,
-                serial: true,
-                marca: true,
-                modelo: true,
-                tipo: true,
-                hexId: true,
-                estado: true,
-                dataInspecao: true,
-                dataProxInspecao: true,
-                dataValidadeBateria: true,
-                observacoes: true,
-              },
-            },
           },
         },
       },
@@ -117,7 +70,68 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Cliente não encontrado." }, { status: 404 });
     }
 
-    const [ordens, faturas] = await Promise.all([
+    const navioIds = cliente.navios.map((n) => n.id);
+
+    const [extintoresAll, coletesAll, epirbsAll, ordens, faturas] = await Promise.all([
+      navioIds.length > 0
+        ? prisma.extintor.findMany({
+            where: { shipId: { in: navioIds } },
+            select: {
+              id: true,
+              shipId: true,
+              serial: true,
+              marca: true,
+              modelo: true,
+              capacidadeKg: true,
+              tipoAgente: true,
+              estado: true,
+              localizacao: true,
+              dataFabrico: true,
+              dataUltimaRecarga: true,
+              dataProxRecarga: true,
+              dataTesteHidraulico: true,
+              dataProxTesteHidraulico: true,
+              observacoes: true,
+            },
+          })
+        : [],
+      navioIds.length > 0
+        ? prisma.colete.findMany({
+            where: { shipId: { in: navioIds } },
+            select: {
+              id: true,
+              shipId: true,
+              serial: true,
+              marca: true,
+              modelo: true,
+              tamanho: true,
+              estado: true,
+              dataFabrico: true,
+              dataInspecao: true,
+              dataProxInspecao: true,
+              observacoes: true,
+            },
+          })
+        : [],
+      navioIds.length > 0
+        ? prisma.epirb.findMany({
+            where: { shipId: { in: navioIds } },
+            select: {
+              id: true,
+              shipId: true,
+              serial: true,
+              marca: true,
+              modelo: true,
+              tipo: true,
+              hexId: true,
+              estado: true,
+              dataInspecao: true,
+              dataProxInspecao: true,
+              dataValidadeBateria: true,
+              observacoes: true,
+            },
+          })
+        : [],
       prisma.ordemServico.findMany({
         where: { clienteId },
         select: {
@@ -156,6 +170,34 @@ export async function GET(req: NextRequest) {
         take: 50,
       }),
     ]);
+
+    const extByShip = new Map<number, typeof extintoresAll>();
+    for (const e of extintoresAll) {
+      if (e.shipId == null) continue;
+      const arr = extByShip.get(e.shipId) || [];
+      arr.push(e);
+      extByShip.set(e.shipId, arr);
+    }
+    const colByShip = new Map<number, typeof coletesAll>();
+    for (const c of coletesAll) {
+      if (c.shipId == null) continue;
+      const arr = colByShip.get(c.shipId) || [];
+      arr.push(c);
+      colByShip.set(c.shipId, arr);
+    }
+    const epiByShip = new Map<number, typeof epirbsAll>();
+    for (const e of epirbsAll) {
+      if (e.shipId == null) continue;
+      const arr = epiByShip.get(e.shipId) || [];
+      arr.push(e);
+      epiByShip.set(e.shipId, arr);
+    }
+
+    for (const navio of cliente.navios) {
+      (navio as any).extintores = extByShip.get(navio.id) || [];
+      (navio as any).coletes = colByShip.get(navio.id) || [];
+      (navio as any).epirbs = epiByShip.get(navio.id) || [];
+    }
 
     const result = { cliente, ordens, faturas };
     setCachedClientData(clienteId, result);
