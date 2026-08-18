@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
-import { getAuthSecret } from "./lib/auth";
 
 const PUBLIC_PATHS = new Set(["/login", "/registar", "/area-cliente", "/estado-jangada"]);
 
@@ -51,9 +50,11 @@ function canUserAccessPath(pathname: string, visiblePages: string[], role?: stri
   return visiblePages.some((prefix) => pathMatchesPrefix(pathname, prefix));
 }
 
-export default async function proxy(req: NextRequest) {
+export default async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
-  const token = await getToken({ req, secret: getAuthSecret() });
+  const secret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET;
+  if (!secret) return NextResponse.next();
+  const token = await getToken({ req, secret });
 
   if (pathname.startsWith("/api/auth") || isStaticOrInternal(pathname)) {
     return NextResponse.next();
