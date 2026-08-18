@@ -74,6 +74,7 @@ export default async function middleware(req: NextRequest) {
       || pathname === "/api/portal/cliente-auth"
       || pathname === "/api/publico/jangada"
       || pathname === "/api/setup-db"
+      || pathname.startsWith("/api/debug")
       || isPedidosAssistenciaWebhook;
     
     // Rotas cron protegidas por CRON_SECRET
