@@ -98,8 +98,14 @@ function LoginPageContent() {
   }, []);
 
   React.useEffect(() => {
-    if (status === "authenticated") router.replace(callbackUrl);
-  }, [callbackUrl, router, status]);
+    if (status === "authenticated") {
+      if (session?.user?.role === "CLIENTE") {
+        router.replace("/portal/cliente");
+      } else {
+        router.replace(callbackUrl);
+      }
+    }
+  }, [callbackUrl, router, status, session]);
 
   const handleStaffLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -153,11 +159,11 @@ function LoginPageContent() {
         telmovel: clientTel,
         nif: clientNif,
         code: clientCode,
-        callbackUrl,
+        callbackUrl: "/portal/cliente",
         redirect: false,
       });
       if (result?.error) { setClientError("Código inválido ou expirado."); return; }
-      router.replace(callbackUrl);
+      router.replace("/portal/cliente");
     } finally { setIsSubmitting(false); }
   };
 
