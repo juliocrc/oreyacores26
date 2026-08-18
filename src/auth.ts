@@ -16,7 +16,7 @@ const authUserSelect = {
   passwordHash: true,
 } as const;
 
-const isSecureUrl = !!(process.env.NEXTAUTH_URL ?? process.env.AUTH_URL ?? "").startsWith("https");
+const isSecureUrl = (process.env.NEXTAUTH_URL ?? process.env.AUTH_URL ?? "").startsWith("https");
 
 export const authOptions: NextAuthOptions = {
   secret: getAuthSecret(),
