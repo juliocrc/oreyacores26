@@ -34,7 +34,7 @@ RUN npm run build
 
 # ── Stage 3: Production ──────────────────────────────────────
 FROM node:20-alpine AS runner
-RUN apk add --no-cache libc6-compat
+RUN apk add --no-cache libc6-compat postgresql-client
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -58,6 +58,7 @@ COPY --from=deps --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/prisma ./node_modules/prisma
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/bcryptjs ./node_modules/bcryptjs
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/.package-lock.json ./node_modules/.package-lock.json
 COPY --from=builder --chown=nextjs:nodejs /app/docker-entrypoint.sh ./entrypoint.sh
 RUN chmod +x ./entrypoint.sh
 

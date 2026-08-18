@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { execSync } from "child_process";
-import path from "path";
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,18 +13,25 @@ export async function POST(req: NextRequest) {
 
     const isPostgres = (process.env.DATABASE_URL || "").startsWith("postgresql");
     const schemaFile = isPostgres ? "schema.postgresql.prisma" : "schema.prisma";
-    const prismaBin = path.resolve("./node_modules/.bin/prisma");
-    const prismaJs = path.resolve("./node_modules/prisma/build/index.js");
-    const { existsSync } = await import("fs");
-    const prismaCmd = existsSync(prismaBin) ? prismaBin : `node ${prismaJs}`;
-
+    let psqlOutput = "";
     let generateOutput = "";
-    let pushOutput = "";
-    let migrateOutput = "";
+
+    if (isPostgres) {
+      try {
+        psqlOutput = execSync(`psql "$DATABASE_URL" -f prisma/schema.sql 2>&1`, {
+          cwd: process.cwd(),
+          timeout: 120000,
+          encoding: "utf-8",
+          stdio: "pipe",
+        });
+      } catch (e: any) {
+        psqlOutput = e.stdout || e.stderr || e.message || "psql failed";
+      }
+    }
 
     try {
-      generateOutput = execSync(`${prismaCmd} generate --schema prisma/${schemaFile}`, {
-        cwd: path.resolve("."),
+      generateOutput = execSync(`npx prisma generate --schema prisma/${schemaFile}`, {
+        cwd: process.cwd(),
         timeout: 60000,
         encoding: "utf-8",
         stdio: "pipe",
@@ -34,37 +40,12 @@ export async function POST(req: NextRequest) {
       generateOutput = e.stderr || e.message || "generate failed";
     }
 
-    try {
-      pushOutput = execSync(`${prismaCmd} db push --schema prisma/${schemaFile} --accept-data-loss`, {
-        cwd: path.resolve("."),
-        timeout: 120000,
-        encoding: "utf-8",
-        stdio: "pipe",
-      });
-    } catch (e: any) {
-      pushOutput = e.stderr || e.message || "db push failed";
-    }
-
-    if (isPostgres) {
-      try {
-        migrateOutput = execSync(`${prismaCmd} migrate deploy --schema prisma/${schemaFile}`, {
-          cwd: path.resolve("."),
-          timeout: 120000,
-          encoding: "utf-8",
-          stdio: "pipe",
-        });
-      } catch (e: any) {
-        migrateOutput = e.stderr || e.message || "migrate deploy failed";
-      }
-    }
-
     return NextResponse.json({
       ok: true,
       isPostgres,
       schemaFile,
+      psql: psqlOutput.slice(-1000),
       generate: generateOutput.slice(-500),
-      push: pushOutput.slice(-500),
-      migrate: migrateOutput.slice(-500),
     });
   } catch (error: any) {
     console.error("[setup-db] Erro:", error?.message || error);

@@ -4,24 +4,12 @@ set -e
 # Ensure data directory exists
 mkdir -p /app/data
 
-# Detect prisma binary
-if [ -x "./node_modules/.bin/prisma" ]; then
-  PRISMA_CMD="./node_modules/.bin/prisma"
-else
-  PRISMA_CMD="node ./node_modules/prisma/build/index.js"
-fi
-
 # Detect PostgreSQL vs SQLite
 if echo "$DATABASE_URL" | grep -qE "^postgresql://"; then
-  echo "PostgreSQL detected — regenerating Prisma client for PostgreSQL..."
-  $PRISMA_CMD generate --schema prisma/schema.postgresql.prisma 2>&1 || true
-  echo "Running prisma db push for PostgreSQL..."
-  $PRISMA_CMD db push --schema prisma/schema.postgresql.prisma --accept-data-loss 2>&1 || echo "prisma db push warning (non-fatal)"
-  echo "Running prisma migrate deploy for PostgreSQL..."
-  $PRISMA_CMD migrate deploy --schema prisma/schema.postgresql.prisma 2>&1 || echo "prisma migrate warning (non-fatal)"
+  echo "PostgreSQL detected — applying schema via psql..."
+  psql "$DATABASE_URL" -f /app/prisma/schema.sql 2>&1 || echo "psql schema warning (non-fatal)"
 else
-  echo "SQLite detected — running prisma db push..."
-  $PRISMA_CMD db push --accept-data-loss --skip-generate 2>&1 || echo "prisma db push warning (non-fatal)"
+  echo "SQLite detected — skipping psql."
 fi
 
 # Seed admin password if env var is set
