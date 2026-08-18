@@ -14,13 +14,17 @@ export async function POST(req: NextRequest) {
 
     const isPostgres = (process.env.DATABASE_URL || "").startsWith("postgresql");
     const schemaFile = isPostgres ? "schema.postgresql.prisma" : "schema.prisma";
+    const prismaBin = path.resolve("./node_modules/.bin/prisma");
+    const prismaJs = path.resolve("./node_modules/prisma/build/index.js");
+    const { existsSync } = await import("fs");
+    const prismaCmd = existsSync(prismaBin) ? prismaBin : `node ${prismaJs}`;
 
     let generateOutput = "";
     let pushOutput = "";
     let migrateOutput = "";
 
     try {
-      generateOutput = execSync(`npx prisma generate --schema prisma/${schemaFile}`, {
+      generateOutput = execSync(`${prismaCmd} generate --schema prisma/${schemaFile}`, {
         cwd: path.resolve("."),
         timeout: 60000,
         encoding: "utf-8",
@@ -31,7 +35,7 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      pushOutput = execSync(`npx prisma db push --schema prisma/${schemaFile} --accept-data-loss`, {
+      pushOutput = execSync(`${prismaCmd} db push --schema prisma/${schemaFile} --accept-data-loss`, {
         cwd: path.resolve("."),
         timeout: 120000,
         encoding: "utf-8",
@@ -43,7 +47,7 @@ export async function POST(req: NextRequest) {
 
     if (isPostgres) {
       try {
-        migrateOutput = execSync(`npx prisma migrate deploy --schema prisma/${schemaFile}`, {
+        migrateOutput = execSync(`${prismaCmd} migrate deploy --schema prisma/${schemaFile}`, {
           cwd: path.resolve("."),
           timeout: 120000,
           encoding: "utf-8",
