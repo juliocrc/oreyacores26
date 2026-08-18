@@ -32,17 +32,17 @@ export const authOptions: NextAuthOptions = {
           password: { label: "Password", type: "password" },
           loginType: { type: "text" },
           telmovel: { type: "text" },
-          shipName: { type: "text" },
+          nif: { type: "text" },
           code: { type: "text" },
           userId: { type: "text" },
         },
         async authorize(credentials) {
           if (credentials?.loginType === "client") {
             const telmovel = credentials.telmovel;
-            const shipName = credentials.shipName;
+            const nif = credentials.nif;
             const code = credentials.code;
 
-            if (!telmovel || !shipName || !code) return null;
+            if (!telmovel || !nif || !code) return null;
 
             const cleanPhone = (phone: string | null | undefined): string => {
               if (!phone) return "";
@@ -52,11 +52,13 @@ export const authOptions: NextAuthOptions = {
             const cleanedTarget = cleanPhone(telmovel);
             if (!cleanedTarget) return null;
 
-            // Find client with matching phone number
-            // Only load clients that have an active verification code (most clients won't)
+            const cleanNif = nif.replace(/\D/g, "").trim();
+            if (cleanNif.length < 9) return null;
+
             const now = new Date();
-            const clientes = await prisma.cliente.findMany({
+            const cliente = await prisma.cliente.findFirst({
               where: {
+                nif: cleanNif,
                 verificationCode: { not: null },
                 verificationCodeExpires: { gt: now },
               },
@@ -71,29 +73,20 @@ export const authOptions: NextAuthOptions = {
               }
             });
 
-            const cliente = clientes.find(c => {
-              const t1 = cleanPhone(c.telmovel);
-              const t2 = cleanPhone(c.telefone);
-              return (t1 && t1.endsWith(cleanedTarget)) || 
-                     (t2 && t2.endsWith(cleanedTarget)) || 
-                     (cleanedTarget.endsWith(t1) && t1) || 
-                     (cleanedTarget.endsWith(t2) && t2);
-            });
-
             if (!cliente) return null;
 
-            // Verify if client owns a ship with that name (case-insensitive)
-            const ship = await prisma.navio.findFirst({
-              where: {
-                clienteId: cliente.id,
-                nome: {
-                  equals: shipName.trim(),
-                  mode: "insensitive"
-                }
-              }
-            });
+            const phoneMatch = (() => {
+              const t1 = cleanPhone(cliente.telmovel);
+              const t2 = cleanPhone(cliente.telefone);
+              return (
+                (t1 && t1.endsWith(cleanedTarget)) ||
+                (t2 && t2.endsWith(cleanedTarget)) ||
+                (cleanedTarget.endsWith(t1) && t1) ||
+                (cleanedTarget.endsWith(t2) && t2)
+              );
+            })();
 
-            if (!ship) return null;
+            if (!phoneMatch) return null;
 
             // Check verification code
             if (!cliente.verificationCode || cliente.verificationCode !== code) return null;
