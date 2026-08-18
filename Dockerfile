@@ -3,7 +3,7 @@ FROM node:20-alpine AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-ARG DATABASE_URL=file:./local.db
+ARG DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy
 ENV DATABASE_URL=${DATABASE_URL}
 
 COPY package.json package-lock.json* ./
@@ -12,7 +12,7 @@ COPY scripts/patch-prisma-types.cjs ./scripts/patch-prisma-types.cjs
 COPY scripts/sync_schema_sqlite.js ./scripts/sync_schema_sqlite.js
 
 RUN npm ci --ignore-scripts && \
-    npx prisma generate && \
+    npx prisma generate --schema prisma/schema.postgresql.prisma && \
     node scripts/patch-prisma-types.cjs && \
     node scripts/sync_schema_sqlite.js
 
@@ -26,7 +26,7 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PRISMA_DISABLE_WARNINGS=1
 ENV NODE_ENV=production
-ENV DATABASE_URL=file:./local.db
+ENV DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy
 ENV NEXTAUTH_SECRET=build-placeholder-secret
 ENV AUTH_SECRET=build-placeholder-secret
 
