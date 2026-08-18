@@ -3,6 +3,8 @@ import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 
 const PUBLIC_PATHS = new Set(["/login", "/registar", "/area-cliente", "/estado-jangada"]);
+const SESSION_COOKIE = "__Secure-next-auth.session-token";
+const SESSION_COOKIE_INSECURE = "next-auth.session-token";
 
 function isPublicPath(pathname: string) {
   return PUBLIC_PATHS.has(pathname);
@@ -54,7 +56,10 @@ export default async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
   const secret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET;
   if (!secret) return NextResponse.next();
-  const token = await getToken({ req, secret });
+
+  const isSecure = !!(process.env.NEXTAUTH_URL ?? process.env.AUTH_URL ?? "").startsWith("https");
+  const cookieName = isSecure ? SESSION_COOKIE : SESSION_COOKIE_INSECURE;
+  const token = await getToken({ req, secret, secureCookie: isSecure, cookieName });
 
   if (pathname.startsWith("/api/auth") || isStaticOrInternal(pathname)) {
     return NextResponse.next();
