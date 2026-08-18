@@ -8,6 +8,8 @@ mkdir -p /app/data
 if echo "$DATABASE_URL" | grep -qE "^postgresql://"; then
   echo "PostgreSQL detected — regenerating Prisma client for PostgreSQL..."
   npx prisma generate --schema prisma/schema.postgresql.prisma 2>&1 || true
+  echo "Running prisma db push for PostgreSQL..."
+  npx prisma db push --schema prisma/schema.postgresql.prisma --accept-data-loss 2>&1 || echo "prisma db push warning (non-fatal)"
   echo "Running prisma migrate deploy for PostgreSQL..."
   npx prisma migrate deploy --schema prisma/schema.postgresql.prisma 2>&1 || echo "prisma migrate warning (non-fatal)"
 else
