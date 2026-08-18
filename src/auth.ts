@@ -31,8 +31,8 @@ function buildCookies(isSecure: boolean) {
       options: { httpOnly: true, secure: isSecure, sameSite: "lax" as const, path: "/" },
     },
     csrfToken: {
-      name: isSecure ? "__Host-next-auth.csrf-token" : "next-auth.csrf-token",
-      options: { httpOnly: true, secure: isSecure, sameSite: "lax" as const, path: "/" },
+      name: isSecure ? "__Secure-next-auth.csrf-token" : "next-auth.csrf-token",
+      options: { httpOnly: false, secure: isSecure, sameSite: "lax" as const, path: "/" },
     },
   };
 }
@@ -40,6 +40,7 @@ function buildCookies(isSecure: boolean) {
 export function buildAuthOptions(isSecure?: boolean): NextAuthOptions {
   const secure = isSecure ?? getIsSecureUrl();
   return {
+    trustHost: true,
     secret: getAuthSecret(),
     session: {
       strategy: "jwt",
