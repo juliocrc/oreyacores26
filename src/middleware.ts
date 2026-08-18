@@ -57,7 +57,8 @@ export default async function middleware(req: NextRequest) {
   const secret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET;
   if (!secret) return NextResponse.next();
 
-  const isSecure = (process.env.NEXTAUTH_URL ?? process.env.AUTH_URL ?? "").startsWith("https");
+  const protocol = req.headers.get("x-forwarded-proto") || "http";
+  const isSecure = protocol === "https";
   const cookieName = isSecure ? SESSION_COOKIE : SESSION_COOKIE_INSECURE;
   const token = await getToken({ req, secret, secureCookie: isSecure, cookieName });
 

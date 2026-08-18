@@ -16,32 +16,40 @@ const authUserSelect = {
   passwordHash: true,
 } as const;
 
-const isSecureUrl = (process.env.NEXTAUTH_URL ?? process.env.AUTH_URL ?? "").startsWith("https");
+export function getIsSecureUrl() {
+  return (process.env.NEXTAUTH_URL ?? process.env.AUTH_URL ?? "").startsWith("https");
+}
 
-export const authOptions: NextAuthOptions = {
-  secret: getAuthSecret(),
-  session: {
-    strategy: "jwt",
-  },
-  cookies: {
+function buildCookies(isSecure: boolean) {
+  return {
     sessionToken: {
-      name: isSecureUrl ? "__Secure-next-auth.session-token" : "next-auth.session-token",
-      options: { httpOnly: true, secure: isSecureUrl, sameSite: "lax", path: "/" },
+      name: isSecure ? "__Secure-next-auth.session-token" : "next-auth.session-token",
+      options: { httpOnly: true, secure: isSecure, sameSite: "lax" as const, path: "/" },
     },
     callbackUrl: {
-      name: isSecureUrl ? "__Secure-next-auth.callback-url" : "next-auth.callback-url",
-      options: { httpOnly: true, secure: isSecureUrl, sameSite: "lax", path: "/" },
+      name: isSecure ? "__Secure-next-auth.callback-url" : "next-auth.callback-url",
+      options: { httpOnly: true, secure: isSecure, sameSite: "lax" as const, path: "/" },
     },
     csrfToken: {
-      name: isSecureUrl ? "__Host-next-auth.csrf-token" : "next-auth.csrf-token",
-      options: { httpOnly: true, secure: isSecureUrl, sameSite: "lax", path: "/" },
+      name: isSecure ? "__Host-next-auth.csrf-token" : "next-auth.csrf-token",
+      options: { httpOnly: true, secure: isSecure, sameSite: "lax" as const, path: "/" },
     },
-  },
-  pages: {
-    signIn: "/login",
-  },
-  providers: [
-      CredentialsProvider({
+  };
+}
+
+export function buildAuthOptions(isSecure?: boolean): NextAuthOptions {
+  const secure = isSecure ?? getIsSecureUrl();
+  return {
+    secret: getAuthSecret(),
+    session: {
+      strategy: "jwt",
+    },
+    cookies: buildCookies(secure),
+    pages: {
+      signIn: "/login",
+    },
+    providers: [
+        CredentialsProvider({
         name: "Credenciais",
         credentials: {
           email: { label: "Email", type: "email" },
@@ -200,11 +208,11 @@ export const authOptions: NextAuthOptions = {
         },
       }),
   ],
-  callbacks: {
-    async signIn() {
-      return true;
-    },
-    async jwt({ token, user, trigger }) {
+    callbacks: {
+      async signIn() {
+        return true;
+      },
+      async jwt({ token, user, trigger }) {
       if (!token.sessionId) {
         token.sessionId = randomUUID();
       }
@@ -277,6 +285,8 @@ export const authOptions: NextAuthOptions = {
     },
   },
 };
+
+export const authOptions: NextAuthOptions = buildAuthOptions();
 
 export function getAuthSession() {
   return getServerSession(authOptions);
