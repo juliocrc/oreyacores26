@@ -58,6 +58,8 @@ function LoginPageContent() {
 
   const [tab, setTab] = React.useState(0);
 
+  const [usePasswordLogin, setUsePasswordLogin] = React.useState(false);
+
   const [collaborators, setCollaborators] = React.useState<Collaborator[]>([]);
   const [selectedColab, setSelectedColab] = React.useState<Collaborator | null>(null);
 
