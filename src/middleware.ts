@@ -67,6 +67,7 @@ export default async function proxy(req: NextRequest) {
       || pathname === "/api/health"
       || pathname === "/api/portal/cliente-auth"
       || pathname === "/api/publico/jangada"
+      || pathname === "/api/setup-db"
       || isPedidosAssistenciaWebhook;
     
     // Rotas cron protegidas por CRON_SECRET
