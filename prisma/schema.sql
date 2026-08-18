@@ -1,20 +1,40 @@
--- CreateSchema
+﻿-- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "public";
 
 -- CreateEnum
-CREATE TYPE "ServiceStationTerritoryType" AS ENUM ('AZORES', 'MAINLAND', 'MADEIRA');
+DO $$
+BEGIN
+  CREATE TYPE "ServiceStationTerritoryType" AS ENUM ('AZORES', 'MAINLAND', 'MADEIRA');
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
 
 -- CreateEnum
-CREATE TYPE "MainlandRegion" AS ENUM ('NORTE', 'CENTRO', 'SUL', 'MADEIRA');
+DO $$
+BEGIN
+  CREATE TYPE "MainlandRegion" AS ENUM ('NORTE', 'CENTRO', 'SUL', 'MADEIRA');
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
 
 -- CreateEnum
-CREATE TYPE "UserRole" AS ENUM ('ADMIN', 'USER', 'CLIENTE');
+DO $$
+BEGIN
+  CREATE TYPE "UserRole" AS ENUM ('ADMIN', 'USER', 'CLIENTE');
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
 
 -- CreateEnum
-CREATE TYPE "CatalogTipoEquipamento" AS ENUM ('COLETE', 'JANGADA', 'FATO_IMERSAO');
+DO $$
+BEGIN
+  CREATE TYPE "CatalogTipoEquipamento" AS ENUM ('COLETE', 'JANGADA', 'FATO_IMERSAO');
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
 
 -- CreateTable
-CREATE TABLE "ArtigoJangada" (
+CREATE TABLE IF NOT EXISTS "ArtigoJangada" (
     "id" SERIAL NOT NULL,
     "name" TEXT NOT NULL,
     "quantidade" INTEGER NOT NULL,
@@ -31,7 +51,7 @@ CREATE TABLE "ArtigoJangada" (
 );
 
 -- CreateTable
-CREATE TABLE "Artigo" (
+CREATE TABLE IF NOT EXISTS "Artigo" (
     "id" SERIAL NOT NULL,
     "name" TEXT NOT NULL,
     "descricao" TEXT,
@@ -46,7 +66,7 @@ CREATE TABLE "Artigo" (
 );
 
 -- CreateTable
-CREATE TABLE "Colete" (
+CREATE TABLE IF NOT EXISTS "Colete" (
     "id" SERIAL NOT NULL,
     "shipId" INTEGER,
     "serial" TEXT NOT NULL,
@@ -81,7 +101,7 @@ CREATE TABLE "Colete" (
 );
 
 -- CreateTable
-CREATE TABLE "Epirb" (
+CREATE TABLE IF NOT EXISTS "Epirb" (
     "id" SERIAL NOT NULL,
     "shipId" INTEGER,
     "serial" TEXT NOT NULL,
@@ -108,7 +128,7 @@ CREATE TABLE "Epirb" (
 );
 
 -- CreateTable
-CREATE TABLE "VerificacaoColete" (
+CREATE TABLE IF NOT EXISTS "VerificacaoColete" (
     "id" SERIAL NOT NULL,
     "coleteId" INTEGER NOT NULL,
     "tecidoExterior" TEXT,
@@ -130,7 +150,7 @@ CREATE TABLE "VerificacaoColete" (
 );
 
 -- CreateTable
-CREATE TABLE "CertificadoColete" (
+CREATE TABLE IF NOT EXISTS "CertificadoColete" (
     "id" SERIAL NOT NULL,
     "coleteId" INTEGER NOT NULL,
     "numeroCertificado" TEXT NOT NULL,
@@ -146,7 +166,7 @@ CREATE TABLE "CertificadoColete" (
 );
 
 -- CreateTable
-CREATE TABLE "FatoImersao" (
+CREATE TABLE IF NOT EXISTS "FatoImersao" (
     "id" SERIAL NOT NULL,
     "shipId" INTEGER,
     "serial" TEXT NOT NULL,
@@ -191,7 +211,7 @@ CREATE TABLE "FatoImersao" (
 );
 
 -- CreateTable
-CREATE TABLE "FatoImersaoComponentHistory" (
+CREATE TABLE IF NOT EXISTS "FatoImersaoComponentHistory" (
     "id" SERIAL NOT NULL,
     "fatoImersaoId" INTEGER NOT NULL,
     "fieldName" TEXT NOT NULL,
@@ -205,7 +225,7 @@ CREATE TABLE "FatoImersaoComponentHistory" (
 );
 
 -- CreateTable
-CREATE TABLE "VerificacaoFatoImersao" (
+CREATE TABLE IF NOT EXISTS "VerificacaoFatoImersao" (
     "id" SERIAL NOT NULL,
     "fatoImersaoId" INTEGER NOT NULL,
     "tecidoExterior" TEXT,
@@ -241,7 +261,7 @@ CREATE TABLE "VerificacaoFatoImersao" (
 );
 
 -- CreateTable
-CREATE TABLE "CertificadoFatoImersao" (
+CREATE TABLE IF NOT EXISTS "CertificadoFatoImersao" (
     "id" SERIAL NOT NULL,
     "fatoImersaoId" INTEGER NOT NULL,
     "numeroCertificado" TEXT NOT NULL,
@@ -257,7 +277,7 @@ CREATE TABLE "CertificadoFatoImersao" (
 );
 
 -- CreateTable
-CREATE TABLE "Cliente" (
+CREATE TABLE IF NOT EXISTS "Cliente" (
     "id" SERIAL NOT NULL,
     "serviceStationId" INTEGER,
     "nome" TEXT NOT NULL,
@@ -280,7 +300,7 @@ CREATE TABLE "Cliente" (
 );
 
 -- CreateTable
-CREATE TABLE "ContactoInterno" (
+CREATE TABLE IF NOT EXISTS "ContactoInterno" (
     "id" SERIAL NOT NULL,
     "categoria" TEXT NOT NULL DEFAULT 'Colaborador',
     "empresa" TEXT,
@@ -301,7 +321,7 @@ CREATE TABLE "ContactoInterno" (
 );
 
 -- CreateTable
-CREATE TABLE "ServiceStation" (
+CREATE TABLE IF NOT EXISTS "ServiceStation" (
     "id" SERIAL NOT NULL,
     "codigo" TEXT NOT NULL,
     "nome" TEXT NOT NULL,
@@ -318,7 +338,7 @@ CREATE TABLE "ServiceStation" (
 );
 
 -- CreateTable
-CREATE TABLE "Navio" (
+CREATE TABLE IF NOT EXISTS "Navio" (
     "id" SERIAL NOT NULL,
     "serviceStationId" INTEGER,
     "nome" TEXT NOT NULL,
@@ -349,7 +369,7 @@ CREATE TABLE "Navio" (
 );
 
 -- CreateTable
-CREATE TABLE "Agenda" (
+CREATE TABLE IF NOT EXISTS "Agenda" (
     "id" SERIAL NOT NULL,
     "serviceStationId" INTEGER,
     "nome" TEXT NOT NULL,
@@ -364,7 +384,7 @@ CREATE TABLE "Agenda" (
 );
 
 -- CreateTable
-CREATE TABLE "AgendaEvento" (
+CREATE TABLE IF NOT EXISTS "AgendaEvento" (
     "id" SERIAL NOT NULL,
     "serviceStationId" INTEGER,
     "title" TEXT NOT NULL,
@@ -384,7 +404,7 @@ CREATE TABLE "AgendaEvento" (
 );
 
 -- CreateTable
-CREATE TABLE "CatalogMarcaModelo" (
+CREATE TABLE IF NOT EXISTS "CatalogMarcaModelo" (
     "id" SERIAL NOT NULL,
     "tipo" "CatalogTipoEquipamento" NOT NULL,
     "marca" TEXT NOT NULL,
@@ -399,7 +419,7 @@ CREATE TABLE "CatalogMarcaModelo" (
 );
 
 -- CreateTable
-CREATE TABLE "User" (
+CREATE TABLE IF NOT EXISTS "User" (
     "id" SERIAL NOT NULL,
     "email" TEXT NOT NULL,
     "name" TEXT,
@@ -417,7 +437,7 @@ CREATE TABLE "User" (
 );
 
 -- CreateTable
-CREATE TABLE "Post" (
+CREATE TABLE IF NOT EXISTS "Post" (
     "id" SERIAL NOT NULL,
     "title" TEXT NOT NULL,
     "content" TEXT,
@@ -428,7 +448,7 @@ CREATE TABLE "Post" (
 );
 
 -- CreateTable
-CREATE TABLE "Jangada" (
+CREATE TABLE IF NOT EXISTS "Jangada" (
     "id" SERIAL NOT NULL,
     "serviceStationId" INTEGER,
     "brand" TEXT NOT NULL,
@@ -509,7 +529,7 @@ CREATE TABLE "Jangada" (
 );
 
 -- CreateTable
-CREATE TABLE "CertificadoExtraido" (
+CREATE TABLE IF NOT EXISTS "CertificadoExtraido" (
     "id" SERIAL NOT NULL,
     "fileName" TEXT NOT NULL,
     "certificadoNumero" TEXT,
@@ -532,7 +552,7 @@ CREATE TABLE "CertificadoExtraido" (
 );
 
 -- CreateTable
-CREATE TABLE "CertificadoValidade" (
+CREATE TABLE IF NOT EXISTS "CertificadoValidade" (
     "id" SERIAL NOT NULL,
     "certificadoId" INTEGER NOT NULL,
     "item" TEXT NOT NULL,
@@ -544,7 +564,7 @@ CREATE TABLE "CertificadoValidade" (
 );
 
 -- CreateTable
-CREATE TABLE "Stock" (
+CREATE TABLE IF NOT EXISTS "Stock" (
     "id" SERIAL NOT NULL,
     "referencia" TEXT NOT NULL,
     "serviceStationId" INTEGER,
@@ -576,7 +596,7 @@ CREATE TABLE "Stock" (
 );
 
 -- CreateTable
-CREATE TABLE "CustomPackType" (
+CREATE TABLE IF NOT EXISTS "CustomPackType" (
     "id" SERIAL NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT,
@@ -590,7 +610,7 @@ CREATE TABLE "CustomPackType" (
 );
 
 -- CreateTable
-CREATE TABLE "CustomPackTypeItem" (
+CREATE TABLE IF NOT EXISTS "CustomPackTypeItem" (
     "id" SERIAL NOT NULL,
     "customPackTypeId" INTEGER NOT NULL,
     "stockId" INTEGER,
@@ -605,7 +625,7 @@ CREATE TABLE "CustomPackTypeItem" (
 );
 
 -- CreateTable
-CREATE TABLE "MovimentacaoStock" (
+CREATE TABLE IF NOT EXISTS "MovimentacaoStock" (
     "id" SERIAL NOT NULL,
     "stockId" INTEGER NOT NULL,
     "tipo" TEXT NOT NULL,
@@ -620,7 +640,7 @@ CREATE TABLE "MovimentacaoStock" (
 );
 
 -- CreateTable
-CREATE TABLE "Inspecao" (
+CREATE TABLE IF NOT EXISTS "Inspecao" (
     "id" SERIAL NOT NULL,
     "certificadoNumero" TEXT NOT NULL,
     "navioNome" TEXT NOT NULL,
@@ -663,7 +683,7 @@ CREATE TABLE "Inspecao" (
 );
 
 -- CreateTable
-CREATE TABLE "OrdemServico" (
+CREATE TABLE IF NOT EXISTS "OrdemServico" (
     "id" SERIAL NOT NULL,
     "numeroOrdem" TEXT NOT NULL,
     "serviceStationId" INTEGER,
@@ -701,7 +721,7 @@ CREATE TABLE "OrdemServico" (
 );
 
 -- CreateTable
-CREATE TABLE "OrdemServicoJangada" (
+CREATE TABLE IF NOT EXISTS "OrdemServicoJangada" (
     "id" SERIAL NOT NULL,
     "ordemServicoId" INTEGER NOT NULL,
     "jangadaId" INTEGER NOT NULL,
@@ -711,7 +731,7 @@ CREATE TABLE "OrdemServicoJangada" (
 );
 
 -- CreateTable
-CREATE TABLE "Tecnico" (
+CREATE TABLE IF NOT EXISTS "Tecnico" (
     "id" SERIAL NOT NULL,
     "serviceStationId" INTEGER,
     "nome" TEXT NOT NULL,
@@ -725,7 +745,7 @@ CREATE TABLE "Tecnico" (
 );
 
 -- CreateTable
-CREATE TABLE "TecnicoAusencia" (
+CREATE TABLE IF NOT EXISTS "TecnicoAusencia" (
     "id" SERIAL NOT NULL,
     "tecnicoKey" TEXT NOT NULL,
     "tipo" TEXT NOT NULL,
@@ -740,7 +760,7 @@ CREATE TABLE "TecnicoAusencia" (
 );
 
 -- CreateTable
-CREATE TABLE "OrdemServicoChecklistItem" (
+CREATE TABLE IF NOT EXISTS "OrdemServicoChecklistItem" (
     "id" SERIAL NOT NULL,
     "ordemServicoId" INTEGER NOT NULL,
     "phase" TEXT NOT NULL DEFAULT 'pre',
@@ -762,7 +782,7 @@ CREATE TABLE "OrdemServicoChecklistItem" (
 );
 
 -- CreateTable
-CREATE TABLE "OrdemServicoTempo" (
+CREATE TABLE IF NOT EXISTS "OrdemServicoTempo" (
     "id" SERIAL NOT NULL,
     "ordemServicoId" INTEGER NOT NULL,
     "tecnicoId" INTEGER,
@@ -777,7 +797,7 @@ CREATE TABLE "OrdemServicoTempo" (
 );
 
 -- CreateTable
-CREATE TABLE "OrdemServicoLog" (
+CREATE TABLE IF NOT EXISTS "OrdemServicoLog" (
     "id" SERIAL NOT NULL,
     "ordemServicoId" INTEGER NOT NULL,
     "at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -791,7 +811,7 @@ CREATE TABLE "OrdemServicoLog" (
 );
 
 -- CreateTable
-CREATE TABLE "Fatura" (
+CREATE TABLE IF NOT EXISTS "Fatura" (
     "id" SERIAL NOT NULL,
     "numeroFatura" TEXT NOT NULL,
     "clienteId" INTEGER,
@@ -815,7 +835,7 @@ CREATE TABLE "Fatura" (
 );
 
 -- CreateTable
-CREATE TABLE "FaturaOrdemServico" (
+CREATE TABLE IF NOT EXISTS "FaturaOrdemServico" (
     "id" SERIAL NOT NULL,
     "faturaId" INTEGER NOT NULL,
     "ordemServicoId" INTEGER NOT NULL,
@@ -825,7 +845,7 @@ CREATE TABLE "FaturaOrdemServico" (
 );
 
 -- CreateTable
-CREATE TABLE "NotaCredito" (
+CREATE TABLE IF NOT EXISTS "NotaCredito" (
     "id" SERIAL NOT NULL,
     "numeroNotaCredito" TEXT NOT NULL,
     "faturaId" INTEGER NOT NULL,
@@ -840,7 +860,7 @@ CREATE TABLE "NotaCredito" (
 );
 
 -- CreateTable
-CREATE TABLE "Recibo" (
+CREATE TABLE IF NOT EXISTS "Recibo" (
     "id" SERIAL NOT NULL,
     "numeroRecibo" TEXT NOT NULL,
     "faturaId" INTEGER NOT NULL,
@@ -856,7 +876,7 @@ CREATE TABLE "Recibo" (
 );
 
 -- CreateTable
-CREATE TABLE "Equipamento" (
+CREATE TABLE IF NOT EXISTS "Equipamento" (
     "id" SERIAL NOT NULL,
     "nome" TEXT NOT NULL,
     "tipo" TEXT,
@@ -872,7 +892,7 @@ CREATE TABLE "Equipamento" (
 );
 
 -- CreateTable
-CREATE TABLE "ServiceStationQueue" (
+CREATE TABLE IF NOT EXISTS "ServiceStationQueue" (
     "id" SERIAL NOT NULL,
     "serviceStationId" INTEGER,
     "jangadaId" INTEGER NOT NULL,
@@ -888,7 +908,7 @@ CREATE TABLE "ServiceStationQueue" (
 );
 
 -- CreateTable
-CREATE TABLE "Auditoria" (
+CREATE TABLE IF NOT EXISTS "Auditoria" (
     "id" SERIAL NOT NULL,
     "tabela" TEXT NOT NULL,
     "tipoOperacao" TEXT NOT NULL,
@@ -903,7 +923,7 @@ CREATE TABLE "Auditoria" (
 );
 
 -- CreateTable
-CREATE TABLE "CertificacaoFabricanteTecnico" (
+CREATE TABLE IF NOT EXISTS "CertificacaoFabricanteTecnico" (
     "id" SERIAL NOT NULL,
     "tecnicoId" INTEGER NOT NULL,
     "fabricante" TEXT NOT NULL,
@@ -919,7 +939,7 @@ CREATE TABLE "CertificacaoFabricanteTecnico" (
 );
 
 -- CreateTable
-CREATE TABLE "CalibracaoEquipamento" (
+CREATE TABLE IF NOT EXISTS "CalibracaoEquipamento" (
     "id" SERIAL NOT NULL,
     "nome" TEXT NOT NULL,
     "referencia" TEXT NOT NULL,
@@ -937,7 +957,7 @@ CREATE TABLE "CalibracaoEquipamento" (
 );
 
 -- CreateTable
-CREATE TABLE "MovimentoEquipamento" (
+CREATE TABLE IF NOT EXISTS "MovimentoEquipamento" (
     "id" SERIAL NOT NULL,
     "tipoEquipamento" TEXT NOT NULL,
     "equipamentoId" INTEGER NOT NULL,
@@ -953,7 +973,7 @@ CREATE TABLE "MovimentoEquipamento" (
 );
 
 -- CreateTable
-CREATE TABLE "Recall" (
+CREATE TABLE IF NOT EXISTS "Recall" (
     "id" SERIAL NOT NULL,
     "fabricante" TEXT NOT NULL,
     "modeloPattern" TEXT,
@@ -969,7 +989,7 @@ CREATE TABLE "Recall" (
 );
 
 -- CreateTable
-CREATE TABLE "Custo" (
+CREATE TABLE IF NOT EXISTS "Custo" (
     "id" SERIAL NOT NULL,
     "tipo" TEXT NOT NULL,
     "descricao" TEXT NOT NULL,
@@ -984,577 +1004,577 @@ CREATE TABLE "Custo" (
 );
 
 -- CreateIndex
-CREATE INDEX "ArtigoJangada_stockId_idx" ON "ArtigoJangada"("stockId");
+CREATE INDEX IF NOT EXISTS "ArtigoJangada_stockId_idx" ON "ArtigoJangada"("stockId");
 
 -- CreateIndex
-CREATE INDEX "ArtigoJangada_jangadaId_idx" ON "ArtigoJangada"("jangadaId");
+CREATE INDEX IF NOT EXISTS "ArtigoJangada_jangadaId_idx" ON "ArtigoJangada"("jangadaId");
 
 -- CreateIndex
-CREATE INDEX "Artigo_name_idx" ON "Artigo"("name");
+CREATE INDEX IF NOT EXISTS "Artigo_name_idx" ON "Artigo"("name");
 
 -- CreateIndex
-CREATE INDEX "Artigo_referencia_idx" ON "Artigo"("referencia");
+CREATE INDEX IF NOT EXISTS "Artigo_referencia_idx" ON "Artigo"("referencia");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Colete_serial_key" ON "Colete"("serial");
+CREATE UNIQUE INDEX IF NOT EXISTS "Colete_serial_key" ON "Colete"("serial");
 
 -- CreateIndex
-CREATE INDEX "Colete_shipId_idx" ON "Colete"("shipId");
+CREATE INDEX IF NOT EXISTS "Colete_shipId_idx" ON "Colete"("shipId");
 
 -- CreateIndex
-CREATE INDEX "Colete_estado_idx" ON "Colete"("estado");
+CREATE INDEX IF NOT EXISTS "Colete_estado_idx" ON "Colete"("estado");
 
 -- CreateIndex
-CREATE INDEX "Colete_dataProxInspecao_idx" ON "Colete"("dataProxInspecao");
+CREATE INDEX IF NOT EXISTS "Colete_dataProxInspecao_idx" ON "Colete"("dataProxInspecao");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Epirb_serial_key" ON "Epirb"("serial");
+CREATE UNIQUE INDEX IF NOT EXISTS "Epirb_serial_key" ON "Epirb"("serial");
 
 -- CreateIndex
-CREATE INDEX "Epirb_shipId_idx" ON "Epirb"("shipId");
+CREATE INDEX IF NOT EXISTS "Epirb_shipId_idx" ON "Epirb"("shipId");
 
 -- CreateIndex
-CREATE INDEX "Epirb_estado_idx" ON "Epirb"("estado");
+CREATE INDEX IF NOT EXISTS "Epirb_estado_idx" ON "Epirb"("estado");
 
 -- CreateIndex
-CREATE INDEX "Epirb_tipo_idx" ON "Epirb"("tipo");
+CREATE INDEX IF NOT EXISTS "Epirb_tipo_idx" ON "Epirb"("tipo");
 
 -- CreateIndex
-CREATE INDEX "Epirb_dataProxInspecao_idx" ON "Epirb"("dataProxInspecao");
+CREATE INDEX IF NOT EXISTS "Epirb_dataProxInspecao_idx" ON "Epirb"("dataProxInspecao");
 
 -- CreateIndex
-CREATE INDEX "VerificacaoColete_coleteId_idx" ON "VerificacaoColete"("coleteId");
+CREATE INDEX IF NOT EXISTS "VerificacaoColete_coleteId_idx" ON "VerificacaoColete"("coleteId");
 
 -- CreateIndex
-CREATE INDEX "VerificacaoColete_dataVerificacao_idx" ON "VerificacaoColete"("dataVerificacao");
+CREATE INDEX IF NOT EXISTS "VerificacaoColete_dataVerificacao_idx" ON "VerificacaoColete"("dataVerificacao");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "CertificadoColete_coleteId_key" ON "CertificadoColete"("coleteId");
+CREATE UNIQUE INDEX IF NOT EXISTS "CertificadoColete_coleteId_key" ON "CertificadoColete"("coleteId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "CertificadoColete_numeroCertificado_key" ON "CertificadoColete"("numeroCertificado");
+CREATE UNIQUE INDEX IF NOT EXISTS "CertificadoColete_numeroCertificado_key" ON "CertificadoColete"("numeroCertificado");
 
 -- CreateIndex
-CREATE INDEX "CertificadoColete_coleteId_idx" ON "CertificadoColete"("coleteId");
+CREATE INDEX IF NOT EXISTS "CertificadoColete_coleteId_idx" ON "CertificadoColete"("coleteId");
 
 -- CreateIndex
-CREATE INDEX "CertificadoColete_dataCertificado_idx" ON "CertificadoColete"("dataCertificado");
+CREATE INDEX IF NOT EXISTS "CertificadoColete_dataCertificado_idx" ON "CertificadoColete"("dataCertificado");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "FatoImersao_serial_key" ON "FatoImersao"("serial");
+CREATE UNIQUE INDEX IF NOT EXISTS "FatoImersao_serial_key" ON "FatoImersao"("serial");
 
 -- CreateIndex
-CREATE INDEX "FatoImersao_shipId_idx" ON "FatoImersao"("shipId");
+CREATE INDEX IF NOT EXISTS "FatoImersao_shipId_idx" ON "FatoImersao"("shipId");
 
 -- CreateIndex
-CREATE INDEX "FatoImersao_estado_idx" ON "FatoImersao"("estado");
+CREATE INDEX IF NOT EXISTS "FatoImersao_estado_idx" ON "FatoImersao"("estado");
 
 -- CreateIndex
-CREATE INDEX "FatoImersao_dataProxInspecao_idx" ON "FatoImersao"("dataProxInspecao");
+CREATE INDEX IF NOT EXISTS "FatoImersao_dataProxInspecao_idx" ON "FatoImersao"("dataProxInspecao");
 
 -- CreateIndex
-CREATE INDEX "FatoImersaoComponentHistory_fatoImersaoId_idx" ON "FatoImersaoComponentHistory"("fatoImersaoId");
+CREATE INDEX IF NOT EXISTS "FatoImersaoComponentHistory_fatoImersaoId_idx" ON "FatoImersaoComponentHistory"("fatoImersaoId");
 
 -- CreateIndex
-CREATE INDEX "FatoImersaoComponentHistory_fieldName_idx" ON "FatoImersaoComponentHistory"("fieldName");
+CREATE INDEX IF NOT EXISTS "FatoImersaoComponentHistory_fieldName_idx" ON "FatoImersaoComponentHistory"("fieldName");
 
 -- CreateIndex
-CREATE INDEX "FatoImersaoComponentHistory_createdAt_idx" ON "FatoImersaoComponentHistory"("createdAt");
+CREATE INDEX IF NOT EXISTS "FatoImersaoComponentHistory_createdAt_idx" ON "FatoImersaoComponentHistory"("createdAt");
 
 -- CreateIndex
-CREATE INDEX "VerificacaoFatoImersao_fatoImersaoId_idx" ON "VerificacaoFatoImersao"("fatoImersaoId");
+CREATE INDEX IF NOT EXISTS "VerificacaoFatoImersao_fatoImersaoId_idx" ON "VerificacaoFatoImersao"("fatoImersaoId");
 
 -- CreateIndex
-CREATE INDEX "VerificacaoFatoImersao_dataVerificacao_idx" ON "VerificacaoFatoImersao"("dataVerificacao");
+CREATE INDEX IF NOT EXISTS "VerificacaoFatoImersao_dataVerificacao_idx" ON "VerificacaoFatoImersao"("dataVerificacao");
 
 -- CreateIndex
-CREATE INDEX "VerificacaoFatoImersao_resultadoGeral_idx" ON "VerificacaoFatoImersao"("resultadoGeral");
+CREATE INDEX IF NOT EXISTS "VerificacaoFatoImersao_resultadoGeral_idx" ON "VerificacaoFatoImersao"("resultadoGeral");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "CertificadoFatoImersao_fatoImersaoId_key" ON "CertificadoFatoImersao"("fatoImersaoId");
+CREATE UNIQUE INDEX IF NOT EXISTS "CertificadoFatoImersao_fatoImersaoId_key" ON "CertificadoFatoImersao"("fatoImersaoId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "CertificadoFatoImersao_numeroCertificado_key" ON "CertificadoFatoImersao"("numeroCertificado");
+CREATE UNIQUE INDEX IF NOT EXISTS "CertificadoFatoImersao_numeroCertificado_key" ON "CertificadoFatoImersao"("numeroCertificado");
 
 -- CreateIndex
-CREATE INDEX "CertificadoFatoImersao_fatoImersaoId_idx" ON "CertificadoFatoImersao"("fatoImersaoId");
+CREATE INDEX IF NOT EXISTS "CertificadoFatoImersao_fatoImersaoId_idx" ON "CertificadoFatoImersao"("fatoImersaoId");
 
 -- CreateIndex
-CREATE INDEX "CertificadoFatoImersao_dataCertificado_idx" ON "CertificadoFatoImersao"("dataCertificado");
+CREATE INDEX IF NOT EXISTS "CertificadoFatoImersao_dataCertificado_idx" ON "CertificadoFatoImersao"("dataCertificado");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Cliente_numeroCliente_key" ON "Cliente"("numeroCliente");
+CREATE UNIQUE INDEX IF NOT EXISTS "Cliente_numeroCliente_key" ON "Cliente"("numeroCliente");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Cliente_nif_key" ON "Cliente"("nif");
+CREATE UNIQUE INDEX IF NOT EXISTS "Cliente_nif_key" ON "Cliente"("nif");
 
 -- CreateIndex
-CREATE INDEX "Cliente_serviceStationId_idx" ON "Cliente"("serviceStationId");
+CREATE INDEX IF NOT EXISTS "Cliente_serviceStationId_idx" ON "Cliente"("serviceStationId");
 
 -- CreateIndex
-CREATE INDEX "Cliente_ilha_idx" ON "Cliente"("ilha");
+CREATE INDEX IF NOT EXISTS "Cliente_ilha_idx" ON "Cliente"("ilha");
 
 -- CreateIndex
-CREATE INDEX "Cliente_nome_idx" ON "Cliente"("nome");
+CREATE INDEX IF NOT EXISTS "Cliente_nome_idx" ON "Cliente"("nome");
 
 -- CreateIndex
-CREATE INDEX "Cliente_nif_idx" ON "Cliente"("nif");
+CREATE INDEX IF NOT EXISTS "Cliente_nif_idx" ON "Cliente"("nif");
 
 -- CreateIndex
-CREATE INDEX "Cliente_codigoPostal_idx" ON "Cliente"("codigoPostal");
+CREATE INDEX IF NOT EXISTS "Cliente_codigoPostal_idx" ON "Cliente"("codigoPostal");
 
 -- CreateIndex
-CREATE INDEX "ContactoInterno_categoria_idx" ON "ContactoInterno"("categoria");
+CREATE INDEX IF NOT EXISTS "ContactoInterno_categoria_idx" ON "ContactoInterno"("categoria");
 
 -- CreateIndex
-CREATE INDEX "ContactoInterno_empresa_idx" ON "ContactoInterno"("empresa");
+CREATE INDEX IF NOT EXISTS "ContactoInterno_empresa_idx" ON "ContactoInterno"("empresa");
 
 -- CreateIndex
-CREATE INDEX "ContactoInterno_localizacao_idx" ON "ContactoInterno"("localizacao");
+CREATE INDEX IF NOT EXISTS "ContactoInterno_localizacao_idx" ON "ContactoInterno"("localizacao");
 
 -- CreateIndex
-CREATE INDEX "ContactoInterno_nome_idx" ON "ContactoInterno"("nome");
+CREATE INDEX IF NOT EXISTS "ContactoInterno_nome_idx" ON "ContactoInterno"("nome");
 
 -- CreateIndex
-CREATE INDEX "ContactoInterno_ativo_idx" ON "ContactoInterno"("ativo");
+CREATE INDEX IF NOT EXISTS "ContactoInterno_ativo_idx" ON "ContactoInterno"("ativo");
 
 -- CreateIndex
-CREATE INDEX "ContactoInterno_fonte_idx" ON "ContactoInterno"("fonte");
+CREATE INDEX IF NOT EXISTS "ContactoInterno_fonte_idx" ON "ContactoInterno"("fonte");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "ServiceStation_codigo_key" ON "ServiceStation"("codigo");
+CREATE UNIQUE INDEX IF NOT EXISTS "ServiceStation_codigo_key" ON "ServiceStation"("codigo");
 
 -- CreateIndex
-CREATE INDEX "ServiceStation_ativo_idx" ON "ServiceStation"("ativo");
+CREATE INDEX IF NOT EXISTS "ServiceStation_ativo_idx" ON "ServiceStation"("ativo");
 
 -- CreateIndex
-CREATE INDEX "ServiceStation_territorioTipo_idx" ON "ServiceStation"("territorioTipo");
+CREATE INDEX IF NOT EXISTS "ServiceStation_territorioTipo_idx" ON "ServiceStation"("territorioTipo");
 
 -- CreateIndex
-CREATE INDEX "ServiceStation_regiaoOperacional_idx" ON "ServiceStation"("regiaoOperacional");
+CREATE INDEX IF NOT EXISTS "ServiceStation_regiaoOperacional_idx" ON "ServiceStation"("regiaoOperacional");
 
 -- CreateIndex
-CREATE INDEX "ServiceStation_nome_idx" ON "ServiceStation"("nome");
+CREATE INDEX IF NOT EXISTS "ServiceStation_nome_idx" ON "ServiceStation"("nome");
 
 -- CreateIndex
-CREATE INDEX "Navio_serviceStationId_idx" ON "Navio"("serviceStationId");
+CREATE INDEX IF NOT EXISTS "Navio_serviceStationId_idx" ON "Navio"("serviceStationId");
 
 -- CreateIndex
-CREATE INDEX "Navio_clienteId_idx" ON "Navio"("clienteId");
+CREATE INDEX IF NOT EXISTS "Navio_clienteId_idx" ON "Navio"("clienteId");
 
 -- CreateIndex
-CREATE INDEX "Navio_ilha_idx" ON "Navio"("ilha");
+CREATE INDEX IF NOT EXISTS "Navio_ilha_idx" ON "Navio"("ilha");
 
 -- CreateIndex
-CREATE INDEX "Navio_territorioGrupo_idx" ON "Navio"("territorioGrupo");
+CREATE INDEX IF NOT EXISTS "Navio_territorioGrupo_idx" ON "Navio"("territorioGrupo");
 
 -- CreateIndex
-CREATE INDEX "Navio_tipoPesca_idx" ON "Navio"("tipoPesca");
+CREATE INDEX IF NOT EXISTS "Navio_tipoPesca_idx" ON "Navio"("tipoPesca");
 
 -- CreateIndex
-CREATE INDEX "Navio_matricula_idx" ON "Navio"("matricula");
+CREATE INDEX IF NOT EXISTS "Navio_matricula_idx" ON "Navio"("matricula");
 
 -- CreateIndex
-CREATE INDEX "Navio_portoRegisto_idx" ON "Navio"("portoRegisto");
+CREATE INDEX IF NOT EXISTS "Navio_portoRegisto_idx" ON "Navio"("portoRegisto");
 
 -- CreateIndex
-CREATE INDEX "Navio_mmsi_idx" ON "Navio"("mmsi");
+CREATE INDEX IF NOT EXISTS "Navio_mmsi_idx" ON "Navio"("mmsi");
 
 -- CreateIndex
-CREATE INDEX "Navio_imo_idx" ON "Navio"("imo");
+CREATE INDEX IF NOT EXISTS "Navio_imo_idx" ON "Navio"("imo");
 
 -- CreateIndex
-CREATE INDEX "Navio_lat_idx" ON "Navio"("lat");
+CREATE INDEX IF NOT EXISTS "Navio_lat_idx" ON "Navio"("lat");
 
 -- CreateIndex
-CREATE INDEX "Navio_lng_idx" ON "Navio"("lng");
+CREATE INDEX IF NOT EXISTS "Navio_lng_idx" ON "Navio"("lng");
 
 -- CreateIndex
-CREATE INDEX "Agenda_serviceStationId_idx" ON "Agenda"("serviceStationId");
+CREATE INDEX IF NOT EXISTS "Agenda_serviceStationId_idx" ON "Agenda"("serviceStationId");
 
 -- CreateIndex
-CREATE INDEX "AgendaEvento_raftSerial_idx" ON "AgendaEvento"("raftSerial");
+CREATE INDEX IF NOT EXISTS "AgendaEvento_raftSerial_idx" ON "AgendaEvento"("raftSerial");
 
 -- CreateIndex
-CREATE INDEX "AgendaEvento_date_idx" ON "AgendaEvento"("date");
+CREATE INDEX IF NOT EXISTS "AgendaEvento_date_idx" ON "AgendaEvento"("date");
 
 -- CreateIndex
-CREATE INDEX "AgendaEvento_serviceStationId_idx" ON "AgendaEvento"("serviceStationId");
+CREATE INDEX IF NOT EXISTS "AgendaEvento_serviceStationId_idx" ON "AgendaEvento"("serviceStationId");
 
 -- CreateIndex
-CREATE INDEX "AgendaEvento_status_idx" ON "AgendaEvento"("status");
+CREATE INDEX IF NOT EXISTS "AgendaEvento_status_idx" ON "AgendaEvento"("status");
 
 -- CreateIndex
-CREATE INDEX "AgendaEvento_responsavel_date_idx" ON "AgendaEvento"("responsavel", "date");
+CREATE INDEX IF NOT EXISTS "AgendaEvento_responsavel_date_idx" ON "AgendaEvento"("responsavel", "date");
 
 -- CreateIndex
-CREATE INDEX "CatalogMarcaModelo_tipo_marca_idx" ON "CatalogMarcaModelo"("tipo", "marca");
+CREATE INDEX IF NOT EXISTS "CatalogMarcaModelo_tipo_marca_idx" ON "CatalogMarcaModelo"("tipo", "marca");
 
 -- CreateIndex
-CREATE INDEX "CatalogMarcaModelo_tipo_modelo_idx" ON "CatalogMarcaModelo"("tipo", "modelo");
+CREATE INDEX IF NOT EXISTS "CatalogMarcaModelo_tipo_modelo_idx" ON "CatalogMarcaModelo"("tipo", "modelo");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "CatalogMarcaModelo_tipo_marcaKey_modeloKey_key" ON "CatalogMarcaModelo"("tipo", "marcaKey", "modeloKey");
+CREATE UNIQUE INDEX IF NOT EXISTS "CatalogMarcaModelo_tipo_marcaKey_modeloKey_key" ON "CatalogMarcaModelo"("tipo", "marcaKey", "modeloKey");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
+CREATE UNIQUE INDEX IF NOT EXISTS "User_email_key" ON "User"("email");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "User_googleId_key" ON "User"("googleId");
+CREATE UNIQUE INDEX IF NOT EXISTS "User_googleId_key" ON "User"("googleId");
 
 -- CreateIndex
-CREATE INDEX "User_role_idx" ON "User"("role");
+CREATE INDEX IF NOT EXISTS "User_role_idx" ON "User"("role");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Jangada_serial_key" ON "Jangada"("serial");
+CREATE UNIQUE INDEX IF NOT EXISTS "Jangada_serial_key" ON "Jangada"("serial");
 
 -- CreateIndex
-CREATE INDEX "Jangada_serviceStationId_idx" ON "Jangada"("serviceStationId");
+CREATE INDEX IF NOT EXISTS "Jangada_serviceStationId_idx" ON "Jangada"("serviceStationId");
 
 -- CreateIndex
-CREATE INDEX "Jangada_certificadoAtivoId_idx" ON "Jangada"("certificadoAtivoId");
+CREATE INDEX IF NOT EXISTS "Jangada_certificadoAtivoId_idx" ON "Jangada"("certificadoAtivoId");
 
 -- CreateIndex
-CREATE INDEX "Jangada_shipId_idx" ON "Jangada"("shipId");
+CREATE INDEX IF NOT EXISTS "Jangada_shipId_idx" ON "Jangada"("shipId");
 
 -- CreateIndex
-CREATE INDEX "Jangada_brand_idx" ON "Jangada"("brand");
+CREATE INDEX IF NOT EXISTS "Jangada_brand_idx" ON "Jangada"("brand");
 
 -- CreateIndex
-CREATE INDEX "Jangada_model_idx" ON "Jangada"("model");
+CREATE INDEX IF NOT EXISTS "Jangada_model_idx" ON "Jangada"("model");
 
 -- CreateIndex
-CREATE INDEX "Jangada_owner_idx" ON "Jangada"("owner");
+CREATE INDEX IF NOT EXISTS "Jangada_owner_idx" ON "Jangada"("owner");
 
 -- CreateIndex
-CREATE INDEX "Jangada_packType_idx" ON "Jangada"("packType");
+CREATE INDEX IF NOT EXISTS "Jangada_packType_idx" ON "Jangada"("packType");
 
 -- CreateIndex
-CREATE INDEX "Jangada_dataProxInspecao_idx" ON "Jangada"("dataProxInspecao");
+CREATE INDEX IF NOT EXISTS "Jangada_dataProxInspecao_idx" ON "Jangada"("dataProxInspecao");
 
 -- CreateIndex
-CREATE INDEX "Jangada_serviceStationId_dataProxInspecao_idx" ON "Jangada"("serviceStationId", "dataProxInspecao");
+CREATE INDEX IF NOT EXISTS "Jangada_serviceStationId_dataProxInspecao_idx" ON "Jangada"("serviceStationId", "dataProxInspecao");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "CertificadoExtraido_fileName_key" ON "CertificadoExtraido"("fileName");
+CREATE UNIQUE INDEX IF NOT EXISTS "CertificadoExtraido_fileName_key" ON "CertificadoExtraido"("fileName");
 
 -- CreateIndex
-CREATE INDEX "CertificadoExtraido_raftSerial_idx" ON "CertificadoExtraido"("raftSerial");
+CREATE INDEX IF NOT EXISTS "CertificadoExtraido_raftSerial_idx" ON "CertificadoExtraido"("raftSerial");
 
 -- CreateIndex
-CREATE INDEX "CertificadoExtraido_shipName_idx" ON "CertificadoExtraido"("shipName");
+CREATE INDEX IF NOT EXISTS "CertificadoExtraido_shipName_idx" ON "CertificadoExtraido"("shipName");
 
 -- CreateIndex
-CREATE INDEX "CertificadoExtraido_dataInspecao_idx" ON "CertificadoExtraido"("dataInspecao");
+CREATE INDEX IF NOT EXISTS "CertificadoExtraido_dataInspecao_idx" ON "CertificadoExtraido"("dataInspecao");
 
 -- CreateIndex
-CREATE INDEX "CertificadoExtraido_isMaisRecente_idx" ON "CertificadoExtraido"("isMaisRecente");
+CREATE INDEX IF NOT EXISTS "CertificadoExtraido_isMaisRecente_idx" ON "CertificadoExtraido"("isMaisRecente");
 
 -- CreateIndex
-CREATE INDEX "CertificadoValidade_certificadoId_idx" ON "CertificadoValidade"("certificadoId");
+CREATE INDEX IF NOT EXISTS "CertificadoValidade_certificadoId_idx" ON "CertificadoValidade"("certificadoId");
 
 -- CreateIndex
-CREATE INDEX "CertificadoValidade_item_idx" ON "CertificadoValidade"("item");
+CREATE INDEX IF NOT EXISTS "CertificadoValidade_item_idx" ON "CertificadoValidade"("item");
 
 -- CreateIndex
-CREATE INDEX "CertificadoValidade_validade_idx" ON "CertificadoValidade"("validade");
+CREATE INDEX IF NOT EXISTS "CertificadoValidade_validade_idx" ON "CertificadoValidade"("validade");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "CertificadoValidade_certificadoId_item_validade_rowNumber_key" ON "CertificadoValidade"("certificadoId", "item", "validade", "rowNumber");
+CREATE UNIQUE INDEX IF NOT EXISTS "CertificadoValidade_certificadoId_item_validade_rowNumber_key" ON "CertificadoValidade"("certificadoId", "item", "validade", "rowNumber");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Stock_codigoBarras_key" ON "Stock"("codigoBarras");
+CREATE UNIQUE INDEX IF NOT EXISTS "Stock_codigoBarras_key" ON "Stock"("codigoBarras");
 
 -- CreateIndex
-CREATE INDEX "Stock_categoria_idx" ON "Stock"("categoria");
+CREATE INDEX IF NOT EXISTS "Stock_categoria_idx" ON "Stock"("categoria");
 
 -- CreateIndex
-CREATE INDEX "Stock_associavelJangada_idx" ON "Stock"("associavelJangada");
+CREATE INDEX IF NOT EXISTS "Stock_associavelJangada_idx" ON "Stock"("associavelJangada");
 
 -- CreateIndex
-CREATE INDEX "Stock_aplicavelMarcaJangada_idx" ON "Stock"("aplicavelMarcaJangada");
+CREATE INDEX IF NOT EXISTS "Stock_aplicavelMarcaJangada_idx" ON "Stock"("aplicavelMarcaJangada");
 
 -- CreateIndex
-CREATE INDEX "Stock_aplicavelModeloJangada_idx" ON "Stock"("aplicavelModeloJangada");
+CREATE INDEX IF NOT EXISTS "Stock_aplicavelModeloJangada_idx" ON "Stock"("aplicavelModeloJangada");
 
 -- CreateIndex
-CREATE INDEX "Stock_estadoCargaCilindro_idx" ON "Stock"("estadoCargaCilindro");
+CREATE INDEX IF NOT EXISTS "Stock_estadoCargaCilindro_idx" ON "Stock"("estadoCargaCilindro");
 
 -- CreateIndex
-CREATE INDEX "Stock_serviceStationId_idx" ON "Stock"("serviceStationId");
+CREATE INDEX IF NOT EXISTS "Stock_serviceStationId_idx" ON "Stock"("serviceStationId");
 
 -- CreateIndex
-CREATE INDEX "Stock_estadoArtigo_idx" ON "Stock"("estadoArtigo");
+CREATE INDEX IF NOT EXISTS "Stock_estadoArtigo_idx" ON "Stock"("estadoArtigo");
 
 -- CreateIndex
-CREATE INDEX "Stock_validade_idx" ON "Stock"("validade");
+CREATE INDEX IF NOT EXISTS "Stock_validade_idx" ON "Stock"("validade");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Stock_referencia_serviceStationId_key" ON "Stock"("referencia", "serviceStationId");
+CREATE UNIQUE INDEX IF NOT EXISTS "Stock_referencia_serviceStationId_key" ON "Stock"("referencia", "serviceStationId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "CustomPackType_name_key" ON "CustomPackType"("name");
+CREATE UNIQUE INDEX IF NOT EXISTS "CustomPackType_name_key" ON "CustomPackType"("name");
 
 -- CreateIndex
-CREATE INDEX "CustomPackType_isActive_idx" ON "CustomPackType"("isActive");
+CREATE INDEX IF NOT EXISTS "CustomPackType_isActive_idx" ON "CustomPackType"("isActive");
 
 -- CreateIndex
-CREATE INDEX "CustomPackType_name_idx" ON "CustomPackType"("name");
+CREATE INDEX IF NOT EXISTS "CustomPackType_name_idx" ON "CustomPackType"("name");
 
 -- CreateIndex
-CREATE INDEX "CustomPackTypeItem_customPackTypeId_idx" ON "CustomPackTypeItem"("customPackTypeId");
+CREATE INDEX IF NOT EXISTS "CustomPackTypeItem_customPackTypeId_idx" ON "CustomPackTypeItem"("customPackTypeId");
 
 -- CreateIndex
-CREATE INDEX "CustomPackTypeItem_stockId_idx" ON "CustomPackTypeItem"("stockId");
+CREATE INDEX IF NOT EXISTS "CustomPackTypeItem_stockId_idx" ON "CustomPackTypeItem"("stockId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "CustomPackTypeItem_customPackTypeId_stockReference_key" ON "CustomPackTypeItem"("customPackTypeId", "stockReference");
+CREATE UNIQUE INDEX IF NOT EXISTS "CustomPackTypeItem_customPackTypeId_stockReference_key" ON "CustomPackTypeItem"("customPackTypeId", "stockReference");
 
 -- CreateIndex
-CREATE INDEX "MovimentacaoStock_stockId_idx" ON "MovimentacaoStock"("stockId");
+CREATE INDEX IF NOT EXISTS "MovimentacaoStock_stockId_idx" ON "MovimentacaoStock"("stockId");
 
 -- CreateIndex
-CREATE INDEX "MovimentacaoStock_createdAt_idx" ON "MovimentacaoStock"("createdAt");
+CREATE INDEX IF NOT EXISTS "MovimentacaoStock_createdAt_idx" ON "MovimentacaoStock"("createdAt");
 
 -- CreateIndex
-CREATE INDEX "MovimentacaoStock_tipo_idx" ON "MovimentacaoStock"("tipo");
+CREATE INDEX IF NOT EXISTS "MovimentacaoStock_tipo_idx" ON "MovimentacaoStock"("tipo");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Inspecao_certificadoNumero_key" ON "Inspecao"("certificadoNumero");
+CREATE UNIQUE INDEX IF NOT EXISTS "Inspecao_certificadoNumero_key" ON "Inspecao"("certificadoNumero");
 
 -- CreateIndex
-CREATE INDEX "Inspecao_numeroObra_idx" ON "Inspecao"("numeroObra");
+CREATE INDEX IF NOT EXISTS "Inspecao_numeroObra_idx" ON "Inspecao"("numeroObra");
 
 -- CreateIndex
-CREATE INDEX "Inspecao_navioNome_idx" ON "Inspecao"("navioNome");
+CREATE INDEX IF NOT EXISTS "Inspecao_navioNome_idx" ON "Inspecao"("navioNome");
 
 -- CreateIndex
-CREATE INDEX "Inspecao_navioId_idx" ON "Inspecao"("navioId");
+CREATE INDEX IF NOT EXISTS "Inspecao_navioId_idx" ON "Inspecao"("navioId");
 
 -- CreateIndex
-CREATE INDEX "Inspecao_jangadaId_idx" ON "Inspecao"("jangadaId");
+CREATE INDEX IF NOT EXISTS "Inspecao_jangadaId_idx" ON "Inspecao"("jangadaId");
 
 -- CreateIndex
-CREATE INDEX "Inspecao_jangadaSerial_idx" ON "Inspecao"("jangadaSerial");
+CREATE INDEX IF NOT EXISTS "Inspecao_jangadaSerial_idx" ON "Inspecao"("jangadaSerial");
 
 -- CreateIndex
-CREATE INDEX "Inspecao_coleteId_idx" ON "Inspecao"("coleteId");
+CREATE INDEX IF NOT EXISTS "Inspecao_coleteId_idx" ON "Inspecao"("coleteId");
 
 -- CreateIndex
-CREATE INDEX "Inspecao_coleteSerial_idx" ON "Inspecao"("coleteSerial");
+CREATE INDEX IF NOT EXISTS "Inspecao_coleteSerial_idx" ON "Inspecao"("coleteSerial");
 
 -- CreateIndex
-CREATE INDEX "Inspecao_dataInspecao_idx" ON "Inspecao"("dataInspecao");
+CREATE INDEX IF NOT EXISTS "Inspecao_dataInspecao_idx" ON "Inspecao"("dataInspecao");
 
 -- CreateIndex
-CREATE INDEX "Inspecao_status_idx" ON "Inspecao"("status");
+CREATE INDEX IF NOT EXISTS "Inspecao_status_idx" ON "Inspecao"("status");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "OrdemServico_numeroOrdem_key" ON "OrdemServico"("numeroOrdem");
+CREATE UNIQUE INDEX IF NOT EXISTS "OrdemServico_numeroOrdem_key" ON "OrdemServico"("numeroOrdem");
 
 -- CreateIndex
-CREATE INDEX "OrdemServico_serviceStationId_idx" ON "OrdemServico"("serviceStationId");
+CREATE INDEX IF NOT EXISTS "OrdemServico_serviceStationId_idx" ON "OrdemServico"("serviceStationId");
 
 -- CreateIndex
-CREATE INDEX "OrdemServico_jangadaId_idx" ON "OrdemServico"("jangadaId");
+CREATE INDEX IF NOT EXISTS "OrdemServico_jangadaId_idx" ON "OrdemServico"("jangadaId");
 
 -- CreateIndex
-CREATE INDEX "OrdemServico_shipId_idx" ON "OrdemServico"("shipId");
+CREATE INDEX IF NOT EXISTS "OrdemServico_shipId_idx" ON "OrdemServico"("shipId");
 
 -- CreateIndex
-CREATE INDEX "OrdemServico_clienteId_idx" ON "OrdemServico"("clienteId");
+CREATE INDEX IF NOT EXISTS "OrdemServico_clienteId_idx" ON "OrdemServico"("clienteId");
 
 -- CreateIndex
-CREATE INDEX "OrdemServico_tecnicoId_idx" ON "OrdemServico"("tecnicoId");
+CREATE INDEX IF NOT EXISTS "OrdemServico_tecnicoId_idx" ON "OrdemServico"("tecnicoId");
 
 -- CreateIndex
-CREATE INDEX "OrdemServico_inspecaoId_idx" ON "OrdemServico"("inspecaoId");
+CREATE INDEX IF NOT EXISTS "OrdemServico_inspecaoId_idx" ON "OrdemServico"("inspecaoId");
 
 -- CreateIndex
-CREATE INDEX "OrdemServico_status_idx" ON "OrdemServico"("status");
+CREATE INDEX IF NOT EXISTS "OrdemServico_status_idx" ON "OrdemServico"("status");
 
 -- CreateIndex
-CREATE INDEX "OrdemServico_tipo_idx" ON "OrdemServico"("tipo");
+CREATE INDEX IF NOT EXISTS "OrdemServico_tipo_idx" ON "OrdemServico"("tipo");
 
 -- CreateIndex
-CREATE INDEX "OrdemServico_prioridade_idx" ON "OrdemServico"("prioridade");
+CREATE INDEX IF NOT EXISTS "OrdemServico_prioridade_idx" ON "OrdemServico"("prioridade");
 
 -- CreateIndex
-CREATE INDEX "OrdemServico_dataAbertura_idx" ON "OrdemServico"("dataAbertura");
+CREATE INDEX IF NOT EXISTS "OrdemServico_dataAbertura_idx" ON "OrdemServico"("dataAbertura");
 
 -- CreateIndex
-CREATE INDEX "OrdemServico_dataPlaneadaInicio_idx" ON "OrdemServico"("dataPlaneadaInicio");
+CREATE INDEX IF NOT EXISTS "OrdemServico_dataPlaneadaInicio_idx" ON "OrdemServico"("dataPlaneadaInicio");
 
 -- CreateIndex
-CREATE INDEX "OrdemServico_dataPlaneadaFim_idx" ON "OrdemServico"("dataPlaneadaFim");
+CREATE INDEX IF NOT EXISTS "OrdemServico_dataPlaneadaFim_idx" ON "OrdemServico"("dataPlaneadaFim");
 
 -- CreateIndex
-CREATE INDEX "OrdemServico_dataPrevista_idx" ON "OrdemServico"("dataPrevista");
+CREATE INDEX IF NOT EXISTS "OrdemServico_dataPrevista_idx" ON "OrdemServico"("dataPrevista");
 
 -- CreateIndex
-CREATE INDEX "OrdemServico_serviceStationId_status_idx" ON "OrdemServico"("serviceStationId", "status");
+CREATE INDEX IF NOT EXISTS "OrdemServico_serviceStationId_status_idx" ON "OrdemServico"("serviceStationId", "status");
 
 -- CreateIndex
-CREATE INDEX "OrdemServicoJangada_ordemServicoId_idx" ON "OrdemServicoJangada"("ordemServicoId");
+CREATE INDEX IF NOT EXISTS "OrdemServicoJangada_ordemServicoId_idx" ON "OrdemServicoJangada"("ordemServicoId");
 
 -- CreateIndex
-CREATE INDEX "OrdemServicoJangada_jangadaId_idx" ON "OrdemServicoJangada"("jangadaId");
+CREATE INDEX IF NOT EXISTS "OrdemServicoJangada_jangadaId_idx" ON "OrdemServicoJangada"("jangadaId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "OrdemServicoJangada_ordemServicoId_jangadaId_key" ON "OrdemServicoJangada"("ordemServicoId", "jangadaId");
+CREATE UNIQUE INDEX IF NOT EXISTS "OrdemServicoJangada_ordemServicoId_jangadaId_key" ON "OrdemServicoJangada"("ordemServicoId", "jangadaId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Tecnico_email_key" ON "Tecnico"("email");
+CREATE UNIQUE INDEX IF NOT EXISTS "Tecnico_email_key" ON "Tecnico"("email");
 
 -- CreateIndex
-CREATE INDEX "Tecnico_serviceStationId_idx" ON "Tecnico"("serviceStationId");
+CREATE INDEX IF NOT EXISTS "Tecnico_serviceStationId_idx" ON "Tecnico"("serviceStationId");
 
 -- CreateIndex
-CREATE INDEX "Tecnico_nome_idx" ON "Tecnico"("nome");
+CREATE INDEX IF NOT EXISTS "Tecnico_nome_idx" ON "Tecnico"("nome");
 
 -- CreateIndex
-CREATE INDEX "Tecnico_ativo_idx" ON "Tecnico"("ativo");
+CREATE INDEX IF NOT EXISTS "Tecnico_ativo_idx" ON "Tecnico"("ativo");
 
 -- CreateIndex
-CREATE INDEX "TecnicoAusencia_tecnicoKey_idx" ON "TecnicoAusencia"("tecnicoKey");
+CREATE INDEX IF NOT EXISTS "TecnicoAusencia_tecnicoKey_idx" ON "TecnicoAusencia"("tecnicoKey");
 
 -- CreateIndex
-CREATE INDEX "TecnicoAusencia_dataInicio_idx" ON "TecnicoAusencia"("dataInicio");
+CREATE INDEX IF NOT EXISTS "TecnicoAusencia_dataInicio_idx" ON "TecnicoAusencia"("dataInicio");
 
 -- CreateIndex
-CREATE INDEX "TecnicoAusencia_dataFim_idx" ON "TecnicoAusencia"("dataFim");
+CREATE INDEX IF NOT EXISTS "TecnicoAusencia_dataFim_idx" ON "TecnicoAusencia"("dataFim");
 
 -- CreateIndex
-CREATE INDEX "TecnicoAusencia_tecnicoId_idx" ON "TecnicoAusencia"("tecnicoId");
+CREATE INDEX IF NOT EXISTS "TecnicoAusencia_tecnicoId_idx" ON "TecnicoAusencia"("tecnicoId");
 
 -- CreateIndex
-CREATE INDEX "OrdemServicoChecklistItem_ordemServicoId_idx" ON "OrdemServicoChecklistItem"("ordemServicoId");
+CREATE INDEX IF NOT EXISTS "OrdemServicoChecklistItem_ordemServicoId_idx" ON "OrdemServicoChecklistItem"("ordemServicoId");
 
 -- CreateIndex
-CREATE INDEX "OrdemServicoChecklistItem_phase_idx" ON "OrdemServicoChecklistItem"("phase");
+CREATE INDEX IF NOT EXISTS "OrdemServicoChecklistItem_phase_idx" ON "OrdemServicoChecklistItem"("phase");
 
 -- CreateIndex
-CREATE INDEX "OrdemServicoChecklistItem_category_idx" ON "OrdemServicoChecklistItem"("category");
+CREATE INDEX IF NOT EXISTS "OrdemServicoChecklistItem_category_idx" ON "OrdemServicoChecklistItem"("category");
 
 -- CreateIndex
-CREATE INDEX "OrdemServicoChecklistItem_updatedById_idx" ON "OrdemServicoChecklistItem"("updatedById");
+CREATE INDEX IF NOT EXISTS "OrdemServicoChecklistItem_updatedById_idx" ON "OrdemServicoChecklistItem"("updatedById");
 
 -- CreateIndex
-CREATE INDEX "OrdemServicoTempo_ordemServicoId_idx" ON "OrdemServicoTempo"("ordemServicoId");
+CREATE INDEX IF NOT EXISTS "OrdemServicoTempo_ordemServicoId_idx" ON "OrdemServicoTempo"("ordemServicoId");
 
 -- CreateIndex
-CREATE INDEX "OrdemServicoTempo_tecnicoId_idx" ON "OrdemServicoTempo"("tecnicoId");
+CREATE INDEX IF NOT EXISTS "OrdemServicoTempo_tecnicoId_idx" ON "OrdemServicoTempo"("tecnicoId");
 
 -- CreateIndex
-CREATE INDEX "OrdemServicoTempo_startedAt_idx" ON "OrdemServicoTempo"("startedAt");
+CREATE INDEX IF NOT EXISTS "OrdemServicoTempo_startedAt_idx" ON "OrdemServicoTempo"("startedAt");
 
 -- CreateIndex
-CREATE INDEX "OrdemServicoLog_ordemServicoId_idx" ON "OrdemServicoLog"("ordemServicoId");
+CREATE INDEX IF NOT EXISTS "OrdemServicoLog_ordemServicoId_idx" ON "OrdemServicoLog"("ordemServicoId");
 
 -- CreateIndex
-CREATE INDEX "OrdemServicoLog_at_idx" ON "OrdemServicoLog"("at");
+CREATE INDEX IF NOT EXISTS "OrdemServicoLog_at_idx" ON "OrdemServicoLog"("at");
 
 -- CreateIndex
-CREATE INDEX "OrdemServicoLog_type_idx" ON "OrdemServicoLog"("type");
+CREATE INDEX IF NOT EXISTS "OrdemServicoLog_type_idx" ON "OrdemServicoLog"("type");
 
 -- CreateIndex
-CREATE INDEX "OrdemServicoLog_tecnicoId_idx" ON "OrdemServicoLog"("tecnicoId");
+CREATE INDEX IF NOT EXISTS "OrdemServicoLog_tecnicoId_idx" ON "OrdemServicoLog"("tecnicoId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Fatura_numeroFatura_key" ON "Fatura"("numeroFatura");
+CREATE UNIQUE INDEX IF NOT EXISTS "Fatura_numeroFatura_key" ON "Fatura"("numeroFatura");
 
 -- CreateIndex
-CREATE INDEX "Fatura_clienteId_idx" ON "Fatura"("clienteId");
+CREATE INDEX IF NOT EXISTS "Fatura_clienteId_idx" ON "Fatura"("clienteId");
 
 -- CreateIndex
-CREATE INDEX "Fatura_dataEmissao_idx" ON "Fatura"("dataEmissao");
+CREATE INDEX IF NOT EXISTS "Fatura_dataEmissao_idx" ON "Fatura"("dataEmissao");
 
 -- CreateIndex
-CREATE INDEX "Fatura_pagamentoStatus_idx" ON "Fatura"("pagamentoStatus");
+CREATE INDEX IF NOT EXISTS "Fatura_pagamentoStatus_idx" ON "Fatura"("pagamentoStatus");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "FaturaOrdemServico_ordemServicoId_key" ON "FaturaOrdemServico"("ordemServicoId");
+CREATE UNIQUE INDEX IF NOT EXISTS "FaturaOrdemServico_ordemServicoId_key" ON "FaturaOrdemServico"("ordemServicoId");
 
 -- CreateIndex
-CREATE INDEX "FaturaOrdemServico_faturaId_idx" ON "FaturaOrdemServico"("faturaId");
+CREATE INDEX IF NOT EXISTS "FaturaOrdemServico_faturaId_idx" ON "FaturaOrdemServico"("faturaId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "FaturaOrdemServico_faturaId_ordemServicoId_key" ON "FaturaOrdemServico"("faturaId", "ordemServicoId");
+CREATE UNIQUE INDEX IF NOT EXISTS "FaturaOrdemServico_faturaId_ordemServicoId_key" ON "FaturaOrdemServico"("faturaId", "ordemServicoId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "NotaCredito_numeroNotaCredito_key" ON "NotaCredito"("numeroNotaCredito");
+CREATE UNIQUE INDEX IF NOT EXISTS "NotaCredito_numeroNotaCredito_key" ON "NotaCredito"("numeroNotaCredito");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "NotaCredito_faturaId_key" ON "NotaCredito"("faturaId");
+CREATE UNIQUE INDEX IF NOT EXISTS "NotaCredito_faturaId_key" ON "NotaCredito"("faturaId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Recibo_numeroRecibo_key" ON "Recibo"("numeroRecibo");
+CREATE UNIQUE INDEX IF NOT EXISTS "Recibo_numeroRecibo_key" ON "Recibo"("numeroRecibo");
 
 -- CreateIndex
-CREATE INDEX "Recibo_faturaId_idx" ON "Recibo"("faturaId");
+CREATE INDEX IF NOT EXISTS "Recibo_faturaId_idx" ON "Recibo"("faturaId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Equipamento_serial_key" ON "Equipamento"("serial");
+CREATE UNIQUE INDEX IF NOT EXISTS "Equipamento_serial_key" ON "Equipamento"("serial");
 
 -- CreateIndex
-CREATE INDEX "Equipamento_nome_idx" ON "Equipamento"("nome");
+CREATE INDEX IF NOT EXISTS "Equipamento_nome_idx" ON "Equipamento"("nome");
 
 -- CreateIndex
-CREATE INDEX "Equipamento_estado_idx" ON "Equipamento"("estado");
+CREATE INDEX IF NOT EXISTS "Equipamento_estado_idx" ON "Equipamento"("estado");
 
 -- CreateIndex
-CREATE INDEX "ServiceStationQueue_serviceStationId_idx" ON "ServiceStationQueue"("serviceStationId");
+CREATE INDEX IF NOT EXISTS "ServiceStationQueue_serviceStationId_idx" ON "ServiceStationQueue"("serviceStationId");
 
 -- CreateIndex
-CREATE INDEX "ServiceStationQueue_jangadaId_idx" ON "ServiceStationQueue"("jangadaId");
+CREATE INDEX IF NOT EXISTS "ServiceStationQueue_jangadaId_idx" ON "ServiceStationQueue"("jangadaId");
 
 -- CreateIndex
-CREATE INDEX "ServiceStationQueue_ordemServicoId_idx" ON "ServiceStationQueue"("ordemServicoId");
+CREATE INDEX IF NOT EXISTS "ServiceStationQueue_ordemServicoId_idx" ON "ServiceStationQueue"("ordemServicoId");
 
 -- CreateIndex
-CREATE INDEX "ServiceStationQueue_status_idx" ON "ServiceStationQueue"("status");
+CREATE INDEX IF NOT EXISTS "ServiceStationQueue_status_idx" ON "ServiceStationQueue"("status");
 
 -- CreateIndex
-CREATE INDEX "Auditoria_tabela_idx" ON "Auditoria"("tabela");
+CREATE INDEX IF NOT EXISTS "Auditoria_tabela_idx" ON "Auditoria"("tabela");
 
 -- CreateIndex
-CREATE INDEX "Auditoria_tipoOperacao_idx" ON "Auditoria"("tipoOperacao");
+CREATE INDEX IF NOT EXISTS "Auditoria_tipoOperacao_idx" ON "Auditoria"("tipoOperacao");
 
 -- CreateIndex
-CREATE INDEX "Auditoria_createdAt_idx" ON "Auditoria"("createdAt");
+CREATE INDEX IF NOT EXISTS "Auditoria_createdAt_idx" ON "Auditoria"("createdAt");
 
 -- CreateIndex
-CREATE INDEX "Auditoria_usuario_idx" ON "Auditoria"("usuario");
+CREATE INDEX IF NOT EXISTS "Auditoria_usuario_idx" ON "Auditoria"("usuario");
 
 -- CreateIndex
-CREATE INDEX "CertificacaoFabricanteTecnico_tecnicoId_idx" ON "CertificacaoFabricanteTecnico"("tecnicoId");
+CREATE INDEX IF NOT EXISTS "CertificacaoFabricanteTecnico_tecnicoId_idx" ON "CertificacaoFabricanteTecnico"("tecnicoId");
 
 -- CreateIndex
-CREATE INDEX "CertificacaoFabricanteTecnico_fabricante_idx" ON "CertificacaoFabricanteTecnico"("fabricante");
+CREATE INDEX IF NOT EXISTS "CertificacaoFabricanteTecnico_fabricante_idx" ON "CertificacaoFabricanteTecnico"("fabricante");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "CalibracaoEquipamento_referencia_key" ON "CalibracaoEquipamento"("referencia");
+CREATE UNIQUE INDEX IF NOT EXISTS "CalibracaoEquipamento_referencia_key" ON "CalibracaoEquipamento"("referencia");
 
 -- CreateIndex
-CREATE INDEX "CalibracaoEquipamento_referencia_idx" ON "CalibracaoEquipamento"("referencia");
+CREATE INDEX IF NOT EXISTS "CalibracaoEquipamento_referencia_idx" ON "CalibracaoEquipamento"("referencia");
 
 -- CreateIndex
-CREATE INDEX "MovimentoEquipamento_equipamentoId_idx" ON "MovimentoEquipamento"("equipamentoId");
+CREATE INDEX IF NOT EXISTS "MovimentoEquipamento_equipamentoId_idx" ON "MovimentoEquipamento"("equipamentoId");
 
 -- CreateIndex
-CREATE INDEX "MovimentoEquipamento_data_idx" ON "MovimentoEquipamento"("data");
+CREATE INDEX IF NOT EXISTS "MovimentoEquipamento_data_idx" ON "MovimentoEquipamento"("data");
 
 -- CreateIndex
-CREATE INDEX "MovimentoEquipamento_tipoEquipamento_equipamentoId_idx" ON "MovimentoEquipamento"("tipoEquipamento", "equipamentoId");
+CREATE INDEX IF NOT EXISTS "MovimentoEquipamento_tipoEquipamento_equipamentoId_idx" ON "MovimentoEquipamento"("tipoEquipamento", "equipamentoId");
 
 -- CreateIndex
-CREATE INDEX "Custo_tipo_idx" ON "Custo"("tipo");
+CREATE INDEX IF NOT EXISTS "Custo_tipo_idx" ON "Custo"("tipo");
 
 -- CreateIndex
-CREATE INDEX "Custo_data_idx" ON "Custo"("data");
+CREATE INDEX IF NOT EXISTS "Custo_data_idx" ON "Custo"("data");
 
 -- CreateIndex
-CREATE INDEX "Custo_serviceStationId_idx" ON "Custo"("serviceStationId");
+CREATE INDEX IF NOT EXISTS "Custo_serviceStationId_idx" ON "Custo"("serviceStationId");
 
 -- AddForeignKey
 ALTER TABLE "ArtigoJangada" ADD CONSTRAINT "ArtigoJangada_jangadaId_fkey" FOREIGN KEY ("jangadaId") REFERENCES "Jangada"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
