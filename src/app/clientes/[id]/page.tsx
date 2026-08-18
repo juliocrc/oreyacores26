@@ -6,7 +6,7 @@ import { CLIENTE_PAYMENT_MODE_OPTIONS } from "@/lib/cliente-payment-options";
 import { sortNaviosAlphabetically } from "@/lib/navios-sort";
 import { formatDateDisplay } from "@/lib/date-display";
 import { formatDateLongPt } from "@/lib/relatorios-page-helpers";
-import { User, Ship, FileText, ClipboardList, Settings, Mail, Phone, MapPin, Save, Search, Plus, Trash2, ExternalLink, AlertTriangle, Loader2, Building2, Receipt, History, MessageSquare, CreditCard, DollarSign } from "lucide-react";
+import { User, Ship, FileText, ClipboardList, Settings, Mail, Phone, MapPin, Save, Search, Plus, Trash2, ExternalLink, AlertTriangle, Loader2, Building2, Receipt, History, MessageSquare, CreditCard, DollarSign, KeyRound } from "lucide-react";
 import { IVA_ISENCAO_CODES } from "@/lib/iva-isencao-codes";
 
 type Navio = { id: number; nome: string; matricula: string; portoRegisto?: string | null; ilha: string | null; tipoPesca: string; clienteId?: number | null; cliente?: { id: number; nome: string } | null };
@@ -43,6 +43,9 @@ export default function ClienteDetalhePage() {
   const [exportingThirdPartySheet, setExportingThirdPartySheet] = useState(false);
   const [declarationNavioId, setDeclarationNavioId] = useState<number | string>("");
   const [declarationIvaCode, setDeclarationIvaCode] = useState<string>("M05");
+  const [generatingCode, setGeneratingCode] = useState(false);
+  const [generatedCode, setGeneratedCode] = useState<{ code: string; expiresAt: string } | null>(null);
+  const [generatedCodeError, setGeneratedCodeError] = useState<string | null>(null);
 
   // New Contact / Note state
   const [contactosLog, setContactosLog] = useState<Array<{ id: number; data: string; tipo: string; descricao: string; autor?: string }>>([]);
@@ -185,6 +188,20 @@ export default function ClienteDetalhePage() {
       router.push("/clientes");
     } catch (e) { alert(e instanceof Error ? e.message : "Erro"); }
     finally { setDeleting(false); }
+  };
+
+  const handleGerarCodigoAcesso = async () => {
+    if (!cliente) return;
+    setGeneratingCode(true);
+    setGeneratedCode(null);
+    setGeneratedCodeError(null);
+    try {
+      const res = await fetch(`/api/portal/clientes/${cliente.id}/gerar-codigo`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) { setGeneratedCodeError(data.error || "Erro ao gerar código."); return; }
+      setGeneratedCode({ code: data.code, expiresAt: data.expiresAt });
+    } catch { setGeneratedCodeError("Erro de rede."); }
+    finally { setGeneratingCode(false); }
   };
 
   const generateClienteExcel = async () => {
@@ -672,6 +689,24 @@ export default function ClienteDetalhePage() {
               <button onClick={deleteCliente} disabled={deleting} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 transition disabled:opacity-50">
                 {deleting ? <><Loader2 size={14} className="animate-spin inline mr-1" />A excluir...</> : <><Trash2 size={14} className="inline mr-1" />Excluir Cliente</>}
               </button>
+            </div>
+
+            <div className="mt-5 pt-4 border-t border-slate-200">
+              <h4 className="font-bold text-slate-800 mb-1 flex items-center gap-2"><KeyRound size={16} className="text-blue-500" />Código de Acesso Portal</h4>
+              <p className="text-xs text-slate-500 mb-3">Gere um código de 5 dígitos para o cliente aceder ao portal. Comunique o código verbalmente ou por mensagem.</p>
+              {generatedCodeError && <p className="text-sm text-red-600 mb-2">{generatedCodeError}</p>}
+              {generatedCode ? (
+                <div className="rounded-xl bg-blue-50 border border-blue-200 p-4">
+                  <p className="text-xs text-blue-600 font-semibold uppercase tracking-wider mb-1">Código Gerado</p>
+                  <p className="text-3xl font-black text-blue-700 tracking-[0.3em] mb-1">{generatedCode.code}</p>
+                  <p className="text-xs text-blue-500">Válido até: {new Date(generatedCode.expiresAt).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })}</p>
+                  <button onClick={() => setGeneratedCode(null)} className="mt-2 text-xs text-blue-600 underline font-semibold hover:text-blue-800">Gerar novo código</button>
+                </div>
+              ) : (
+                <button onClick={handleGerarCodigoAcesso} disabled={generatingCode} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition disabled:opacity-50">
+                  {generatingCode ? <><Loader2 size={14} className="animate-spin inline mr-1" />A gerar...</> : <><KeyRound size={14} className="inline mr-1" />Gerar Código de Acesso</>}
+                </button>
+              )}
             </div>
           </div>
         )}
