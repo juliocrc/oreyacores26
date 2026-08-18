@@ -16,10 +16,26 @@ const authUserSelect = {
   passwordHash: true,
 } as const;
 
+const isSecureUrl = !!(process.env.NEXTAUTH_URL ?? process.env.AUTH_URL ?? "").startsWith("https");
+
 export const authOptions: NextAuthOptions = {
   secret: getAuthSecret(),
   session: {
     strategy: "jwt",
+  },
+  cookies: {
+    sessionToken: {
+      name: isSecureUrl ? "__Secure-next-auth.session-token" : "next-auth.session-token",
+      options: { httpOnly: true, secure: isSecureUrl, sameSite: "lax", path: "/" },
+    },
+    callbackUrl: {
+      name: isSecureUrl ? "__Secure-next-auth.callback-url" : "next-auth.callback-url",
+      options: { httpOnly: true, secure: isSecureUrl, sameSite: "lax", path: "/" },
+    },
+    csrfToken: {
+      name: isSecureUrl ? "__Host-next-auth.csrf-token" : "next-auth.csrf-token",
+      options: { httpOnly: true, secure: isSecureUrl, sameSite: "lax", path: "/" },
+    },
   },
   pages: {
     signIn: "/login",
