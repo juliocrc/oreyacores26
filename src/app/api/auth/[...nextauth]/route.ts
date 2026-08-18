@@ -8,7 +8,8 @@ export async function GET(req: Request, context: { params: Promise<{ nextauth: s
   const protocol = req.headers.get("x-forwarded-proto") || "http";
   process.env.NEXTAUTH_URL = `${protocol}://${host}`;
   process.env.AUTH_URL = `${protocol}://${host}`;
-  return handler(req, context);
+  const resolvedContext = { ...context, params: await context.params };
+  return handler(req, resolvedContext);
 }
 
 export async function POST(req: Request, context: { params: Promise<{ nextauth: string[] }> }) {
@@ -16,5 +17,6 @@ export async function POST(req: Request, context: { params: Promise<{ nextauth: 
   const protocol = req.headers.get("x-forwarded-proto") || "http";
   process.env.NEXTAUTH_URL = `${protocol}://${host}`;
   process.env.AUTH_URL = `${protocol}://${host}`;
-  return handler(req, context);
+  const resolvedContext = { ...context, params: await context.params };
+  return handler(req, resolvedContext);
 }
