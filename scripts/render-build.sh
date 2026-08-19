@@ -7,8 +7,8 @@ npm ci
 echo "==> Render build: generating Prisma client for PostgreSQL"
 npx prisma generate --schema prisma/schema.postgresql.prisma
 
-echo "==> Render build: deploying PostgreSQL migrations"
-npx prisma migrate deploy --schema prisma/schema.postgresql.prisma
+echo "==> Render build: syncing database schema (idempotent)"
+npx prisma db push --schema prisma/schema.postgresql.prisma --skip-generate
 
 echo "==> Render build: building Next.js"
 npm run build
