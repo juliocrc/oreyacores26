@@ -114,7 +114,10 @@ function LoginPageContent() {
     try {
       const result = await signIn("credentials", { email, password, callbackUrl, redirect: false });
       if (result?.error) { setError("Email ou password incorretos."); return; }
-      router.replace(callbackUrl);
+      window.location.href = callbackUrl;
+    } catch (err) {
+      console.error("Login error:", err);
+      setError("Erro de rede. Tente novamente.");
     } finally { setIsSubmitting(false); }
   };
 
@@ -126,7 +129,10 @@ function LoginPageContent() {
     try {
       const result = await signIn("credentials", { loginType: "passwordless", userId: String(selectedColab.id), callbackUrl, redirect: false });
       if (result?.error) { setError("Não foi possível iniciar sessão."); return; }
-      router.replace(callbackUrl);
+      window.location.href = callbackUrl;
+    } catch (err) {
+      console.error("Login error:", err);
+      setError("Erro de rede. Tente novamente.");
     } finally { setIsSubmitting(false); }
   };
 
@@ -163,7 +169,10 @@ function LoginPageContent() {
         redirect: false,
       });
       if (result?.error) { setClientError("Código inválido ou expirado."); return; }
-      router.replace("/portal/cliente");
+      window.location.href = "/portal/cliente";
+    } catch (err) {
+      console.error("Client login error:", err);
+      setClientError("Erro de rede. Tente novamente.");
     } finally { setIsSubmitting(false); }
   };
 

@@ -195,43 +195,48 @@ export function buildAuthOptions(): NextAuthOptions {
         return true;
       },
       async jwt({ token, user, trigger }) {
-      if (!token.sessionId) {
-        token.sessionId = randomUUID();
-      }
+      try {
+        if (!token.sessionId) {
+          token.sessionId = randomUUID();
+        }
 
-      // JWT slim: só identidade. Permissões resolvem-se no session callback / access-control.
-      const shouldRefreshProfile = Boolean(user) || trigger === "update" || !token.sub || !token.role;
-      if (!shouldRefreshProfile) {
-        // remove payload legado se ainda existir no cookie
+        // JWT slim: só identidade. Permissões resolvem-se no session callback / access-control.
+        const shouldRefreshProfile = Boolean(user) || trigger === "update" || !token.sub || !token.role;
+        if (!shouldRefreshProfile) {
+          // remove payload legado se ainda existir no cookie
+          if ("permissions" in token) delete token.permissions;
+          return token;
+        }
+
+        const email = normalizeEmail((user?.email as string | undefined) || (token.email as string | undefined));
+        if (!email) return token;
+
+        const dbUser = await prisma.user.findUnique({
+          where: { email },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            image: true,
+            role: true,
+            clienteId: true,
+          },
+        });
+        if (!dbUser) return token;
+
+        token.sub = String(dbUser.id);
+        token.email = dbUser.email;
+        token.name = dbUser.name;
+        token.picture = dbUser.image;
+        token.role = dbUser.role;
+        token.clienteId = dbUser.clienteId ?? undefined;
         if ("permissions" in token) delete token.permissions;
+
+        return token;
+      } catch (jwtErr) {
+        console.error("JWT callback error:", jwtErr);
         return token;
       }
-
-      const email = normalizeEmail((user?.email as string | undefined) || (token.email as string | undefined));
-      if (!email) return token;
-
-      const dbUser = await prisma.user.findUnique({
-        where: { email },
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          image: true,
-          role: true,
-          clienteId: true,
-        },
-      });
-      if (!dbUser) return token;
-
-      token.sub = String(dbUser.id);
-      token.email = dbUser.email;
-      token.name = dbUser.name;
-      token.picture = dbUser.image;
-      token.role = dbUser.role;
-      token.clienteId = dbUser.clienteId ?? undefined;
-      if ("permissions" in token) delete token.permissions;
-
-      return token;
     },
     async session({ session, token }) {
       if (session.user) {
@@ -247,16 +252,21 @@ export function buildAuthOptions(): NextAuthOptions {
 
         // Permissões fora do JWT (cookie pequeno); cache 60s
         if (userId && role !== "CLIENTE") {
-          const cached = getCachedPermissions(userId, role);
-          if (cached) {
-            session.user.permissions = cached;
-          } else {
-            const permissions = await resolveEffectivePermissions({
-              userId: Number(userId),
-              role: role === "ADMIN" ? "ADMIN" : "USER",
-            });
-            setCachedPermissions(userId, role, permissions);
-            session.user.permissions = permissions;
+          try {
+            const cached = getCachedPermissions(userId, role);
+            if (cached) {
+              session.user.permissions = cached;
+            } else {
+              const permissions = await resolveEffectivePermissions({
+                userId: Number(userId),
+                role: role === "ADMIN" ? "ADMIN" : "USER",
+              });
+              setCachedPermissions(userId, role, permissions);
+              session.user.permissions = permissions;
+            }
+          } catch (permErr) {
+            console.error("Failed to resolve permissions in session callback:", permErr);
+            session.user.permissions = undefined;
           }
         } else {
           session.user.permissions = undefined;
