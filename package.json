@@ -61,7 +61,8 @@
     "seed:equipamentos": "node prisma/seed_equipamentos.js",
     "sync:catalogo:marcas-modelos": "ts-node prisma/sync_catalog_marcas_modelos.ts",
     "backup:usb": "node scripts/backup_to_usb.js",
-    "restore:backup": "node scripts/restore_from_backup.js"
+    "restore:backup": "node scripts/restore_from_backup.js",
+    "import:pg": "npx tsx scripts/import-sqlite-to-pg.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1069.0",
