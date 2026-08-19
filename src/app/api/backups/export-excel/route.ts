@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/auth';
 import prisma from "@/lib/prisma";
 import * as XLSX from 'xlsx';
+import { requireAdminOrBypass } from '../_lib';
 
 interface PrismaModelDelegate {
   findMany: () => Promise<Array<Record<string, unknown>>>
@@ -11,10 +10,8 @@ interface PrismaModelDelegate {
 const prismaDelegates = prisma as unknown as Record<string, PrismaModelDelegate | undefined>;
 
 export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session || session.user?.role !== 'ADMIN') {
-    return new Response('Não autorizado', { status: 401 });
-  }
+  const auth = await requireAdminOrBypass();
+  if (!auth.ok) return new Response('Não autorizado', { status: auth.status });
 
   try {
     const modelNames = Object.keys(prisma).filter(

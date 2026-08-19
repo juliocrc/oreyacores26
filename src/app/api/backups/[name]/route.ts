@@ -1,17 +1,14 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/auth';
 import fs from 'fs';
 import path from 'path';
+import { requireAdminOrBypass } from '../../_lib';
 
 export async function GET(
   request: Request,
   context: { params: Promise<{ name: string }> }
 ) {
-  const session = await getServerSession(authOptions);
-  if (!session || session.user?.role !== 'ADMIN') {
-    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-  }
+  const auth = await requireAdminOrBypass();
+  if (!auth.ok) return NextResponse.json({ error: 'Não autorizado' }, { status: auth.status });
 
   const resolvedParams = await context.params;
   const { name } = resolvedParams;
@@ -57,10 +54,8 @@ export async function DELETE(
   request: Request,
   context: { params: Promise<{ name: string }> }
 ) {
-  const session = await getServerSession(authOptions);
-  if (!session || session.user?.role !== 'ADMIN') {
-    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-  }
+  const auth = await requireAdminOrBypass();
+  if (!auth.ok) return NextResponse.json({ error: 'Não autorizado' }, { status: auth.status });
 
   const resolvedParams = await context.params;
   const { name } = resolvedParams;
