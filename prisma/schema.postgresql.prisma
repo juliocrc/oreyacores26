@@ -701,6 +701,8 @@ model Stock {
   movimentacoes          MovimentacaoStock[]
   customPackItems        CustomPackTypeItem[]
   jangadaArtigos         ArtigoJangada[]
+  pedidoReposicaoLinhas  PedidoReposicaoLinha[]
+  ordensCompraLinha      OrdemCompraLinha[]
 
   @@unique([referencia, serviceStationId])
   @@index([categoria])
@@ -822,11 +824,12 @@ model OrdemServico {
   id                   Int                         @id @default(autoincrement())
   numeroOrdem          String                      @unique
   serviceStationId     Int?
-  jangadaId            Int
+  jangadaId            Int?
   shipId               Int?
   clienteId            Int?
   tecnicoId            Int?
   inspecaoId           Int?
+  pedidoAssistenciaId  Int?
   tipo                 String                      @default("inspecao")
   prioridade           String                      @default("normal")
   status               String                      @default("pendente")
@@ -854,12 +857,13 @@ model OrdemServico {
   metadados            String?
   createdAt            DateTime                    @default(now())
   updatedAt            DateTime                    @updatedAt
-  jangada              Jangada                     @relation("PrimaryOrdemServicoJangada", fields: [jangadaId], references: [id])
+  jangada              Jangada?                    @relation("PrimaryOrdemServicoJangada", fields: [jangadaId], references: [id])
   ordemJangadas        OrdemServicoJangada[]
   cliente              Cliente?                    @relation(fields: [clienteId], references: [id])
   faturaOrdemServicos  FaturaOrdemServico[]
   tecnico              Tecnico?                    @relation(fields: [tecnicoId], references: [id])
   inspecao             Inspecao?                   @relation(fields: [inspecaoId], references: [id])
+  pedidoAssistencia    PedidoAssistencia?          @relation(fields: [pedidoAssistenciaId], references: [id])
   serviceStation       ServiceStation?             @relation(fields: [serviceStationId], references: [id])
   serviceStationQueues ServiceStationQueue[]
   checklistItems       OrdemServicoChecklistItem[]
@@ -1212,4 +1216,186 @@ model Custo {
   @@index([tipo])
   @@index([data])
   @@index([serviceStationId])
+}
+
+model ColeteComponentHistory {
+  id           Int      @id @default(autoincrement())
+  coleteId     Int
+  fieldName    String
+  oldValue     String?
+  newValue     String?
+  changedById  Int?
+  changedByName String?
+  createdAt    DateTime @default(now())
+
+  @@index([coleteId])
+  @@index([fieldName])
+  @@index([createdAt])
+}
+
+model Extintor {
+  id                      Int      @id @default(autoincrement())
+  shipId                  Int?
+  serial                  String?
+  marca                   String?
+  modelo                  String?
+  capacidadeKg            Int?
+  tipoAgente              String?
+  estado                  String   @default("Ativo")
+  localizacao             String?
+  dataFabrico             String?
+  dataUltimaRecarga       String?
+  dataProxRecarga         String?
+  dataTesteHidraulico     String?
+  dataProxTesteHidraulico String?
+  observacoes             String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@index([shipId])
+  @@index([estado])
+  @@index([dataProxRecarga])
+}
+
+model PedidoAssistencia {
+  id               Int             @id @default(autoincrement())
+  serviceStationId Int?
+  nome             String?
+  email            String?
+  telefone         String?
+  navio            String?
+  jangadaSerial    String?
+  tipoAssistencia  String?
+  descricao        String
+  dataPreferida    String?
+  origem           String          @default("zapier")
+  estado           String          @default("novo")
+  metadados        String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  ordensServico    OrdemServico[]
+
+  @@index([jangadaSerial])
+  @@index([estado])
+  @@index([serviceStationId])
+}
+
+model PedidoReposicao {
+  id               Int                    @id @default(autoincrement())
+  numero           String                 @unique
+  status           String                 @default("rascunho")
+  fornecedor       String?
+  notas            String?
+  criadoPor        String?
+  serviceStationId Int?
+  totalEstimado    Float                  @default(0)
+  encomendadoEm    DateTime?
+  recebidoEm       DateTime?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  linhas           PedidoReposicaoLinha[]
+
+  @@index([status])
+  @@index([fornecedor])
+  @@index([createdAt])
+  @@index([serviceStationId])
+}
+
+model PedidoReposicaoLinha {
+  id                 Int              @id @default(autoincrement())
+  pedidoId           Int
+  stockId            Int?
+  referencia         String?
+  descricao          String
+  fornecedor         String?
+  quantidadePedida   Int
+  quantidadeRecebida Int              @default(0)
+  precoUnitario      Float            @default(0)
+  status             String           @default("pendente")
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  pedido             PedidoReposicao @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  stock              Stock?           @relation(fields: [stockId], references: [id], onDelete: SetNull)
+
+  @@index([pedidoId])
+  @@index([stockId])
+  @@index([status])
+  @@index([referencia])
+}
+
+model Fornecedor {
+  id               Int           @id @default(autoincrement())
+  nome             String
+  codigo           String?       @unique
+  contacto         String?
+  email            String?
+  morada           String?
+  pais             String?       @default("Portugal")
+  observacoes      String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  ordensCompra     OrdemCompra[]
+}
+
+model OrdemCompra {
+  id               Int                @id @default(autoincrement())
+  numero           String             @unique
+  fornecedorId     Int
+  fornecedor       Fornecedor         @relation(fields: [fornecedorId], references: [id], onDelete: Cascade)
+  status           String             @default("Rascunho")
+  dataEncomenda    DateTime           @default(now())
+  dataPrevista     DateTime?
+  dataRecebimento  DateTime?
+  valorTotal       Float              @default(0)
+  observacoes      String?
+  serviceStationId Int?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  linhas           OrdemCompraLinha[]
+
+  @@index([fornecedorId])
+  @@index([status])
+}
+
+model OrdemCompraLinha {
+  id                   Int         @id @default(autoincrement())
+  ordemCompraId        Int
+  ordemCompra          OrdemCompra @relation(fields: [ordemCompraId], references: [id], onDelete: Cascade)
+  stockId              Int?
+  stock                Stock?      @relation(fields: [stockId], references: [id], onDelete: SetNull)
+  referencia           String?
+  descricao            String
+  quantidadeEncomendada Int
+  quantidadeRecebida   Int         @default(0)
+  precoUnitario        Float       @default(0)
+  total                Float       @default(0)
+
+  @@index([ordemCompraId])
+  @@index([stockId])
+}
+
+model Comunicacao {
+  id              Int       @id @default(autoincrement())
+  tipo            String
+  canal           String?
+  destinatario    String?
+  assunto         String?
+  mensagem        String
+  status          String   @default("enviado")
+  erro            String?
+  refTipo         String?
+  refId           Int?
+  clienteId       Int?
+  jangadaId       Int?
+  ordemServicoId  Int?
+  enviadoPor      String?
+  enviadoEm       DateTime @default(now())
+  createdAt       DateTime @default(now())
+
+  @@index([clienteId])
+  @@index([jangadaId])
+  @@index([ordemServicoId])
+  @@index([tipo])
+  @@index([status])
+  @@index([enviadoEm])
 }
