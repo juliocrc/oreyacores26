@@ -30,7 +30,7 @@ function renderInspectionUrgencyBadge(value: string | null | undefined) {
   if (isInspectionDueWithin30Days(value)) {
     return (
       <span className="inline-flex rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-        GI â‰¤ 30 dias
+        GI ≤ 30 dias
       </span>
     );
   }
@@ -203,7 +203,7 @@ export default function ColetesPage() {
               router.push(subPath);
             }
           } else {
-            // Procurar localmente por nÃºmero de sÃ©rie
+            // Procurar localmente por número de série
             const found = coletes.find(c => String(c.serial || "").trim().toLowerCase() === cleanText.toLowerCase());
             if (found && found.id) {
               router.push(`/equipamentos/${found.id}`);
@@ -505,7 +505,7 @@ export default function ColetesPage() {
 
       setSelectedColetes([]);
       await loadData();
-      alert("Coletes excluÃ­dos com sucesso.");
+      alert("Coletes excluídos com sucesso.");
     } catch (err) {
       alert(err instanceof Error ? err.message : "Erro ao excluir coletes.");
     } finally {
@@ -516,11 +516,11 @@ export default function ColetesPage() {
   async function handleBatchAction(action: "assign-ship" | "clear-ship" | "set-status") {
     if (selectedColetes.length === 0) return;
     if (action === "assign-ship" && !batchShipId) {
-      alert("Selecione primeiro o navio para a associaÃ§Ã£o em lote.");
+      alert("Selecione primeiro o navio para a associação em lote.");
       return;
     }
     if (action === "set-status" && !batchEstado) {
-      alert("Selecione primeiro o estado para a atualizaÃ§Ã£o em lote.");
+      alert("Selecione primeiro o estado para a atualização em lote.");
       return;
     }
 
@@ -539,13 +539,13 @@ export default function ColetesPage() {
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error || "Erro ao aplicar aÃ§Ã£o em lote nos coletes.");
+        throw new Error(payload?.error || "Erro ao aplicar ação em lote nos coletes.");
       }
 
       setSelectedColetes([]);
       await loadData();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Erro ao aplicar aÃ§Ã£o em lote nos coletes.");
+      alert(err instanceof Error ? err.message : "Erro ao aplicar ação em lote nos coletes.");
     } finally {
       setBatchApplying(false);
     }
@@ -594,7 +594,7 @@ export default function ColetesPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.serial.trim()) {
-      alert("NÂº de sÃ©rie do colete Ã© obrigatÃ³rio.");
+      alert("Nº de série do colete é obrigatório.");
       return;
     }
 
@@ -619,7 +619,7 @@ export default function ColetesPage() {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
-      alert(error?.error || "NÃ£o foi possÃ­vel guardar o colete.");
+      alert(error?.error || "Não foi possível guardar o colete.");
       return;
     }
 
@@ -628,7 +628,7 @@ export default function ColetesPage() {
     setEditId(null);
     setForm(EMPTY_FORM);
     
-    // Se for um novo colete, redirecionar logo para o Wizard de inspecÃ§Ã£o
+    // Se for um novo colete, redirecionar logo para o Wizard de inspecção
     if (!editId && savedItem && savedItem.id) {
       router.push(`/equipamentos/${savedItem.id}`);
     } else {
@@ -640,7 +640,7 @@ export default function ColetesPage() {
     if (!window.confirm("Tem certeza que deseja excluir este colete?")) return;
     const response = await fetch(`/api/coletes/${id}`, { method: "DELETE" });
     if (!response.ok) {
-      alert("NÃ£o foi possÃ­vel excluir o colete.");
+      alert("Não foi possível excluir o colete.");
       return;
     }
     if (viewItem?.id === id) setViewItem(null);
@@ -653,10 +653,10 @@ export default function ColetesPage() {
         <div className="app-hero-panel mb-6 flex flex-col gap-4 rounded-2xl p-6 text-white">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <p className="text-base font-semibold uppercase tracking-[0.2em] text-sky-100">Orey TÃ©cnica</p>
+              <p className="text-base font-semibold uppercase tracking-[0.2em] text-sky-100">Orey Técnica</p>
               <h1 className="mt-2 text-4xl font-bold">Coletes</h1>
               <p className="mt-2 max-w-4xl text-base text-sky-100">
-                GestÃ£o de coletes com o mesmo padrÃ£o visual de navios, clientes e jangadas, incluindo prioridades de inspeÃ§Ã£o e associaÃ§Ã£o rÃ¡pida a navios.
+                Gestão de coletes com o mesmo padrão visual de navios, clientes e jangadas, incluindo prioridades de inspeção e associação rápida a navios.
               </p>
               <button onClick={openNew} className="rounded-lg bg-blue-600 px-4 py-2 text-base font-semibold text-white shadow-sm transition hover:bg-blue-700">
                 + Cadastrar Novo Colete
@@ -667,8 +667,8 @@ export default function ColetesPage() {
                { label: "Total", value: coleteStats.total },
                { label: "Em vista", value: coleteStats.visiveis },
                { label: "Ligados a navios", value: coleteStats.associados },
-               { label: "PrÃ³x. inspeÃ§Ã£o â‰¤ 30 dias", value: coleteStats.inspeccao30d },
-               { label: "InspeÃ§Ã£o vencida", value: coleteStats.vencidos },
+               { label: "Próx. inspeção ≤ 30 dias", value: coleteStats.inspeccao30d },
+               { label: "Inspeção vencida", value: coleteStats.vencidos },
              ].map((item) => (
                <div key={item.label} className="app-hero-card rounded-xl p-4">
                  <p className="text-xs uppercase tracking-[0.2em] text-sky-100">{item.label}</p>
@@ -785,15 +785,15 @@ export default function ColetesPage() {
                   const shipId = getShipId(viewItem);
                   return shipId ? navioById.get(shipId)?.nome || "-" : "Sem navio associado";
                 })()}</li>
-                <li><b>NÂº SÃ©rie:</b> {viewItem.serial || "-"}</li>
+                <li><b>Nº Série:</b> {viewItem.serial || "-"}</li>
                 <li><b>Marca:</b> {viewItem.marca || "-"}</li>
-                <li><b>PaÃ­s de fabrico:</b> {resolveManufacturingCountry(viewItem.marca, viewItem.modelo)}</li>
+                <li><b>País de fabrico:</b> {resolveManufacturingCountry(viewItem.marca, viewItem.modelo)}</li>
                 <li><b>Modelo:</b> {viewItem.modelo || "-"}</li>
                 <li><b>Tamanho:</b> {viewItem.tamanho || "-"}</li>
                 <li><b>Estado:</b> {viewItem.estado || "-"}</li>
-                <li><b>Data de inspeÃ§Ã£o:</b> {formatInspectionDate(viewItem.dataInspecao)}</li>
-                <li><b>PrÃ³xima inspeÃ§Ã£o:</b> {formatInspectionDate(viewItem.dataProxInspecao)}</li>
-                <li><b>ObservaÃ§Ãµes:</b> {viewItem.observacoes || "-"}</li>
+                <li><b>Data de inspeção:</b> {formatInspectionDate(viewItem.dataInspecao)}</li>
+                <li><b>Próxima inspeção:</b> {formatInspectionDate(viewItem.dataProxInspecao)}</li>
+                <li><b>Observações:</b> {viewItem.observacoes || "-"}</li>
               </ul>
               <div className="flex gap-2 justify-end">
                 <button className="px-4 py-2 bg-indigo-600 text-white rounded" onClick={() => { openEdit(viewItem); setViewItem(null); }}>
@@ -810,7 +810,7 @@ export default function ColetesPage() {
             <div className="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-2xl relative animate-in fade-in slide-in-from-top-4 duration-300">
               <div className="flex items-center justify-between mb-3">
                 <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                  <QrCode size={16} className="text-indigo-600 animate-pulse" /> Leitor de CÃ³digo de Equipamento
+                  <QrCode size={16} className="text-indigo-600 animate-pulse" /> Leitor de Código de Equipamento
                 </h4>
                 <button
                   onClick={() => setShowScanner(false)}
@@ -821,7 +821,7 @@ export default function ColetesPage() {
               </div>
               <div id="qr-reader" className="w-full max-w-md mx-auto bg-black rounded-xl overflow-hidden border border-slate-700 shadow-md animate-in zoom-in-95 duration-200" />
               <p className="text-[10px] text-center text-slate-400 mt-2">
-                Aponte a cÃ¢mara para o cÃ³digo QR do colete ou para o cÃ³digo de barras do nÃºmero de sÃ©rie.
+                Aponte a câmara para o código QR do colete ou para o código de barras do número de série.
               </p>
             </div>
           )}
@@ -833,13 +833,13 @@ export default function ColetesPage() {
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Navio, sÃ©rie, marca, modelo, estado..."
+                  placeholder="Navio, série, marca, modelo, estado..."
                   className="border rounded-lg pl-3 pr-10 py-2 w-full bg-white text-sm"
                 />
                 <button
                   type="button"
                   onClick={() => setShowScanner(!showScanner)}
-                  title="Ler QR Code ou CÃ³digo de Barras"
+                  title="Ler QR Code ou Código de Barras"
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition-colors"
                 >
                   <QrCode size={16} />
@@ -892,7 +892,7 @@ export default function ColetesPage() {
             </label>
             <label className="flex items-center gap-2 text-xs text-gray-700 md:col-span-5">
               <input type="checkbox" checked={onlyExpiring30Days} onChange={(e) => setOnlyExpiring30Days(e.target.checked)} />
-              Mostrar apenas coletes com prÃ³xima inspeÃ§Ã£o nos prÃ³ximos 30 dias
+              Mostrar apenas coletes com próxima inspeção nos próximos 30 dias
             </label>
             <div className="md:col-span-1 flex justify-end">
               <button type="button" className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50" onClick={clearFilters}>
@@ -990,7 +990,7 @@ export default function ColetesPage() {
                 >
                   <option value="">Atualizar estado...</option>
                   <option value="Ativo">Ativo</option>
-                  <option value="Em manutenÃ§Ã£o">Em manutenÃ§Ã£o</option>
+                  <option value="Em manutenção">Em manutenção</option>
                   <option value="Inativo">Inativo</option>
                 </select>
                 <button
@@ -1007,17 +1007,17 @@ export default function ColetesPage() {
                   <tr className="bg-blue-100">
                     <th className="p-2"><input type="checkbox" onChange={(e) => handleSelectAllColetes(e.target.checked)} checked={selectedColetes.length > 0 && selectedColetes.length === filtered.length} /></th>
                     {isColumnVisible("navio") && <th className="p-2">Navio</th>}
-                    {isColumnVisible("serial") && <th className="p-2">NÂº SÃ©rie</th>}
+                    {isColumnVisible("serial") && <th className="p-2">Nº Série</th>}
                     {isColumnVisible("marca") && <th className="p-2">Marca</th>}
-                    {isColumnVisible("paisFabrico") && <th className="p-2">PaÃ­s fabrico</th>}
+                    {isColumnVisible("paisFabrico") && <th className="p-2">País fabrico</th>}
                     {isColumnVisible("modelo") && <th className="p-2">Modelo</th>}
                     {isColumnVisible("tamanho") && <th className="p-2">Tamanho</th>}
                     {isColumnVisible("estado") && <th className="p-2">Estado</th>}
                     {isColumnVisible("dataFabrico") && <th className="p-2">Data fabrico</th>}
-                    {isColumnVisible("dataInspecao") && <th className="p-2">Data inspeÃ§Ã£o</th>}
-                    {isColumnVisible("dataProxInspecao") && <th className="p-2">PrÃ³xima inspeÃ§Ã£o</th>}
-                    {isColumnVisible("observacoes") && <th className="p-2">ObservaÃ§Ãµes</th>}
-                    <th className="p-2">AÃ§Ãµes</th>
+                    {isColumnVisible("dataInspecao") && <th className="p-2">Data inspeção</th>}
+                    {isColumnVisible("dataProxInspecao") && <th className="p-2">Próxima inspeção</th>}
+                    {isColumnVisible("observacoes") && <th className="p-2">Observações</th>}
+                    <th className="p-2">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1086,7 +1086,7 @@ export default function ColetesPage() {
                       return manualData.manuals.length > 0 ? (
                         <div className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2">
                           <div>
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-700">Manual tÃ©cnico</p>
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-700">Manual técnico</p>
                             <p className="text-xs text-cyan-900">{manualData.matchedModel ? `${manualData.displayLabel}` : `${item.marca || "Marca"}`}</p>
                           </div>
                           <a href={manualData.manuals[0].href} target="_blank" rel="noreferrer" className="rounded-lg bg-cyan-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-cyan-700">
@@ -1098,11 +1098,11 @@ export default function ColetesPage() {
                     <h3 className="font-semibold text-gray-900">{item.serial || "Colete"}</h3>
                     <p className="text-xs text-gray-600 mt-1">Navio: {navio?.nome || "Sem navio"}</p>
                     <p className="text-xs text-gray-600">Marca/Modelo: {[item.marca, item.modelo].filter(Boolean).join(" ") || "-"}</p>
-                    <p className="text-xs text-gray-600">PaÃ­s fabrico: {resolveManufacturingCountry(item.marca, item.modelo)}</p>
+                    <p className="text-xs text-gray-600">País fabrico: {resolveManufacturingCountry(item.marca, item.modelo)}</p>
                     <p className="text-xs text-gray-600">Estado: {item.estado || "-"}</p>
                     <p className="text-xs text-gray-600">Fabrico: {formatMonthYear(item.dataFabrico)}</p>
-                    <p className="text-xs text-gray-600">InspeÃ§Ã£o: {formatInspectionDate(item.dataInspecao)}</p>
-                    <p className="text-xs text-gray-600">PrÃ³xima: {formatInspectionDate(item.dataProxInspecao)}</p>
+                    <p className="text-xs text-gray-600">Inspeção: {formatInspectionDate(item.dataInspecao)}</p>
+                    <p className="text-xs text-gray-600">Próxima: {formatInspectionDate(item.dataProxInspecao)}</p>
                     <div className="mt-1 mb-2">{renderInspectionUrgencyBadge(item.dataProxInspecao)}</div>
                     <div className="mt-3 flex gap-2">
                       <Link href={`/equipamentos/${item.id}`} className="bg-indigo-600 hover:bg-indigo-700 px-2 py-1 rounded text-xs text-white font-medium flex items-center justify-center">Dossier</Link>
@@ -1142,20 +1142,20 @@ export default function ColetesPage() {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-3 text-xs">
                       <p><b>Navio:</b> {navio?.nome || "Sem navio"}</p>
                       <p><b>Marca:</b> {item.marca || "-"}</p>
-                      <p><b>PaÃ­s fabrico:</b> {resolveManufacturingCountry(item.marca, item.modelo)}</p>
+                      <p><b>País fabrico:</b> {resolveManufacturingCountry(item.marca, item.modelo)}</p>
                       <p><b>Modelo:</b> {item.modelo || "-"}</p>
                       <p><b>Tamanho:</b> {item.tamanho || "-"}</p>
                       <p><b>Estado:</b> {item.estado || "-"}</p>
                       <p><b>Data fabrico:</b> {formatMonthYear(item.dataFabrico)}</p>
-                      <p><b>Data inspeÃ§Ã£o:</b> {formatInspectionDate(item.dataInspecao)}</p>
-                      <p><b>PrÃ³xima inspeÃ§Ã£o:</b> {formatInspectionDate(item.dataProxInspecao)}</p>
-                      <p><b>ObservaÃ§Ãµes:</b> {item.observacoes || "-"}</p>
+                      <p><b>Data inspeção:</b> {formatInspectionDate(item.dataInspecao)}</p>
+                      <p><b>Próxima inspeção:</b> {formatInspectionDate(item.dataProxInspecao)}</p>
+                      <p><b>Observações:</b> {item.observacoes || "-"}</p>
                     </div>
                     {(() => {
                       const manualData = getManualData(item);
                       return manualData.manuals.length > 0 ? (
                         <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs">
-                          <span className="font-semibold text-cyan-900">Manual tÃ©cnico:</span>
+                          <span className="font-semibold text-cyan-900">Manual técnico:</span>
                           <span className="text-cyan-800">{manualData.matchedModel ? manualData.displayLabel : item.marca || "Marca"}</span>
                           <a href={manualData.manuals[0].href} target="_blank" rel="noreferrer" className="rounded bg-cyan-600 px-2 py-1 font-semibold text-white hover:bg-cyan-700">
                             Abrir manual

@@ -369,12 +369,12 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
   try {
     const { id: rawId } = await context.params;
     const id = parseInt(rawId);
-    if (isNaN(id)) return NextResponse.json({ error: 'ID invÃlido' }, { status: 400 });
+    if (isNaN(id)) return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
 
     const navio = await findNavioByIdResilient(id);
 
     if (!navio) {
-      return NextResponse.json({ error: 'Navio nÃ£o encontrado' }, { status: 404 });
+      return NextResponse.json({ error: 'Navio não encontrado' }, { status: 404 });
     }
 
     const [jangadas, coletes, inspecoes] = await Promise.all([

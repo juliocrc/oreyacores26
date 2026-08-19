@@ -1,6 +1,7 @@
-# Render Blueprint for Gestor Naval Pro
-# Deploys a PostgreSQL database and a Node.js web service.
+# Render Blueprint for Gestão Naval Pro
+# Deploys a Node.js web service using PostgreSQL Atlas.
 # Usage: push this file to GitHub and create a new Blueprint on Render.
+# Set DATABASE_URL in Render Dashboard > Environment (PostgreSQL Atlas connection string).
 
 services:
   - type: web
@@ -20,19 +21,11 @@ services:
       - key: PORT
         value: 3000
       - key: DATABASE_URL
-        fromDatabase:
-          name: gestor-naval-pro-db
-          property: connectionString
+        sync: false
       - key: NEXTAUTH_SECRET
         generateValue: true
       - key: NEXTAUTH_URL
         value: https://gestor-naval-pro.onrender.com
       # Optional: set your own app name / domain below
       # - key: NEXT_PUBLIC_APP_NAME
-      #   value: Gestor Naval Pro
-
-databases:
-  - name: gestor-naval-pro-db
-    plan: starter
-    region: frankfurt
-    ipAllowList: []
+      #   value: Gestão Naval Pro

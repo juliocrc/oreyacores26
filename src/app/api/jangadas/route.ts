@@ -247,7 +247,7 @@ export async function DELETE(req: NextRequest) {
 
     const { ids } = await req.json();
     if (!Array.isArray(ids) || ids.length === 0) {
-      return NextResponse.json({ error: "Envie um array de IDs para exclusÃ£o em lote." }, { status: 400 });
+      return NextResponse.json({ error: "Envie um array de IDs para exclusão em lote." }, { status: 400 });
     }
 
     for (const rawId of ids) {
