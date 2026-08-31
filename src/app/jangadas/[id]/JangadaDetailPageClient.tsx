@@ -3541,8 +3541,6 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                 </div>
               </div>
             </div>
-
-          </div>
           </div>
         )}
 
