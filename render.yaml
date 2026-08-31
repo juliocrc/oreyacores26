@@ -20,8 +20,12 @@ services:
         value: 0.0.0.0
       - key: PORT
         value: 3000
+      - key: SUPABASE_DATABASE_URL
+        sync: false
+        value: "postgres://postgres:SUA_SENHA_AQUI@db.seu-projeto.supabase.co:5432/postgres?sslmode=require"
       - key: DATABASE_URL
         sync: false
+        value: "postgres://postgres:SUA_SENHA_AQUI@db.seu-projeto.supabase.co:5432/postgres?sslmode=require"
       - key: AUTH_BYPASS
         value: "true"
       - key: NEXTAUTH_SECRET

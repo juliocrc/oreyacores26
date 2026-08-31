@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { requireAdminOrBypass } from '../_lib';
+import { requireAdminOrBypass } from '@/app/api/backups/_lib';
 
 const execAsync = promisify(exec);
 

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
 import * as XLSX from 'xlsx';
-import { requireAdminOrBypass } from '../_lib';
+import { requireAdminOrBypass } from '@/app/api/backups/_lib';
 
 interface PrismaModelDelegate {
   findMany: () => Promise<Array<Record<string, unknown>>>

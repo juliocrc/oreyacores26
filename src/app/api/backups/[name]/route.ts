@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-import { requireAdminOrBypass } from '../../_lib';
+import { requireAdminOrBypass } from '@/app/api/backups/_lib';
 
 export async function GET(
   request: Request,
