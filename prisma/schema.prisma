@@ -453,7 +453,6 @@ model Navio {
   estadoNavio            String? // "ativo", "inativo", "abatido", "naufragado"
   dataEstado             DateTime?
   proprietario           String?
-  historicoProprietarios String?  // JSON list of previous owners
   bandeira               String?
   mmsi                   String?
   imo                    String?

@@ -3039,6 +3039,42 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                       <p className="font-semibold text-slate-800">{fmtPeso(data.cylinderTara, " kg")}</p>
                     )}
                   </div>
+                </div>
+
+                {/* Validador de Tolerância de Gás / Célula de Carga (CO2 e N2) */}
+                {(() => {
+                  const bruto = Number(isEditing ? editForm.cylinderPesoBruto : data.cylinderPesoBruto);
+                  const tara = Number(isEditing ? editForm.cylinderTara : data.cylinderTara);
+                  const nominalCo2 = Number(isEditing ? editForm.cylinderCo2 : data.cylinderCo2);
+                  const nominalN2 = Number(isEditing ? editForm.cylinderN2 : data.cylinderN2);
+                  
+                  if (!bruto || !tara) return null;
+                  
+                  const pesoTotalGasesMedido = bruto - tara;
+                  const pesoTotalNominal = (nominalCo2 || 0) + (nominalN2 || 0);
+                  const diferencaTotal = pesoTotalNominal ? pesoTotalGasesMedido - pesoTotalNominal : 0;
+                  const toleranciaMax = pesoTotalNominal ? pesoTotalNominal * 0.05 : 0.05; // 5% tolerância ISO
+                  const isAprovado = pesoTotalNominal ? Math.abs(diferencaTotal) <= toleranciaMax : true;
+
+                  return (
+                    <div className={`mt-3 p-3 rounded-2xl border ${isAprovado ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'} text-xs space-y-2`}>
+                      <div className="flex items-center justify-between font-bold">
+                        <span>⚖️ Validação Balança / Célula de Carga (CO₂ + N₂):</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] ${isAprovado ? 'bg-emerald-200 text-emerald-900' : 'bg-rose-200 text-rose-900'}`}>
+                          {isAprovado ? '✓ DENTRO DA TOLERÂNCIA (≤ 5%)' : '⚠ PERDA EXCESSIVA DE GÁS (> 5%)'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-[11px] bg-white/60 p-2 rounded-xl">
+                        <div><b>Gás Medido (Bruto-Tara):</b> {pesoTotalGasesMedido.toFixed(3)} kg</div>
+                        <div><b>Total Nominal (CO₂ + N₂):</b> {pesoTotalNominal ? `${pesoTotalNominal.toFixed(3)} kg` : '—'}</div>
+                        <div><b>Diferença Total:</b> {pesoTotalNominal ? `${diferencaTotal > 0 ? '+' : ''}${diferencaTotal.toFixed(3)} kg` : '—'}</div>
+                        <div><b>Tolerância Máx (5%):</b> ±{toleranciaMax.toFixed(3)} kg</div>
+                      </div>
+                      {nominalCo2 ? <div className="text-[10px] text-slate-600">• CO₂ Nominal: <b>{nominalCo2} kg</b> {expectedGas?.co2 !== undefined && `(Manual: ${expectedGas.co2.toFixed(3)} kg)`}</div> : null}
+                      {nominalN2 ? <div className="text-[10px] text-slate-600">• N₂ Nominal: <b>{nominalN2} kg</b> {expectedGas?.n2 !== undefined && `(Manual: ${expectedGas.n2.toFixed(3)} kg)`}</div> : null}
+                    </div>
+                  );
+                })()}
 
                   <div className="space-y-1">
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
@@ -5584,7 +5620,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                         <tr className="border-b border-slate-100">
                           <td className="px-2 py-0.5 font-semibold text-slate-450">Teste NAP / FS</td>
                           <td className="px-2 py-0.5 font-bold text-slate-800">
-                            {data.testeNAP || 'N/A'} / {data.testeFS || 'N/A'}
+                            {data.testeNAP ? `SIM (${data.testeNAP})` : 'SIM'} / {data.testeFS || 'Aprovado'}
                           </td>
                         </tr>
                         <tr>

@@ -1,75 +1,50 @@
-const CACHE = "gestor-naval-v2";
-const OFFLINE_URL = "/offline.html";
+const CACHE_NAME = 'orey-acores-v1';
+const OFFLINE_URL = '/offline.html';
 
-self.addEventListener("install", (event) => {
-  self.skipWaiting();
+const ASSETS_TO_CACHE = [
+  '/',
+  '/offline.html',
+  '/manifest.json',
+  '/icon-192x192.png',
+  '/favicon.ico'
+];
+
+self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches
-      .open(CACHE)
-      .then((cache) => cache.add(OFFLINE_URL).catch(() => {}))
-      .catch(() => {})
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(ASSETS_TO_CACHE);
+    }).then(() => self.skipWaiting())
   );
 });
 
-self.addEventListener("activate", (event) => {
+self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
-      )
-      // Forçar busca de HTML/navegações na próxima visita (evita HTML antigo em cache)
-      .then(() => caches.open(CACHE))
-      .then((cache) =>
-        Promise.all([
-          cache.delete("/"),
-          cache.delete("/login"),
-          cache.delete("/api/health"),
-        ])
-      )
-      .then(() => self.clients.claim())
-  );
-});
-
-self.addEventListener("fetch", (event) => {
-  const { request } = event;
-  if (request.method !== "GET") return;
-
-  const url = new URL(request.url);
-  if (url.origin !== self.location.origin) return;
-
-  // API: network-first com fallback ao cache (para modo offline)
-  if (url.pathname.startsWith("/api/")) {
-    event.respondWith(
-      fetch(request)
-        .then((res) => {
-          if (res && res.ok) {
-            const clone = res.clone();
-            caches.open(CACHE).then((cache) => cache.put(request, clone)).catch(() => {});
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.map((cacheName) => {
+          if (cacheName !== CACHE_NAME) {
+            return caches.delete(cacheName);
           }
-          return res;
         })
-        .catch(() => caches.match(request))
-    );
-    return;
-  }
-
-  // Navegações e assets estáticos: NETWORK-FIRST
-  // Sempre que online, o servidor é consultado (dados sempre atualizados).
-  // O cache só é usado como fallback quando offline.
-  event.respondWith(
-    fetch(request)
-      .then((res) => {
-        if (res && res.ok) {
-          const clone = res.clone();
-          caches.open(CACHE).then((cache) => cache.put(request, clone)).catch(() => {});
-        }
-        return res;
-      })
-      .catch(() =>
-        caches
-          .match(request)
-          .then((cached) => cached || caches.match(OFFLINE_URL))
-      )
+      );
+    }).then(() => self.clients.claim())
   );
+});
+
+self.addEventListener('fetch', (event) => {
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).catch(() => {
+        return caches.match(OFFLINE_URL);
+      })
+    );
+  } else {
+    event.respondWith(
+      caches.match(event.request).then((response) => {
+        return response || fetch(event.request);
+      }).catch(() => {
+        // Fallback for offline API or assets if needed
+      })
+    );
+  }
 });
