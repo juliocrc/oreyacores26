@@ -28,6 +28,7 @@ import {
 } from "@/lib/ordens-servico";
 import { parseFlexibleDate } from "@/lib/agenda-sync";
 import { buildDatabaseErrorResponse } from "@/lib/database-errors";
+import { getCanonicalNavioLocationLabel } from "@/lib/navios-page-helpers";
 
 const ORDEM_INCLUDE = {
   jangada: {
@@ -394,7 +395,7 @@ function serializeOrder(row: OrdemServicoRow) {
     cliente: row.cliente ? {
       id: row.cliente.id,
       nome: row.cliente.nome,
-      ilha: row.cliente.ilha,
+      ilha: (getCanonicalNavioLocationLabel(row.cliente.ilha) || row.cliente.ilha) || null,
       numeroCliente: row.cliente.numeroCliente,
     } : null,
     inspecao: row.inspecao ? {
