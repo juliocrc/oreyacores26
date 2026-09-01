@@ -8,6 +8,7 @@ import DataTable, { type ColumnDef } from "@/components/shared/DataTable";
 
 import { type Cliente, type Navio, type ClienteListColumnKey, type ViewMode, CLIENTE_LIST_COLUMNS_KEY, CLIENTE_LIST_COLUMNS } from "@/types/clientes-page";
 import { buildDefaultClienteListColumns, normalizeNaviosResponse, normalizePhoneSearch, getMissingProfileFields } from "@/lib/clientes-page-helpers";
+import { getCanonicalNavioLocationLabel } from "@/lib/navios-page-helpers";
 
 export default function ClientesPage() {
   const [groupedClientes, setGroupedClientes] = useState<{ [key: string]: Cliente[] }>({});
@@ -78,10 +79,10 @@ export default function ClientesPage() {
   const groupClientesByIlha = (clientes: Cliente[]) => {
     const grouped: { [key: string]: Cliente[] } = {};
     for (const cliente of clientes) {
-      const ilha = cliente.ilha || "Sem ilha";
-      if (!grouped[ilha]) grouped[ilha] = [];
-      grouped[ilha].push(cliente);
-    }
+        const ilha = (getCanonicalNavioLocationLabel(cliente.ilha) || cliente.ilha) || "Sem ilha";
+        if (!grouped[ilha]) grouped[ilha] = [];
+        grouped[ilha].push(cliente);
+      }
     return grouped;
   };
 
@@ -343,7 +344,7 @@ export default function ClientesPage() {
     const draft = newNavioByCliente[cliente.id] || {
       nome: "",
       matricula: "",
-      ilha: cliente.ilha || "",
+      ilha: (getCanonicalNavioLocationLabel(cliente.ilha) || cliente.ilha) || "",
       tipoPesca: "",
       tipoNavio: ""
     };
@@ -380,7 +381,7 @@ export default function ClientesPage() {
         [cliente.id]: {
           nome: "",
           matricula: "",
-          ilha: cliente.ilha || "",
+          ilha: (getCanonicalNavioLocationLabel(cliente.ilha) || cliente.ilha) || "",
           tipoPesca: "",
           tipoNavio: ""
         }
@@ -434,7 +435,7 @@ export default function ClientesPage() {
         moradaNumero: cliente.moradaNumero || "",
         codigoPostal: cliente.codigoPostal || "",
         localidade: cliente.localidade || "",
-        ilha: cliente.ilha || "",
+        ilha: (getCanonicalNavioLocationLabel(cliente.ilha) || cliente.ilha) || "",
         nif: cliente.nif || "",
         email: cliente.email || "",
         telefone: cliente.telefone || "",
@@ -904,7 +905,7 @@ export default function ClientesPage() {
                                 </div>
                                 <div>
                                   <p className="text-gray-500">Ilha</p>
-                                  <p className="font-medium text-gray-900">{cliente.ilha || "Sem ilha"}</p>
+                                  <p className="font-medium text-gray-900">{(getCanonicalNavioLocationLabel(cliente.ilha) || cliente.ilha) || "Sem ilha"}</p>
                                 </div>
                                 <div>
                                   <p className="text-gray-500">Modo de Pagamento</p>
@@ -1244,7 +1245,7 @@ export default function ClientesPage() {
                                       [cliente.id]: {
                                         nome: e.target.value,
                                         matricula: prev[cliente.id]?.matricula || "",
-                                        ilha: prev[cliente.id]?.ilha || cliente.ilha || "",
+                                        ilha: prev[cliente.id]?.ilha || (getCanonicalNavioLocationLabel(cliente.ilha) || cliente.ilha) || "",
                                         tipoPesca: prev[cliente.id]?.tipoPesca || "",
                                         tipoNavio: prev[cliente.id]?.tipoNavio || ""
                                       }
@@ -1260,7 +1261,7 @@ export default function ClientesPage() {
                                       [cliente.id]: {
                                         nome: prev[cliente.id]?.nome || "",
                                         matricula: e.target.value,
-                                        ilha: prev[cliente.id]?.ilha || cliente.ilha || "",
+                                        ilha: prev[cliente.id]?.ilha || (getCanonicalNavioLocationLabel(cliente.ilha) || cliente.ilha) || "",
                                         tipoPesca: prev[cliente.id]?.tipoPesca || "",
                                         tipoNavio: prev[cliente.id]?.tipoNavio || ""
                                       }
@@ -1270,7 +1271,7 @@ export default function ClientesPage() {
                                   />
                                   <input
                                     type="text"
-                                    value={newNavioByCliente[cliente.id]?.ilha || cliente.ilha || ""}
+                                    value={newNavioByCliente[cliente.id]?.ilha || (getCanonicalNavioLocationLabel(cliente.ilha) || cliente.ilha) || ""}
                                     onChange={e => setNewNavioByCliente(prev => ({
                                       ...prev,
                                       [cliente.id]: {
@@ -1292,7 +1293,7 @@ export default function ClientesPage() {
                                       [cliente.id]: {
                                         nome: prev[cliente.id]?.nome || "",
                                         matricula: prev[cliente.id]?.matricula || "",
-                                        ilha: prev[cliente.id]?.ilha || cliente.ilha || "",
+                                        ilha: prev[cliente.id]?.ilha || (getCanonicalNavioLocationLabel(cliente.ilha) || cliente.ilha) || "",
                                         tipoPesca: e.target.value,
                                         tipoNavio: prev[cliente.id]?.tipoNavio || ""
                                       }
@@ -1309,7 +1310,7 @@ export default function ClientesPage() {
                                       [cliente.id]: {
                                         nome: prev[cliente.id]?.nome || "",
                                         matricula: prev[cliente.id]?.matricula || "",
-                                        ilha: prev[cliente.id]?.ilha || cliente.ilha || "",
+                                        ilha: prev[cliente.id]?.ilha || (getCanonicalNavioLocationLabel(cliente.ilha) || cliente.ilha) || "",
                                         tipoPesca: prev[cliente.id]?.tipoPesca || "",
                                         tipoNavio: e.target.value
                                       }
