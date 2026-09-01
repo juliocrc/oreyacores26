@@ -48,7 +48,7 @@ export default function AuditoriasPage() {
 
   useEffect(() => {
     void (async () => {
-      await fetchAuditorias();
+      await fetchAuditorias("", { tabela: "Navio", tipoOperacao: "TODOS", startDate: "", endDate: "" });
     })();
   }, [fetchAuditorias]);
 

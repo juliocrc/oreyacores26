@@ -69,7 +69,7 @@ def fill_template(template_path, output_path, data):
     # Fill table - Row 0: manufacture date, place, cert number
     t = doc.tables[0]
     fab = data.get('dataFabrico', '')
-    cert = data.get('ultimoCertificadoNumero', '') or data.get('certificadoExternoNumero', '') or 'AZ26-169'
+    cert = data.get('certificadoExternoNumero', '') or data.get('certificadoNumeroOriginal', '') or ''
     local = data.get('ilha', '') or 'Ponta Delgada'
 
     # Cell 0,0: Data de fabrico
@@ -86,7 +86,7 @@ def fill_template(template_path, output_path, data):
         if p.runs: p.runs[0].text = local
         else: p.add_run(local)
 
-    # Cell 0,2: N.º do certificado original
+    # Cell 0,2: N.º do certificado original (fica em branco se não preenchido)
     cell_02 = t.rows[1].cells[2]
     for p in cell_02.paragraphs:
         for r in p.runs: r.text = ''
@@ -94,9 +94,9 @@ def fill_template(template_path, output_path, data):
         else: p.add_run(cert)
 
     # Fill table - Row 1 (Index 3): Data revisão periódica, Navio, N.º do relatório
-    data_rev = data.get('dataInspecao', '') or '01/09/2026'
-    navio_nome = data.get('shipName', '') or data.get('shipNameManual', '') or 'Rainha da Calheta'
-    relatorio_num = data.get('ultimoCertificadoNumero', '') or 'AZ26-169'
+    data_rev = data.get('dataInspecao', '') or ''
+    navio_nome = data.get('shipName', '') or data.get('shipNameManual', '') or ''
+    relatorio_num = data.get('ultimoCertificadoNumero', '') or ''
 
     if len(t.rows) > 3:
         row_rev = t.rows[3]
@@ -120,6 +120,16 @@ def fill_template(template_path, output_path, data):
             for r in p.runs: r.text = ''
             if p.runs: p.runs[0].text = relatorio_num
             else: p.add_run(relatorio_num)
+
+    # Preencher Armador na última linha da tabela
+    owner_nome = data.get('owner', '') or ''
+    if len(t.rows) > 0:
+        row_owner = t.rows[-1]
+        for cell in row_owner.cells:
+            for p in cell.paragraphs:
+                for r in p.runs: r.text = ''
+                if p.runs: p.runs[0].text = owner_nome
+                else: p.add_run(owner_nome)
 
     doc.save(output_path)
     print(f"DOCX gerado: {output_path}")
