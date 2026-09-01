@@ -5,6 +5,7 @@ import { logAuditoria } from "@/lib/auditoria";
 import { isValidNif, normalizePhone } from "@/lib/validators";
 import { deriveClienteAddressFields } from "@/lib/client-address";
 import { getAccessContext } from "@/lib/access-control";
+import { getCanonicalNavioLocationLabel } from "@/lib/navios-page-helpers";
 import { normalizeClienteIslandValue } from "@/lib/azores-islands";
 import { resolveActiveServiceStationId } from "@/lib/station-selection";
 
@@ -229,7 +230,11 @@ export async function GET(req: NextRequest) {
   const nome = searchParams.get("nome"); if (nome) where.nome = { contains: nome, mode: "insensitive" };
   const numeroCliente = searchParams.get("numeroCliente"); if (numeroCliente) where.numeroCliente = { contains: numeroCliente, mode: "insensitive" };
   const nif = searchParams.get("nif"); if (nif) where.nif = { contains: nif, mode: "insensitive" };
-  const ilha = searchParams.get("ilha"); if (ilha) where.ilha = { contains: ilha, mode: "insensitive" };
+  const ilhaRaw = searchParams.get("ilha");
+  if (ilhaRaw) {
+    const ilhaCanon = getCanonicalNavioLocationLabel(ilhaRaw) || ilhaRaw;
+    where.ilha = { contains: ilhaCanon, mode: "insensitive" };
+  }
   const email = searchParams.get("email"); if (email) where.email = { contains: email, mode: "insensitive" };
   const telefone = searchParams.get("telefone"); if (telefone) where.telefone = { contains: telefone, mode: "insensitive" };
   const telmovel = searchParams.get("telmovel"); if (telmovel) where.telmovel = { contains: telmovel, mode: "insensitive" };
