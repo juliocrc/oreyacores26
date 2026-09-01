@@ -35,7 +35,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       { nome: "Comprimidos Anti-enjoo", referencia: "MOTION-TAB", quantidade: 1, custoEstimado: 15.0 },
     ];
 
-    const maoObraPadrao = 140.0; // 2 horas técnicas base
+    const maoObraPadrao = 0.0; // Sem mão de obra por defeito
     const totalMaterialEstimado = itemsToReplace.reduce((sum, i) => sum + i.custoEstimado * i.quantidade, 0);
     const subtotal = totalMaterialEstimado + maoObraPadrao;
     const iva = subtotal * getIvaRate();

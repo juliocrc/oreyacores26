@@ -102,7 +102,7 @@ export async function GET(req: NextRequest) {
       valorPecas = Number(ordem.valorPecas);
     }
 
-    const valorMaoObra = Number(ordem?.valorMaoObra || 150);
+    const valorMaoObra = Number(ordem?.valorMaoObra || 0);
     const valorDesconto = Number(ordem?.valorDesconto || 0);
     const isentoIva = Boolean(ordem?.isIsentoIva);
     const subtotalGeral = Math.max(0, valorPecas + valorMaoObra - valorDesconto);
