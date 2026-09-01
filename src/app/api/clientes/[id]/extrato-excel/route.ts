@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import ExcelJS from "exceljs";
 import { getAccessContext } from "@/lib/access-control";
+import { getCanonicalNavioLocationLabel } from "@/lib/navios-page-helpers";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(value || 0);
@@ -81,7 +82,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     worksheet.addRow([]);
     worksheet.addRow(["NIF:", cliente.nif || "—", "", "Código Cliente:", cliente.numeroCliente || "—"]);
-    worksheet.addRow(["Morada:", cliente.morada || "—", "", "Ilha:", cliente.ilha || "—"]);
+    worksheet.addRow(["Morada:", cliente.morada || "—", "", "Ilha:", (getCanonicalNavioLocationLabel(cliente.ilha) || cliente.ilha) || "—"]);
     worksheet.addRow([]);
 
     const headerRow = worksheet.addRow(["Data", "Documento", "Embarcação / Descrição", "Estado", "Valor (€)"]);
