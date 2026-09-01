@@ -14,8 +14,7 @@ const eslintConfig = defineConfig([
       "@typescript-eslint/no-explicit-any": "warn",
       // Relax require-imports enforcement to allow legacy scripts during migration
       "@typescript-eslint/no-require-imports": "warn",
-      // Some components intentionally set state during mount; warn instead of error
-      "react-hooks/set-state-in-effect": "warn",
+      // React-hooks rule left at default to avoid requiring extra plugin here
     },
   },
   // Allow CommonJS utility scripts to use require() without lint errors
