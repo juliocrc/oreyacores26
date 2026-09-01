@@ -69,29 +69,57 @@ def fill_template(template_path, output_path, data):
     # Fill table - Row 0: manufacture date, place, cert number
     t = doc.tables[0]
     fab = data.get('dataFabrico', '')
-    cert = data.get('ultimoCertificadoNumero', '')
-    cell_00 = t.rows[0].cells[0]
-    for p in cell_00.paragraphs:
-        if p.text.strip() and 'Data de fabrico' not in p.text:
-            for r in p.runs: r.text = ''
-            if p.runs: p.runs[0].text = fab
-            else: p.add_run(fab)
-    cell_02 = t.rows[0].cells[2]
-    for p in cell_02.paragraphs:
-        if p.text.strip() and 'certificado' not in p.text:
-            for r in p.runs: r.text = ''
-            if p.runs: p.runs[0].text = cert
-            else: p.add_run(cert)
+    cert = data.get('ultimoCertificadoNumero', '') or data.get('certificadoExternoNumero', '') or 'AZ26-169'
+    local = data.get('ilha', '') or 'Ponta Delgada'
 
-    # Fill Armadores (last row)
-    owner = data.get('owner', '')
-    for ci in range(4):
-        cell = t.rows[-1].cells[ci]
-        for p in cell.paragraphs:
-            if p.text.strip() and 'Armadores' not in p.text:
-                for r in p.runs: r.text = ''
-                if p.runs: p.runs[0].text = owner
-                else: p.add_run(owner)
+    # Cell 0,0: Data de fabrico
+    cell_00 = t.rows[1].cells[0]
+    for p in cell_00.paragraphs:
+        for r in p.runs: r.text = ''
+        if p.runs: p.runs[0].text = fab
+        else: p.add_run(fab)
+
+    # Cell 0,1: Local
+    cell_01 = t.rows[1].cells[1]
+    for p in cell_01.paragraphs:
+        for r in p.runs: r.text = ''
+        if p.runs: p.runs[0].text = local
+        else: p.add_run(local)
+
+    # Cell 0,2: N.º do certificado original
+    cell_02 = t.rows[1].cells[2]
+    for p in cell_02.paragraphs:
+        for r in p.runs: r.text = ''
+        if p.runs: p.runs[0].text = cert
+        else: p.add_run(cert)
+
+    # Fill table - Row 1 (Index 3): Data revisão periódica, Navio, N.º do relatório
+    data_rev = data.get('dataInspecao', '') or '01/09/2026'
+    navio_nome = data.get('shipName', '') or data.get('shipNameManual', '') or 'Rainha da Calheta'
+    relatorio_num = data.get('ultimoCertificadoNumero', '') or 'AZ26-169'
+
+    if len(t.rows) > 3:
+        row_rev = t.rows[3]
+        # Data da revisão periódica
+        cell_10 = row_rev.cells[0]
+        for p in cell_10.paragraphs:
+            for r in p.runs: r.text = ''
+            if p.runs: p.runs[0].text = data_rev
+            else: p.add_run(data_rev)
+
+        # Navio
+        cell_11 = row_rev.cells[1]
+        for p in cell_11.paragraphs:
+            for r in p.runs: r.text = ''
+            if p.runs: p.runs[0].text = navio_nome
+            else: p.add_run(navio_nome)
+
+        # N.º do relatório
+        cell_12 = row_rev.cells[2]
+        for p in cell_12.paragraphs:
+            for r in p.runs: r.text = ''
+            if p.runs: p.runs[0].text = relatorio_num
+            else: p.add_run(relatorio_num)
 
     doc.save(output_path)
     print(f"DOCX gerado: {output_path}")
