@@ -945,7 +945,7 @@ export default function FaturacaoConsolePage() {
                       </div>
                       <div className="flex-1 space-y-3 w-full">
                         <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-3">
-                          <div className="text-[10px] font-semibold uppercase tracking-wider text-indigo-600">Mão de Obra</div>
+                          <div className="text-[10px] font-semibold uppercase tracking-wider text-indigo-600">Inspeção de Jangada</div>
                           <div className="text-lg font-black font-mono text-slate-800">€ {totalMaoObraFaturado.toFixed(2)}</div>
                           <div className="text-xs text-slate-500">{totalComponentes > 0 ? ((totalMaoObraFaturado / totalComponentes) * 100).toFixed(0) : 0}% do total</div>
                         </div>
@@ -1331,7 +1331,7 @@ export default function FaturacaoConsolePage() {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-500 mb-1">Valor Mão-de-Obra (€)</label>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">Valor Inspeção de Jangada (€)</label>
                       <div className="relative">
                         <Wrench className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
                         <input

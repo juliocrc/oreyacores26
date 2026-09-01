@@ -155,7 +155,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     }
 
     const moneyRows: Array<{ label: string; note: string; value: number; bold?: boolean }> = [
-      { label: "Mão-de-obra", note: "", value: maoObra },
+      { label: "Inspeção de Jangada", note: "", value: maoObra },
       { label: "Peças / Materiais", note: "", value: pecas },
       { label: "Desconto", note: "", value: -desconto },
       { label: "Subtotal", note: "", value: subtotal },

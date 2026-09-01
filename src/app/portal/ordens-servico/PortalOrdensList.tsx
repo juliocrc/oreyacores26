@@ -1343,7 +1343,7 @@ export default function PortalOrdensList({ ordens: ordensProp, navios: naviosPro
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                      Mão de Obra (€)
+                      Inspeção de Jangada (€)
                     </label>
                     <input
                       type="number"

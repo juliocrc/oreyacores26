@@ -156,7 +156,7 @@ export async function GET(req: NextRequest) {
     }
 
     worksheet.addRow([]);
-    worksheet.addRow(["", "", "", "Mão-de-Obra:", formatEuro(valorMaoObra)]);
+    worksheet.addRow(["", "", "", "Inspeção de Jangada:", formatEuro(valorMaoObra)]);
     worksheet.addRow(["", "", "", "Peças / Materiais:", formatEuro(valorPecas)]);
     if (valorDesconto > 0) {
       worksheet.addRow(["", "", "", "Desconto:", `-${formatEuro(valorDesconto)}`]);
