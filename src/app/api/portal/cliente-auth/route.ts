@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getInspectionStatus } from "@/lib/inspection-status";
+import { getCanonicalNavioLocationLabel } from "@/lib/navios-page-helpers";
 import { daysUntil } from "@/lib/date-utils";
 
 const JANGADA_SELECT = {
@@ -167,7 +168,7 @@ export async function GET(req: NextRequest) {
         nif: cliente.nif,
         numeroCliente: cliente.numeroCliente,
         morada: cliente.morada,
-        ilha: cliente.ilha,
+        ilha: (getCanonicalNavioLocationLabel(cliente.ilha) || cliente.ilha) || null,
       },
       jangadas: jangadasComEstado,
       ordensServico: cliente.ordensServico,
