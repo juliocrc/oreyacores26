@@ -1,0 +1,74 @@
+ESLint remaining problems summary
+================================
+Total files reported: 922
+Total errors: 353
+Total warnings: 1108
+
+Top files with most problems (count 	 filepath):
+83	D:\Acores\public\workbox-4754cb34.js
+78	D:\Acores\src\app\equipamentos\[id]\ColeteDetailPageClient.tsx
+77	D:\Acores\src\modules\Inspections.tsx
+64	D:\Acores\src\app\navios\[id]\page.tsx
+45	D:\Acores\src\app\jangadas\[id]\JangadaDetailPageClient.tsx
+43	D:\Acores\src\app\page.tsx
+41	D:\Acores\src\app\stock\page.tsx
+29	D:\Acores\src\components\jangadas\InspecaoDetalhesDialog.tsx
+25	D:\Acores\src\modules\JangadaWizard\Step4_PackMascara.tsx
+24	D:\Acores\scripts\match-and-associate-cleaned.ts
+24	D:\Acores\src\modules\JangadaWizard\Step8_ResumoFinal.tsx
+22	D:\Acores\src\app\agenda\page.tsx
+22	D:\Acores\src\app\relatorios\page.tsx
+22	D:\Acores\src\modules\Calendar.tsx
+17	D:\Acores\scripts\match-and-associate-fixed.ts
+16	D:\Acores\src\app\estacao-servico\page.tsx
+16	D:\Acores\src\app\jangadas\page.tsx
+16	D:\Acores\src\modules\Clients.tsx
+15	D:\Acores\src\app\clientes\page.tsx
+15	D:\Acores\src\app\departamento-tecnico\page.tsx
+15	D:\Acores\src\lib\prisma.ts
+14	D:\Acores\src\modules\Checklist.tsx
+13	D:\Acores\prisma\reassociate_jangadas_advanced.ts
+13	D:\Acores\scripts\match-and-associate.ts
+13	D:\Acores\src\app\inspecoes\actions.ts
+13	D:\Acores\src\app\logistica\page.tsx
+12	D:\Acores\launcher.js
+12	D:\Acores\prisma\seed_all.ts
+12	D:\Acores\prisma\update_dates_fix.js
+12	D:\Acores\src\app\clientes\[id]\page.tsx
+12	D:\Acores\src\modules\JangadaWizard\Step3_Componentes.tsx
+11	D:\Acores\src\app\fatos-imersao\[id]\page.tsx
+11	D:\Acores\src\modules\JangadaWizard\Step7_Orcamento.tsx
+10	D:\Acores\prisma\merge_jangadas.ts
+10	D:\Acores\prisma\reassociate_jangadas_permissive.ts
+10	D:\Acores\src\app\portal\ordens-servico\PortalOrdensList.tsx
+10	D:\Acores\src\app\utilizadores\page.tsx
+9	D:\Acores\prisma\enrich_quadro_data.ts
+9	D:\Acores\prisma\seed_jangadas.ts
+9	D:\Acores\prisma\seed_navios.ts
+9	D:\Acores\src\components\FichaVerificacaoMultipla.tsx
+9	D:\Acores\src\lib\ordens-servico.ts
+9	D:\Acores\src\lib\pressure-calculation.ts
+9	D:\Acores\src\lib\quadro-template.ts
+9	D:\Acores\src\modules\Auditorias.tsx
+8	D:\Acores\prisma\analyze_jangadas.ts
+8	D:\Acores\src\app\inspecoes\InspecoesClient.tsx
+8	D:\Acores\src\app\packs\page.tsx
+8	D:\Acores\src\app\stock\reposicoes\page.tsx
+8	D:\Acores\src\types\react-big-calendar.d.ts
+
+Top rules (count 	 ruleId):
+650	@typescript-eslint/no-explicit-any
+320	@typescript-eslint/no-unused-vars
+224	@typescript-eslint/no-require-imports
+89	react-hooks/set-state-in-effect
+71	@typescript-eslint/no-unused-expressions
+46	react-hooks/exhaustive-deps
+21	@next/next/no-img-element
+9	react-hooks/immutability
+8	react/no-unescaped-entities
+6	react-hooks/purity
+6	@next/next/no-html-link-for-pages
+3	@typescript-eslint/ban-ts-comment
+3	react-hooks/preserve-manual-memoization
+3	react-hooks/rules-of-hooks
+2	react-hooks/refs
