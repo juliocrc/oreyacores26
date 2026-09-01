@@ -44,7 +44,7 @@ function stripInsensitiveMode(obj: unknown): unknown {
 function wrapWithSQLiteProxy(rawClient: PrismaClient): PrismaClient {
   return new Proxy(rawClient as object, {
     get(target: unknown, prop: string | symbol) {
-      const origValue = (target as any)[prop];
+      const origValue = (target as Record<string, unknown>)[String(prop)];
       if (origValue === null || origValue === undefined) {
         return origValue;
       }
@@ -53,11 +53,12 @@ function wrapWithSQLiteProxy(rawClient: PrismaClient): PrismaClient {
       if (typeof origValue === "object" && typeof prop === "string" && !prop.startsWith("$")) {
         return new Proxy(origValue as object, {
           get(modelTarget: unknown, modelProp: string | symbol) {
-            const origMethod = (modelTarget as any)[modelProp];
+            const origMethod = (modelTarget as Record<string, unknown>)[String(modelProp)];
             if (typeof origMethod === "function") {
+              const fn = origMethod as (...args: unknown[]) => unknown;
               return function (...args: unknown[]) {
                 const cleanedArgs = (args as unknown[]).map(stripInsensitiveMode);
-                return (origMethod as Function).apply(modelTarget, cleanedArgs as any);
+                return fn.apply(modelTarget, cleanedArgs as unknown[]);
               };
             }
             return origMethod;
@@ -66,7 +67,8 @@ function wrapWithSQLiteProxy(rawClient: PrismaClient): PrismaClient {
       }
 
       if (typeof origValue === "function") {
-        return (origValue as Function).bind(target);
+        const fn = origValue as (...args: unknown[]) => unknown;
+        return fn.bind(target);
       }
 
       return origValue;
@@ -83,9 +85,9 @@ function attachClienteNumeroSync(rawClient: PrismaClient): PrismaClient {
         const clienteId = record["clienteId"] ?? dataClienteId;
         if (externo && clienteId) {
           // Ensure clienteId is a number before calling sync; convert if possible
-          const cid = typeof clienteId === 'number' ? clienteId : Number(clienteId as any);
+          const cid = typeof clienteId === "number" ? clienteId : Number(String(clienteId));
           if (!Number.isNaN(cid)) {
-            await syncClienteNumeroFromExterno(rawClient, cid, externo as any);
+            await syncClienteNumeroFromExterno(rawClient, cid, externo);
           }
         }
       }
@@ -100,40 +102,47 @@ function attachClienteNumeroSync(rawClient: PrismaClient): PrismaClient {
       ordemServico: {
         async create({ args, query }: { args?: unknown; query: (a?: unknown) => Promise<unknown> }) {
           const result = await query(args);
-          const clienteId = (args as any)?.data?.clienteId ?? undefined;
+          const clienteId = getClienteIdFromArgs(args);
           return afterWrite(result, clienteId);
         },
         async update({ args, query }: { args?: unknown; query: (a?: unknown) => Promise<unknown> }) {
           const result = await query(args);
-          const clienteId = (args as any)?.data?.clienteId ?? undefined;
+          const clienteId = getClienteIdFromArgs(args);
           return afterWrite(result, clienteId);
         },
         async upsert({ args, query }: { args?: unknown; query: (a?: unknown) => Promise<unknown> }) {
           const result = await query(args);
-          const clienteId = (args as any)?.data?.clienteId ?? undefined;
+          const clienteId = getClienteIdFromArgs(args);
           return afterWrite(result, clienteId);
         },
       },
       fatura: {
         async create({ args, query }: { args?: unknown; query: (a?: unknown) => Promise<unknown> }) {
           const result = await query(args);
-          const clienteId = (args as any)?.data?.clienteId ?? undefined;
+          const clienteId = getClienteIdFromArgs(args);
           return afterWrite(result, clienteId);
         },
         async update({ args, query }: { args?: unknown; query: (a?: unknown) => Promise<unknown> }) {
           const result = await query(args);
-          const clienteId = (args as any)?.data?.clienteId ?? undefined;
+          const clienteId = getClienteIdFromArgs(args);
           return afterWrite(result, clienteId);
         },
         async upsert({ args, query }: { args?: unknown; query: (a?: unknown) => Promise<unknown> }) {
           const result = await query(args);
-          const clienteId = (args as any)?.data?.clienteId ?? undefined;
+          const clienteId = getClienteIdFromArgs(args);
           return afterWrite(result, clienteId);
         },
       },
     },
   });
   return extended as unknown as PrismaClient;
+}
+
+function getClienteIdFromArgs(args: unknown): unknown {
+  if (!args || typeof args !== "object") return undefined;
+  const a = args as Record<string, unknown>;
+  const data = a.data as Record<string, unknown> | undefined;
+  return data?.clienteId ?? undefined;
 }
 
 function createPrismaClient(): PrismaClient {
