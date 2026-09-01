@@ -130,3 +130,6 @@ add_missing_stock.cjs
 fix_duplicate_references.cjs
 _tmp_*.cjs
 test-script.ps1
+
+# Local-only seed scripts (contain secrets) - do not commit
+src/seed-admin-user.cjs
