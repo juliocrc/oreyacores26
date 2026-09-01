@@ -12,6 +12,17 @@ const eslintConfig = defineConfig([
     rules: {
       // Relax this rule to 'warn' so we can progressively add types
       "@typescript-eslint/no-explicit-any": "warn",
+      // Relax require-imports enforcement to allow legacy scripts during migration
+      "@typescript-eslint/no-require-imports": "warn",
+      // Some components intentionally set state during mount; warn instead of error
+      "react-hooks/set-state-in-effect": "warn",
+    },
+  },
+  // Allow CommonJS utility scripts to use require() without lint errors
+  {
+    files: ["**/*.cjs", "scripts/**"],
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
     },
   },
   // Override default ignores of eslint-config-next.
