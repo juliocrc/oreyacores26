@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getAccessContext } from "@/lib/access-control";
+import { getCanonicalNavioLocationLabel } from "@/lib/navios-page-helpers";
 
 export const runtime = "nodejs";
 
@@ -90,6 +91,8 @@ export async function GET() {
               }
             }
           }
+          // Canonicalize ilha label
+          ilha = (getCanonicalNavioLocationLabel(ilha) || ilha) || "";
         }
 
         // Only include if we have some client details or owner name
