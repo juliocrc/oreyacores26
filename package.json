@@ -64,6 +64,16 @@
     "restore:backup": "node scripts/restore_from_backup.js",
     "import:pg": "npx tsx scripts/import-sqlite-to-pg.ts"
   },
+  "lint-staged": {
+    "*.+(js|cjs|mjs|ts|tsx)": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.+(json|md|css|scss|yml|yaml|html)": [
+      "prettier --write"
+    ]
+  },
+  "prepare": "husky install",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1069.0",
     "@emotion/react": "^11.14.0",

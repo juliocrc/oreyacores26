@@ -96,7 +96,7 @@ function inferIlha(nome: string): string {
 
 import { PrismaClient } from '@prisma/client';
 // load diacritics via require to avoid missing type declarations in this environment
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+ 
 const { remove: removeAcentos } = require('diacritics');
 import fs from 'fs';
 import path from 'path';
@@ -272,10 +272,10 @@ async function main() {
     }
   }
 
-  let created: string[] = [];
-  let updated: string[] = [];
-  let erros: { nome: string; erro: string }[] = [];
-  let csvRows = ["nome,acao,erro"];
+  const created: string[] = [];
+  const updated: string[] = [];
+  const erros: { nome: string; erro: string }[] = [];
+  const csvRows = ["nome,acao,erro"];
 
   // Transaction global (tudo ou nada, exceto dry-run)
   const execSeed = async () => {

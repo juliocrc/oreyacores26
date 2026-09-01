@@ -21,7 +21,7 @@ async function main() {
 
   // pick the most recent reassociation audit (advanced if present)
   const auditFile = latestFile(logs, /^reassociate_jangadas_advanced_.*\.json$/) || latestFile(logs, /^reassociate_jangadas_permissive_.*\.json$/) || latestFile(logs, /^reassociate_jangadas_.*\.json$/)
-  let updatedIds = new Set<number>()
+  const updatedIds = new Set<number>()
   if (auditFile) {
     try {
       const audit = JSON.parse(fs.readFileSync(auditFile, 'utf8'))

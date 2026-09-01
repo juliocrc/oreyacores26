@@ -257,7 +257,7 @@ export async function saveInspection(payload: SaveInspectionPayload) {
     }
   }
 
-  let stockWarnings: string[] = [];
+  const stockWarnings: string[] = [];
 
   const saved = await prisma.$transaction(async (tx) => {
     let resolvedStrapRef: string | null = null;
