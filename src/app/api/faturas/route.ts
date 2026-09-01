@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getAccessContext } from "@/lib/access-control";
+import { getCanonicalNavioLocationLabel } from "@/lib/navios-page-helpers";
 
 export async function GET(req: NextRequest) {
   try {
@@ -61,7 +62,7 @@ export async function GET(req: NextRequest) {
         id: f.id,
         numeroFatura: f.numeroFatura,
         cliente: f.cliente
-          ? { id: f.cliente.id, nome: f.cliente.nome, numeroCliente: f.cliente.numeroCliente, ilha: f.cliente.ilha }
+          ? { id: f.cliente.id, nome: f.cliente.nome, numeroCliente: f.cliente.numeroCliente, ilha: (getCanonicalNavioLocationLabel(f.cliente.ilha) || f.cliente.ilha) || null }
           : null,
         valorSubtotal: f.valorSubtotal,
         valorIva: f.valorIva,
