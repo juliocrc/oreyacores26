@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getAccessContext } from "@/lib/access-control";
 import { formatValidityDisplay } from "@/lib/date-display";
+import { getCanonicalNavioLocationLabel } from "@/lib/navios-page-helpers";
 
 function toCsv(rows: Record<string, unknown>[], headerLabels?: Record<string, string>) {
   if (!rows.length) return "";
@@ -55,7 +56,7 @@ export async function GET(req: NextRequest) {
         email: c.email || "",
         telefone: c.telefone || "",
         telmovel: c.telmovel || "",
-        ilha: c.ilha || "",
+        ilha: (getCanonicalNavioLocationLabel(c.ilha) || c.ilha) || "",
         totalNavios: c.navios.length,
       }));
     } else if (tipo === "navios") {
@@ -81,7 +82,7 @@ export async function GET(req: NextRequest) {
         id: n.id,
         nome: n.nome,
         matricula: n.matricula,
-        ilha: n.ilha,
+        ilha: (getCanonicalNavioLocationLabel(n.ilha) || n.ilha) || "",
         tipoPesca: n.tipoPesca,
         portoRegisto: n.portoRegisto || "",
         mmsi: n.mmsi || "",
