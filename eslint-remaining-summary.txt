@@ -1,8 +1,8 @@
 ESLint remaining problems summary
 ================================
-Total files reported: 922
-Total errors: 353
-Total warnings: 1108
+Total files reported: 923
+Total errors: 129
+Total warnings: 1191
 
 Top files with most problems (count 	 filepath):
 83	D:\Acores\public\workbox-4754cb34.js
@@ -59,8 +59,8 @@ Top files with most problems (count 	 filepath):
 Top rules (count 	 ruleId):
 650	@typescript-eslint/no-explicit-any
 320	@typescript-eslint/no-unused-vars
-224	@typescript-eslint/no-require-imports
 89	react-hooks/set-state-in-effect
+83	@typescript-eslint/no-require-imports
 71	@typescript-eslint/no-unused-expressions
 46	react-hooks/exhaustive-deps
 21	@next/next/no-img-element
