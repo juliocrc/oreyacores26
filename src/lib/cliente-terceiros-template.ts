@@ -93,6 +93,8 @@ function formatTodayPt() {
   }).format(new Date());
 }
 
+import { canonicalizeAzoresIsland, inferAzoresIslandFromPort } from "@/lib/azores-islands";
+
 function buildNaviosResumo(input: ClienteTerceirosTemplateInput) {
   const navios = Array.isArray(input.navios) ? input.navios : [];
   if (navios.length === 0) return '';
@@ -100,7 +102,9 @@ function buildNaviosResumo(input: ClienteTerceirosTemplateInput) {
     .map((navio) => {
       const nome = asString(navio.nome);
       const matricula = asString(navio.matricula);
-      const ilha = asString(navio.ilha);
+      let ilha = asString(navio.ilha);
+      // Try canonicalization or infer from port-like names
+      ilha = (canonicalizeAzoresIsland(ilha) ?? inferAzoresIslandFromPort(ilha) ?? ilha) || '';
       const tipo = asString(navio.tipoPesca);
       const detalhes = [matricula, ilha, tipo].filter(Boolean).join(' · ');
       return detalhes ? `${nome} (${detalhes})` : nome;

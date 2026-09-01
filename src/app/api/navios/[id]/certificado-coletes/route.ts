@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { APP_CONFIG } from "@/lib/app-config";
+import { canonicalizeAzoresIsland, inferAzoresIslandFromPort } from "@/lib/azores-islands";
 import { generateNavioColetesCertificateDocx } from "@/lib/colete-certificate-template";
 
 export const runtime = "nodejs";
@@ -147,7 +148,8 @@ export async function GET(_req: Request, context: { params: Promise<{ id: string
     }
 
     const today = new Date();
-    const inspectionPlace = String(navio.portoRegisto || navio.ilha || APP_CONFIG.defaultRegionLabel || "").trim();
+    const candidatePlace = String(navio.portoRegisto || navio.ilha || APP_CONFIG.defaultRegionLabel || "").trim();
+    const inspectionPlace = (canonicalizeAzoresIsland(candidatePlace) || inferAzoresIslandFromPort(candidatePlace) || candidatePlace) as string;
     const inspectionPlaceAndDate = [inspectionPlace, formatDatePt(today)].filter(Boolean).join(", ");
     const serviceStation = String(navio.serviceStation?.nome || APP_CONFIG.name || APP_CONFIG.issuerName).trim();
 
@@ -156,7 +158,7 @@ export async function GET(_req: Request, context: { params: Promise<{ id: string
       shipOwner: String(navio.cliente?.nome || navio.proprietario || "").trim(),
       imoNumber: String(navio.imo || "").trim(),
       flag: String(navio.bandeira || "Portugal").trim(),
-      portOfCall: String(navio.portoRegisto || navio.ilha || "").trim(),
+      portOfCall: String(navio.portoRegisto || canonicalizeAzoresIsland(navio.ilha) || "").trim(),
       classLabel: "",
       serviceStation,
       inspectionPlaceAndDate,

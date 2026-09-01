@@ -1020,7 +1020,12 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
             matricula: navio.matricula,
             tipoPesca: navio.tipoPesca,
             tipoNavio: navio.tipoNavio,
-            ilha: navio.ilha,
+            ilha: (navio.ilha && (() => {
+              const az = require("@/lib/azores-islands").canonicalizeAzoresIsland(navio.ilha);
+              if (az) return az;
+              const clienteIlha = navio.cliente?.ilha ? require("@/lib/azores-islands").canonicalizeAzoresIsland(navio.cliente.ilha) : null;
+              return clienteIlha ?? null;
+            })()),
             portoRegisto: navio.portoRegisto,
             proprietario: navio.proprietario,
             bandeira: navio.bandeira,

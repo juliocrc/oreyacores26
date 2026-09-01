@@ -1,5 +1,6 @@
 import { normalizeNavioTipoCategoria as normalizeNavioTipoCategoriaFromLegalTypes } from "@/lib/navio-legal-types";
 import { normalizeManualNavioIsland } from "@/lib/navio-island-resolution";
+import { canonicalizeAzoresIsland, inferAzoresIslandFromPort } from "@/lib/azores-islands";
 
 export type NavioGroupingClient = {
   id?: number;
@@ -48,8 +49,11 @@ function comparePt(a: string, b: string) {
 }
 
 export function getNavioIslandLabel(navio: Pick<NavioGroupingItem, "ilha" | "cliente">): string {
-  const island = normalizeManualNavioIsland(navio.ilha || "");
-  return island || "Sem ilha";
+  const raw = String(navio.ilha || "").trim();
+  const az = canonicalizeAzoresIsland(raw) || inferAzoresIslandFromPort(raw);
+  if (az) return az;
+  const manual = normalizeManualNavioIsland(raw);
+  return manual || "Sem ilha";
 }
 
 export function getNavioClientLabel(navio: Pick<NavioGroupingItem, "cliente">): string {

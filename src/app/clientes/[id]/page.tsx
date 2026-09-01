@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { getNavioLocationLabel } from "@/lib/navios-page-helpers";
 import { useMemo, useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { CLIENTE_PAYMENT_MODE_OPTIONS } from "@/lib/cliente-payment-options";
@@ -416,7 +417,7 @@ export default function ClienteDetalhePage() {
                     <div key={navio.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 py-3 hover:bg-slate-50 transition">
                       <div>
                         <Link href={`/navios/${navio.id}`} className="text-sm font-semibold text-indigo-700 hover:underline">{navio.nome}</Link>
-                        <p className="text-xs text-slate-500">{navio.matricula} · {navio.ilha || "—"} · {navio.tipoPesca || "—"}</p>
+                        <p className="text-xs text-slate-500">{navio.matricula} · {getNavioLocationLabel(navio as any) || "—"} · {navio.tipoPesca || "—"}</p>
                       </div>
                       <div className="flex items-center gap-2">
                         <Link href={`/criar-ot?clienteId=${cliente.id}&navioId=${navio.id}`} className="rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-600 hover:bg-indigo-100 transition">
