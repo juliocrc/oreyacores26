@@ -10,6 +10,7 @@ import { parseCoordinate } from "@/lib/coordinates";
 import { resolveActiveServiceStationId } from "@/lib/station-selection";
 import { APP_CONFIG, normalizeStationMatchToken } from "@/lib/app-config";
 import { getResolvedClienteIslandForNavio, normalizeManualNavioIsland } from "@/lib/navio-island-resolution";
+import { inferAzoresIslandFromPort, isInvalidIslandValue, canonicalizeAzoresIsland } from "@/lib/azores-islands";
 import { normalizeNavioDisplayName } from '@/lib/navio-name-normalization';
 
 function isMissingNavioComprimentoMetrosColumn(error: unknown) {
@@ -213,7 +214,8 @@ function sanitizeNavioPayload(body: Record<string, unknown>) {
   const payload: Record<string, unknown> = {
     nome: typeof body?.nome === "string" ? normalizeNavioDisplayName(body.nome) : undefined,
     matricula: typeof body?.matricula === "string" ? body.matricula.trim() : undefined,
-    ilha: typeof body?.ilha === "string" ? body.ilha.trim() : undefined,
+    // Normalize ilha: trim and treat empty strings as undefined so later logic can decide
+    ilha: typeof body?.ilha === "string" ? (body.ilha.trim() || undefined) : undefined,
     tipoPesca: typeof body?.tipoPesca === "string" ? body.tipoPesca.trim() : undefined,
     tipoNavio: typeof body?.tipoNavio === "string" ? body.tipoNavio.trim() : undefined,
     comprimentoMetros,
@@ -257,13 +259,28 @@ async function applyResolvedIslandToNavioPayload(
     }
 
     payload.clienteId = effectiveClienteId;
-    payload.ilha = island ?? normalizeManualNavioIsland(payload.ilha) ?? options?.fallbackIlha ?? payload.ilha ?? "";
+    // Prefer resolved cliente island (already canonicalized), otherwise try manual or fallback.
+    // Only assign an island if it's a canonical Azores island.
+    const candidate = island ?? normalizeManualNavioIsland(payload.ilha) ?? options?.fallbackIlha ?? payload.ilha ?? undefined;
+    payload.ilha = candidate && canonicalizeAzoresIsland(candidate) ? canonicalizeAzoresIsland(candidate) : undefined;
     return payload;
   }
 
+  // If portoRegisto is present, try to infer island from the port name (helpful for continental ports -> null)
+  if (payload.portoRegisto) {
+    const inferred = inferAzoresIslandFromPort(payload.portoRegisto);
+    if (inferred) {
+      payload.ilha = inferred;
+      return payload;
+    }
+  }
+
+  // Manual island entry: only accept canonical Azores islands; otherwise leave undefined
   const normalizedManualIsland = normalizeManualNavioIsland(payload.ilha);
-  if (normalizedManualIsland !== null) {
-    payload.ilha = normalizedManualIsland;
+  if (normalizedManualIsland !== null && canonicalizeAzoresIsland(normalizedManualIsland)) {
+    payload.ilha = canonicalizeAzoresIsland(normalizedManualIsland);
+  } else {
+    payload.ilha = undefined;
   }
 
   return payload;
