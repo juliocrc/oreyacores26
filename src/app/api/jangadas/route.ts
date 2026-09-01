@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { canonicalizeAzoresIsland } from "@/lib/azores-islands";
 import type { Prisma } from "@prisma/client";
 import { getAccessContext } from "@/lib/access-control";
 import { canEditPath } from "@/lib/user-permissions";
@@ -593,9 +594,15 @@ export async function GET(req: NextRequest) {
         queueObservacoes: latestQueue?.observacoes || null,
         serviceStationName: jangada.serviceStation?.nome || null,
         shipName: linkedShip?.nome || jangada.shipNameManual || null,
-        island: linkedShip?.ilha || linkedShip?.cliente?.ilha || null,
+        // Only expose an island value when it's a canonical Azores island; mainland ships should not have an island
+        island: ((): string | null => {
+          const shipIsland = linkedShip?.ilha ? canonicalizeAzoresIsland(linkedShip.ilha) : null;
+          if (shipIsland) return shipIsland;
+          const clienteIsland = linkedShip?.cliente?.ilha ? canonicalizeAzoresIsland(linkedShip!.cliente!.ilha) : null;
+          return clienteIsland ?? null;
+        })(),
         portoRegisto: linkedShip?.portoRegisto || null,
-        ilha: linkedShip?.cliente?.ilha || null,
+        ilha: ((): string | null => (linkedShip?.cliente?.ilha ? canonicalizeAzoresIsland(linkedShip!.cliente!.ilha) : null))(),
         receivedAt: latestQueue?.dataChegada?.toISOString() || null,
         expectedDeliveryDate: latestQueue?.dataPrevistaEntrega?.toISOString().slice(0, 10) || null,
         delivered: Boolean(meta.deliveredAt),
