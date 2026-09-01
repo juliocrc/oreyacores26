@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import ExcelJS from "exceljs";
 import { getAccessContext } from "@/lib/access-control";
 import { getLembreteCobrancaConfig } from "@/lib/lembretes-cobranca";
+import { getCanonicalNavioLocationLabel } from "@/lib/navios-page-helpers";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -60,7 +61,8 @@ export async function GET(req: NextRequest) {
     const url = new URL(req.url);
     const incluirTodas = url.searchParams.get("todas") === "1";
     const incluirCanceladas = url.searchParams.get("incluirCanceladas") === "1";
-    const ilhaFiltro = url.searchParams.get("ilha")?.trim() || null;
+    const ilhaFiltroRaw = url.searchParams.get("ilha")?.trim() || null;
+    const ilhaFiltro = ilhaFiltroRaw ? (getCanonicalNavioLocationLabel(ilhaFiltroRaw) || ilhaFiltroRaw) : null;
 
     const config = await getLembreteCobrancaConfig();
     const diasVencimento = config.diasVencimento || 30;
@@ -89,7 +91,11 @@ export async function GET(req: NextRequest) {
 
     const linhas = faturas
       .filter((f) => (incluirCanceladas ? true : !f.cancelada))
-      .filter((f) => (ilhaFiltro ? (f.cliente?.ilha || "") === ilhaFiltro : true))
+      .filter((f) => {
+        if (!ilhaFiltro) return true;
+        const clienteIlha = f.cliente?.ilha ? (getCanonicalNavioLocationLabel(f.cliente?.ilha) || f.cliente?.ilha) : "";
+        return clienteIlha === ilhaFiltro;
+      })
       .map((f) => {
         const valorTotal = Number(f.valorTotal || 0);
         const valorPago = (f.recibos || []).reduce((acc, r) => acc + Number(r.valorPago || 0), 0);
@@ -110,7 +116,7 @@ export async function GET(req: NextRequest) {
           clienteNome: f.cliente?.nome || "Cliente particular",
           numeroCliente: f.cliente?.numeroCliente || "",
           nif: f.cliente?.nif || "",
-          ilha: f.cliente?.ilha || "",
+          ilha: (f.cliente?.ilha ? (getCanonicalNavioLocationLabel(f.cliente?.ilha) || f.cliente?.ilha) : "") || "",
           navio: (navios as string[]).join(", ") || "—",
           numeroOrdens: numeroOrdens.join(", ") || "—",
           cancelada: f.cancelada,
