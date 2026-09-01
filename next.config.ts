@@ -11,6 +11,7 @@ const nextConfig: NextConfig = {
   reactCompiler: false,
   output: "standalone",
   compress: true,
+  turbopack: {},
   serverExternalPackages: ["pdf-parse", "pdfjs-dist", "pdf-lib", "@prisma/client"],
   outputFileTracingExcludes: {
     "*": [
