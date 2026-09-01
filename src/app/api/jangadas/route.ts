@@ -492,7 +492,7 @@ export async function GET(req: NextRequest) {
             })
           ).map((ship) => [ship.id, ship])
         )
-      : new Map<number, { id: number; nome: string; cliente: { id: number; nome: string; ilha: string | null } | null }>();
+      : new Map<number, { id: number; nome: string; ilha: string | null; portoRegisto: string | null; cliente: { id: number; nome: string; ilha: string | null } | null }>();
 
     const jangadaIds = jangadas.map((item) => item.id);
     

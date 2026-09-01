@@ -22,7 +22,6 @@ export function getIsSecureUrl() {
 
 export function buildAuthOptions(): NextAuthOptions {
   return {
-    trustHost: true,
     secret: getAuthSecret(),
     session: {
       strategy: "jwt",
