@@ -54,7 +54,11 @@ export default function Reports() {
   }, []);
 
   useEffect(() => {
-    fetchData();
+    // Avoid calling setState synchronously inside effect body (react-hooks/set-state-in-effect)
+    const t = setTimeout(() => {
+      void fetchData();
+    }, 0);
+    return () => clearTimeout(t);
   }, [fetchData]);
 
   // Filtro

@@ -44,7 +44,11 @@ export default function Custos() {
   }, []);
 
   useEffect(() => {
-    fetchCustos();
+    // Call asynchronously to avoid calling setState synchronously in effect
+    const t = setTimeout(() => {
+      void fetchCustos();
+    }, 0);
+    return () => clearTimeout(t);
   }, [fetchCustos]);
 
   // Adicionar custo
