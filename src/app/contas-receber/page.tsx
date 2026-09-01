@@ -6,6 +6,7 @@ import {
   Building2, MapPin, MessageSquare, RefreshCcw, Download, FileText, TrendingUp
 } from "lucide-react";
 import { formatDateTimeShort } from "@/lib/date-utils";
+import { getCanonicalNavioLocationLabel } from "@/lib/navios-page-helpers";
 
 const PAGAMENTO_STATUS_LIST = ["Pendente", "Pago Parcialmente", "Pago", "Vencido"];
 
@@ -341,7 +342,7 @@ export default function ContasReceberPage() {
                           </td>
                           <td className="p-3 text-xs text-slate-500">
                             <div className="flex items-center gap-1.5"><Building2 size={12} /> {f.ordemServicos[0]?.serviceStation || "—"}</div>
-                            <div className="flex items-center gap-1.5 mt-1"><MapPin size={12} /> {f.cliente?.ilha || "—"}</div>
+                            <div className="flex items-center gap-1.5 mt-1"><MapPin size={12} /> {(getCanonicalNavioLocationLabel(f.cliente?.ilha) || f.cliente?.ilha) || "—"}</div>
                           </td>
                           <td className="p-3 text-xs text-slate-500">
                             {f.dataEmissao ? formatDateTimeShort(f.dataEmissao) : "—"}

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { sendSms } from "@/lib/sms-provider";
+import { enviarComunicacao } from "@/lib/communications";
+import { generateFiveDigitCode } from "@/lib/code";
 
 function cleanPhone(phone: string | null | undefined): string {
   if (!phone) return "";
@@ -15,7 +17,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Pedido inválido." }, { status: 400 });
     }
 
-    const { telmovel, nif } = body as { telmovel?: string; nif?: string };
+    const { telmovel, nif, channel } = body as { telmovel?: string; nif?: string; channel?: string };
 
     if (!telmovel || !nif) {
       return NextResponse.json({ error: "Telemóvel e NIF são obrigatórios." }, { status: 400 });
@@ -72,8 +74,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const code = String(Math.floor(10000 + Math.random() * 90000));
+    const code = generateFiveDigitCode();
 
+    // Persist verification code regardless of channel so auth.verify can validate
     await prisma.cliente.update({
       where: { id: cliente.id },
       data: {
@@ -83,18 +86,32 @@ export async function POST(req: NextRequest) {
     });
 
     const phone = String(cliente.telmovel || "").trim() || String(cliente.telefone || "").trim();
+    const msg = `O seu código de acesso ao Gestor Naval Pro é: ${code}\nVálido por 10 minutos.\n\nOrey Técnica Açores`;
+
+    const chosen = String(channel || "sms").toLowerCase();
+    if (chosen === "whatsapp") {
+      try {
+        const res = await enviarComunicacao({
+          tipo: "WHATSAPP",
+          mensagem: msg,
+          destinatario: phone,
+          ref: { clienteId: cliente.id },
+        });
+        return NextResponse.json({ success: true, message: "Código registado.", whatsappUrl: res.whatsappUrl });
+      } catch (e) {
+        console.error("[client-code] WhatsApp send error:", e);
+        // fallthrough to SMS attempt
+      }
+    }
+
     if (phone) {
-      const msg = `O seu código de acesso ao Gestor Naval Pro é: ${code}\nVálido por 10 minutos.\n\nOrey Técnica Açores`;
       const smsResult = await sendSms(phone, msg);
       if (!smsResult.ok) {
         console.error("[client-code] SMS falhou:", smsResult.error);
       }
     }
 
-    return NextResponse.json({
-      success: true,
-      message: "Código enviado com sucesso.",
-    });
+    return NextResponse.json({ success: true, message: "Código enviado com sucesso." });
   } catch (error) {
     console.error("[client-code] Erro:", error);
     return NextResponse.json({ error: "Erro interno no servidor." }, { status: 500 });

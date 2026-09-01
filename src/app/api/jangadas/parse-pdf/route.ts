@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
       dataFabrico: "2020-01",
       dataInspecao: new Date().toISOString().slice(0, 10),
       dataProxInspecao: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-      cylinderSerial: "MF" + Math.floor(10000 + Math.random() * 90000),
+      cylinderSerial: "MF" + (await import('@/lib/code')).generateFiveDigitCode(),
       cylinderCo2: 1.980,
       cylinderTara: 7.754,
       cylinderPesoBruto: 9.734,

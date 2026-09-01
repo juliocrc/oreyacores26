@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { getNavioLocationLabel } from "@/lib/navios-page-helpers";
+import { getNavioLocationLabel, getCanonicalNavioLocationLabel } from "@/lib/navios-page-helpers";
 import { useMemo, useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { CLIENTE_PAYMENT_MODE_OPTIONS } from "@/lib/cliente-payment-options";
@@ -345,7 +345,7 @@ export default function ClienteDetalhePage() {
               <div>
                 <Link href="/clientes" className="text-xs text-indigo-200 hover:text-white transition-colors">← Clientes</Link>
                 <h1 className="text-xl sm:text-2xl font-bold text-white mt-0.5">{cliente.nome}</h1>
-                <p className="text-sm text-indigo-200">Nº {cliente.numeroCliente || `CLI-${String(cliente.id).padStart(5, "0")}`} · {cliente.ilha || "—"} · NIF: {cliente.nif || "—"}</p>
+                <p className="text-sm text-indigo-200">Nº {cliente.numeroCliente || `CLI-${String(cliente.id).padStart(5, "0")}`} · {(getCanonicalNavioLocationLabel(cliente.ilha) || cliente.ilha) || "—"} · NIF: {cliente.nif || "—"}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">

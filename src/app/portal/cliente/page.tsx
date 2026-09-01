@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Box, CircularProgress, Typography, Paper, Tabs, Tab, Button, TextField, Alert, Chip, Stack, Divider, IconButton } from "@mui/material";
 import { User, Ship, FileText, ClipboardList, Receipt, Shield, Save, Phone, Mail, MapPin, Edit3, ChevronRight, AlertTriangle, CheckCircle, XCircle, Clock, Flame, LifeBuoy, Radio } from "lucide-react";
 import { APP_CONFIG } from "@/lib/app-config";
+import { getNavioLocationLabel } from "@/lib/navios-page-helpers";
 
 type TabKey = "dados" | "navios" | "ordens" | "faturas" | "equipamento";
 
@@ -344,7 +345,7 @@ export default function PortalClientePage() {
                         <Box>
                           <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{n.nome}</Typography>
                           <Typography variant="caption" color="text.secondary">
-                            Matrícula: {n.matricula} | Ilha: {n.ilha || "—"} | Tipo: {n.tipoPesca} | Lotação: {n.lotacao || "—"}
+                            Matrícula: {n.matricula} | Ilha: {getNavioLocationLabel(n as any) || "—"} | Tipo: {n.tipoPesca} | Lotação: {n.lotacao || "—"}
                           </Typography>
                         </Box>
                         <Chip label={`${n.extintores.length} ext. | ${n.coletes.length} coletes | ${n.epirbs.length} EPIRB`} size="small" variant="outlined" />

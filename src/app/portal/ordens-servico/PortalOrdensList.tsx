@@ -3,6 +3,7 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { appToast } from "@/lib/app-toast";
+import { getNavioLocationLabel, getNavioLocationValue } from "@/lib/navios-page-helpers";
 import { getLocalDateKey } from "@/lib/date-utils";
 import { getIvaRate } from "@/lib/iva";
 import { IVA_ISENCAO_CODES } from "@/lib/iva-isencao-codes";
@@ -234,9 +235,10 @@ export default function PortalOrdensList({ ordens: ordensProp, navios: naviosPro
   }, [navios, selectedShipId]);
 
   const isOtherIsland = useMemo(() => {
-    if (!selectedShipObject?.ilha) return false;
-    const island = selectedShipObject.ilha.toLowerCase();
-    return island !== "são miguel" && island !== "sao miguel";
+    const val = selectedShipObject ? getNavioLocationValue(selectedShipObject) : "";
+    if (!val) return false;
+    const island = val.toLowerCase();
+    return island !== "são miguel" && island !== "sao miguel" && island !== "sao-miguel";
   }, [selectedShipObject]);
 
   // Handle URL query parameters to auto-open request modal
@@ -284,7 +286,7 @@ export default function PortalOrdensList({ ordens: ordensProp, navios: naviosPro
     if (!term) return navios;
     return navios.filter((n) =>
       n.nome.toLowerCase().includes(term) ||
-      (n.ilha || "").toLowerCase().includes(term),
+      getNavioLocationValue(n).toLowerCase().includes(term),
     );
   }, [navios, shipSearch]);
 
@@ -1842,7 +1844,7 @@ export default function PortalOrdensList({ ordens: ordensProp, navios: naviosPro
                           }`}
                         >
                           <span>{n.nome}</span>
-                          {n.ilha ? <span className="text-[10px] text-slate-400">{n.ilha}</span> : null}
+                          {getNavioLocationLabel(n) ? <span className="text-[10px] text-slate-400">{getNavioLocationLabel(n)}</span> : null}
                         </button>
                       ))
                     )}
