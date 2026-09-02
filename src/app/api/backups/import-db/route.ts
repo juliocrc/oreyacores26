@@ -15,38 +15,36 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Não autorizado" }, { status: auth.status });
 
   try {
-    const contentType = request.headers.get("content-type") || "";
-    if (!contentType.includes("multipart/form-data")) {
-      return NextResponse.json(
-        { error: "Content-Type inválido. Envie o ficheiro como multipart/form-data." },
-        { status: 400 }
-      );
-    }
-
-    let file: File | null = null;
+    let buffer: Buffer;
     try {
-      const formData = await request.formData();
-      file = formData.get("file") as File | null;
-    } catch {
+      const contentType = request.headers.get("content-type") || "";
+      if (contentType.includes("multipart/form-data")) {
+        const formData = await request.formData();
+        const file = formData.get("file") as File | null;
+        if (!file) {
+          return NextResponse.json({ error: "Ficheiro não enviado." }, { status: 400 });
+        }
+        if (file.size > 50 * 1024 * 1024) {
+          return NextResponse.json({ error: "Ficheiro demasiado grande. Máximo 50MB." }, { status: 400 });
+        }
+        buffer = Buffer.from(await file.arrayBuffer());
+      } else {
+        const arrayBuf = await request.arrayBuffer();
+        buffer = Buffer.from(arrayBuf);
+      }
+    } catch (err) {
       return NextResponse.json(
         { error: "Não foi possível ler o ficheiro. Verifique se o ficheiro não está corrompido ou demasiado grande." },
         { status: 400 }
       );
     }
 
-    if (!file) {
-      return NextResponse.json({ error: "Ficheiro não enviado." }, { status: 400 });
-    }
-
-    if (file.size > 50 * 1024 * 1024) {
+    if (buffer.length > 50 * 1024 * 1024) {
       return NextResponse.json(
         { error: "Ficheiro demasiado grande. Máximo 50MB." },
         { status: 400 }
       );
     }
-
-    const arrayBuf = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuf);
 
     const header = buffer.slice(0, 16).toString("utf8");
     if (!header.startsWith("SQLite format 3")) {

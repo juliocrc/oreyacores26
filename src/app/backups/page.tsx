@@ -63,9 +63,11 @@ export default function BackupsPage() {
     setImporting(true);
     setMessage(null);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch("/api/backups/import-db", { method: "POST", body: formData });
+      const res = await fetch("/api/backups/import-db", {
+        method: "POST",
+        headers: { "Content-Type": "application/octet-stream" },
+        body: file,
+      });
       const data = await res.json();
       if (res.ok) {
         setMessage({ text: data.message || "Base de dados importada com sucesso!", type: "success" });
