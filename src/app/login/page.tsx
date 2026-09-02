@@ -226,79 +226,26 @@ function LoginPageContent() {
           {error && <Alert severity="error">{error}</Alert>}
 
           {tab === 0 && (
-            <>
-              {!usePasswordLogin ? (
-                <Stack spacing={3} alignItems="center" component="form" onSubmit={handlePasswordlessLogin}>
-                  <Box
-                    sx={{
-                      width: 80, height: 80, borderRadius: "50%", bgcolor: "primary.main", color: "white",
-                      display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, fontWeight: 800,
-                      boxShadow: "0 10px 20px rgba(37, 99, 235, 0.15)", border: "3px solid white",
-                      outline: "2px solid rgba(37, 99, 235, 0.2)",
-                      backgroundImage: selectedColab?.image ? `url(${selectedColab.image})` : "none",
-                      backgroundSize: "cover", backgroundPosition: "center", mb: 1,
-                    }}
-                  >
-                    {!selectedColab?.image && (selectedColab?.name ? selectedColab.name.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase() : "U")}
-                  </Box>
-
-                  <Stack spacing={0.5} alignItems="center" sx={{ mb: 1 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 800 }}>
-                      {selectedColab?.name || selectedColab?.email || "Selecionar Utilizador"}
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.8 }}>
-                      {selectedColab?.role === "ADMIN" ? "Administrador" : "Colaborador"}
-                    </Typography>
-                  </Stack>
-
-                  <TextField
-                    select fullWidth label="Escolher Conta" value={selectedColab?.id || ""}
-                    onChange={(e) => { const id = Number(e.target.value); const c = collaborators.find(x => x.id === id); if (c) setSelectedColab(c); }}
-                    SelectProps={{ native: true }} variant="outlined"
-                    sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 } }}
-                  >
-                    {collaborators.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name || c.email} ({c.role === "ADMIN" ? "Admin" : "Técnico"})</option>
-                    ))}
-                  </TextField>
-
-                  <Button type="submit" variant="contained" size="large" fullWidth disabled={isSubmitting || !selectedColab}
-                    sx={{ py: 1.5, textTransform: "none", fontWeight: 700, borderRadius: 4, fontSize: 16, boxShadow: "0 4px 12px rgba(37, 99, 235, 0.2)" }}>
-                    {isSubmitting ? <CircularProgress size={22} color="inherit" /> : "Entrar"}
-                  </Button>
-
-                  <Button variant="text" onClick={() => setUsePasswordLogin(true)}
-                    sx={{ textTransform: "none", fontWeight: 700, fontSize: "0.85rem", color: "text.secondary" }}>
-                    Entrar com Email e Password
-                  </Button>
-                </Stack>
-              ) : (
-                <Stack spacing={3} component="form" onSubmit={handleStaffLogin}>
-                  <TextField label="Endereço de Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-                    required fullWidth sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 } }} />
-                  <TextField label="Password" type={showPassword ? "text" : "password"} value={password}
-                    onChange={(e) => setPassword(e.target.value)} required fullWidth
-                    sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 } }}
-                    InputProps={{
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          <IconButton onClick={() => setShowPassword((c) => !c)} edge="end">
-                            {showPassword ? <VisibilityOff /> : <Visibility />}
-                          </IconButton>
-                        </InputAdornment>
-                      ),
-                    }} />
-                  <Button type="submit" variant="contained" size="large" fullWidth disabled={isSubmitting}
-                    sx={{ py: 1.5, textTransform: "none", fontWeight: 700, borderRadius: 4, fontSize: 16, boxShadow: "0 4px 12px rgba(37, 99, 235, 0.2)" }}>
-                    {isSubmitting ? <CircularProgress size={22} color="inherit" /> : "Entrar com Senha"}
-                  </Button>
-                  <Button variant="text" onClick={() => setUsePasswordLogin(false)}
-                    sx={{ textTransform: "none", fontWeight: 700, fontSize: "0.85rem", color: "primary.main" }}>
-                    Voltar à Seleção (Sem Password)
-                  </Button>
-                </Stack>
-              )}
-            </>
+            <Stack spacing={3} component="form" onSubmit={handleStaffLogin}>
+              <TextField label="Endereço de Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                required fullWidth sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 } }} />
+              <TextField label="Password" type={showPassword ? "text" : "password"} value={password}
+                onChange={(e) => setPassword(e.target.value)} required fullWidth
+                sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 } }}
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton onClick={() => setShowPassword((c) => !c)} edge="end">
+                        {showPassword ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }} />
+              <Button type="submit" variant="contained" size="large" fullWidth disabled={isSubmitting}
+                sx={{ py: 1.5, textTransform: "none", fontWeight: 700, borderRadius: 4, fontSize: 16, boxShadow: "0 4px 12px rgba(37, 99, 235, 0.2)" }}>
+                {isSubmitting ? <CircularProgress size={22} color="inherit" /> : "Entrar"}
+              </Button>
+            </Stack>
           )}
 
           {tab === 1 && (
