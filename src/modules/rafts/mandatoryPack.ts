@@ -933,7 +933,8 @@ export function getMandatoryPackItemsForRaft(context: PackContext) {
       .filter((item) => !isRaftManagedPackArticleName(item.name))
       .map((item) => buildMandatoryItem(item, selectedPack.pack, capacity, 'technical', templateFallbacks));
 
-    if (packCode === 'R' || packCode === 'E' || packCode === 'SOLAS B') {
+    const upperPack = String(packCode || '').toUpperCase().trim();
+    if (upperPack === 'R' || upperPack === 'E' || upperPack === 'SOLAS B' || upperPack.includes('R') || upperPack.includes('E') || upperPack.includes('SOLAS B') || upperPack.includes('REDUZIDO')) {
       techItems = techItems.filter((i) => !isRationArticle(i.label) && !isRationArticle(i.checklistName));
     }
     return dedupeMandatoryItems(techItems);
@@ -950,7 +951,8 @@ export function getMandatoryPackItemsForRaft(context: PackContext) {
     notes: article.observacoes,
   }, normalizedTemplatePack, capacity, 'template', templateFallbacks));
 
-  if (packCode === 'R' || packCode === 'E' || packCode === 'SOLAS B') {
+  const upperPack = String(packCode || '').toUpperCase().trim();
+  if (upperPack === 'R' || upperPack === 'E' || upperPack === 'SOLAS B' || upperPack.includes('R') || upperPack.includes('E') || upperPack.includes('SOLAS B') || upperPack.includes('REDUZIDO')) {
     fallbackItems = fallbackItems.filter((i) => !isRationArticle(i.label) && !isRationArticle(i.checklistName));
   }
 
