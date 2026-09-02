@@ -3,6 +3,7 @@ import React, { useMemo } from 'react';
 import { useJangadaWizardStore } from './store/useJangadaWizardStore';
 import { Package, ShieldAlert, Zap, Droplets, Flame, Stethoscope, Info, PackageSearch, X } from 'lucide-react';
 import { getMandatoryPackItemsForRaft, findMatchingArticleForPackItem } from '../rafts/mandatoryPack';
+import { isRationArticle } from '@/config/packTemplates';
 import { formatValidityDisplay } from '@/lib/date-display';
 import { getInspectionIntervalYears, getInspectionIntervalLabel, getSubstitutionMaxValidityDays } from '../rafts/inspectionInterval';
 
@@ -160,6 +161,24 @@ export default function Step4_PackMascara() {
   }, [inspectionData.brand, inspectionData.model, inspectionData.packType, inspectionData.capacity]);
 
   
+  React.useEffect(() => {
+    const upperPack = String(inspectionData.packType || '').toUpperCase().trim();
+    const isRestrictedPack = upperPack === 'R' || upperPack === 'E' || upperPack === 'SOLAS B' || upperPack.includes('R') || upperPack.includes('E') || upperPack.includes('SOLAS B') || upperPack.includes('REDUZIDO');
+    if (isRestrictedPack && packItems) {
+      let changed = false;
+      const nextPackItems = { ...packItems };
+      for (const key of Object.keys(nextPackItems)) {
+        if (isRationArticle(nextPackItems[key]?.name)) {
+          delete nextPackItems[key];
+          changed = true;
+        }
+      }
+      if (changed) {
+        setInspectionData({ packItems: nextPackItems });
+      }
+    }
+  }, [inspectionData.packType, packItems, setInspectionData]);
+
   React.useEffect(() => {
     if (mandatoryItems.length > 0 && (!packItems || Object.keys(packItems).length === 0)) {
       const initialPackItems: any = {};
