@@ -1976,12 +1976,13 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
 
   const formatMonthYear = (dateStr?: string | null) => {
     if (!dateStr) return '—';
-    const parts = dateStr.split('-');
+    const str = String(dateStr);
+    const parts = str.split('-');
     if (parts.length >= 2) {
       return `${parts[1]}/${parts[0]}`;
     }
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return dateStr;
+    const d = new Date(str);
+    if (isNaN(d.getTime())) return str;
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     const yyyy = d.getFullYear();
     return `${mm}/${yyyy}`;

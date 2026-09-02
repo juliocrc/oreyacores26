@@ -143,7 +143,7 @@ export function buildClosureSuggestions(data: InspectionData): ClosureSuggestion
     bundle.exactMatches[0] || bundle.familyMatches[0] || null;
 
   if (chosenEntry) {
-    const strapRef = chosenEntry.stockReference.split("/")[0].trim();
+    const strapRef = String(chosenEntry.stockReference ?? "").split("/")[0].trim();
     suggestions.push({
       key: `cinta-${chosenEntry.key}`,
       kind: "cinta",
@@ -168,7 +168,7 @@ export function buildClosureSuggestions(data: InspectionData): ClosureSuggestion
     });
     if (fallbackCatalog.length > 0) {
       const first = fallbackCatalog[0];
-      const strapRef = first.stockReference.split("/")[0].trim();
+      const strapRef = String(first.stockReference ?? "").split("/")[0].trim();
       suggestions.push({
         key: `cinta-${first.key}`,
         kind: "cinta",

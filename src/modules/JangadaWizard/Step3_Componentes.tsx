@@ -137,15 +137,15 @@ export default function Step3_Componentes() {
     let refDateStr = inspectionData.dataProxInspecao;
     if (!refDateStr && inspectionData.dataInspecao) {
       const years = getInspectionIntervalYears(inspectionData.brand, '', inspectionData.shipDetails);
-      const parts = inspectionData.dataInspecao.split('-');
+      const parts = String(inspectionData.dataInspecao ?? "").split('-');
       if (parts[0] && parts[0].length === 4) {
         refDateStr = `${parseInt(parts[0]) + years}-${parts[1] || '01'}-${parts[2] || '01'}`;
       }
     }
     if (!refDateStr) return null;
-    const [vYear, vMonth] = comp.validade.split('-').map(Number);
+    const [vYear, vMonth] = String(comp.validade ?? "").split('-').map(Number);
     const valDate = new Date(vYear, (vMonth || 1) - 1, 1);
-    const [rYear, rMonth] = refDateStr.split('-').map(Number);
+    const [rYear, rMonth] = String(refDateStr ?? "").split('-').map(Number);
     const refDate = new Date(rYear, (rMonth || 1) - 1, 1);
     if (isNaN(valDate.getTime()) || isNaN(refDate.getTime())) return null;
     const monthsDiff = (valDate.getFullYear() - refDate.getFullYear()) * 12 + (valDate.getMonth() - refDate.getMonth());
