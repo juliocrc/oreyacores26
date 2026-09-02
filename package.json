@@ -8,6 +8,7 @@
     "dev": "next dev --webpack -H 0.0.0.0",
     "build": "next build --webpack",
     "start": "next start -H 0.0.0.0",
+    "start:standalone": "node .next/standalone/server.js",
     "render:build": "bash scripts/render-build.sh",
     "postinstall": "prisma generate && node scripts/patch-prisma-types.cjs && node scripts/sync_schema_sqlite.js",
     "db:generate": "prisma generate && node scripts/patch-prisma-types.cjs && node scripts/sync_schema_sqlite.js",
