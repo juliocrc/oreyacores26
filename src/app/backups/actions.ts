@@ -3,7 +3,7 @@
 import fs from "fs";
 import path from "path";
 import { requireAdminOrBypass } from "@/app/api/backups/_lib";
-import { execSync } from "child_process";
+import { spawn } from "child_process";
 
 const isPostgres =
   (process.env.DATABASE_URL || "").startsWith("postgresql://") ||
@@ -38,36 +38,25 @@ export async function importDatabaseAction(formData: FormData) {
       if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
       const dbPath = path.join(dbDir, "local.db");
 
-      const prevExists = fs.existsSync(dbPath);
-      let prevBuffer: Buffer | null = null;
-      if (prevExists) prevBuffer = fs.readFileSync(dbPath);
-
       fs.writeFileSync(dbPath, buffer);
 
-      try {
-        const importScript = path.resolve(process.cwd(), "scripts/import-sqlite-to-pg.cjs");
-        if (!fs.existsSync(importScript)) {
-          return { success: false, error: "Script de importação não encontrado no servidor." };
-        }
-
-        execSync(`node "${importScript}"`, {
-          env: { ...process.env, IMPORT_DATABASE_URL: process.env.DATABASE_URL! },
-          cwd: process.cwd(),
-          timeout: 180_000,
-          stdio: "pipe",
-        });
-
-        return {
-          success: true,
-          message: "Base de dados importada para PostgreSQL com sucesso!",
-        };
-      } finally {
-        if (prevBuffer) {
-          fs.writeFileSync(dbPath, prevBuffer);
-        } else {
-          try { fs.unlinkSync(dbPath); } catch {}
-        }
+      const importScript = path.resolve(process.cwd(), "scripts/import-sqlite-to-pg.cjs");
+      if (!fs.existsSync(importScript)) {
+        return { success: false, error: "Script de importação não encontrado no servidor." };
       }
+
+      const child = spawn("node", [importScript], {
+        env: { ...process.env, IMPORT_DATABASE_URL: process.env.DATABASE_URL! },
+        cwd: process.cwd(),
+        detached: true,
+        stdio: "ignore",
+      });
+      child.unref();
+
+      return {
+        success: true,
+        message: "Importação iniciada em segundo plano! Os dados aparecerão na aplicação em instantes.",
+      };
     }
 
     const dbPath = path.join(process.cwd(), "prisma", "local.db");
