@@ -180,7 +180,7 @@ export default function LogisticaPage() {
       const res = await fetch("/api/service-stations");
       if (res.ok) {
         const data = await res.json();
-        setStations(data.stations || []);
+        setStations(Array.isArray(data) ? data : (data.stations || []));
       }
     } catch (e) { console.error(e); }
   }

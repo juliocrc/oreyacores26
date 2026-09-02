@@ -20,7 +20,6 @@ export default async function JangadaInspectionPage({ params }: { params: Promis
   const jangada = await prisma.jangada.findUnique({
     where: { id: numericId },
     include: {
-      cliente: true,
       ship: true,
       inspecoes: {
         orderBy: { dataInspecao: 'desc' },
