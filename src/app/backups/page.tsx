@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { Database, Download, Trash2, Play, CheckCircle, Loader2, FileJson, Mail, Upload, HardDrive } from "lucide-react";
+import { importDatabaseAction } from "./actions";
 
 type BackupItem = {
   name: string;
@@ -63,16 +64,13 @@ export default function BackupsPage() {
     setImporting(true);
     setMessage(null);
     try {
-      const res = await fetch("/api/backups/import-db", {
-        method: "POST",
-        headers: { "Content-Type": "application/octet-stream" },
-        body: file,
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setMessage({ text: data.message || "Base de dados importada com sucesso!", type: "success" });
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await importDatabaseAction(formData);
+      if (res.success) {
+        setMessage({ text: res.message || "Base de dados importada com sucesso!", type: "success" });
       } else {
-        setMessage({ text: data.error || "Erro ao importar base de dados.", type: "error" });
+        setMessage({ text: res.error || "Erro ao importar base de dados.", type: "error" });
       }
     } catch (e) {
       console.error(e);
