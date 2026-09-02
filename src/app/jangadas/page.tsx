@@ -1279,8 +1279,8 @@ export default function JangadasPage() {
           </div>
         )}
         {showWizard && (
-          <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-xl shadow-lg w-full max-w-md border border-gray-200">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-gray-200">
               <h3 className="text-lg font-bold mb-4">{editId ? "Editar Jangada" : "Nova Jangada"}</h3>
               <form onSubmit={handleSubmit} className="space-y-3">
                 <label className="block text-xs font-semibold text-gray-700">
