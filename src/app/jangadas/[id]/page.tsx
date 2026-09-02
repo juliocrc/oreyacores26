@@ -17,16 +17,34 @@ export default async function JangadaInspectionPage({ params }: { params: Promis
     redirect('/jangadas');
   }
 
-  const jangada = await prisma.jangada.findUnique({
+  const jangadaRaw = await prisma.jangada.findUnique({
     where: { id: numericId },
     include: {
-      ship: true,
-      inspecoes: {
-        orderBy: { dataInspecao: 'desc' },
-      },
       artigos: true,
+      serviceStation: true,
     },
   });
+
+  if (!jangadaRaw) {
+    redirect('/jangadas');
+  }
+
+  const [inspecoes, ship] = await Promise.all([
+    prisma.inspecao.findMany({
+      where: { jangadaId: numericId },
+      orderBy: { dataInspecao: 'desc' },
+    }),
+    jangadaRaw.shipId ? prisma.navio.findUnique({ where: { id: jangadaRaw.shipId }, include: { cliente: true } }) : null,
+  ]);
+
+  const cliente = ship?.cliente || null;
+
+  const jangada = {
+    ...jangadaRaw,
+    ship,
+    cliente,
+    inspecoes,
+  };
 
   const ships = (await prisma.navio.findMany({
     select: {
@@ -45,11 +63,11 @@ export default async function JangadaInspectionPage({ params }: { params: Promis
     orderBy: {
       nome: 'asc',
     },
-  })).map((ship) => ({
-    id: ship.id,
-    nome: ship.nome,
-    matricula: ship.matricula,
-    cliente: ship.cliente ? { id: ship.cliente.id, nome: ship.cliente.nome, telmovel: ship.cliente.telmovel, telefone: ship.cliente.telefone } : undefined,
+  })).map((s) => ({
+    id: s.id,
+    nome: s.nome,
+    matricula: s.matricula,
+    cliente: s.cliente ? { id: s.cliente.id, nome: s.cliente.nome, telmovel: s.cliente.telmovel, telefone: s.cliente.telefone } : undefined,
   }));
 
   return (
