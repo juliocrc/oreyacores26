@@ -119,7 +119,7 @@ export default function Step8_ResumoFinal() {
     // Validades a expirar (dias restantes)
     packItems.forEach((item: any) => {
       if (item.validade) {
-        const [vYear, vMonth] = item.validade.split('-').map(Number);
+        const [vYear, vMonth] = String(item.validade ?? "").split('-').map(Number);
         const expDate = new Date(vYear, (vMonth || 1) - 1, 1);
         const diffTime = expDate.getTime() - insDate.getTime();
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -208,7 +208,7 @@ export default function Step8_ResumoFinal() {
 
   function formatMonthYearDisplay(val: string) {
     if (!val) return '—';
-    const [y, m] = val.split('-').map(Number);
+    const [y, m] = String(val ?? "").split('-').map(Number);
     return `${String(m).padStart(2, '0')}-${y}`;
   }
 

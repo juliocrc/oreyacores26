@@ -1,4 +1,5 @@
 import { buildWhatsAppUrl } from "./communications";
+import { sendZapierWhatsApp, isZapierWhatsAppConfigured } from "./zapier-webhook";
 
 export type WhatsAppProviderResult = {
   ok: boolean;
@@ -20,7 +21,7 @@ function getConfig() {
 
 export function whatsappApiConfigurado(): boolean {
   const { accessToken, phoneNumberId } = getConfig();
-  return Boolean(accessToken && phoneNumberId);
+  return Boolean((accessToken && phoneNumberId) || isZapierWhatsAppConfigured());
 }
 
 export function apiUrlBase(): string {
@@ -37,14 +38,22 @@ function normalizePhoneForApi(raw: string): string {
 }
 
 /**
- * Envia uma mensagem de texto via WhatsApp Business Cloud API.
- * Devolve link wa.me de fallback quando a API não está configurada ou falha.
+ * Envia uma mensagem de texto via WhatsApp Business Cloud API ou Zapier.
+ * Devolve link wa.me de fallback quando nenhum está configurado ou falham.
  */
 export async function sendWhatsAppApi(
   phoneRaw: string,
   mensagem: string,
 ): Promise<WhatsAppProviderResult> {
   const link = buildWhatsAppUrl(phoneRaw, mensagem);
+
+  if (isZapierWhatsAppConfigured()) {
+    const zapRes = await sendZapierWhatsApp(phoneRaw, mensagem);
+    if (zapRes.ok) {
+      return { ok: true, enviadoDeFacto: true, link };
+    }
+    return { ok: false, erro: zapRes.error || "Erro no envio WhatsApp via Zapier.", link };
+  }
 
   if (!whatsappApiConfigurado()) {
     return { ok: true, enviadoDeFacto: false, link };
