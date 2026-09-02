@@ -45,12 +45,12 @@ export async function importDatabaseAction(formData: FormData) {
       fs.writeFileSync(dbPath, buffer);
 
       try {
-        const importScript = path.resolve(process.cwd(), "scripts/import-sqlite-to-pg.ts");
+        const importScript = path.resolve(process.cwd(), "scripts/import-sqlite-to-pg.cjs");
         if (!fs.existsSync(importScript)) {
           return { success: false, error: "Script de importação não encontrado no servidor." };
         }
 
-        execSync(`npx tsx "${importScript}"`, {
+        execSync(`node "${importScript}"`, {
           env: { ...process.env, IMPORT_DATABASE_URL: process.env.DATABASE_URL! },
           cwd: process.cwd(),
           timeout: 180_000,
