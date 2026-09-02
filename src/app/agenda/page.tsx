@@ -181,13 +181,13 @@ function AgendaPage() {
       const res = await fetch("/api/google-calendar/sync", { method: "POST" });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
-        alert(data?.error || "Falha na sincronização com o Google Calendar.");
+        alert(data?.error || "Google Calendar não está configurado neste ambiente.");
         return;
       }
       setLastGoogleSync(data?.summary || "Sincronizado.");
-      alert(data?.summary || "Sincronizado com o Google Calendar.");
+      alert(data?.summary || "Sincronizado com o Google Calendar com sucesso!");
     } catch {
-      alert("Falha na sincronização com o Google Calendar.");
+      alert("Google Calendar não está configurado neste ambiente.");
     } finally {
       setSyncingGoogleCalendar(false);
     }
