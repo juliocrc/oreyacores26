@@ -127,3 +127,48 @@ export function isCloudBackupDue(): boolean {
   const hoursSince = (Date.now() - new Date(config.lastBackupAt).getTime()) / 3600000;
   return hoursSince >= config.autoBackupIntervalHours;
 }
+
+export async function fetchLatestBackupFromGoogleDrive(): Promise<{ buffer: Buffer; fileName: string }> {
+  const config = loadGDriveConfig();
+  if (!config.accessToken) {
+    throw new Error("Google Drive não está configurado. Token de acesso em falta.");
+  }
+
+  const query = config.folderId ? `'${config.folderId}' in parents and name contains 'gestornaval_backup'` : `name contains 'gestornaval_backup'`;
+  const listUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&orderBy=createdTime+desc&pageSize=1`;
+
+  const listRes = await new Promise<string>((resolve, reject) => {
+    https.get(listUrl, { headers: { Authorization: `Bearer ${config.accessToken}` } }, (res) => {
+      let data = "";
+      res.on("data", chunk => data += chunk);
+      res.on("end", () => resolve(data));
+      res.on("error", reject);
+    });
+  });
+
+  const parsed = JSON.parse(listRes);
+  if (parsed.error) throw new Error(parsed.error.message || "Erro ao listar ficheiros no Google Drive");
+  const files = parsed.files || [];
+  if (files.length === 0) throw new Error("Nenhum backup encontrado no Google Drive.");
+
+  const latestFile = files[0];
+  const fileId = latestFile.id;
+  const fileName = latestFile.name;
+
+  const downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+
+  const fileBuffer = await new Promise<Buffer>((resolve, reject) => {
+    https.get(downloadUrl, { headers: { Authorization: `Bearer ${config.accessToken}` } }, (res) => {
+      if (res.statusCode && res.statusCode >= 400) {
+        reject(new Error(`Erro ao descarregar do Google Drive (status ${res.statusCode})`));
+        return;
+      }
+      const chunks: Buffer[] = [];
+      res.on("data", chunk => chunks.push(Buffer.from(chunk)));
+      res.on("end", () => resolve(Buffer.concat(chunks)));
+      res.on("error", reject);
+    });
+  });
+
+  return { buffer: fileBuffer, fileName };
+}

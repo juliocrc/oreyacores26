@@ -78,3 +78,72 @@ export async function importDatabaseAction(formData: FormData) {
     return { success: false, error: (err as Error).message || "Erro ao importar base de dados." };
   }
 }
+
+export async function importFromGoogleDriveAction() {
+  const auth = await requireAdminOrBypass();
+  if (!auth.ok) {
+    return { success: false, error: "Não autorizado" };
+  }
+
+  try {
+    const { fetchLatestBackupFromGoogleDrive } = await import("@/lib/cloud-backup");
+    const { buffer, fileName } = await fetchLatestBackupFromGoogleDrive();
+
+    const header = buffer.slice(0, 16).toString("utf8");
+    if (!header.startsWith("SQLite format 3")) {
+      return { success: false, error: "O ficheiro obtido do Google Drive não é uma base de dados SQLite válida." };
+    }
+
+    if (isPostgres) {
+      const dbDir = path.join(process.cwd(), "prisma");
+      if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
+      const dbPath = path.join(dbDir, "local.db");
+
+      fs.writeFileSync(dbPath, buffer);
+
+      const importScript = path.resolve(process.cwd(), "scripts/import-sqlite-to-pg.cjs");
+      if (!fs.existsSync(importScript)) {
+        return { success: false, error: "Script de importação não encontrado no servidor." };
+      }
+
+      const child = spawn("node", [importScript], {
+        env: { ...process.env, IMPORT_DATABASE_URL: process.env.DATABASE_URL! },
+        cwd: process.cwd(),
+        detached: true,
+        stdio: "ignore",
+      });
+      child.unref();
+
+      return {
+        success: true,
+        message: `Backup '${fileName}' descarregado do Google Drive e importação iniciada em segundo plano!`,
+      };
+    }
+
+    const dbPath = path.join(process.cwd(), "prisma", "local.db");
+    fs.writeFileSync(dbPath, buffer);
+
+    return {
+      success: true,
+      message: `Backup '${fileName}' importado com sucesso do Google Drive!`,
+    };
+  } catch (err) {
+    console.error("[importFromGoogleDriveAction]", err);
+    return { success: false, error: (err as Error).message || "Erro ao importar do Google Drive." };
+  }
+}
+
+export async function exportToGoogleDriveAction() {
+  const auth = await requireAdminOrBypass();
+  if (!auth.ok) {
+    return { success: false, error: "Não autorizado" };
+  }
+  try {
+    const { runCloudBackup } = await import("@/lib/cloud-backup");
+    const msg = await runCloudBackup();
+    return { success: true, message: msg };
+  } catch (err) {
+    console.error("[exportToGoogleDriveAction]", err);
+    return { success: false, error: (err as Error).message || "Erro ao exportar para o Google Drive." };
+  }
+}
