@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { MessageSquare, Send, CheckCircle2, AlertCircle, Loader2, Phone, RefreshCw, ShieldCheck } from "lucide-react";
+import { MessageSquare, Send, CheckCircle2, AlertCircle, Loader2, Phone, RefreshCw, ShieldCheck, ArrowDownLeft, ArrowUpRight } from "lucide-react";
 import { appToast } from "@/lib/app-toast";
 
 type Comunicacao = {
@@ -12,6 +12,7 @@ type Comunicacao = {
   canal?: string | null;
   enviadoEm: string;
   erro?: string | null;
+  assunto?: string | null;
 };
 
 export default function WhatsAppModule() {
@@ -21,13 +22,14 @@ export default function WhatsAppModule() {
   const [loading, setLoading] = useState(false);
   const [comunicacoes, setComunicacoes] = useState<Comunicacao[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
+  const [tabFiltro, setTabFiltro] = useState<"todas" | "enviadas" | "recebidas">("todas");
 
   const loadHistory = async () => {
     try {
-      const res = await fetch("/api/comunicacoes?tipo=WHATSAPP&pageSize=50");
+      const res = await fetch("/api/comunicacoes?tipo=WHATSAPP&pageSize=100");
       if (res.ok) {
         const data = await res.json();
-        setComunicacoes(data.comunicacoes || data || []);
+        setComunicacoes(data.comunicacoes || data.items || data || []);
       }
     } catch (e) {
       console.error(e);
@@ -87,24 +89,30 @@ export default function WhatsAppModule() {
     }
   };
 
+  const filteredComunicacoes = comunicacoes.filter(c => {
+    if (tabFiltro === "enviadas") return c.status !== "recebido";
+    if (tabFiltro === "recebidas") return c.status === "recebido";
+    return true;
+  });
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       {/* Header */}
       <div className="bg-gradient-to-r from-emerald-600 to-teal-700 rounded-3xl p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/30 text-emerald-100 text-xs font-bold mb-3 border border-emerald-400/30">
-            <MessageSquare size={14} /> Módulo WhatsApp Business / Zapier
+            <MessageSquare size={14} /> Módulo WhatsApp Business / Zapier / WABA
           </div>
           <h1 className="text-3xl font-black tracking-tight">Gestão de Comunicações WhatsApp</h1>
           <p className="text-emerald-100 text-sm mt-1 max-w-2xl">
-            Envio automatizado e direto via WABA API / Zapier MCP com fallback para wa.me e histórico centralizado.
+            Envio automatizado e receção de mensagens via WABA API, Webhooks do Zapier e histórico unificado.
           </p>
         </div>
         <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md px-4 py-3 rounded-2xl border border-white/20">
           <ShieldCheck className="text-emerald-300" size={24} />
           <div>
             <div className="text-xs text-emerald-200 font-semibold">Estado da Conexão</div>
-            <div className="text-sm font-bold text-white">Ativo (WABA + Zapier MCP)</div>
+            <div className="text-sm font-bold text-white">Ativo (WABA + Webhook Inbound)</div>
           </div>
         </div>
       </div>
@@ -171,19 +179,41 @@ export default function WhatsAppModule() {
           </form>
         </div>
 
-        {/* History Table */}
+        {/* History Table with Tabs */}
         <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-200/60 p-6 shadow-sm space-y-6">
-          <div className="flex justify-between items-center pb-4 border-b border-slate-100">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-100">
             <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-              <MessageSquare className="text-emerald-600" size={20} /> Histórico de Envios WhatsApp
+              <MessageSquare className="text-emerald-600" size={20} /> Histórico de Mensagens WhatsApp
             </h2>
-            <button
-              onClick={() => { setLoadingHistory(true); loadHistory(); }}
-              className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition"
-              title="Atualizar histórico"
-            >
-              <RefreshCw size={16} />
-            </button>
+            <div className="flex items-center gap-2">
+              <div className="inline-flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
+                <button
+                  onClick={() => setTabFiltro("todas")}
+                  className={`px-3 py-1.5 rounded-lg transition ${tabFiltro === "todas" ? "bg-white text-slate-800 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+                >
+                  Todas
+                </button>
+                <button
+                  onClick={() => setTabFiltro("enviadas")}
+                  className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1 ${tabFiltro === "enviadas" ? "bg-white text-emerald-700 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+                >
+                  <ArrowUpRight size={12} /> Enviadas
+                </button>
+                <button
+                  onClick={() => setTabFiltro("recebidas")}
+                  className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1 ${tabFiltro === "recebidas" ? "bg-white text-blue-700 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+                >
+                  <ArrowDownLeft size={12} /> Recebidas
+                </button>
+              </div>
+              <button
+                onClick={() => { setLoadingHistory(true); loadHistory(); }}
+                className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition"
+                title="Atualizar histórico"
+              >
+                <RefreshCw size={16} />
+              </button>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -191,11 +221,11 @@ export default function WhatsAppModule() {
               <div className="flex justify-center items-center py-20 gap-2 text-slate-500 font-medium">
                 <Loader2 className="animate-spin text-emerald-600" size={24} /> A carregar histórico...
               </div>
-            ) : comunicacoes.length > 0 ? (
+            ) : filteredComunicacoes.length > 0 ? (
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="bg-slate-50 text-slate-500 font-semibold uppercase tracking-wider">
-                    <th className="p-3">Destinatário</th>
+                    <th className="p-3">Direção / Contacto</th>
                     <th className="p-3">Mensagem</th>
                     <th className="p-3">Canal</th>
                     <th className="p-3">Estado</th>
@@ -203,34 +233,45 @@ export default function WhatsAppModule() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {comunicacoes.map((c) => (
-                    <tr key={c.id} className="hover:bg-slate-50/60 transition">
-                      <td className="p-3 font-mono font-bold text-slate-800">{c.destinatario}</td>
-                      <td className="p-3 text-slate-600 max-w-xs truncate">{c.mensagem}</td>
-                      <td className="p-3">
-                        <span className="px-2 py-1 bg-slate-100 text-slate-700 font-semibold rounded-lg text-[10px] uppercase">
-                          {c.canal || "wa.me"}
-                        </span>
-                      </td>
-                      <td className="p-3">
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${
-                          c.status === "enviado" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
-                          c.status === "pendente" ? "bg-amber-50 text-amber-700 border-amber-200" :
-                          "bg-rose-50 text-rose-700 border-rose-200"
-                        }`}>
-                          {c.status === "enviado" ? <CheckCircle2 size={10} /> : <AlertCircle size={10} />}
-                          {c.status}
-                        </span>
-                      </td>
-                      <td className="p-3 text-slate-500 font-mono">{new Date(c.enviadoEm).toLocaleString("pt-PT")}</td>
-                    </tr>
-                  ))}
+                  {filteredComunicacoes.map((c) => {
+                    const isRecebido = c.status === "recebido";
+                    return (
+                      <tr key={c.id} className="hover:bg-slate-50/60 transition">
+                        <td className="p-3 font-mono font-bold text-slate-800 flex items-center gap-1.5">
+                          {isRecebido ? (
+                            <span className="p-1 rounded-md bg-blue-50 text-blue-600" title="Mensagem recebida"><ArrowDownLeft size={12} /></span>
+                          ) : (
+                            <span className="p-1 rounded-md bg-emerald-50 text-emerald-600" title="Mensagem enviada"><ArrowUpRight size={12} /></span>
+                          )}
+                          {c.destinatario}
+                        </td>
+                        <td className="p-3 text-slate-600 max-w-xs truncate">{c.mensagem}</td>
+                        <td className="p-3">
+                          <span className="px-2 py-1 bg-slate-100 text-slate-700 font-semibold rounded-lg text-[10px] uppercase">
+                            {c.canal || (isRecebido ? "webhook" : "wa.me")}
+                          </span>
+                        </td>
+                        <td className="p-3">
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${
+                            c.status === "enviado" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                            c.status === "recebido" ? "bg-blue-50 text-blue-700 border-blue-200" :
+                            c.status === "pendente" ? "bg-amber-50 text-amber-700 border-amber-200" :
+                            "bg-rose-50 text-rose-700 border-rose-200"
+                          }`}>
+                            {c.status === "enviado" ? <CheckCircle2 size={10} /> : isRecebido ? <ArrowDownLeft size={10} /> : <AlertCircle size={10} />}
+                            {c.status}
+                          </span>
+                        </td>
+                        <td className="p-3 text-slate-500 font-mono">{new Date(c.enviadoEm).toLocaleString("pt-PT")}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             ) : (
               <div className="text-center py-16 text-slate-400">
                 <MessageSquare size={36} className="mx-auto mb-2 text-slate-300" />
-                <p className="text-sm font-semibold">Nenhuma mensagem de WhatsApp registada.</p>
+                <p className="text-sm font-semibold">Nenhuma mensagem encontrada para este filtro.</p>
               </div>
             )}
           </div>

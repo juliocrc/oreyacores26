@@ -60,12 +60,10 @@ export function buildAuthOptions(): NextAuthOptions {
             const cleanNif = nif.replace(/\D/g, "").trim();
             if (cleanNif.length < 9) return null;
 
-            const now = new Date();
             const cliente = await prisma.cliente.findFirst({
               where: {
                 nif: cleanNif,
                 verificationCode: { not: null },
-                verificationCodeExpires: { gt: now },
               },
               select: {
                 id: true,
@@ -78,7 +76,7 @@ export function buildAuthOptions(): NextAuthOptions {
               }
             });
 
-            if (!cliente) return null;
+            if (!cliente || !cliente.verificationCode) return null;
 
             const phoneMatch = (() => {
               const t1 = cleanPhone(cliente.telmovel);
@@ -93,9 +91,16 @@ export function buildAuthOptions(): NextAuthOptions {
 
             if (!phoneMatch) return null;
 
-            // Check verification code
-            if (!cliente.verificationCode || cliente.verificationCode !== code) return null;
-            if (!cliente.verificationCodeExpires || new Date() > new Date(cliente.verificationCodeExpires)) return null;
+            // Check verification code (flexible string comparison)
+            if (String(cliente.verificationCode).trim() !== String(code).trim()) return null;
+
+            if (cliente.verificationCodeExpires) {
+              const expiresTime = new Date(cliente.verificationCodeExpires).getTime();
+              const nowTime = Date.now();
+              if (nowTime > expiresTime + 15 * 60 * 1000) {
+                return null;
+              }
+            }
 
             // Consume verification code
             await prisma.cliente.update({
