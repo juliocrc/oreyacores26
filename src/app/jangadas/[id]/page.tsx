@@ -1,7 +1,6 @@
 import React from 'react';
 import { getAuthSession } from '@/auth';
 import { redirect } from 'next/navigation';
-import { cookies } from 'next/headers';
 import prisma from '@/lib/prisma';
 import JangadaDetailPageClient from './JangadaDetailPageClient';
 
@@ -18,24 +17,18 @@ export default async function JangadaInspectionPage({ params }: { params: Promis
     redirect('/jangadas');
   }
 
-  // Build absolute URL for server-side fetch
-  const baseUrl =
-    process.env.NEXT_PUBLIC_BASE_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
-    'http://localhost:3000';
-
-  const cookieStore = await cookies();
-  const cookieHeader = cookieStore.toString();
-
-  const res = await fetch(`${baseUrl}/api/jangadas/${id}`, {
-    cache: 'no-store',
-    headers: {
-      Cookie: cookieHeader,
+  const jangada = await prisma.jangada.findUnique({
+    where: { id: numericId },
+    include: {
+      cliente: true,
+      ship: true,
+      inspecoes: {
+        orderBy: { dataInspecao: 'desc' },
+      },
+      artigos: true,
     },
   });
-  const jangada = res.ok ? await res.json() : null;
 
-  // Retrieve the list of navios for the dropdown list in editing mode
   const ships = (await prisma.navio.findMany({
     select: {
       id: true,
