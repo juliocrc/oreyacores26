@@ -19,6 +19,7 @@ export default function Step8_ResumoFinal() {
     inspectionData, 
     setInspectionData,
     setStep,
+    setStepByKey,
     setIsSaving,
     isSaving
   } = useJangadaWizardStore();
@@ -238,7 +239,22 @@ export default function Step8_ResumoFinal() {
         codigoFabricante: null,
       }));
 
-    const artigosSubstituidos = [...packSubstitutions, ...compSubstitutions];
+    const closureSubstitutions = (inspectionData.containerClosureItems || [])
+      .filter((item: any) => Number(item.quantidade) > 0)
+      .map((item: any) => ({
+        stockId: item.stockId || null,
+        referencia: item.referencia,
+        name: item.descricao || "Equipamento de fecho do contentor",
+        descricao: item.descricao || "Equipamento de fecho do contentor",
+        quantidade: item.quantidade,
+        precoUnitario: Number(item.unitPrice) || 0,
+        motivo: "Fecho do Contentor",
+        validade: null,
+        codigoFabricante: item.partNumber || null,
+        kind: item.kind || "autocolante",
+      }));
+
+    const artigosSubstituidos = [...packSubstitutions, ...compSubstitutions, ...closureSubstitutions];
 
     const testes = inspectionData.testes || {};
     const unit = testes.wpUnidadePressao === 'mbar' ? 'hpa' : (testes.wpUnidadePressao || 'hpa');
@@ -371,6 +387,7 @@ export default function Step8_ResumoFinal() {
         isIsentoIva: Boolean(inspectionData.orcamento?.isIsentoIva),
         usarOrcamento: Boolean(inspectionData.orcamento?.usarOrcamento),
         removedIds: inspectionData.orcamento?.removedIds || [],
+        aprovacaoWhatsApp: inspectionData.orcamento?.aprovacaoWhatsApp || null,
       },
       ordemId: ordemId ? parseInt(ordemId, 10) : null,
     };
@@ -397,7 +414,7 @@ export default function Step8_ResumoFinal() {
           if (queued) {
             appToast.warning("Sem ligação à internet. A inspeção foi enfileirada para sincronização automática.");
             if (isFinal) {
-              setStep(9);
+              setStepByKey('certificados');
             }
           } else {
             appToast.error("Fila offline cheia. Não foi possível guardar a inspeção.");
@@ -431,6 +448,9 @@ export default function Step8_ResumoFinal() {
           radarReflector: inspectionData.radarReflector,
           radarReflectorValidade: inspectionData.radarReflectorExpiry,
           owner: inspectionData.owner,
+          numeroObra: inspectionData.numeroObra,
+          certificadoExternoNumero: (inspectionData.certificadoExternoNumero || '').trim() || null,
+          certificadoExternoUrl: (inspectionData.certificadoExternoUrl || '').trim() || null,
           // Cylinder data
           cylinderSerial: inspectionData.cylinder?.serial,
           cylinderPesoBruto: inspectionData.cylinder?.pesoBruto,
@@ -524,7 +544,7 @@ export default function Step8_ResumoFinal() {
       }
 
       if (isFinal) {
-        setStep(9);
+        setStepByKey('certificados');
       } else {
         appToast.success("Rascunho guardado com sucesso!");
       }
@@ -539,6 +559,14 @@ export default function Step8_ResumoFinal() {
   const handleSaveDraft = () => {
     saveToBackend(false);
   };
+
+  // Support Ctrl+S / "wizard-save-draft" event to save draft from anywhere in the wizard
+  useEffect(() => {
+    const onSave = () => handleSaveDraft();
+    window.addEventListener('wizard-save-draft', onSave);
+    return () => window.removeEventListener('wizard-save-draft', onSave);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handleSaveDraft]);
 
   const handleFinish = () => {
     const criticalWarnings = warnings.filter(w => w.isCritical);

@@ -1,15 +1,86 @@
 "use client";
 import React, { useState } from 'react';
 import { useJangadaWizardStore } from './store/useJangadaWizardStore';
-import { CheckCircle, Download, FileText, Loader2, ArrowRight } from 'lucide-react';
+import { CheckCircle, Download, FileText, Loader2, ArrowRight, ExternalLink, Upload, ShieldCheck } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { getMandatoryPackItemsForRaft } from '../rafts/mandatoryPack';
+import { appToast } from '@/lib/app-toast';
+
+const HarbourOne_URL = "https://survitec2.my.site.com/HarbourOne/login?ec=302&startURL=%2FHarbourOne%2F";
 
 export default function Step9_Certificados() {
   const router = useRouter();
-  const { inspectionData, jangadaId, shipId, inspecaoId } = useJangadaWizardStore();
+  const { inspectionData, setInspectionData, jangadaId, shipId, inspecaoId } = useJangadaWizardStore();
   const [loading, setLoading] = useState<string | null>(null);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  const [extSaving, setExtSaving] = useState(false);
+
+  const hasExternalCert = Boolean(
+    (inspectionData.certificadoExternoNumero || '').trim() || (inspectionData.certificadoExternoUrl || '').trim()
+  );
+
+  const openHarbourOne = () => {
+    window.open(HarbourOne_URL, "_blank", "noopener,noreferrer");
+  };
+
+  const handleExternalFile = async (file: File) => {
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".pdf")) {
+      appToast.error("O certificado externo deve ser um ficheiro PDF.");
+      return;
+    }
+    try {
+      setExtSaving(true);
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("folder", "certificados/externos");
+      const res = await fetch("/api/upload-documento", { method: "POST", body: fd });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Erro no upload do certificado");
+      const filename = json.filename || json.originalName;
+      if (!filename) throw new Error("Não foi possível obter o nome do ficheiro.");
+      const url = `/uploads/certificados/externos/${encodeURIComponent(filename)}`;
+      setInspectionData({ ...inspectionData, certificadoExternoUrl: url });
+      appToast.success("PDF do certificado externo carregado com sucesso!");
+    } catch (err: unknown) {
+      appToast.error(err instanceof Error ? err.message : "Erro ao carregar o PDF");
+    } finally {
+      setExtSaving(false);
+    }
+  };
+
+  const handleSaveExternalCert = async () => {
+    if (!jangadaId) {
+      appToast.error("Jangada não associada. Não é possível guardar o certificado externo.");
+      return;
+    }
+    try {
+      setExtSaving(true);
+      const res = await fetch(`/api/jangadas/${jangadaId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          certificadoExternoNumero: (inspectionData.certificadoExternoNumero || "").trim(),
+          certificadoExternoUrl: (inspectionData.certificadoExternoUrl || "").trim(),
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || json.message || "Erro ao guardar certificado externo");
+      appToast.success("Certificado externo guardado com sucesso!");
+    } catch (err: unknown) {
+      appToast.error(err instanceof Error ? err.message : "Erro ao guardar certificado externo");
+    } finally {
+      setExtSaving(false);
+    }
+  };
+
+  const clearExternalCert = () => {
+    setInspectionData({
+      ...inspectionData,
+      certificadoExternoNumero: "",
+      certificadoExternoUrl: "",
+    });
+  };
 
   const buildCertificatePayload = () => {
     const testes = inspectionData.testes || {};
@@ -388,6 +459,98 @@ export default function Step9_Certificados() {
             {loading === 'quadro-xlsx' ? <Loader2 className="animate-spin" size={32} /> : <FileText size={32} />}
             <span>Quadro Inspeção</span>
             <span className="text-xs font-medium text-blue-400">Tabela de Dados</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Certificado Externo (HarbourOne) */}
+      <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+            <ShieldCheck className="text-amber-500" />
+            Certificado Externo
+          </h3>
+          <button
+            onClick={openHarbourOne}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-white bg-amber-500 hover:bg-amber-600 shadow-md transition-all"
+          >
+            <ExternalLink size={16} />
+            Abrir HarbourOne
+          </button>
+        </div>
+
+        <p className="text-xs text-slate-500 mb-6 leading-relaxed">
+          Quando o certificado é feito no HarbourOne (fabricante), preencha abaixo o número do certificado e
+          carregue o PDF. Se for indicado um certificado externo, o número interno no formato{" "}
+          <span className="font-mono font-bold text-slate-700">AZ26-XXX</span> fica sem efeito.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Nº do Certificado Externo</label>
+            <input
+              type="text"
+              className="w-full border-slate-200 rounded-xl px-4 py-3 bg-slate-50 focus:bg-white transition-colors"
+              placeholder="Ex: HB-2026-123"
+              value={inspectionData.certificadoExternoNumero || ''}
+              onChange={(e) => setInspectionData({ ...inspectionData, certificadoExternoNumero: e.target.value })}
+            />
+            {hasExternalCert && (
+              <p className="text-[11px] font-semibold text-amber-600 flex items-center gap-1">
+                <ShieldCheck size={12} />
+                Certificado externo indicado — o número AZ26-XXX é ignorado nesta inspeção.
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Documento PDF do Certificado</label>
+            {inspectionData.certificadoExternoUrl ? (
+              <div className="flex items-center justify-between gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                <a
+                  href={inspectionData.certificadoExternoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-bold text-emerald-800 hover:underline flex items-center gap-1.5 truncate"
+                >
+                  <FileText size={14} className="shrink-0" />
+                  <span className="truncate">Ver Certificado PDF Carregado</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={clearExternalCert}
+                  className="text-xs text-red-600 hover:text-red-800 font-semibold ml-2 shrink-0"
+                >
+                  Remover
+                </button>
+              </div>
+            ) : (
+              <label className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-slate-300 hover:border-amber-500 rounded-xl cursor-pointer bg-slate-50 hover:bg-amber-50/30 transition-all text-xs font-bold text-slate-600">
+                {extSaving ? <Loader2 className="animate-spin text-amber-600" size={16} /> : <Upload size={16} className="text-amber-600" />}
+                <span>{extSaving ? "A carregar..." : "Carregar Ficheiro PDF"}</span>
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  className="hidden"
+                  disabled={extSaving}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void handleExternalFile(file);
+                  }}
+                />
+              </label>
+            )}
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3 pt-6 mt-4 border-t border-slate-100">
+          <button
+            type="button"
+            onClick={handleSaveExternalCert}
+            disabled={extSaving || !hasExternalCert}
+            className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white rounded-xl text-sm font-bold shadow-md transition"
+          >
+            {extSaving ? "A Guardar..." : "Guardar Certificado Externo"}
           </button>
         </div>
       </div>

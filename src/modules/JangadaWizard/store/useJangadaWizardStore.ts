@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { getLocalDateKey } from '@/lib/date-utils';
 import type { InspectionData, GlobalStockItem } from '../types';
+import { getWizardSteps, getStepIndexByKey } from '../steps';
 
 export type { GlobalStockItem } from '../types';
 
@@ -9,6 +10,8 @@ type WizardState = {
   // Navigation
   currentStep: number;
   setStep: (step: number) => void;
+  setStepByKey: (key: string) => void;
+  currentStepKey: () => string | null;
   nextStep: () => void;
   prevStep: () => void;
   canProceed: () => boolean;
@@ -49,22 +52,37 @@ export const useJangadaWizardStore = create<WizardState>()(
   devtools(
     (set, get) => ({
       currentStep: 1,
-      setStep: (step) => set({ currentStep: step }),
+      setStep: (step) => set({ currentStep: step, validationErrors: [] }),
+      setStepByKey: (key) => {
+        const steps = getWizardSteps(get().inspectionData);
+        const idx = getStepIndexByKey(steps, key);
+        if (idx > 0) set({ currentStep: idx, validationErrors: [] });
+      },
+      currentStepKey: () => {
+        const state = get();
+        const steps = getWizardSteps(state.inspectionData);
+        return steps[state.currentStep - 1]?.key ?? null;
+      },
       nextStep: () => {
         const state = get();
         if (state.canProceed()) {
-          set({ currentStep: Math.min(state.currentStep + 1, 10), validationErrors: [] });
+          const steps = getWizardSteps(state.inspectionData);
+          set({ currentStep: Math.min(state.currentStep + 1, steps.length), validationErrors: [] });
         }
       },
-      prevStep: () => set((state) => ({ currentStep: Math.max(state.currentStep - 1, 1), validationErrors: [] })),
+      prevStep: () => set((state) => {
+        const steps = getWizardSteps(state.inspectionData);
+        return { currentStep: Math.max(state.currentStep - 1, 1), validationErrors: [] };
+      }),
       
       canProceed: () => {
         const state = get();
         const data = state.inspectionData;
-        const step = state.currentStep;
+        const steps = getWizardSteps(data);
+        const stepKey = steps[state.currentStep - 1]?.key ?? '';
         const errors: string[] = [];
 
-        if (step === 1) {
+        if (stepKey === 'dados') {
           if (!data.serial?.trim()) errors.push("Série é obrigatória");
           if (!data.brand?.trim()) errors.push("Marca é obrigatória");
           if (!data.model?.trim()) errors.push("Modelo é obrigatório");
@@ -72,10 +90,23 @@ export const useJangadaWizardStore = create<WizardState>()(
           if (!data.capacity) errors.push("Capacidade é obrigatória");
         }
 
-        if (step === 6) {
+        if (stepKey === 'testes') {
           if (data.testes?.testeWP === 'PASSOU') {
             if (!data.testes?.wpCamaraSupInicio) errors.push("Pressão Câmara Superior (Início) é obrigatória para teste WP");
             if (!data.testes?.wpCamaraSupFim) errors.push("Pressão Câmara Superior (Fim) é obrigatória para teste WP");
+          }
+        }
+
+        if (stepKey === 'reparacoes') {
+          const repairs = (data.reparacoes || []).filter((r: any) => r.tipo || r.descricao);
+          if (repairs.length === 0) errors.push("Indique as reparações/colagens a realizar");
+        }
+
+        if (stepKey === 'orcamento') {
+          const linhas = data.orcamento?.linhas || [];
+          const aprovacao = data.orcamento?.aprovacaoWhatsApp;
+          if (linhas.length > 0 && aprovacao?.status !== 'aprovado') {
+            errors.push("O orçamento ainda não foi aprovado pelo cliente — envie via WhatsApp e registe a resposta.");
           }
         }
 
@@ -130,6 +161,9 @@ export const useJangadaWizardStore = create<WizardState>()(
           hruExpiry: raftData?.hruValidade || '',
           radarReflector: raftData?.radarReflector || '',
           radarReflectorExpiry: raftData?.radarReflectorValidade || '',
+          certificadoNumero: raftData?.ultimoCertificadoNumero || '',
+          certificadoExternoNumero: raftData?.certificadoExternoNumero || '',
+          certificadoExternoUrl: raftData?.certificadoExternoUrl || '',
           artigos: raftData?.artigos || [],
           shipDetails: raftData?.shipDetails || null,
 
@@ -180,11 +214,25 @@ export const useJangadaWizardStore = create<WizardState>()(
           
           // Pack Substituído
           packItems: draftData?.artigosSubstituidos?.reduce((acc: any, item: any) => {
-            if (item.referencia) {
+            if (item.referencia && (item.motivo || "") !== "Fecho do Contentor") {
                acc[item.referencia] = item;
             }
             return acc;
           }, {}) || {},
+
+          // Equipamento de fecho do contentor (cintas, autocolantes, HRU) restaurado do rascunho
+          containerClosureItems: (draftData?.artigosSubstituidos || [])
+            .filter((item: any) => (item.motivo || "") === "Fecho do Contentor")
+            .map((item: any) => ({
+              key: `closure-${item.referencia || item.descricao}`,
+              kind: (item.kind || "autocolante") as "cinta" | "autocolante" | "hru",
+              referencia: item.referencia || "",
+              descricao: item.descricao || "Equipamento de fecho do contentor",
+              quantidade: Number(item.quantidade) || 1,
+              unitPrice: Number(item.precoUnitario || item.unitPrice) || 0,
+              stockId: item.stockId ?? null,
+              partNumber: item.codigoFabricante || undefined,
+            })),
 
           // Orçamento (restaurado a partir do rascunho guardado)
           orcamento: draftData?.orcamento || undefined,

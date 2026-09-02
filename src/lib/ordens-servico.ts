@@ -10,6 +10,7 @@ export type OrdemWorkflowStatus =
   | "entrada_estacao"
   | "triagem"
   | "inspecao_em_curso"
+  | "aguarda_pecas"
   | "aguarda_decisao"
   | "orcamento_em_preparacao"
   | "em_execucao"
@@ -177,6 +178,7 @@ export function normalizeWorkflowStatus(value: unknown): OrdemWorkflowStatus | n
   if (v === "entrada_estacao" || v === "entrada estação" || v === "entrada-estacao") return "entrada_estacao";
   if (v === "triagem") return "triagem";
   if (v === "inspecao_em_curso" || v === "inspeção_em_curso" || v === "inspecao em curso" || v === "inspeção em curso") return "inspecao_em_curso";
+  if (v === "aguarda_pecas" || v === "aguarda peças" || v === "aguardar_material" || v === "aguardar material" || v === "sem_stock" || v === "sem stock") return "aguarda_pecas";
   if (v === "aguarda_decisao" || v === "aguarda decisão" || v === "aguarda decisao") return "aguarda_decisao";
   if (v === "orcamento_em_preparacao" || v === "orçamento_em_preparação" || v === "orcamento em preparacao" || v === "orçamento em preparação") return "orcamento_em_preparacao";
   if (v === "em_execucao" || v === "em execução" || v === "em execucao") return "em_execucao";
@@ -240,7 +242,7 @@ export function mapWorkflowStatusToQueueStatus(value: unknown) {
   const workflow = normalizeWorkflowStatus(value);
   if (!workflow) return "aguardar";
   if (workflow === "triagem") return "agendada";
-  if (workflow === "inspecao_em_curso" || workflow === "em_execucao") return "progresso";
+  if (workflow === "inspecao_em_curso" || workflow === "em_execucao" || workflow === "aguarda_pecas") return "progresso";
   if (workflow === "a_secar") return "a_secar";
   if (workflow === "aguarda_decisao" || workflow === "orcamento_em_preparacao" || workflow === "pronta_para_fecho" || workflow === "concluida" || workflow === "cancelada") {
     return "finalizada";
@@ -253,6 +255,7 @@ export function mapWorkflowStatusToOrderStatus(value: unknown): OrdemServicoStat
   if (!workflow) return "pendente";
   if (workflow === "triagem") return "agendada";
   if (workflow === "inspecao_em_curso" || workflow === "em_execucao") return "em_progresso";
+  if (workflow === "aguarda_pecas") return "pausada";
   if (workflow === "a_secar") return "pausada";
   if (workflow === "pronta_para_fecho") return "confirmada";
   if (workflow === "concluida") return "concluida";

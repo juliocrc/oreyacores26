@@ -1,5 +1,6 @@
 import { sendSms } from "./sms-provider";
 import { normalizeE164 } from "./textbee-sms";
+import { sendWhatsAppApi, whatsappApiConfigurado } from "./whatsapp-provider";
 import prisma from "./prisma";
 
 export type ComunicacaoTipo = "SMS" | "WHATSAPP" | "EMAIL";
@@ -144,6 +145,8 @@ export async function enviarComunicacao(input: EnvioComunicacaoInput): Promise<{
   let status = "enviado";
   let erro: string | undefined;
   let whatsappUrl: string | undefined;
+  let providerId: string | undefined;
+  let canal = input.tipo === "SMS" ? "textbee" : input.tipo === "EMAIL" ? "email" : "wa.me";
 
   if (input.tipo === "SMS") {
     const result = await sendSms(destinatario, mensagem);
@@ -152,20 +155,31 @@ export async function enviarComunicacao(input: EnvioComunicacaoInput): Promise<{
       erro = result.error;
     }
   } else if (input.tipo === "WHATSAPP") {
-    whatsappUrl = buildWhatsAppUrl(destinatario, mensagem);
-    status = "pendente";
+    const result = await sendWhatsAppApi(destinatario, mensagem);
+    whatsappUrl = result.link;
+    providerId = result.providerId;
+    canal = result.enviadoDeFacto ? "whatsapp-api" : "wa.me";
+    if (result.ok && result.enviadoDeFacto) {
+      status = "enviado";
+    } else if (result.ok) {
+      status = "pendente";
+    } else {
+      status = "falhou";
+      erro = result.erro;
+    }
   }
 
   try {
     const registo = await prisma.comunicacao.create({
       data: {
         tipo: input.tipo,
-        canal: input.tipo === "SMS" ? "textbee" : input.tipo === "WHATSAPP" ? "wa.me" : "email",
+        canal,
         destinatario,
         assunto: input.assunto,
         mensagem,
         status,
         erro,
+        providerId,
         refTipo: input.ref?.refTipo,
         refId: input.ref?.refId ?? null,
         clienteId: input.ref?.clienteId ?? null,
@@ -179,4 +193,8 @@ export async function enviarComunicacao(input: EnvioComunicacaoInput): Promise<{
     console.error("[communications] Erro a registar histórico:", e);
     return { ok: status !== "falhou", erro: erro || "Falha ao registar no histórico.", whatsappUrl };
   }
+}
+
+export function whatsappDisponivel(): boolean {
+  return whatsappApiConfigurado();
 }

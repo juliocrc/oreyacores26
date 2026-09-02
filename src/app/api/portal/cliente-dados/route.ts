@@ -148,7 +148,16 @@ export async function GET(req: NextRequest) {
           dataConclusao: true,
           valorTotal: true,
           isPesca: true,
-          jangada: { select: { serial: true, brand: true, model: true } },
+          jangada: {
+            select: {
+              serial: true,
+              brand: true,
+              model: true,
+              dataProxInspecao: true,
+              shipId: true,
+              shipNameManual: true,
+            },
+          },
         },
         orderBy: { dataAbertura: "desc" },
         take: 50,

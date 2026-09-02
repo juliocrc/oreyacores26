@@ -10,7 +10,7 @@ function getDraftKey(jangadaId: number | string | null): string | null {
 }
 
 export function useAutoSave() {
-  const { inspectionData, jangadaId, inspecaoId, currentStep, isDirty, setLastSaved } = useJangadaWizardStore();
+  const { inspectionData, jangadaId, inspecaoId, currentStep, currentStepKey, isDirty, setLastSaved } = useJangadaWizardStore();
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastDataRef = useRef<string>('');
 
@@ -24,6 +24,7 @@ export function useAutoSave() {
         jangadaId,
         inspecaoId,
         currentStep,
+        currentStepKey: currentStepKey() || null,
         savedAt: new Date().toISOString(),
       };
       const dataStr = JSON.stringify(draft);
@@ -36,7 +37,7 @@ export function useAutoSave() {
     } catch (err) {
       console.error('[AutoSave] Error saving draft:', err);
     }
-  }, [inspectionData, jangadaId, inspecaoId, currentStep, setLastSaved]);
+  }, [inspectionData, jangadaId, inspecaoId, currentStep, currentStepKey, setLastSaved]);
 
   const loadDraft = useCallback(() => {
     try {

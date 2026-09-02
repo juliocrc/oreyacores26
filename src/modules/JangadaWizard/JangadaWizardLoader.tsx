@@ -13,7 +13,15 @@ export default function JangadaWizardLoader({
   const [loading, setLoading] = useState(true);
   const [draftToRestore, setDraftToRestore] = useState<any>(null);
   const [serverData, setServerData] = useState<{ raftData: any; latestInsp: any } | null>(null);
-  const { initializeWizard, setStep, setInspectionData, setGlobalStock } = useJangadaWizardStore();
+  const { initializeWizard, setStep, setStepByKey, setInspectionData, setGlobalStock } = useJangadaWizardStore();
+
+  function restoreStep(draft: any) {
+    if (draft && draft.currentStepKey) {
+      setStepByKey(draft.currentStepKey);
+    } else {
+      setStep(draft?.currentStep || 1);
+    }
+  }
 
   async function loadStock() {
     try {
@@ -87,7 +95,7 @@ export default function JangadaWizardLoader({
             console.log("Offline mode: Restoring from local draft...");
             // Initialize with draft data
             initializeWizard(draft.inspectionData, null);
-            setStep(draft.currentStep || 1);
+            restoreStep(draft);
             setInspectionData(draft.inspectionData);
             setLoading(false);
             return;
@@ -105,8 +113,8 @@ export default function JangadaWizardLoader({
     if (serverData && draftToRestore) {
       // Initialize with base config, then override with draft
       initializeWizard(serverData.raftData, serverData.latestInsp);
-      setStep(draftToRestore.currentStep || 1);
       setInspectionData(draftToRestore.inspectionData);
+      restoreStep(draftToRestore);
       setDraftToRestore(null);
       setLoading(false);
       void loadStock();

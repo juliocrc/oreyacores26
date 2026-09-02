@@ -302,8 +302,14 @@ export default function Step1_DadosGerais() {
               className="w-full border-slate-200 rounded-xl px-4 py-3 bg-slate-50 focus:bg-white transition-colors"
               placeholder="Ex: AZ26-001 (Deixar vazio para auto-gerar)"
               value={inspectionData.certificadoNumero || ''}
+              disabled={Boolean((inspectionData.certificadoExternoNumero || '').trim())}
               onChange={(e) => handleChange('certificadoNumero', e.target.value)}
             />
+            {(inspectionData.certificadoExternoNumero || '').trim() ? (
+              <p className="text-[11px] font-semibold text-amber-600 flex items-center gap-1">
+                Certificado externo (HarbourOne) indicado — o número AZ26-XXX fica sem efeito nesta inspeção.
+              </p>
+            ) : null}
           </div>
 
           {/* Número da Obra */}

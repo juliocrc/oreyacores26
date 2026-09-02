@@ -11,6 +11,13 @@ export type ShipDetails = {
   bandeira?: string;
   imo?: string;
   callSignal?: string;
+  cliente?: {
+    id?: number;
+    nome?: string;
+    ilha?: string;
+    telefone?: string | null;
+    telmovel?: string | null;
+  } | null;
   [key: string]: unknown;
 } | null;
 
@@ -115,7 +122,17 @@ export type OrcamentoLinha = {
   quantidade: number;
   unitPrice: number;
   total: number;
-  source: "service" | "pack" | "componente" | "stock" | "manual";
+  source: "service" | "pack" | "componente" | "stock" | "manual" | "closure";
+};
+
+export type OrcamentoAprovacao = {
+  status: 'rascunho' | 'enviado' | 'aprovado' | 'rejeitado';
+  telefoneCliente?: string;
+  mensagem?: string;
+  enviadoEm?: string;
+  respondidoEm?: string;
+  alteracoesPedidas?: string;
+  validadeDias?: number;
 };
 
 export type OrcamentoData = {
@@ -125,6 +142,7 @@ export type OrcamentoData = {
   isIsentoIva: boolean;
   usarOrcamento?: boolean;
   removedIds?: string[];
+  aprovacaoWhatsApp?: OrcamentoAprovacao;
 };
 
 export type InspectionData = {
@@ -149,6 +167,8 @@ export type InspectionData = {
   shipCallSign: string;
   certificadoNumero: string;
   numeroObra: string;
+  certificadoExternoNumero: string;
+  certificadoExternoUrl: string;
   hruAplicavel: string;
   hruValidade: string;
   hruReference: string;
@@ -178,6 +198,28 @@ export type InspectionData = {
   // Step 6 — Testes
   testes: TestesData;
   date: string;
+
+  // Step de Reparações / Colagem (quando o teste WP reprova)
+  reparacoes?: Array<{
+    id: string;
+    tipo: string;
+    descricao: string;
+    zona: string;
+    materiais: string;
+    custo: number;
+  }>;
+
+  // Step 7 — Equipamento de fecho do contentor (cintas, autocolantes, HRU)
+  containerClosureItems?: Array<{
+    key: string;
+    kind: "cinta" | "autocolante" | "hru";
+    referencia: string;
+    descricao: string;
+    quantidade: number;
+    unitPrice: number;
+    stockId?: number | null;
+    partNumber?: string;
+  }>;
 
   // Step 7 — Orçamento
   orcamento?: OrcamentoData;

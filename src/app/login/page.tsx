@@ -59,7 +59,6 @@ function LoginPageContent() {
   const [tab, setTab] = React.useState(0);
 
   const [usePasswordLogin, setUsePasswordLogin] = React.useState(false);
-
   const [collaborators, setCollaborators] = React.useState<Collaborator[]>([]);
   const [selectedColab, setSelectedColab] = React.useState<Collaborator | null>(null);
 
@@ -69,10 +68,13 @@ function LoginPageContent() {
 
   const [clientTel, setClientTel] = React.useState("");
   const [clientNif, setClientNif] = React.useState("");
+  const [clientEmail, setClientEmail] = React.useState("");
+  const [clientChannel, setClientChannel] = React.useState<"sms" | "whatsapp" | "email">("sms");
   const [clientCode, setClientCode] = React.useState("");
   const [clientStep, setClientStep] = React.useState<"form" | "code">("form");
   const [clientError, setClientError] = React.useState<string | null>(null);
   const [clientSuccess, setClientSuccess] = React.useState<string | null>(null);
+  const [whatsappUrl, setWhatsappUrl] = React.useState<string | null>(null);
 
   const [error, setError] = React.useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -140,16 +142,25 @@ function LoginPageContent() {
     e.preventDefault();
     setClientError(null);
     setClientSuccess(null);
+    setWhatsappUrl(null);
     setIsSubmitting(true);
     try {
       const res = await fetch("/api/auth/client-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ telmovel: clientTel, nif: clientNif }),
+        body: JSON.stringify({
+          telmovel: clientTel,
+          nif: clientNif,
+          channel: clientChannel,
+          email: clientEmail,
+        }),
       });
       const data = await res.json();
       if (!res.ok) { setClientError(data.error || "Erro ao enviar código."); return; }
-      setClientSuccess("Código enviado para o seu telemóvel.");
+      setClientSuccess(data.message || "Código enviado com sucesso.");
+      if (clientChannel === "whatsapp" && data.whatsappUrl) {
+        setWhatsappUrl(data.whatsappUrl);
+      }
       setClientStep("code");
     } catch { setClientError("Erro de rede. Tente novamente."); }
     finally { setIsSubmitting(false); }
@@ -199,7 +210,7 @@ function LoginPageContent() {
 
           <Tabs
             value={tab}
-            onChange={(_, v) => { setTab(v); setError(null); setClientError(null); setClientSuccess(null); setClientStep("form"); }}
+            onChange={(_, v) => { setTab(v); setError(null); setClientError(null); setClientSuccess(null); setClientStep("form"); setWhatsappUrl(null); }}
             variant="fullWidth"
             sx={{
               minHeight: 40,
@@ -298,14 +309,53 @@ function LoginPageContent() {
               {clientStep === "form" ? (
                 <Stack spacing={3} component="form" onSubmit={handleRequestCode}>
                   <Typography variant="body2" color="text.secondary" textAlign="center">
-                    Insira o seu telemóvel e NIF para receber um código de acesso.
+                    Insira o seu NIF e escolha onde deseja receber o código de acesso.
                   </Typography>
-                  <TextField label="Telemóvel" value={clientTel} onChange={(e) => setClientTel(e.target.value)}
-                    required fullWidth placeholder="912345678"
-                    sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 } }} />
                   <TextField label="NIF" value={clientNif} onChange={(e) => setClientNif(e.target.value)}
                     required fullWidth placeholder="501117334" inputProps={{ maxLength: 9 }}
                     sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 } }} />
+                  <Stack spacing={1}>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                      Receber código por
+                    </Typography>
+                    <Stack direction="row" spacing={1}>
+                      <Button
+                        type="button"
+                        variant={clientChannel === "whatsapp" ? "contained" : "outlined"}
+                        onClick={() => setClientChannel("whatsapp")}
+                        sx={{ flex: 1, py: 1, textTransform: "none", fontWeight: 700, borderRadius: 3 }}
+                      >
+                        WhatsApp
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={clientChannel === "email" ? "contained" : "outlined"}
+                        onClick={() => setClientChannel("email")}
+                        sx={{ flex: 1, py: 1, textTransform: "none", fontWeight: 700, borderRadius: 3 }}
+                      >
+                        Email
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={clientChannel === "sms" ? "contained" : "outlined"}
+                        onClick={() => setClientChannel("sms")}
+                        disabled={!clientTel}
+                        sx={{ flex: 1, py: 1, textTransform: "none", fontWeight: 700, borderRadius: 3 }}
+                      >
+                        SMS
+                      </Button>
+                    </Stack>
+                  </Stack>
+                  {clientChannel !== "email" && (
+                    <TextField label="Telemóvel" value={clientTel} onChange={(e) => setClientTel(e.target.value)}
+                      required fullWidth placeholder="912345678"
+                      sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 } }} />
+                  )}
+                  {clientChannel === "email" && (
+                    <TextField label="Email" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)}
+                      required fullWidth placeholder="cliente@empresa.pt"
+                      sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 } }} />
+                  )}
                   <Button type="submit" variant="contained" size="large" fullWidth disabled={isSubmitting}
                     sx={{ py: 1.5, textTransform: "none", fontWeight: 700, borderRadius: 4, fontSize: 16, boxShadow: "0 4px 12px rgba(37, 99, 235, 0.2)" }}>
                     {isSubmitting ? <CircularProgress size={22} color="inherit" /> : "Enviar Código"}
@@ -314,8 +364,23 @@ function LoginPageContent() {
               ) : (
                 <Stack spacing={3} component="form" onSubmit={handleClientLogin}>
                   <Typography variant="body2" color="text.secondary" textAlign="center">
-                    Introduza o código de 5 dígitos recebido no telemóvel.
+                    Introduza o código de 5 dígitos recebido
+                    {clientChannel === "whatsapp" ? " no WhatsApp" : clientChannel === "email" ? " por email" : " no telemóvel"}.
                   </Typography>
+                  {clientChannel === "whatsapp" && whatsappUrl && (
+                    <Button
+                      component="a"
+                      href={whatsappUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      variant="outlined"
+                      color="success"
+                      fullWidth
+                      sx={{ textTransform: "none", fontWeight: 700, borderRadius: 3, borderWidth: 2 }}
+                    >
+                      Abrir WhatsApp para ver o código
+                    </Button>
+                  )}
                   <TextField label="Código" value={clientCode} onChange={(e) => setClientCode(e.target.value.replace(/\D/g, "").slice(0, 5))}
                     required fullWidth placeholder="12345" inputProps={{ maxLength: 5 }}
                     sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 },
@@ -325,7 +390,7 @@ function LoginPageContent() {
                     sx={{ py: 1.5, textTransform: "none", fontWeight: 700, borderRadius: 4, fontSize: 16, boxShadow: "0 4px 12px rgba(37, 99, 235, 0.2)" }}>
                     {isSubmitting ? <CircularProgress size={22} color="inherit" /> : "Entrar"}
                   </Button>
-                  <Button variant="text" onClick={() => { setClientStep("form"); setClientError(null); setClientSuccess(null); setClientCode(""); }}
+                  <Button variant="text" onClick={() => { setClientStep("form"); setClientError(null); setClientSuccess(null); setClientCode(""); setWhatsappUrl(null); }}
                     sx={{ textTransform: "none", fontWeight: 700, fontSize: "0.85rem", color: "text.secondary" }}>
                     Voltar
                   </Button>

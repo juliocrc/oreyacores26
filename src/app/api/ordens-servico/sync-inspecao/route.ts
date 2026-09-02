@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logAuditoria } from "@/lib/auditoria";
 import { getIvaRate } from "@/lib/iva";
+import { z } from "zod";
 import {
   appendOrdemServicoLog,
   appendWorkflowTransition,
@@ -51,8 +52,60 @@ type SyncInspectionPayload = {
     valorDesconto?: number;
     isIsentoIva?: boolean;
     usarOrcamento?: boolean;
+    aprovacaoWhatsApp?: {
+      status?: string;
+      telefoneCliente?: string;
+      mensagem?: string;
+      enviadoEm?: string;
+      respondidoEm?: string;
+      alteracoesPedidas?: string;
+      validadeDias?: number;
+    } | null;
   } | null;
 };
+
+const syncInspectionSchema = z
+  .object({
+    inspecaoId: z.number().or(z.string()),
+    jangadaId: z.number().or(z.string()),
+    testesReprovados: z.array(z.string()).default([]),
+    artigosSubstituidos: z
+      .array(
+        z.object({
+          name: z.string().default(""),
+          referencia: z.string().nullable().optional(),
+          quantidade: z.number().nullable().optional(),
+          stockId: z.number().nullable().optional(),
+          precoUnitario: z.number().nullable().optional(),
+        }),
+      )
+      .default([]),
+    autoCreateOS: z.boolean().optional(),
+    isFinalSave: z.boolean().optional(),
+    orcamento: z
+      .object({
+        linhas: z.array(z.record(z.string(), z.any())).optional(),
+        valorMaoObra: z.number().optional(),
+        valorDesconto: z.number().optional(),
+        isIsentoIva: z.boolean().optional(),
+        usarOrcamento: z.boolean().optional(),
+        aprovacaoWhatsApp: z
+          .object({
+            status: z.string().optional(),
+            telefoneCliente: z.string().optional(),
+            mensagem: z.string().optional(),
+            enviadoEm: z.string().optional(),
+            respondidoEm: z.string().optional(),
+            alteracoesPedidas: z.string().optional(),
+            validadeDias: z.number().optional(),
+          })
+          .nullable()
+          .optional(),
+      })
+      .nullable()
+      .optional(),
+  })
+  .passthrough();
 
 const TEST_LABELS: Record<string, string> = {
   testeWP: "Ensaio de Pressão (WP)",
@@ -133,7 +186,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const body = (await req.json()) as SyncInspectionPayload;
+    const rawBody = await req.json().catch(() => ({}));
+    const parsedBody = syncInspectionSchema.safeParse(rawBody);
+    if (!parsedBody.success) {
+      const details = parsedBody.error.issues
+        .map((i) => `${i.path.join(".") || "body"}: ${i.message}`)
+        .join("; ");
+      return NextResponse.json(
+        { error: `Payload inválido: ${details}` },
+        { status: 400 },
+      );
+    }
+    const body = parsedBody.data as unknown as SyncInspectionPayload;
     const inspecaoId = Number(body.inspecaoId);
     const jangadaId = Number(body.jangadaId);
     const testesReprovados = Array.isArray(body.testesReprovados)
@@ -287,6 +351,8 @@ export async function POST(req: NextRequest) {
       isIsentoIva,
     );
 
+    const aprovacaoStatus = orcamento?.aprovacaoWhatsApp?.status || null;
+
     const tipo = hasFailedTests ? "reparacao" : hasReplacements ? "manutencao" : "inspecao";
     const prioridade = hasFailedTests ? "critica" : hasReplacements ? "alta" : "normal";
     const durationMinutes = hasFailedTests ? 240 : hasReplacements ? 210 : 180;
@@ -342,7 +408,11 @@ export async function POST(req: NextRequest) {
           valorDesconto,
           isIsentoIva,
           valorTotal,
-          orcamentoStatus: orcamento && body.isFinalSave && orcamento.usarOrcamento ? "Emitido" : "Rascunho",
+          orcamentoStatus: orcamento && body.isFinalSave && orcamento.usarOrcamento
+            ? (orcamento.aprovacaoWhatsApp
+                ? (aprovacaoStatus === "aprovado" ? "Aprovado" : "Rascunho")
+                : "Emitido")
+            : "Rascunho",
           metadados: toOrdemServicoMetaJson(metaWithLog),
         },
       });

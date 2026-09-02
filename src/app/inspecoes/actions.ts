@@ -7,6 +7,7 @@ import { parseOrdemServicoMeta, toOrdemServicoMetaJson } from "@/lib/ordens-serv
 import { toCanonicalDateStr } from "@/lib/date-display";
 import { getIvaRate } from "@/lib/iva";
 import { stampInspectionWithDigest } from "@/lib/integrity-stamp";
+import { saveInspectionSchema } from "@/lib/validation/inspecao-payload";
 
 type SaveInspectionReplacementItem = {
   stockId?: number | null;
@@ -48,22 +49,31 @@ type SaveInspectionPayload = {
   cylinderDataTeste?: string | null;
   cylinderSerial?: string | null;
   numeroObra?: string | null;
-  orcamento?: {
-    linhas?: Array<{
-      id?: string;
-      stockId?: number | string | null;
-      referencia?: string | null;
-      descricao?: string | null;
-      quantidade?: number | null;
-      precoUnitario?: number | null;
-      total?: number | null;
-      source?: string | null;
-    }>;
-    valorMaoObra?: number | null;
-    valorDesconto?: number | null;
-    isIsentoIva?: boolean | null;
-    usarOrcamento?: boolean | null;
-    removedIds?: string[] | null;
+orcamento?: {
+      linhas?: Array<{
+        id?: string;
+        stockId?: number | string | null;
+        referencia?: string | null;
+        descricao?: string | null;
+        quantidade?: number | null;
+        precoUnitario?: number | null;
+        total?: number | null;
+        source?: string | null;
+      }>;
+      valorMaoObra?: number | null;
+      valorDesconto?: number | null;
+      isIsentoIva?: boolean | null;
+      usarOrcamento?: boolean | null;
+      removedIds?: string[] | null;
+      aprovacaoWhatsApp?: {
+        status?: string | null;
+        telefoneCliente?: string | null;
+        mensagem?: string | null;
+        enviadoEm?: string | null;
+        respondidoEm?: string | null;
+        alteracoesPedidas?: string | null;
+        validadeDias?: number | null;
+} | null;
   } | null;
 };
 
@@ -176,6 +186,13 @@ async function normalizeCertificadoNumero(payload: SaveInspectionPayload) {
 }
 
 export async function saveInspection(payload: SaveInspectionPayload) {
+  const validated = saveInspectionSchema.safeParse(payload ?? {});
+  if (!validated.success) {
+    const details = validated.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
+    throw new Error(`Payload de inspeção inválido: ${details || "campos desconhecidos"}`);
+  }
+  payload = validated.data as SaveInspectionPayload;
+
   const navioNome = String(payload.navioNome || "").trim();
   const jangadaSerial = String(payload.jangadaSerial || "").trim();
   const coleteSerial = String(payload.coleteSerial || "").trim();
@@ -781,6 +798,11 @@ export async function saveInspection(payload: SaveInspectionPayload) {
           const subtotal = Math.max(0, valorPecas + valorMaoObra - valorDesconto);
           const iva = isIsentoIva ? 0 : subtotal * getIvaRate();
           const valorTotal = Math.round((subtotal + iva) * 100) / 100;
+          const aprovacaoStatus = payloadOrcamento?.aprovacaoWhatsApp?.status;
+          const aprovacaoObrigatoria = Boolean(payloadOrcamento?.aprovacaoWhatsApp);
+          const orcamentoStatusFinal = aprovacaoObrigatoria
+            ? (aprovacaoStatus === "aprovado" ? "Aprovado" : "Rascunho")
+            : "Emitido";
 
           await tx.ordemServico.update({
             where: { id: activeOrdem.id },
@@ -790,7 +812,7 @@ export async function saveInspection(payload: SaveInspectionPayload) {
                 ...orderMeta,
                 materials: nextMaterials,
               }),
-              orcamentoStatus: "Emitido",
+              orcamentoStatus: orcamentoStatusFinal,
               valorPecas,
               valorMaoObra,
               valorDesconto,

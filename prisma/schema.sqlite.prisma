@@ -1428,8 +1428,12 @@ model Comunicacao {
   destinatario    String? // telemóvel, número WhatsApp ou email
   assunto         String?
   mensagem        String
-  status          String   @default("enviado") // enviado | falhou | rascunho
+  status          String   @default("enviado") // enviado | falhou | pendente | rascunho
   erro            String?
+  providerId      String? // wamid devolvido pela WhatsApp Cloud API
+  tentativas      Int      @default(1)
+  proximaTentativa DateTime?
+  respondidoEm    DateTime?
   refTipo         String? // Jangada | Cliente | OrdemServico | OrdemCompra | Generic
   refId           Int?
   clienteId       Int?

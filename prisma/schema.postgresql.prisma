@@ -1383,6 +1383,10 @@ model Comunicacao {
   mensagem        String
   status          String   @default("enviado")
   erro            String?
+  providerId      String?
+  tentativas      Int      @default(1)
+  proximaTentativa DateTime?
+  respondidoEm    DateTime?
   refTipo         String?
   refId           Int?
   clienteId       Int?

@@ -71,6 +71,8 @@ const NAVIO_WITH_CLIENTE_SELECT = {
       id: true,
       nome: true,
       ilha: true,
+      telefone: true,
+      telmovel: true,
     },
   },
 } as const;
@@ -366,6 +368,8 @@ function buildJangadaUpdateData(
     "radarReflectorValidade",
     "tuboIdentificacao",
     "numeroObra",
+    "certificadoExternoNumero",
+    "certificadoExternoUrl",
     "testeWP",
     "testeNAP",
     "testeFS",
@@ -1041,6 +1045,8 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
                   id: navio.cliente.id,
                   nome: navio.cliente.nome,
                   ilha: navio.cliente.ilha,
+                  telefone: navio.cliente.telefone,
+                  telmovel: navio.cliente.telmovel,
                 }
               : null,
           }
