@@ -680,8 +680,8 @@ export default function ColetesPage() {
           </div>
 
         {showWizard && (
-          <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-xl shadow-lg w-full max-w-md border border-gray-200">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-gray-200">
               <h3 className="text-lg font-bold mb-4">{editId ? "Editar Colete" : "Novo Colete"}</h3>
               <form onSubmit={handleSubmit} className="space-y-3">
                 <select name="shipId" value={form.shipId} onChange={handleChange} className="border rounded-lg px-3 py-2 w-full">
@@ -753,8 +753,8 @@ export default function ColetesPage() {
         )}
 
         {viewItem && (
-          <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-xl shadow-lg w-full max-w-md border border-gray-200">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-gray-200">
               <h3 className="text-lg font-bold mb-4">Ficha do Colete</h3>
               {(() => {
                  const manualData = getManualData(viewItem);
