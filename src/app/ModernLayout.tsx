@@ -126,6 +126,7 @@ const navSections: NavSection[] = [
       { label: "Clientes", href: "/clientes", icon: "👥", roles: ["ADMIN"] },
       { label: "Técnicos", href: "/tecnicos", icon: "🧑‍🔧", roles: ["ADMIN"] },
       { label: "Comunicações", href: "/comunicacoes", icon: "📨", roles: ["ADMIN"] },
+      { label: "WhatsApp", href: "/whatsapp", icon: "💬", roles: ["ADMIN"] },
     ],
   },
   {
@@ -248,6 +249,8 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
     "/epirbs": "epirbs",
     "/clientes": "clientes",
     "/tecnicos": "tecnicos",
+    "/comunicacoes": "comunicacoes",
+    "/whatsapp": "whatsapp",
     "/equipamentos": "equipamentos",
     "/fatos-imersao": "fatos-imersao",
     "/stock": "stock",
