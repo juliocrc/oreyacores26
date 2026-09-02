@@ -10,6 +10,10 @@ npx prisma generate --schema prisma/schema.postgresql.prisma
 echo "==> Render build: syncing database schema (idempotent)"
 npx prisma db push --schema prisma/schema.postgresql.prisma --skip-generate
 
+echo "==> Render build: seeding baseline stock and equipment"
+node prisma/seed_stock.js || true
+node prisma/seed_equipamentos.js || true
+
 echo "==> Render build: building Next.js"
 npm run build
 
