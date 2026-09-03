@@ -96,6 +96,8 @@
     "@prisma/client": "^6.19.3",
     "@prisma/extension-accelerate": "^2.0.2",
     "@sentry/nextjs": "^10.45.0",
+    "@supabase/ssr": "^0.12.5",
+    "@supabase/supabase-js": "^2.109.0",
     "@tanstack/react-query": "^5.101.0",
     "@vercel/blob": "^2.3.1",
     "@vercel/node": "^5.6.10",

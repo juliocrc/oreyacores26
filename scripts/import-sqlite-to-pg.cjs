@@ -7,7 +7,7 @@ const { PrismaClient } = require("@prisma/client");
 const { Pool } = require("pg");
 const path = require("path");
 
-const SQLITE_PATH = path.resolve(__dirname, "prisma/local.db");
+const SQLITE_PATH = path.resolve(__dirname, "../prisma/local.db");
 const PG_URL = process.env.IMPORT_DATABASE_URL || process.env.DATABASE_URL;
 
 if (!PG_URL) {
@@ -20,7 +20,11 @@ const sqlite = new PrismaClient({
   log: [],
 });
 
-const pgPool = new Pool({ connectionString: PG_URL, max: 5 });
+const pgPool = new Pool({
+  connectionString: PG_URL,
+  max: 5,
+  ssl: { rejectUnauthorized: false }
+});
 
 async function getSqliteColumns(table) {
   const rows = await sqlite.$queryRawUnsafe(
