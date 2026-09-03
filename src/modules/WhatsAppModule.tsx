@@ -1,7 +1,22 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { MessageSquare, Send, CheckCircle2, AlertCircle, Loader2, Phone, RefreshCw, ShieldCheck, ArrowDownLeft, ArrowUpRight } from "lucide-react";
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  MessageSquare,
+  Send,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+  Phone,
+  RefreshCw,
+  ShieldCheck,
+  ArrowDownLeft,
+  ArrowUpRight,
+  RotateCcw,
+  Trash2,
+  Clock,
+  XCircle,
+} from "lucide-react";
 import { appToast } from "@/lib/app-toast";
 
 type Comunicacao = {
@@ -13,6 +28,16 @@ type Comunicacao = {
   enviadoEm: string;
   erro?: string | null;
   assunto?: string | null;
+  tentativas?: number;
+  providerId?: string | null;
+};
+
+const STATUS_STYLES: Record<string, string> = {
+  enviado:  "bg-emerald-50 text-emerald-700 border-emerald-200",
+  recebido: "bg-blue-50 text-blue-700 border-blue-200",
+  pendente: "bg-amber-50 text-amber-700 border-amber-200",
+  falhou:   "bg-rose-50 text-rose-700 border-rose-200",
+  rascunho: "bg-slate-100 text-slate-600 border-slate-200",
 };
 
 export default function WhatsAppModule() {
@@ -22,37 +47,37 @@ export default function WhatsAppModule() {
   const [loading, setLoading] = useState(false);
   const [comunicacoes, setComunicacoes] = useState<Comunicacao[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
-  const [tabFiltro, setTabFiltro] = useState<"todas" | "enviadas" | "recebidas">("todas");
+  const [tabFiltro, setTabFiltro] = useState<"todas" | "enviadas" | "recebidas" | "falhadas">("todas");
+  const [retryingId, setRetryingId] = useState<number | null>(null);
+  const [retryingAll, setRetryingAll] = useState(false);
 
-  const loadHistory = async () => {
+  const loadHistory = useCallback(async () => {
     try {
-      const res = await fetch("/api/comunicacoes?tipo=WHATSAPP&pageSize=100");
+      const res = await fetch("/api/comunicacoes?tipo=WHATSAPP&limite=200");
       if (res.ok) {
         const data = await res.json();
-        setComunicacoes(data.comunicacoes || data.items || data || []);
+        setComunicacoes(data.items || data.comunicacoes || data || []);
       }
     } catch (e) {
       console.error(e);
     } finally {
       setLoadingHistory(false);
     }
-  };
-
-  useEffect(() => {
-    loadHistory();
   }, []);
+
+  useEffect(() => { loadHistory(); }, [loadHistory]);
 
   const handleTemplateChange = (val: string) => {
     setTemplate(val);
-    if (val === "vistoria") {
-      setMensagem("Olá, relembramos que a vistoria técnica da sua jangada salva-vidas tem validade prevista próxima. Para garantir a segurança e conformidade, confirme se podemos agendar a intervenção. Orey Azores");
-    } else if (val === "orcamento") {
-      setMensagem("Olá, o orçamento para a vistoria da sua jangada salva-vidas foi emitido e aguarda a sua aprovação. Pode consultar os detalhes e aprovar online. Orey Azores");
-    } else if (val === "certificado") {
-      setMensagem("Olá, informamos que o certificado da vistoria da sua jangada salva-vidas já está disponível. Orey Azores");
-    } else {
-      setMensagem("");
-    }
+    const templates: Record<string, string> = {
+      vistoria:
+        "Olá, relembramos que a vistoria técnica da sua jangada salva-vidas tem validade prevista próxima. Para garantir a segurança e conformidade, confirme se podemos agendar a intervenção. Orey Azores",
+      orcamento:
+        "Olá, o orçamento para a vistoria da sua jangada salva-vidas foi emitido e aguarda a sua aprovação. Pode consultar os detalhes e aprovar online. Orey Azores",
+      certificado:
+        "Olá, informamos que o certificado da vistoria da sua jangada salva-vidas já está disponível. Orey Azores",
+    };
+    setMensagem(templates[val] || "");
   };
 
   const handleSend = async (e: React.FormEvent) => {
@@ -76,9 +101,7 @@ export default function WhatsAppModule() {
       if (!res.ok) throw new Error(data.error || "Erro ao enviar mensagem.");
 
       appToast.success("Mensagem de WhatsApp registada/enviada com sucesso!");
-      if (data.whatsappUrl) {
-        window.open(data.whatsappUrl, "_blank");
-      }
+      if (data.whatsappUrl) window.open(data.whatsappUrl, "_blank");
       setMensagem("");
       setTelefone("");
       loadHistory();
@@ -89,11 +112,49 @@ export default function WhatsAppModule() {
     }
   };
 
-  const filteredComunicacoes = comunicacoes.filter(c => {
-    if (tabFiltro === "enviadas") return c.status !== "recebido";
+  const retryMessage = async (id: number) => {
+    setRetryingId(id);
+    try {
+      const res = await fetch(`/api/comunicacoes/${id}/retry`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Falha ao reenviar.");
+      appToast.success("Mensagem reenviada com sucesso!");
+      loadHistory();
+    } catch (err: any) {
+      appToast.error(err?.message || "Falha ao reenviar.");
+    } finally {
+      setRetryingId(null);
+    }
+  };
+
+  const retryAllFailed = async () => {
+    const falhadas = comunicacoes.filter((c) => c.status === "falhou" || c.status === "pendente");
+    if (falhadas.length === 0) return;
+    setRetryingAll(true);
+    let ok = 0;
+    let fail = 0;
+    for (const c of falhadas) {
+      try {
+        const res = await fetch(`/api/comunicacoes/${c.id}/retry`, { method: "POST" });
+        if (res.ok) ok++;
+        else fail++;
+      } catch {
+        fail++;
+      }
+    }
+    setRetryingAll(false);
+    appToast.success(`${ok} reenviada(s), ${fail} falha(s).`);
+    loadHistory();
+  };
+
+  const filteredComunicacoes = comunicacoes.filter((c) => {
+    if (tabFiltro === "enviadas") return c.status !== "recebido" && c.status !== "falhado";
     if (tabFiltro === "recebidas") return c.status === "recebido";
+    if (tabFiltro === "falhadas") return c.status === "falhou" || c.status === "pendente";
     return true;
   });
+
+  const totalFalhadas = comunicacoes.filter((c) => c.status === "falhou" || c.status === "pendente").length;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
@@ -105,7 +166,7 @@ export default function WhatsAppModule() {
           </div>
           <h1 className="text-3xl font-black tracking-tight">Gestão de Comunicações WhatsApp</h1>
           <p className="text-emerald-100 text-sm mt-1 max-w-2xl">
-            Envio automatizado e receção de mensagens via WABA API, Webhooks do Zapier e histórico unificado.
+            Envio automatizado, receção de mensagens, reenvio automático e histórico unificado.
           </p>
         </div>
         <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md px-4 py-3 rounded-2xl border border-white/20">
@@ -116,6 +177,29 @@ export default function WhatsAppModule() {
           </div>
         </div>
       </div>
+
+      {/* Falhadas alert */}
+      {totalFalhadas > 0 && (
+        <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 flex items-center justify-between gap-4 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center text-rose-600 shrink-0">
+              <AlertCircle size={20} />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-rose-800">{totalFalhadas} mensagem(ns) com falha ou pendente(s)</p>
+              <p className="text-xs text-rose-600">Clique "Reenviar" em cada uma ou "Reenviar Todas" para retentar automaticamente.</p>
+            </div>
+          </div>
+          <button
+            onClick={retryAllFailed}
+            disabled={retryingAll}
+            className="flex items-center gap-2 px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold rounded-xl shadow-md shadow-rose-600/20 transition disabled:opacity-50"
+          >
+            {retryingAll ? <Loader2 size={16} className="animate-spin" /> : <RotateCcw size={16} />}
+            Reenviar Todas
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Send Form */}
@@ -179,11 +263,11 @@ export default function WhatsAppModule() {
           </form>
         </div>
 
-        {/* History Table with Tabs */}
+        {/* History */}
         <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-200/60 p-6 shadow-sm space-y-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-100">
             <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-              <MessageSquare className="text-emerald-600" size={20} /> Histórico de Mensagens WhatsApp
+              <MessageSquare className="text-emerald-600" size={20} /> Histórico de Mensagens
             </h2>
             <div className="flex items-center gap-2">
               <div className="inline-flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
@@ -204,6 +288,12 @@ export default function WhatsAppModule() {
                   className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1 ${tabFiltro === "recebidas" ? "bg-white text-blue-700 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
                 >
                   <ArrowDownLeft size={12} /> Recebidas
+                </button>
+                <button
+                  onClick={() => setTabFiltro("falhadas")}
+                  className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1 ${tabFiltro === "falhadas" ? "bg-white text-rose-700 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+                >
+                  <XCircle size={12} /> Falhadas
                 </button>
               </div>
               <button
@@ -229,40 +319,59 @@ export default function WhatsAppModule() {
                     <th className="p-3">Mensagem</th>
                     <th className="p-3">Canal</th>
                     <th className="p-3">Estado</th>
+                    <th className="p-3">Tentativas</th>
                     <th className="p-3">Data</th>
+                    <th className="p-3"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredComunicacoes.map((c) => {
                     const isRecebido = c.status === "recebido";
+                    const podeReenviar = c.status === "falhou" || c.status === "pendente";
                     return (
                       <tr key={c.id} className="hover:bg-slate-50/60 transition">
                         <td className="p-3 font-mono font-bold text-slate-800 flex items-center gap-1.5">
                           {isRecebido ? (
-                            <span className="p-1 rounded-md bg-blue-50 text-blue-600" title="Mensagem recebida"><ArrowDownLeft size={12} /></span>
+                            <span className="p-1 rounded-md bg-blue-50 text-blue-600"><ArrowDownLeft size={12} /></span>
                           ) : (
-                            <span className="p-1 rounded-md bg-emerald-50 text-emerald-600" title="Mensagem enviada"><ArrowUpRight size={12} /></span>
+                            <span className="p-1 rounded-md bg-emerald-50 text-emerald-600"><ArrowUpRight size={12} /></span>
                           )}
                           {c.destinatario}
                         </td>
-                        <td className="p-3 text-slate-600 max-w-xs truncate">{c.mensagem}</td>
+                        <td className="p-3 text-slate-600 max-w-xs truncate" title={c.mensagem}>
+                          {c.mensagem}
+                        </td>
                         <td className="p-3">
                           <span className="px-2 py-1 bg-slate-100 text-slate-700 font-semibold rounded-lg text-[10px] uppercase">
                             {c.canal || (isRecebido ? "webhook" : "wa.me")}
                           </span>
                         </td>
                         <td className="p-3">
-                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${
-                            c.status === "enviado" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
-                            c.status === "recebido" ? "bg-blue-50 text-blue-700 border-blue-200" :
-                            c.status === "pendente" ? "bg-amber-50 text-amber-700 border-amber-200" :
-                            "bg-rose-50 text-rose-700 border-rose-200"
-                          }`}>
-                            {c.status === "enviado" ? <CheckCircle2 size={10} /> : isRecebido ? <ArrowDownLeft size={10} /> : <AlertCircle size={10} />}
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${STATUS_STYLES[c.status] || STATUS_STYLES.rascunho}`}>
+                            {c.status === "enviado" ? <CheckCircle2 size={10} /> : isRecebido ? <ArrowDownLeft size={10} /> : c.status === "pendente" ? <Clock size={10} /> : <AlertCircle size={10} />}
                             {c.status}
                           </span>
+                          {c.erro && (
+                            <p className="text-[10px] text-rose-500 mt-1 max-w-[180px] truncate" title={c.erro}>{c.erro}</p>
+                          )}
+                        </td>
+                        <td className="p-3 text-slate-500 font-mono text-center">
+                          {c.tentativas || 1}
                         </td>
                         <td className="p-3 text-slate-500 font-mono">{new Date(c.enviadoEm).toLocaleString("pt-PT")}</td>
+                        <td className="p-3">
+                          {podeReenviar && (
+                            <button
+                              onClick={() => retryMessage(c.id)}
+                              disabled={retryingId === c.id}
+                              className="flex items-center gap-1 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-[10px] font-bold transition disabled:opacity-50"
+                              title="Reenviar esta mensagem"
+                            >
+                              {retryingId === c.id ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />}
+                              Reenviar
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}

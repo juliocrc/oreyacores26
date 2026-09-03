@@ -55,11 +55,38 @@ function pruneOldBackups(maxCount) {
   }
 }
 
+function syncToZapier(filePath, fileName) {
+  const webhookUrl = process.env.ZAPIER_BACKUP_WEBHOOK_URL || '';
+  if (!webhookUrl) return;
+  try {
+    const https = require('https');
+    const url = new URL(webhookUrl);
+    const payload = JSON.stringify({
+      fileName,
+      backupDate: new Date().toISOString(),
+      machineId: process.env.APP_STORAGE_NAMESPACE || 'local',
+      sizeBytes: fs.statSync(filePath).size,
+    });
+    const req = https.request({
+      hostname: url.hostname,
+      path: url.pathname + url.search,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },
+    }, (res) => { /* fire and forget */ });
+    req.on('error', (e) => console.error('[backup] Zapier sync failed:', e.message));
+    req.write(payload);
+    req.end();
+  } catch (e) {
+    // non-critical
+  }
+}
+
 function runBackup() {
   try {
     const filePath = createBackupFile();
     if (filePath) {
       console.log('[backup] Backup criado:', filePath);
+      syncToZapier(filePath, path.basename(filePath));
       pruneOldBackups(14); // guarda os ultimos 14 backups automaticos
       return { ok: true, file: filePath };
     }

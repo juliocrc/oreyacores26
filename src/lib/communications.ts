@@ -100,6 +100,7 @@ export async function enviarComunicacao(input: EnvioComunicacaoInput): Promise<{
   erro?: string;
   whatsappUrl?: string;
   comunicacaoId?: number;
+  providerId?: string;
 }> {
   const mensagem = String(input.mensagem || "").trim();
   if (!mensagem) return { ok: false, erro: "A mensagem não pode estar vazia." };
@@ -188,7 +189,7 @@ export async function enviarComunicacao(input: EnvioComunicacaoInput): Promise<{
         enviadoPor: input.enviadoPor,
       },
     });
-    return { ok: status !== "falhou", erro, whatsappUrl, comunicacaoId: registo.id };
+    return { ok: status !== "falhou", erro, whatsappUrl, comunicacaoId: registo.id, providerId };
   } catch (e) {
     console.error("[communications] Erro a registar histórico:", e);
     return { ok: status !== "falhou", erro: erro || "Falha ao registar no histórico.", whatsappUrl };

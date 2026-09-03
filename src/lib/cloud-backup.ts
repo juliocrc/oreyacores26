@@ -128,6 +128,42 @@ export function isCloudBackupDue(): boolean {
   return hoursSince >= config.autoBackupIntervalHours;
 }
 
+/**
+ * Envia backup para a pasta Zapier via webhook configurado em ZAPIER_BACKUP_WEBHOOK_URL.
+ * O webhook deve aceitar JSON { fileName, backupDate, machineId } e armazenar na pasta do Zapier.
+ */
+export async function syncBackupToZapier(filePath: string, fileName: string): Promise<string> {
+  const webhookUrl = process.env.ZAPIER_BACKUP_WEBHOOK_URL || "";
+  if (!webhookUrl) return "Zapier backup webhook não configurado.";
+
+  try {
+    const fileBuffer = fs.readFileSync(filePath);
+    const payload = JSON.stringify({
+      fileName,
+      backupDate: new Date().toISOString(),
+      machineId: process.env.APP_STORAGE_NAMESPACE || "unknown",
+      sizeBytes: fileBuffer.length,
+    });
+
+    const url = new URL(webhookUrl);
+    const options: https.RequestOptions = {
+      hostname: url.hostname,
+      path: url.pathname + url.search,
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(payload),
+      },
+    };
+
+    const result = await httpsRequest(options, payload);
+    return `Backup sincronizado com Zapier: ${fileName}`;
+  } catch (err: any) {
+    console.error("[cloud-backup] Erro Zapier sync:", err?.message);
+    return `Aviso: falha ao sincronizar com Zapier — ${err?.message}`;
+  }
+}
+
 export async function fetchLatestBackupFromGoogleDrive(): Promise<{ buffer: Buffer; fileName: string }> {
   const config = loadGDriveConfig();
   if (!config.accessToken) {
