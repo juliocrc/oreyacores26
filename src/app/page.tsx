@@ -3,6 +3,7 @@ import Link from "next/link";
 import PremiumCharts from "@/components/dashboard/PremiumCharts";
 import AcoesDeHojePanel from "@/components/dashboard/AcoesDeHojePanel";
 import ExecutiveKpis from "@/components/dashboard/ExecutiveKpis";
+import QuickImportActions from "@/components/dashboard/QuickImportActions";
 import OfflineStatusIndicator from "@/components/OfflineStatusIndicator";
 import React, { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
@@ -1143,6 +1144,13 @@ export default function DashboardPage() {
             {userRole === "ADMIN" && (
               <motion.div variants={itemVariants}>
                 <ExecutiveKpis />
+              </motion.div>
+            )}
+
+            {/* Sincronização & Importação — apenas ADMIN */}
+            {userRole === "ADMIN" && (
+              <motion.div variants={itemVariants}>
+                <QuickImportActions />
               </motion.div>
             )}
 
