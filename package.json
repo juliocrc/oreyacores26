@@ -107,7 +107,7 @@
     "es-abstract": "^1.24.2",
     "exceljs": "^4.4.0",
     "formidable": "^3.5.4",
-    "framer-motion": "^12.0.0",
+    "framer-motion": "^13.1.1",
     "html2pdf.js": "^0.14.0",
     "html5-qrcode": "^2.3.8",
     "jsbarcode": "^3.12.3",
