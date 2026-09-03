@@ -13,6 +13,15 @@ import type {
 } from "@/types/utilizadores-page";
 import { INITIAL_FORM } from "@/types/utilizadores-page";
 
+interface ContactoInternoOption {
+  id: number;
+  nome: string;
+  email: string | null;
+  empresa: string | null;
+  localizacao: string | null;
+  categoria: string;
+}
+
 export default function UtilizadoresPage() {
   const { data: session, status, update } = useSession();
   const [users, setUsers] = useState<UserRow[]>([]);
@@ -21,6 +30,10 @@ export default function UtilizadoresPage() {
   const [form, setForm] = useState<UserFormState>(INITIAL_FORM);
   const [selectedUserForm, setSelectedUserForm] = useState<UserFormState>(INITIAL_FORM);
   const [clientsList, setClientsList] = useState<{ id: number; nome: string }[]>([]);
+  const [internalContacts, setInternalContacts] = useState<ContactoInternoOption[]>([]);
+  const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
+  const [contactsError, setContactsError] = useState("");
+  const [creatingFromContacts, setCreatingFromContacts] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingSelectedUser, setSavingSelectedUser] = useState(false);
@@ -42,6 +55,22 @@ export default function UtilizadoresPage() {
       }
     } catch (e) {
       console.error("Erro ao buscar clientes", e);
+    }
+  }
+
+  async function fetchInternalContacts() {
+    setContactsError("");
+    try {
+      const res = await fetch("/api/contactos-internos?ativo=true");
+      const data = await res.json().catch(() => []);
+      if (!res.ok) throw new Error(data?.error || "Erro ao carregar contactos internos.");
+      const withEmail = (Array.isArray(data) ? data : [])
+        .filter((c: ContactoInternoOption) => Boolean(c.email))
+        .filter((c: ContactoInternoOption) => c.categoria?.trim().toLowerCase() !== "cliente");
+      setInternalContacts(withEmail);
+    } catch (err) {
+      setContactsError(err instanceof Error ? err.message : "Erro ao carregar contactos internos.");
+      setInternalContacts([]);
     }
   }
 
@@ -103,6 +132,7 @@ export default function UtilizadoresPage() {
     }
 
     void fetchClients();
+    void fetchInternalContacts();
     void fetchUsers();
   }, [status, hasElevatedUserAccess]);
 
@@ -247,6 +277,40 @@ export default function UtilizadoresPage() {
       setError(err instanceof Error ? err.message : "Erro ao criar utilizador.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleCreateFromContacts() {
+    if (selectedContactIds.length === 0) return;
+
+    setCreatingFromContacts(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const res = await fetch("/api/user/from-contactos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contactoIds: selectedContactIds.map(Number) }),
+      });
+
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(payload?.error || "Erro ao criar utilizadores a partir dos contactos.");
+
+      const createdCount = Array.isArray(payload.created) ? payload.created.length : 0;
+      const duplicados = Array.isArray(payload.skippedDuplicates) ? payload.skippedDuplicates.length : 0;
+      const semEmail = Array.isArray(payload.skippedNoEmail) ? payload.skippedNoEmail.length : 0;
+
+      setSuccess(
+        `${createdCount} utilizador(es) criado(s) com password ${payload.defaultPassword}. ` +
+          `${duplicados} duplicado(s) ignorado(s). ${semEmail} sem email.`
+      );
+      setSelectedContactIds([]);
+      await fetchUsers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao criar utilizadores a partir dos contactos.");
+    } finally {
+      setCreatingFromContacts(false);
     }
   }
 
@@ -669,6 +733,93 @@ export default function UtilizadoresPage() {
                   {saving ? "A criar..." : "Adicionar utilizador"}
                 </button>
               </form>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-semibold text-gray-900">Criar a partir de contactos internos</h3>
+                  <p className="mt-1 text-xs text-gray-600">
+                    Seleciona contactos internos com email e cria contas de equipa com a password pré-definida.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void fetchInternalContacts()}
+                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  Atualizar
+                </button>
+              </div>
+
+              {contactsError && <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{contactsError}</div>}
+
+              <div className="mt-3 flex items-center justify-between gap-2">
+                <p className="text-xs text-slate-500">
+                  {internalContacts.length} contacto(s) com email disponível
+                </p>
+                {internalContacts.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSelectedContactIds((prev) =>
+                        prev.length === internalContacts.length
+                          ? []
+                          : internalContacts.map((c) => String(c.id))
+                      )
+                    }
+                    className="text-[11px] font-semibold text-blue-700 hover:text-blue-800"
+                  >
+                    {selectedContactIds.length === internalContacts.length ? "Desmarcar todos" : "Marcar todos"}
+                  </button>
+                )}
+              </div>
+
+              <div className="mt-2 max-h-64 space-y-1 overflow-auto rounded-xl border border-slate-200 p-2">
+                {internalContacts.length === 0 ? (
+                  <p className="px-2 py-3 text-xs text-slate-500">Sem contactos internos com email para converter.</p>
+                ) : (
+                  internalContacts.map((contact) => (
+                    <label key={contact.id} className="inline-flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-xs text-slate-700 hover:bg-slate-50">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5"
+                        checked={selectedContactIds.includes(String(contact.id))}
+                        onChange={(e) =>
+                          setSelectedContactIds((prev) =>
+                            e.target.checked
+                              ? [...prev, String(contact.id)]
+                              : prev.filter((id) => id !== String(contact.id))
+                          )
+                        }
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-semibold text-slate-900">{contact.nome}</span>
+                        <span className="block truncate text-slate-500">{contact.email}</span>
+                        {contact.empresa || contact.localizacao ? (
+                          <span className="block truncate text-[11px] text-slate-400">
+                            {[contact.empresa, contact.localizacao].filter(Boolean).join(" · ")}
+                          </span>
+                        ) : null}
+                      </span>
+                    </label>
+                  ))
+                )}
+              </div>
+
+              <button
+                type="button"
+                disabled={selectedContactIds.length === 0 || creatingFromContacts}
+                onClick={() => void handleCreateFromContacts()}
+                className="mt-3 w-full rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-800 disabled:opacity-60"
+              >
+                {creatingFromContacts
+                  ? "A criar..."
+                  : `Criar utilizadores (${selectedContactIds.length})`}
+              </button>
+              <p className="mt-2 text-[11px] text-slate-500">
+                Cada conta criada usa o email do contacto interno e a password pré-definida cabouco321.
+              </p>
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

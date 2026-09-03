@@ -7,9 +7,14 @@ import {
   Box,
   Button,
   CircularProgress,
+  FormControl,
+  FormHelperText,
   IconButton,
   InputAdornment,
+  InputLabel,
+  MenuItem,
   Paper,
+  Select,
   Stack,
   Tab,
   Tabs,
@@ -43,6 +48,22 @@ interface Collaborator {
   role: string;
 }
 
+interface ServiceStationOption {
+  id: number;
+  codigo: string | null;
+  nome: string | null;
+  empresa: string | null;
+  localizacao: string | null;
+  territorioTipo: string | null;
+  regiaoOperacional: string | null;
+}
+
+export const ACTIVE_SERVICE_STATION_COOKIE = "active_service_station_id";
+
+function setActiveStationCookie(stationId: number) {
+  document.cookie = `${ACTIVE_SERVICE_STATION_COOKIE}=${stationId}; path=/; max-age=${60 * 60 * 24 * 30}; samesite=lax`;
+}
+
 export default function LoginPage() {
   return (
     <Suspense fallback={<Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" }}><CircularProgress /></Box>}>
@@ -61,6 +82,9 @@ function LoginPageContent() {
   const [usePasswordLogin, setUsePasswordLogin] = React.useState(false);
   const [collaborators, setCollaborators] = React.useState<Collaborator[]>([]);
   const [selectedColab, setSelectedColab] = React.useState<Collaborator | null>(null);
+
+  const [stations, setStations] = React.useState<ServiceStationOption[]>([]);
+  const [selectedStationId, setSelectedStationId] = React.useState<number | "">("");
 
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
@@ -100,6 +124,22 @@ function LoginPageContent() {
   }, []);
 
   React.useEffect(() => {
+    async function loadStations() {
+      try {
+        const res = await fetch("/api/service-stations/public", { cache: "no-store" });
+        const data = await res.json();
+        if (Array.isArray(data.stations)) {
+          setStations(data.stations);
+          if (data.stations.length === 1) setSelectedStationId(data.stations[0].id);
+        }
+      } catch (err) {
+        console.error("Erro ao carregar estações de serviço:", err);
+      }
+    }
+    loadStations();
+  }, []);
+
+  React.useEffect(() => {
     if (status === "authenticated") {
       if (session?.user?.role === "CLIENTE") {
         router.replace("/portal/cliente");
@@ -116,6 +156,7 @@ function LoginPageContent() {
     try {
       const result = await signIn("credentials", { email, password, callbackUrl, redirect: false });
       if (result?.error) { setError("Email ou password incorretos."); return; }
+      if (selectedStationId) setActiveStationCookie(Number(selectedStationId));
       window.location.href = callbackUrl;
     } catch (err) {
       console.error("Login error:", err);
@@ -131,6 +172,7 @@ function LoginPageContent() {
     try {
       const result = await signIn("credentials", { loginType: "passwordless", userId: String(selectedColab.id), callbackUrl, redirect: false });
       if (result?.error) { setError("Não foi possível iniciar sessão."); return; }
+      if (selectedStationId) setActiveStationCookie(Number(selectedStationId));
       window.location.href = callbackUrl;
     } catch (err) {
       console.error("Login error:", err);
@@ -241,6 +283,25 @@ function LoginPageContent() {
                     </InputAdornment>
                   ),
                 }} />
+              {stations.length > 1 && (
+                <FormControl fullWidth required>
+                  <InputLabel>Estação de serviço</InputLabel>
+                  <Select
+                    value={selectedStationId}
+                    label="Estação de serviço"
+                    onChange={(e) => setSelectedStationId(e.target.value as number)}
+                    sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 } }}
+                  >
+                    {stations.map((station) => (
+                      <MenuItem key={station.id} value={station.id}>
+                        {station.nome || station.codigo || station.empresa}
+                        {station.localizacao ? ` — ${station.localizacao}` : ""}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                  <FormHelperText>Escolha a estação de serviço onde pretende entrar.</FormHelperText>
+                </FormControl>
+              )}
               <Button type="submit" variant="contained" size="large" fullWidth disabled={isSubmitting}
                 sx={{ py: 1.5, textTransform: "none", fontWeight: 700, borderRadius: 4, fontSize: 16, boxShadow: "0 4px 12px rgba(37, 99, 235, 0.2)" }}>
                 {isSubmitting ? <CircularProgress size={22} color="inherit" /> : "Entrar"}
