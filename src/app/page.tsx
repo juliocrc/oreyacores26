@@ -2,6 +2,7 @@
 import Link from "next/link";
 import PremiumCharts from "@/components/dashboard/PremiumCharts";
 import AcoesDeHojePanel from "@/components/dashboard/AcoesDeHojePanel";
+import ExecutiveKpis from "@/components/dashboard/ExecutiveKpis";
 import OfflineStatusIndicator from "@/components/OfflineStatusIndicator";
 import React, { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
@@ -1137,6 +1138,13 @@ export default function DashboardPage() {
                 </motion.div>
               ))}
             </div>
+
+            {/* KPIs Executivos (Financeiros) — apenas ADMIN */}
+            {userRole === "ADMIN" && (
+              <motion.div variants={itemVariants}>
+                <ExecutiveKpis />
+              </motion.div>
+            )}
 
             {/* Stock Command Panel */}
             {canViewStock && (
