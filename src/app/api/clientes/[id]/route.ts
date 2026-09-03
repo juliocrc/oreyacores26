@@ -51,6 +51,7 @@ function sanitizeClientePayload(data: unknown) {
     email: typeof rec.email === "string" ? rec.email.trim() || null : undefined,
     telefone: Object.prototype.hasOwnProperty.call(rec, "telefone") ? normalizePhone(rec.telefone as string | null | undefined) : undefined,
     telmovel: Object.prototype.hasOwnProperty.call(rec, "telmovel") ? normalizePhone(rec.telmovel as string | null | undefined) : undefined,
+    observacoes: Object.prototype.hasOwnProperty.call(rec, "observacoes") ? (typeof rec.observacoes === "string" ? rec.observacoes.trim() || null : null) : undefined,
   };
 }
 

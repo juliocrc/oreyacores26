@@ -1,5 +1,19 @@
 import { buildWhatsAppUrl } from "./communications";
 import { sendZapierWhatsApp, isZapierWhatsAppConfigured } from "./zapier-webhook";
+import { getAuthSession } from "@/auth";
+import { isWhatsAppAllowedEmail, WHATSAPP_ALLOWED_USER_EMAIL } from "./whatsapp-allowed";
+
+/** Email do administrador com permissão para usar WhatsApp. */
+export { WHATSAPP_ALLOWED_USER_EMAIL };
+
+/**
+ * O WhatsApp só está funcional para o administrador Júlio Correia.
+ * Devolve true apenas para esse email autenticado.
+ */
+export async function isWhatsAppAllowed(): Promise<boolean> {
+  const session = await getAuthSession();
+  return isWhatsAppAllowedEmail(session?.user?.email);
+}
 
 export type WhatsAppProviderResult = {
   ok: boolean;
@@ -45,6 +59,13 @@ export async function sendWhatsAppApi(
   phoneRaw: string,
   mensagem: string,
 ): Promise<WhatsAppProviderResult> {
+  if (!(await isWhatsAppAllowed())) {
+    return {
+      ok: false,
+      erro: "WhatsApp disponível apenas para o administrador Júlio Correia.",
+    };
+  }
+
   const link = buildWhatsAppUrl(phoneRaw, mensagem);
 
   if (isZapierWhatsAppConfigured()) {

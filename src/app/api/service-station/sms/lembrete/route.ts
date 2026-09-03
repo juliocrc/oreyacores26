@@ -5,6 +5,7 @@ import {
   resolveLembreteValidadeInfo,
   tryNotifySms,
 } from "@/lib/notify-jangada-sms";
+import { isWhatsAppAllowed } from "@/lib/whatsapp-provider";
 
 export const runtime = "nodejs";
 
@@ -57,6 +58,13 @@ export async function POST(req: NextRequest) {
     const message = customText.trim() ? customText.trim() : info.message;
 
     if (channel === "whatsapp") {
+      // WhatsApp apenas funcional para o administrador Júlio Correia
+      if (!(await isWhatsAppAllowed())) {
+        return NextResponse.json(
+          { ok: false, error: "WhatsApp disponível apenas para o administrador Júlio Correia." },
+          { status: 403 },
+        );
+      }
       // Wa.me exige nº internacional sem "+", apenas dígitos
       const digits = info.phone.replace(/\D/g, "");
       const intl = digits.startsWith("351") ? digits : `351${digits}`;

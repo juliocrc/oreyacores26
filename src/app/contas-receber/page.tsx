@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { formatDateTimeShort } from "@/lib/date-utils";
 import { getCanonicalNavioLocationLabel } from "@/lib/navios-page-helpers";
+import { useWhatsAppAllowed, WHATSAPP_ALLOWED_USER_EMAIL } from "@/lib/use-whatsapp-allowed";
 
 const PAGAMENTO_STATUS_LIST = ["Pendente", "Pago Parcialmente", "Pago", "Vencido"];
 
@@ -70,6 +71,7 @@ function formatEuro(value: number) {
 }
 
 export default function ContasReceberPage() {
+  const { allowed: whatsappAllowed } = useWhatsAppAllowed();
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<FaturaItem[]>([]);
   const [q, setQ] = useState("");
@@ -172,6 +174,10 @@ export default function ContasReceberPage() {
   };
 
   const sendWhatsAppReminder = (f: FaturaItem) => {
+    if (!whatsappAllowed) {
+      window.alert(`WhatsApp disponível apenas para o administrador ${WHATSAPP_ALLOWED_USER_EMAIL}.`);
+      return;
+    }
     const clientName = f.cliente?.nome || f.ordemServicos[0]?.jangada?.owner || "Cliente";
     const text = encodeURIComponent(
       `Olá ${clientName}, lembramos que a fatura ${f.numeroFatura} no valor de ${formatEuro(Number(f.valorTotal || 0))} continua em aberto. Agradecemos o pagamento. Obrigado!`

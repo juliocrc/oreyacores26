@@ -42,6 +42,7 @@ import {
   Copy
 } from 'lucide-react';
 import { appToast } from "@/lib/app-toast";
+import { useWhatsAppAllowed, WHATSAPP_ALLOWED_USER_EMAIL } from "@/lib/use-whatsapp-allowed";
 import JangadaWizardLoader from '@/modules/JangadaWizard/JangadaWizardLoader';
 import WizardRouter from '@/modules/JangadaWizard/WizardRouter';
 import { SubstituirArtigoDialog } from '@/components/jangadas/SubstituirArtigoDialog';
@@ -1190,7 +1191,13 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
     });
   };
 
+  const { allowed: whatsappAllowed } = useWhatsAppAllowed();
+
   const sendWhatsAppAlert = () => {
+    if (!whatsappAllowed) {
+      appToast.warning(`WhatsApp disponível apenas para o administrador ${WHATSAPP_ALLOWED_USER_EMAIL}.`);
+      return;
+    }
     const serial = data.serial || '—';
     const model = data.model || '—';
     const capacity = data.capacity || '—';

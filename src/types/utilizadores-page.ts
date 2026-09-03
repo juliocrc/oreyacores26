@@ -3,16 +3,20 @@ type UserPermissions = {
   visiblePages?: string[];
   editablePages?: string[];
   editableFields?: Record<string, string[]>;
+  allowedStationCodes?: string[];
+  defaultStationCode?: string;
 };
 
 type PermissionModuleOption = { key: string; label: string; href: string };
 type PermissionPageOption = { key: string; label: string; prefix: string };
 type PermissionFieldOption = { key: string; label: string };
+type PermissionStationOption = { id: number; codigo: string; nome: string };
 
 type PermissionsCatalog = {
   modules: PermissionModuleOption[];
   pages: PermissionPageOption[];
   editableFields: Record<string, PermissionFieldOption[]>;
+  stations?: PermissionStationOption[];
 };
 
 type UserRow = {
@@ -65,6 +69,7 @@ export type {
   PermissionModuleOption,
   PermissionPageOption,
   PermissionFieldOption,
+  PermissionStationOption,
   PermissionsCatalog,
   UserRow,
   UserFormState,

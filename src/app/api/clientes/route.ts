@@ -44,6 +44,7 @@ function sanitizeClientePayload(data: unknown) {
     email: typeof rec.email === "string" ? rec.email.trim() || null : null,
     telefone: normalizePhone(rec.telefone as string | null | undefined),
     telmovel: normalizePhone(rec.telmovel as string | null | undefined),
+    observacoes: typeof rec.observacoes === "string" ? rec.observacoes.trim() || null : null,
   };
 }
 

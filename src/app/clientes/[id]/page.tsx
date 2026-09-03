@@ -11,7 +11,7 @@ import { User, Ship, FileText, ClipboardList, Settings, Mail, Phone, MapPin, Sav
 import { IVA_ISENCAO_CODES } from "@/lib/iva-isencao-codes";
 
 type Navio = { id: number; nome: string; matricula: string; portoRegisto?: string | null; ilha: string | null; tipoPesca: string; clienteId?: number | null; cliente?: { id: number; nome: string } | null };
-type Cliente = { id: number; nome: string; numeroCliente?: string | null; modoPagamento?: string | null; nif?: string | null; email?: string | null; telefone?: string | null; telmovel?: string | null; morada?: string | null; moradaNumero?: string | null; codigoPostal?: string | null; localidade?: string | null; ilha?: string | null; navios: Navio[] };
+type Cliente = { id: number; nome: string; numeroCliente?: string | null; modoPagamento?: string | null; nif?: string | null; email?: string | null; telefone?: string | null; telmovel?: string | null; morada?: string | null; moradaNumero?: string | null; codigoPostal?: string | null; localidade?: string | null; ilha?: string | null; observacoes?: string | null; navios: Navio[] };
 type TabKey = "ficha" | "navios" | "ordens" | "assistencia" | "financeiro" | "iva" | "acoes";
 type ServiceOrder = { id: number; numeroOrdem: string; tipo: string; status: string; orcamentoStatus?: string | null; valorTotal?: number; prioridade: string; tecnicoResponsavel?: string | null; dataPlaneadaInicio?: string | null; dataConclusao?: string | null; createdAt: string; jangada?: { serial?: string | null; brand?: string | null; model?: string | null } | null };
 type FaturaItem = { id: number; numeroFatura: string; ordemServicoId: number | null; numeroOrdem: string | null; ordemServicoStatus: string | null; valorSubtotal: number; valorIva: number; valorTotal: number; isIsentoIva: boolean; pagamentoStatus: string; dataEmissao: string; emitidaPor: string | null; jangada: string | null; cancelada?: boolean; dataCancelamento?: string | null; motivoCancelamento?: string | null; numeroRecibo?: string | null; notaCredito?: { numeroNotaCredito: string; dataEmissao: string } | null; ordemServicos?: Array<{ id: number; numeroOrdem: string; status: string; valorTotal: number; jangada: string | null }> };
@@ -52,7 +52,7 @@ export default function ClienteDetalhePage() {
   const [contactosLog, setContactosLog] = useState<Array<{ id: number; data: string; tipo: string; descricao: string; autor?: string }>>([]);
   const [novoContacto, setNovoContacto] = useState({ tipo: "Telefone", descricao: "", autor: "Admin" });
 
-  const [profileDraft, setProfileDraft] = useState({ nome: "", numeroCliente: "", modoPagamento: "", ilha: "", morada: "", moradaNumero: "", codigoPostal: "", localidade: "", nif: "", email: "", telefone: "", telmovel: "" });
+  const [profileDraft, setProfileDraft] = useState({ nome: "", numeroCliente: "", modoPagamento: "", ilha: "", morada: "", moradaNumero: "", codigoPostal: "", localidade: "", nif: "", email: "", telefone: "", telmovel: "", observacoes: "" });
   const [profileErrors, setProfileErrors] = useState<Record<string, string | undefined>>({});
   const [selectedNavioId, setSelectedNavioId] = useState("");
   const [navioSearch, setNavioSearch] = useState("");
@@ -67,7 +67,7 @@ export default function ClienteDetalhePage() {
       const naviosData = await naviosRes.json();
       setCliente(clienteData);
       setAllNavios(sortNaviosAlphabetically(normalizeNaviosResponse(naviosData)));
-      setProfileDraft({ nome: clienteData.nome || "", numeroCliente: clienteData.numeroCliente || "", modoPagamento: clienteData.modoPagamento || "", ilha: clienteData.ilha || "", morada: clienteData.morada || "", moradaNumero: clienteData.moradaNumero || "", codigoPostal: clienteData.codigoPostal || "", localidade: clienteData.localidade || "", nif: clienteData.nif || "", email: clienteData.email || "", telefone: clienteData.telefone || "", telmovel: clienteData.telmovel || "" });
+      setProfileDraft({ nome: clienteData.nome || "", numeroCliente: clienteData.numeroCliente || "", modoPagamento: clienteData.modoPagamento || "", ilha: clienteData.ilha || "", morada: clienteData.morada || "", moradaNumero: clienteData.moradaNumero || "", codigoPostal: clienteData.codigoPostal || "", localidade: clienteData.localidade || "", nif: clienteData.nif || "", email: clienteData.email || "", telefone: clienteData.telefone || "", telmovel: clienteData.telmovel || "", observacoes: clienteData.observacoes || "" });
     } catch (e) { setError(e instanceof Error ? e.message : "Erro"); }
     finally { setLoading(false); }
   };
@@ -393,6 +393,15 @@ export default function ClienteDetalhePage() {
               <InputField label="Email" icon={<Mail size={14} />} type="email" value={profileDraft.email} onChange={(v) => updateProfileField("email", v)} />
               <InputField label="Telefone" icon={<Phone size={14} />} value={profileDraft.telefone} onChange={(v) => updateProfileField("telefone", v)} />
               <InputField label="Telemóvel" icon={<Phone size={14} />} value={profileDraft.telmovel} onChange={(v) => updateProfileField("telmovel", v)} />
+              <div className="md:col-span-2">
+                <label className="block">
+                  <span className="flex items-center gap-1 text-xs font-semibold text-slate-500 mb-1.5 uppercase tracking-wider">Observações</span>
+                  <textarea value={profileDraft.observacoes} onChange={(e) => updateProfileField("observacoes", e.target.value)}
+                    rows={4}
+                    placeholder="RNAAT, website, objeto social, notas, etc."
+                    className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition placeholder:text-slate-300" />
+                </label>
+              </div>
             </div>
             <datalist id="payment-options">{CLIENTE_PAYMENT_MODE_OPTIONS.map((o) => <option key={o} value={o} />)}</datalist>
             <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-2">

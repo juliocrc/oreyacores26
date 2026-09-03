@@ -40,7 +40,8 @@ export default function ClientesPage() {
     nif: "",
     email: "",
     telefone: "",
-    telmovel: ""
+    telmovel: "",
+    observacoes: ""
   });
   const [profileErrorsByCliente, setProfileErrorsByCliente] = useState<Record<number, {
     nif?: string;
@@ -256,7 +257,8 @@ export default function ClientesPage() {
         nif: "",
         email: "",
         telefone: "",
-        telmovel: ""
+        telmovel: "",
+        observacoes: ""
       });
 
       await loadData();
@@ -1517,6 +1519,16 @@ export default function ClientesPage() {
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                   />
                 </div>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Observações</label>
+                <textarea
+                  rows={3}
+                  value={newCliente.observacoes}
+                  onChange={(e) => setNewCliente((prev) => ({ ...prev, observacoes: e.target.value }))}
+                  placeholder="RNAAT, website, objeto social, notas, etc."
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                />
               </div>
               <div className="mt-6 flex justify-end gap-3">
                 <button

@@ -10,6 +10,7 @@ import * as XLSX from 'xlsx';
 import { ContainerClosureSection } from './ContainerClosureSection';
 import { buildClosureOrcamentoLinha } from './containerClosure';
 import type { ClosureItemState } from './containerClosure';
+import { useWhatsAppAllowed, WHATSAPP_ALLOWED_USER_EMAIL } from '@/lib/use-whatsapp-allowed';
 
 const formatPrice = (value: number) => {
   return new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(value || 0);
@@ -35,6 +36,7 @@ const SERVICE_DESCRIPTIONS: Record<string, string> = {
 
 export default function Step7_Orcamento() {
   const { inspectionData, setInspectionData, jangadaId } = useJangadaWizardStore();
+  const { allowed: whatsappAllowed } = useWhatsAppAllowed();
 
   const orcamento = {
     ...(inspectionData.orcamento || { linhas: [], valorMaoObra: 0, valorDesconto: 0, isIsentoIva: false }),
@@ -407,6 +409,10 @@ export default function Step7_Orcamento() {
   };
 
   const enviarWhatsApp = () => {
+    if (!whatsappAllowed) {
+      appToast.warning(`WhatsApp disponível apenas para o administrador ${WHATSAPP_ALLOWED_USER_EMAIL}.`);
+      return;
+    }
     if (linhas.length === 0) {
       appToast.warning("Não existem linhas no orçamento para enviar.");
       return;
@@ -430,6 +436,10 @@ export default function Step7_Orcamento() {
   };
 
   const recordarCliente = () => {
+    if (!whatsappAllowed) {
+      appToast.warning(`WhatsApp disponível apenas para o administrador ${WHATSAPP_ALLOWED_USER_EMAIL}.`);
+      return;
+    }
     const mensagem = buildMensagemWhatsApp(true);
     const phoneNum = normalizePhone(telefoneCliente);
     const whatsappUrl = phoneNum

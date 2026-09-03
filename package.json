@@ -60,6 +60,8 @@
     "seed:stock": "node prisma/seed_stock.js",
     "seed:inspecoes": "node prisma/seed_inspecoes.js",
     "seed:equipamentos": "node prisma/seed_equipamentos.js",
+    "seed:clientes:omt": "npx tsx prisma/seed_operadores_maritimo_turisticos.ts",
+    "seed:clientes:omt:dry": "npx tsx prisma/seed_operadores_maritimo_turisticos.ts --dry-run",
     "sync:catalogo:marcas-modelos": "ts-node prisma/sync_catalog_marcas_modelos.ts",
     "backup:usb": "node scripts/backup_to_usb.js",
     "restore:backup": "node scripts/restore_from_backup.js",

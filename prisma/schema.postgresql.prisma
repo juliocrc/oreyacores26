@@ -322,6 +322,7 @@ model Cliente {
   localidade    String?
   ilha          String?
   tipoCliente   String? // "armador", "operador", etc
+  observacoes   String? // RNAAT, website, objeto social, etc.
   agendas       Agenda[]       @relation("ClienteAgenda")
   navios        Navio[]        @relation("ClienteNavios")
   ordensServico OrdemServico[]

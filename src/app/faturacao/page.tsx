@@ -21,6 +21,7 @@ import {
 } from "chart.js";
 import { formatDateTimeShort } from "@/lib/date-utils";
 import { getIvaRate, calcIva } from "@/lib/iva";
+import { useWhatsAppAllowed, WHATSAPP_ALLOWED_USER_EMAIL } from "@/lib/use-whatsapp-allowed";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend);
 
@@ -97,6 +98,7 @@ function getPagamentoStatus(ordem: OrdemItem | null) {
 }
 
 export default function FaturacaoConsolePage() {
+  const { allowed: whatsappAllowed } = useWhatsAppAllowed();
   const [viewMode, setViewMode] = useState<"console" | "kpis">("console");
   const [loadingList, setLoadingList] = useState(true);
   const [orders, setOrders] = useState<OrdemItem[]>([]);
@@ -515,6 +517,10 @@ export default function FaturacaoConsolePage() {
   };
 
   const handleWhatsAppShareFatura = () => {
+    if (!whatsappAllowed) {
+      setErrorMsg(`WhatsApp disponível apenas para o administrador ${WHATSAPP_ALLOWED_USER_EMAIL}.`);
+      return;
+    }
     if (!selectedOrder || !faturaNumero) return;
     const clientName = selectedOrder.cliente?.nome || selectedOrder.jangada?.owner || "Cliente";
     const text = encodeURIComponent(
@@ -532,6 +538,10 @@ export default function FaturacaoConsolePage() {
   };
 
   const handleWhatsAppShare = () => {
+    if (!whatsappAllowed) {
+      setErrorMsg(`WhatsApp disponível apenas para o administrador ${WHATSAPP_ALLOWED_USER_EMAIL}.`);
+      return;
+    }
     if (!selectedOrder) return;
     const url = `${window.location.origin}/public/orcamento/${selectedOrder.id}`;
     const clientName = selectedOrder.cliente?.nome || selectedOrder.jangada?.owner || "Cliente";
