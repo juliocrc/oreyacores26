@@ -14,7 +14,10 @@ echo.
 
 :: Verificar se o Node.js esta instalado no PC ou na pen (bin/node.exe)
 set "NODE_EXE=node"
-if exist "bin\node.exe" (
+if exist "%~dp0bin\node.exe" (
+    set "NODE_EXE=%~dp0bin\node.exe"
+    echo [INFO] A usar Node.js embutido na pen (%~dp0bin\node.exe)
+) else if exist "bin\node.exe" (
     set "NODE_EXE=%CD%\bin\node.exe"
     echo [INFO] A usar Node.js embutido na pen (bin\node.exe)
 ) else (
@@ -29,9 +32,9 @@ if exist "bin\node.exe" (
     )
 )
 
-:: Verificar se a pasta .next/standalone existe
-if not exist ".next\standalone" (
-    echo [ERRO] Pasta .next\standalone nao encontrada!
+:: Verificar se a pasta .next existe
+if not exist ".next" (
+    echo [ERRO] Pasta .next nao encontrada!
     echo Execute REBUILD_USB.bat neste computador primeiro.
     pause
     exit /b 1
