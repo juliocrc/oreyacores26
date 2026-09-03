@@ -213,28 +213,28 @@ export default function BackupsPage() {
               <HardDrive size={16} />
               Exportar BD (.db)
             </button>
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={importing}
-              className="inline-flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2.5 rounded-xl shadow-sm text-sm transition disabled:opacity-60"
-              title="Importar um ficheiro .db para substituir a base de dados atual"
-            >
-              {importing ? (
-                <><Loader2 size={16} className="animate-spin" /> A importar...</>
-              ) : (
-                <><Upload size={16} /> Importar BD (.db)</>
-              )}
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".db"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleImportDb(file);
-              }}
-            />
+             <button
+               onClick={() => fileInputRef.current?.click()}
+               disabled={importing}
+               className="inline-flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2.5 rounded-xl shadow-sm text-sm transition disabled:opacity-60"
+               title="Importar um ficheiro .db ou .json para o sistema"
+             >
+               {importing ? (
+                 <><Loader2 size={16} className="animate-spin" /> A importar...</>
+               ) : (
+                 <><Upload size={16} /> Importar BD / JSON</>
+               )}
+             </button>
+             <input
+               ref={fileInputRef}
+               type="file"
+               accept=".db,.json"
+               className="hidden"
+               onChange={(e) => {
+                 const file = e.target.files?.[0];
+                 if (file) handleImportDb(file);
+               }}
+             />
           </div>
         </div>
 

@@ -27,10 +27,24 @@ export async function importDatabaseAction(formData: FormData) {
 
     const arrayBuf = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuf);
+    const fileName = file.name || "";
+    const isJson = fileName.toLowerCase().endsWith(".json") || buffer.toString("utf8").trim().startsWith("{") || buffer.toString("utf8").trim().startsWith("[");
+
+    if (isJson) {
+      const backupDir = path.join(process.cwd(), "backups");
+      if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+      const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      const safeName = fileName.replace(/[^a-zA-Z0-9_.-]/g, "_") || `import_${ts}.json`;
+      fs.writeFileSync(path.join(backupDir, safeName), buffer);
+      return {
+        success: true,
+        message: "Ficheiro JSON importado e guardado nos backups com sucesso!",
+      };
+    }
 
     const header = buffer.slice(0, 16).toString("utf8");
     if (!header.startsWith("SQLite format 3")) {
-      return { success: false, error: "Ficheiro inválido. Envie uma base de dados SQLite (.db)." };
+      return { success: false, error: "Ficheiro inválido. Envie uma base de dados SQLite (.db) ou um ficheiro JSON válido (.json)." };
     }
 
     if (isPostgres) {

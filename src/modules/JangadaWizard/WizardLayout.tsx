@@ -161,7 +161,7 @@ export default function WizardLayout({ children }: { children: React.ReactNode }
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col relative max-w-6xl w-full mx-auto">
+      <main className="flex-1 flex flex-col relative w-full">
         <div className="flex-1 p-4 lg:p-8 overflow-y-auto">
           <AnimatePresence mode="wait">
             <motion.div
