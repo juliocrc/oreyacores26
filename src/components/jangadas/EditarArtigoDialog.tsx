@@ -9,12 +9,25 @@ interface ArtigoJangada {
   name: string;
   quantidade: number;
   referencia: string | null;
-  validade: string | null;
+  validade: string | Date | null;
   codigoFabricante: string | null;
   substituidoId?: number | null;
   quantidadeSubstituida?: number | null;
   lastInspecaoId?: number | null;
 }
+
+const toMonthInput = (val: string | Date | null | undefined): string => {
+  if (!val) return '';
+  const str = String(val);
+  if (/^\d{4}-\d{2}/.test(str)) return str.substring(0, 7);
+  const mmYyyy = str.match(/^(\d{1,2})\/(\d{4})$/);
+  if (mmYyyy) return `${mmYyyy[2]}-${mmYyyy[1].padStart(2, '0')}`;
+  const d = new Date(str);
+  if (isNaN(d.getTime())) return '';
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  return `${yyyy}-${mm}`;
+};
 
 interface EditarArtigoProps {
   jangadaId: number;
@@ -36,7 +49,7 @@ export function EditarArtigoDialog({
   const [name, setName] = useState(artigo.name || '');
   const [referencia, setReferencia] = useState(artigo.referencia || '');
   const [quantidade, setQuantidade] = useState(artigo.quantidade || 1);
-  const [validade, setValidade] = useState(artigo.validade ? artigo.validade.substring(0, 7) : '');
+  const [validade, setValidade] = useState(toMonthInput(artigo.validade));
   const [codigoFabricante, setCodigoFabricante] = useState(artigo.codigoFabricante || '');
   const [quantidadeSubstituida, setQuantidadeSubstituida] = useState(artigo.quantidadeSubstituida || 0);
 
@@ -47,7 +60,7 @@ export function EditarArtigoDialog({
     setName(artigo.name || '');
     setReferencia(artigo.referencia || '');
     setQuantidade(artigo.quantidade || 1);
-    setValidade(artigo.validade ? artigo.validade.substring(0, 7) : '');
+    setValidade(toMonthInput(artigo.validade));
     setCodigoFabricante(artigo.codigoFabricante || '');
     setQuantidadeSubstituida(artigo.quantidadeSubstituida || 0);
     setErro('');
