@@ -1038,6 +1038,34 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
     }
   }, [jangadaId, initialData]);
 
+  const [smsSending, setSmsSending] = useState(false);
+
+  const inspectionList = data?.inspecoes || [];
+  const cylinderChangedMap = useMemo(() => {
+    const map = new Map<number, { prevSerial: string | null; changed: boolean }>();
+    const sorted = [...inspectionList].sort((a, b) =>
+      String(b.dataInspecao).localeCompare(String(a.dataInspecao))
+    );
+    let prevSerial: string | null = null;
+    for (const insp of sorted) {
+      const currSerial = insp.cylinderSerialSnapshot ?? null;
+      const changed = prevSerial !== null && currSerial !== null && prevSerial !== currSerial;
+      map.set(insp.id, { prevSerial, changed });
+      if (currSerial !== null) prevSerial = currSerial;
+    }
+    return map;
+  }, [inspectionList]);
+  const currentSerial = isEditing ? editForm.cylinderSerial : data?.cylinderSerial;
+  const cylinderChangedVersusLastInspection = useMemo(() => {
+    const sorted = [...inspectionList].sort((a, b) =>
+      String(b.dataInspecao).localeCompare(String(a.dataInspecao))
+    );
+    const lastWithSerial = sorted.find((insp) => insp.cylinderSerialSnapshot);
+    if (!lastWithSerial || !currentSerial) return false;
+    const lastSerial = lastWithSerial.cylinderSerialSnapshot || "";
+    return String(currentSerial).trim() !== String(lastSerial).trim();
+  }, [inspectionList, currentSerial]);
+
   if (loadingData) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center py-12">
@@ -1217,8 +1245,6 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
       : `https://wa.me/?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, '_blank');
   };
-
-  const [smsSending, setSmsSending] = useState(false);
 
   const downloadIcs = () => {
     if (!data.dataProxInspecao) {
@@ -2135,34 +2161,6 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
     if (Number.isNaN(recorded)) return null;
     return recorded - Number(expected);
   };
-
-  const inspectionList = data.inspecoes || [];
-
-  const cylinderChangedMap = useMemo(() => {
-    const map = new Map<number, { prevSerial: string | null; changed: boolean }>();
-    const sorted = [...inspectionList].sort((a, b) =>
-      String(b.dataInspecao).localeCompare(String(a.dataInspecao))
-    );
-    let prevSerial: string | null = null;
-    for (const insp of sorted) {
-      const currSerial = insp.cylinderSerialSnapshot ?? null;
-      const changed = prevSerial !== null && currSerial !== null && prevSerial !== currSerial;
-      map.set(insp.id, { prevSerial, changed });
-      if (currSerial !== null) prevSerial = currSerial;
-    }
-    return map;
-  }, [inspectionList]);
-
-  const currentSerial = isEditing ? editForm.cylinderSerial : data.cylinderSerial;
-  const cylinderChangedVersusLastInspection = useMemo(() => {
-    const sorted = [...inspectionList].sort((a, b) =>
-      String(b.dataInspecao).localeCompare(String(a.dataInspecao))
-    );
-    const lastWithSerial = sorted.find((insp) => insp.cylinderSerialSnapshot);
-    if (!lastWithSerial || !currentSerial) return false;
-    const lastSerial = lastWithSerial.cylinderSerialSnapshot || "";
-    return String(currentSerial).trim() !== String(lastSerial).trim();
-  }, [inspectionList, currentSerial]);
 
   const cylinderChangedText = (insp: Inspecao) => {
     const info = cylinderChangedMap.get(insp.id);
