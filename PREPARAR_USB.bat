@@ -34,6 +34,16 @@ REM Copiar tudo com robocopy (mais rapido que xcopy)
 REM Excluir pastas desnecessarias para portabilidade
 robocopy "D:\Acores" "%DESTINO%" /E /NJH /NJS /NP /NDL /XD .git .vercel backups terminal_logs temp
 
+REM Garantir explicitamente que a pasta bin com node.exe e rclone.exe foi copiada
+if not exist "%DESTINO%\bin" mkdir "%DESTINO%\bin"
+if exist "D:\Acores\bin\node.exe" (
+    echo A copiar node.exe para a pen (pode demorar alguns segundos devido ao tamanho)...
+    copy /Y "D:\Acores\bin\node.exe" "%DESTINO%\bin\node.exe" >nul
+)
+if exist "D:\Acores\bin\rclone.exe" (
+    copy /Y "D:\Acores\bin\rclone.exe" "%DESTINO%\bin\rclone.exe" >nul
+)
+
 echo.
 echo ========================================
 echo   CONCLUIDO!
