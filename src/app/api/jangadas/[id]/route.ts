@@ -973,6 +973,37 @@ function matchStockItem(rawItem: string, stock: Array<{ referencia: string; desc
   return best.item;
 }
 
+// Constrói um mapa (referência/código fabricante/descrição normalizados -> foto) a partir do stock
+function buildStockPhotoMap(stock: Array<{ referencia: string; codigoFabricante: string | null; descricao: string; foto?: string | null }>) {
+  const map = new Map<string, string>();
+  for (const s of stock) {
+    const foto = s.foto || "";
+    if (!foto) continue;
+    for (const key of [s.referencia, s.codigoFabricante || "", s.descricao]) {
+      const nk = normalize(key);
+      if (nk && !map.has(nk)) map.set(nk, foto);
+    }
+  }
+  return map;
+}
+
+// Preenche a foto de um artigo da jangada a partir do stock, quando não vem já resolvida
+function enrichArtigoFoto(
+  artigo: { name?: string; referencia?: string; codigoFabricante?: string; foto?: string },
+  photoMap: Map<string, string>
+) {
+  if (artigo.foto) return artigo;
+  if (!artigo.referencia && !artigo.codigoFabricante && !artigo.name) return artigo;
+  for (const key of [artigo.referencia || "", artigo.codigoFabricante || "", artigo.name || ""]) {
+    const foto = photoMap.get(normalize(key));
+    if (foto) {
+      artigo.foto = foto;
+      return artigo;
+    }
+  }
+  return artigo;
+}
+
 export async function GET(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const access = await getAccessContext();
@@ -1003,10 +1034,13 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
         codigoFabricante: true,
         lote: true,
         validade: true,
-        quantidade: true
+        quantidade: true,
+        foto: true
       },
       orderBy: { descricao: 'asc' }
     });
+
+    const stockPhotoMap = buildStockPhotoMap(globalStock as { referencia: string; codigoFabricante: string | null; descricao: string; foto?: string | null }[]);
 
     const artigoJangadaDelegate = prisma.artigoJangada as unknown as ArtigoJangadaDelegate | undefined;
     
@@ -1083,12 +1117,19 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
         if (!item) continue;
 
         const matched = matchStockItem(item, globalStock);
+        const matchedFoto = matched
+          ? enrichArtigoFoto(
+              { referencia: matched.referencia, codigoFabricante: matched.codigoFabricante, name: matched.descricao },
+              stockPhotoMap
+            ).foto
+          : undefined;
         const entry = {
           name: matched?.descricao || item,
           quantidade: 1,
           validade: validade || undefined,
           referencia: matched?.referencia || undefined,
           codigoFabricante: matched?.codigoFabricante || undefined,
+          foto: matchedFoto,
           sourceItemCertificado: item,
           sourceCertificadoNumero: cert?.certificadoNumero || cert?.fileName || undefined,
         };
@@ -1107,6 +1148,9 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       // Compatibilidade com esquema legado onde artigos era armazenado como texto JSON
       artigosPersistidos = parseArtigosFromText((jangada as { artigos?: unknown }).artigos);
     }
+
+    // Preenche a foto a partir do stock quando o artigo persistido não tem stockId/stock.foto
+    artigosPersistidos = artigosPersistidos.map((artigo) => enrichArtigoFoto(artigo, stockPhotoMap));
 
     const latestQueue = await prisma.serviceStationQueue.findFirst({
       where: { jangadaId: id },

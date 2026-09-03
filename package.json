@@ -62,6 +62,8 @@
     "seed:equipamentos": "node prisma/seed_equipamentos.js",
     "seed:clientes:omt": "npx tsx prisma/seed_operadores_maritimo_turisticos.ts",
     "seed:clientes:omt:dry": "npx tsx prisma/seed_operadores_maritimo_turisticos.ts --dry-run",
+    "fix:artigos:racao:referencia": "npx tsx scripts/fix_artigos_jangada_racao_referencia.ts",
+    "fix:artigos:racao:referencia:apply": "npx tsx scripts/fix_artigos_jangada_racao_referencia.ts --apply",
     "sync:catalogo:marcas-modelos": "ts-node prisma/sync_catalog_marcas_modelos.ts",
     "backup:usb": "node scripts/backup_to_usb.js",
     "restore:backup": "node scripts/restore_from_backup.js",
