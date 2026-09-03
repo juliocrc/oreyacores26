@@ -2556,10 +2556,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                   )}
                 </button>
                 <button
-                  onClick={() => {
-                    setIsVistoriaAtual(true);
-                    setIsHistoricaOpen(true);
-                  }}
+                  onClick={() => setIsInspecting(true)}
                   className="flex items-center gap-2 px-6 py-3 rounded-xl font-extrabold text-white bg-emerald-600 hover:bg-emerald-700 transition-all shadow-md shadow-emerald-600/20 hover:scale-105"
                 >
                   <ClipboardCheck size={18} />
@@ -3287,10 +3284,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
 
               <div className="border-t border-slate-100 pt-4 mt-6 space-y-2">
                 <button
-                  onClick={() => {
-                    setIsVistoriaAtual(true);
-                    setIsHistoricaOpen(true);
-                  }}
+                  onClick={() => setIsInspecting(true)}
                   className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3.5 rounded-xl shadow-md shadow-emerald-500/10 flex items-center justify-center gap-2 transition-transform hover:scale-[1.02]"
                 >
                   <ClipboardCheck size={16} />
