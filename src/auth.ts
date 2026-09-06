@@ -1,4 +1,4 @@
-import { getServerSession, type NextAuthOptions } from "next-auth";
+import NextAuth, { type NextAuthConfig } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { randomUUID } from "crypto";
@@ -20,185 +20,192 @@ export function getIsSecureUrl() {
   return (process.env.NEXTAUTH_URL ?? process.env.AUTH_URL ?? "").startsWith("https");
 }
 
-export function buildAuthOptions(): NextAuthOptions {
-  return {
-    secret: getAuthSecret(),
-    session: {
-      strategy: "jwt",
-    },
-    pages: {
-      signIn: "/login",
-    },
-    providers: [
-        CredentialsProvider({
-        name: "Credenciais",
-        credentials: {
-          email: { label: "Email", type: "email" },
-          password: { label: "Password", type: "password" },
-          loginType: { type: "text" },
-          telmovel: { type: "text" },
-          nif: { type: "text" },
-          code: { type: "text" },
-          userId: { type: "text" },
-        },
-        async authorize(credentials) {
-          if (credentials?.loginType === "client") {
-            const telmovel = credentials.telmovel;
-            const nif = credentials.nif;
-            const code = credentials.code;
+export const authConfig: NextAuthConfig = {
+  trustHost: true,
+  secret: getAuthSecret(),
+  session: {
+    strategy: "jwt",
+  },
+  pages: {
+    signIn: "/login",
+  },
+  providers: [
+      CredentialsProvider({
+      name: "Credenciais",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+        loginType: { type: "text" },
+        telmovel: { type: "text" },
+        nif: { type: "text" },
+        code: { type: "text" },
+        userId: { type: "text" },
+      },
+      async authorize(credentials) {
+        const str = (value: unknown): string | undefined =>
+          typeof value === "string" ? value : undefined;
 
-            if (!telmovel || !nif || !code) return null;
+        const loginType = str(credentials?.loginType);
+        const telmovel = str(credentials?.telmovel);
+        const nif = str(credentials?.nif);
+        const code = str(credentials?.code);
+        const userId = str(credentials?.userId);
+        const emailRaw = str(credentials?.email);
+        const password = str(credentials?.password);
 
-            const cleanPhone = (phone: string | null | undefined): string => {
-              if (!phone) return "";
-              return phone.replace(/\D/g, "");
-            };
+        if (loginType === "client") {
+          if (!telmovel || !nif || !code) return null;
 
-            const cleanedTarget = cleanPhone(telmovel);
-            if (!cleanedTarget) return null;
+          const cleanPhone = (phone: string | null | undefined): string => {
+            if (!phone) return "";
+            return phone.replace(/\D/g, "");
+          };
 
-            const cleanNif = nif.replace(/\D/g, "").trim();
-            if (cleanNif.length < 9) return null;
+          const cleanedTarget = cleanPhone(telmovel);
+          if (!cleanedTarget) return null;
 
-            const cliente = await prisma.cliente.findFirst({
-              where: {
-                nif: cleanNif,
-                verificationCode: { not: null },
-              },
-              select: {
-                id: true,
-                nome: true,
-                telmovel: true,
-                telefone: true,
-                email: true,
-                verificationCode: true,
-                verificationCodeExpires: true,
-              }
-            });
+          const cleanNif = nif.replace(/\D/g, "").trim();
+          if (cleanNif.length < 9) return null;
 
-            if (!cliente || !cliente.verificationCode) return null;
-
-            const phoneMatch = (() => {
-              const t1 = cleanPhone(cliente.telmovel);
-              const t2 = cleanPhone(cliente.telefone);
-              return (
-                (t1 && t1.endsWith(cleanedTarget)) ||
-                (t2 && t2.endsWith(cleanedTarget)) ||
-                (cleanedTarget.endsWith(t1) && t1) ||
-                (cleanedTarget.endsWith(t2) && t2)
-              );
-            })();
-
-            if (!phoneMatch) return null;
-
-            // Check verification code (flexible string comparison)
-            if (String(cliente.verificationCode).trim() !== String(code).trim()) return null;
-
-            if (cliente.verificationCodeExpires) {
-              const expiresTime = new Date(cliente.verificationCodeExpires).getTime();
-              const nowTime = Date.now();
-              if (nowTime > expiresTime + 15 * 60 * 1000) {
-                return null;
-              }
+          const cliente = await prisma.cliente.findFirst({
+            where: {
+              nif: cleanNif,
+              verificationCode: { not: null },
+            },
+            select: {
+              id: true,
+              nome: true,
+              telmovel: true,
+              telefone: true,
+              email: true,
+              verificationCode: true,
+              verificationCodeExpires: true,
             }
-
-            // Consume verification code
-            await prisma.cliente.update({
-              where: { id: cliente.id },
-              data: {
-                verificationCode: null,
-                verificationCodeExpires: null
-              }
-            });
-
-            // Find or create User account on-the-fly
-            let user = await prisma.user.findFirst({
-              where: { clienteId: cliente.id }
-            });
-
-            if (!user) {
-              const email = cliente.email || `client_${cliente.id}@oreyazores.com`;
-              const existingUser = await prisma.user.findUnique({ where: { email } });
-
-              if (!existingUser) {
-                user = await prisma.user.create({
-                  data: {
-                    email,
-                    name: cliente.nome,
-                    role: "CLIENTE",
-                    clienteId: cliente.id,
-                    passwordHash: null,
-                  }
-                });
-              } else {
-                user = await prisma.user.update({
-                  where: { id: existingUser.id },
-                  data: {
-                    clienteId: cliente.id,
-                    role: "CLIENTE"
-                  }
-                });
-              }
-            }
-
-            await prisma.user.update({
-              where: { id: user.id },
-              data: { lastLoginAt: new Date() },
-              select: { id: true },
-            });
-
-            return { id: String(user.id), email: user.email, name: user.name, image: user.image };
-          }
-
-          // Passwordless collaborator login
-          if (credentials?.loginType === "passwordless") {
-            const userId = Number(credentials.userId);
-            if (!userId) return null;
-
-            const user = await prisma.user.findUnique({
-              where: { id: userId },
-              select: authUserSelect,
-            });
-
-            if (!user || user.role === "CLIENTE") return null;
-
-            await prisma.user.update({
-              where: { id: user.id },
-              data: { lastLoginAt: new Date() },
-              select: { id: true },
-            });
-
-            return { id: String(user.id), email: user.email, name: user.name, image: user.image };
-          }
-
-          // Standard credentials login
-          const email = normalizeEmail(credentials?.email);
-          if (!email || !credentials?.password) return null;
-
-          const user = await prisma.user.findUnique({
-            where: { email },
-            select: authUserSelect,
           });
-          if (!user || !user.passwordHash) return null;
 
-          const valid = await bcrypt.compare(credentials.password, user.passwordHash);
-          if (!valid) return null;
+          if (!cliente || !cliente.verificationCode) return null;
+
+          const phoneMatch = (() => {
+            const t1 = cleanPhone(cliente.telmovel);
+            const t2 = cleanPhone(cliente.telefone);
+            return (
+              (t1 && t1.endsWith(cleanedTarget)) ||
+              (t2 && t2.endsWith(cleanedTarget)) ||
+              (cleanedTarget.endsWith(t1) && t1) ||
+              (cleanedTarget.endsWith(t2) && t2)
+            );
+          })();
+
+          if (!phoneMatch) return null;
+
+          // Check verification code (flexible string comparison)
+          if (String(cliente.verificationCode).trim() !== String(code).trim()) return null;
+
+          if (cliente.verificationCodeExpires) {
+            const expiresTime = new Date(cliente.verificationCodeExpires).getTime();
+            const nowTime = Date.now();
+            if (nowTime > expiresTime + 15 * 60 * 1000) {
+              return null;
+            }
+          }
+
+          // Consume verification code
+          await prisma.cliente.update({
+            where: { id: cliente.id },
+            data: {
+              verificationCode: null,
+              verificationCodeExpires: null
+            }
+          });
+
+          // Find or create User account on-the-fly
+          let user = await prisma.user.findFirst({
+            where: { clienteId: cliente.id }
+          });
+
+          if (!user) {
+            const clientEmail = cliente.email || `client_${cliente.id}@oreyazores.com`;
+            const existingUser = await prisma.user.findUnique({ where: { email: clientEmail } });
+
+            if (!existingUser) {
+              user = await prisma.user.create({
+                data: {
+                  email: clientEmail,
+                  name: cliente.nome,
+                  role: "CLIENTE",
+                  clienteId: cliente.id,
+                  passwordHash: null,
+                }
+              });
+            } else {
+              user = await prisma.user.update({
+                where: { id: existingUser.id },
+                data: {
+                  clienteId: cliente.id,
+                  role: "CLIENTE"
+                }
+              });
+            }
+          }
 
           await prisma.user.update({
-            where: { email },
+            where: { id: user.id },
             data: { lastLoginAt: new Date() },
             select: { id: true },
           });
 
           return { id: String(user.id), email: user.email, name: user.name, image: user.image };
-        },
-      }),
-  ],
-    callbacks: {
-      async signIn() {
-        return true;
+        }
+
+        // Passwordless collaborator login
+        if (loginType === "passwordless") {
+          const parsedUserId = Number(userId);
+          if (!parsedUserId) return null;
+
+          const user = await prisma.user.findUnique({
+            where: { id: parsedUserId },
+            select: authUserSelect,
+          });
+
+          if (!user || user.role === "CLIENTE") return null;
+
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { lastLoginAt: new Date() },
+            select: { id: true },
+          });
+
+          return { id: String(user.id), email: user.email, name: user.name, image: user.image };
+        }
+
+        // Standard credentials login
+        const email = normalizeEmail(emailRaw);
+        if (!email || !password) return null;
+
+        const user = await prisma.user.findUnique({
+          where: { email },
+          select: authUserSelect,
+        });
+        if (!user || !user.passwordHash) return null;
+
+        const valid = await bcrypt.compare(password, user.passwordHash);
+        if (!valid) return null;
+
+        await prisma.user.update({
+          where: { email },
+          data: { lastLoginAt: new Date() },
+          select: { id: true },
+        });
+
+        return { id: String(user.id), email: user.email, name: user.name, image: user.image };
       },
-      async jwt({ token, user, trigger }) {
+    }),
+],
+  callbacks: {
+    async signIn() {
+      return true;
+    },
+    async jwt({ token, user, trigger }) {
       try {
         if (!token.sessionId) {
           token.sessionId = randomUUID();
@@ -281,10 +288,9 @@ export function buildAuthOptions(): NextAuthOptions {
     },
   },
 };
-}
 
-export const authOptions: NextAuthOptions = buildAuthOptions();
+export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);
 
 export function getAuthSession() {
-  return getServerSession(authOptions);
+  return auth();
 }

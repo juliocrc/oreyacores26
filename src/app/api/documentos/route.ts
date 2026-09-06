@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/auth';
+import { getAuthSession } from '@/auth';
 import fs from 'fs';
 import path from 'path';
 
 const BASE_DIR = path.join(process.cwd(), 'public', 'uploads');
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions);
+  const session = await getAuthSession();
   if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
@@ -35,7 +34,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const session = await getServerSession(authOptions);
+  const session = await getAuthSession();
   if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);

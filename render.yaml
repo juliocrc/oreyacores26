@@ -27,7 +27,7 @@ services:
         sync: false
         value: "postgres://postgres:SUA_SENHA_AQUI@db.seu-projeto.supabase.co:5432/postgres?sslmode=require"
       - key: AUTH_BYPASS
-        value: "true"
+        value: "false"
       - key: NEXTAUTH_SECRET
         generateValue: true
       - key: NEXTAUTH_URL

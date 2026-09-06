@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest as NextServerRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
-import { getAuthSecret } from "@/lib/auth";
 
 export async function GET(req: Request) {
   const proto = req.headers.get("x-forwarded-proto") || "http";
@@ -17,12 +16,12 @@ export async function GET(req: Request) {
   // `req` is the native Request in route handlers; cast to NextRequest type expected by next-auth types
   const nr = req as unknown as NextServerRequest;
   const token1 = await getToken({ req: nr, secret: secret || "" });
-  const token2 = await getToken({ req: nr, secret: secret || "", secureCookie: true, cookieName: "__Secure-next-auth.session-token" });
-  const token3 = await getToken({ req: nr, secret: secret || "", secureCookie: false, cookieName: "next-auth.session-token" });
+  const token2 = await getToken({ req: nr, secret: secret || "", secureCookie: true, cookieName: "__Secure-authjs.session-token" });
+  const token3 = await getToken({ req: nr, secret: secret || "", secureCookie: false, cookieName: "authjs.session-token" });
 
   const cookieHeader = req.headers.get("cookie") || "";
-  const hasSecureCookie = cookieHeader.includes("__Secure-next-auth.session-token");
-  const hasInsecureCookie = cookieHeader.includes("next-auth.session-token=") && !hasSecureCookie;
+  const hasSecureCookie = cookieHeader.includes("__Secure-authjs.session-token");
+  const hasInsecureCookie = cookieHeader.includes("authjs.session-token=") && !hasSecureCookie;
 
   return NextResponse.json({
     proto,

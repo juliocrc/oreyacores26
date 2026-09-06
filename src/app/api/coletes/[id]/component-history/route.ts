@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/auth";
+import { getAuthSession } from "@/auth";
 import prisma from "@/lib/prisma";
 
 interface ColeteComponentHistoryDelegate {
@@ -21,7 +20,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getAuthSession();
     if (!session) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
@@ -51,7 +50,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getAuthSession();
     if (!session) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }

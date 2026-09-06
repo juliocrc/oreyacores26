@@ -7,7 +7,7 @@ type SessionPermissions = {
   editableFields?: Record<string, string[]>;
 };
 
-declare module "next-auth" {
+declare module "@auth/core/types" {
   interface Session {
     user: {
       id: string;
@@ -25,7 +25,7 @@ declare module "next-auth" {
   }
 }
 
-declare module "next-auth/jwt" {
+declare module "@auth/core/jwt" {
   interface JWT {
     role?: "ADMIN" | "USER" | "CLIENTE";
     sessionId?: string;
