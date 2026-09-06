@@ -188,6 +188,7 @@ export async function POST(request: NextRequest) {
           quantidade: requestedQuantity,
           codigoFabricante: novoStock.codigoFabricante || undefined,
           stockId: novoStock.id,
+          validade: novoStock.validade ? new Date(novoStock.validade) : undefined,
         },
       });
 
@@ -234,6 +235,7 @@ export async function POST(request: NextRequest) {
               name: novoStock.descricao,
               codigoFabricante: novoStock.codigoFabricante || undefined,
               stockId: novoStock.id,
+              validade: novoStock.validade ? new Date(novoStock.validade) : undefined,
             }
           });
         } else {
@@ -246,6 +248,7 @@ export async function POST(request: NextRequest) {
               referencia: novaReferencia,
               codigoFabricante: novoStock.codigoFabricante || undefined,
               stockId: novoStock.id,
+              validade: novoStock.validade ? new Date(novoStock.validade) : undefined,
             }
           });
         }

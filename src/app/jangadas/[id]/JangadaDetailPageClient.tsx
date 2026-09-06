@@ -34,7 +34,6 @@ import {
   Printer,
   RefreshCw,
   ExternalLink,
-  Upload,
   Loader2,
   Smartphone,
   ShieldCheck,
@@ -57,16 +56,21 @@ import QrLabelGeneratorDialog from '@/components/jangadas/QrLabelGeneratorDialog
 import InspectionCompareDialog from '@/components/InspectionCompareDialog';
 import HistoricaInspecaoDialog from '@/components/jangadas/HistoricaInspecaoDialog';
 import LiferaftDiagram from '@/components/jangadas/LiferaftDiagram';
-import { formatDate, getLocalDateKey, getLocalMidnight, toLocalISO } from '@/lib/date-utils';
+import { formatDate, getLocalDateKey, getLocalMidnight } from '@/lib/date-utils';
 import { buildInspectionIcs, downloadIcsFile } from '@/lib/ics';
 import { formatValidityDisplay } from '@/lib/date-display';
 import { fmtPeso } from '@/lib/liferaft-diagram-helpers';
 import { getContainerClosureMatchBundle } from '@/modules/rafts/containerClosureStraps';
 import DgrmIdentificationForm, { type JangadaData as DgrmJangadaData } from '@/components/shared/DgrmIdentificationForm';
+import CertificadoExternoDialog from '@/components/jangadas/CertificadoExternoDialog';
+import DuplicarFichaDialog from '@/components/jangadas/DuplicarFichaDialog';
+import SyncResultDialog from '@/components/jangadas/SyncResultDialog';
+import ScheduleInspectionDialog from '@/components/jangadas/ScheduleInspectionDialog';
+import ReceiveDialog from '@/components/jangadas/ReceiveDialog';
 
-const translateArticleName = (name: string): string => {
-  if (!name) return name;
-  const normalized = name.trim();
+const translateArticleName = (name: string | number | null | undefined): string => {
+  if (!name) return '';
+  const normalized = String(name).trim();
   const dictionary: Record<string, string> = {
     "Reflective Tape": "Fita Refletora",
     "Retro reflective tape": "Fita Retro-refletora",
@@ -160,7 +164,7 @@ const translateArticleName = (name: string): string => {
     "Inspection Date": "Data de Inspeção",
     "Signature": "Assinatura"
   };
-  return dictionary[normalized] || name;
+  return dictionary[normalized] || String(name);
 };
 
 type ServiceBulletinStatus = "APLICADO" | "EM_VERIFICACAO" | "POR_APLICAR";
@@ -256,11 +260,6 @@ interface Ship {
   imo?: string;
   callSignal?: string;
   cliente?: { id?: number; nome?: string; telmovel?: string | null; telefone?: string | null };
-}
-
-interface Tecnico {
-  id: number;
-  nome: string;
 }
 
 interface Movimento {
@@ -421,6 +420,7 @@ type Props = {
 export default function JangadaDetailPageClient({ jangadaId, initialData, ships }: Props) {
   const router = useRouter();
   const [isInspecting, setIsInspecting] = useState(false);
+  const [inspectionToOpen, setInspectionToOpen] = useState<Inspecao | null>(null);
   const [isVistoriaAtual, setIsVistoriaAtual] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [inspecaoFormDirty, setInspecaoFormDirty] = useState(false);
@@ -437,21 +437,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
   const [catalogOptions, setCatalogOptions] = useState<JangadaCatalogOption[]>([]);
   const [availablePackTypeOptions, setAvailablePackTypeOptions] = useState<string[]>([]);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
-  const [scheduleDate, setScheduleDate] = useState("");
-  const [scheduleTecnico, setScheduleTecnico] = useState("");
-  const [scheduleNote, setScheduleNote] = useState("");
-  const [tecnicos, setTecnicos] = useState<Tecnico[]>([]);
-  const [isScheduling, setIsScheduling] = useState(false);
-  const [schedulingError, setSchedulingError] = useState("");
-  const [schedulingSuccess, setSchedulingSuccess] = useState("");
-
   const [isReceiveModalOpen, setIsReceiveModalOpen] = useState(false);
-  const [receiveDate, setReceiveDate] = useState("");
-  const [receiveTecnico, setReceiveTecnico] = useState("");
-  const [receiveNote, setReceiveNote] = useState("");
-  const [isReceiving, setIsReceiving] = useState(false);
-  const [receiveError, setReceiveError] = useState("");
-  const [receiveSuccess, setReceiveSuccess] = useState("");
 
   const [isQrOpen, setIsQrOpen] = useState(false);
   const [movimentos, setMovimentos] = useState<Movimento[]>([]);
@@ -460,12 +446,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
   const [compareSelection, setCompareSelection] = useState<number[]>([]);
   const [isCompareOpen, setIsCompareOpen] = useState(false);
   const [isCertificadoExternoOpen, setIsCertificadoExternoOpen] = useState(false);
-  const [certExtNumero, setCertExtNumero] = useState(String(data.certificadoExternoNumero || ""));
-  const [certExtUrl, setCertExtUrl] = useState(String(data.certificadoExternoUrl || ""));
-  const [certExtSaving, setCertExtSaving] = useState(false);
   const [isDuplicarOpen, setIsDuplicarOpen] = useState(false);
-  const [duplicarSerial, setDuplicarSerial] = useState("");
-  const [duplicarCopiarArtigos, setDuplicarCopiarArtigos] = useState(true);
   const [duplicarSaving, setDuplicarSaving] = useState(false);
   const [isHistoricaOpen, setIsHistoricaOpen] = useState(false);
   const [matchingRecalls, setMatchingRecalls] = useState<Recall[]>([]);
@@ -473,8 +454,8 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
   const [syncResult, setSyncResult] = useState<{ success: boolean; warning?: string; summary?: { added: number; updated: number; stockLinked: number; total: number }; hasSnapshot?: boolean; details?: string; packSource?: string } | null>(null);
   const [showSyncResult, setShowSyncResult] = useState(false);
 
-  const handleDuplicar = async () => {
-    const novoSerial = duplicarSerial.trim();
+  const handleDuplicar = async (novoSerialInput: string, copiarArtigos: boolean) => {
+    const novoSerial = novoSerialInput.trim();
     if (!novoSerial) {
       appToast.error("Indique o número de série da nova jangada.");
       return;
@@ -484,13 +465,12 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
       const res = await fetch(`/api/jangadas/${jangadaId}/duplicar`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ novoSerial, copiarArtigos: duplicarCopiarArtigos }),
+        body: JSON.stringify({ novoSerial, copiarArtigos }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Erro ao duplicar jangada");
       appToast.success(`Jangada S/N ${novoSerial} criada com sucesso!`);
       setIsDuplicarOpen(false);
-      setDuplicarSerial("");
       router.push(`/jangadas/${json.id}`);
       router.refresh();
     } catch (err: unknown) {
@@ -602,201 +582,6 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
       </html>
     `);
     win.document.close();
-  };
-
-  const handleOpenSchedule = async () => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(9, 0, 0, 0);
-    const localISOTime = toLocalISO(tomorrow);
-    
-    setScheduleDate(localISOTime);
-    setScheduleTecnico(data.responsavel || "");
-    setScheduleNote("");
-    setSchedulingError("");
-    setSchedulingSuccess("");
-    setIsScheduleModalOpen(true);
-
-    try {
-      const res = await fetch("/api/tecnicos?includeInactive=false");
-      if (res.ok) {
-        const raw = await res.json();
-        const list: Tecnico[] = [];
-        if (Array.isArray(raw.stations)) {
-          raw.stations.forEach((station: { tecnicos?: Tecnico[] }) => {
-            if (Array.isArray(station.tecnicos)) {
-              station.tecnicos.forEach((tech: Tecnico) => list.push(tech));
-            }
-          });
-        }
-        if (Array.isArray(raw.unassigned)) {
-          (raw.unassigned as Tecnico[]).forEach((tech: Tecnico) => list.push(tech));
-        }
-        
-        const unique: Tecnico[] = [];
-        const seen = new Set();
-        list.forEach(item => {
-          if (item && item.nome && !seen.has(item.nome)) {
-            seen.add(item.nome);
-            unique.push(item);
-          }
-        });
-        setTecnicos(unique);
-      }
-    } catch (err) {
-      console.error("Error loading technicians:", err);
-    }
-  };
-
-  const handleSaveSchedule = async () => {
-    setIsScheduling(true);
-    setSchedulingError("");
-    setSchedulingSuccess("");
-
-    try {
-      const parsedDate = new Date(scheduleDate);
-      if (isNaN(parsedDate.getTime())) {
-        throw new Error("Por favor, introduza uma data e hora válidas.");
-      }
-
-      // 1. Grava o agendamento na API da Agenda/Calendário
-      const agendaPayload = {
-        title: `Inspeção: ${data.shipNameManual || data.owner || "Jangada"} - ${data.serial}`,
-        raftSerial: data.serial,
-        date: parsedDate.toISOString(),
-        responsavel: scheduleTecnico || "Operador",
-        status: "scheduled",
-        type: "Inspeção",
-        inspectionType: "outro"
-      };
-
-      const agendaRes = await fetch("/api/agenda", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(agendaPayload)
-      });
-
-      if (!agendaRes.ok) {
-        const errorJson = await agendaRes.json().catch(() => ({}));
-        throw new Error(errorJson.error || "Erro ao criar agendamento na agenda.");
-      }
-
-      // 2. Insere a jangada na fila da estação de serviço com o estado 'agendada'
-      const queueBody = {
-        raftId: data.id,
-        status: "agendada",
-        tecnico: scheduleTecnico || undefined,
-        observacao: scheduleNote || undefined,
-        scheduledAt: parsedDate.toISOString(),
-        expectedDeliveryDate: parsedDate.toISOString()
-      };
-
-      const queueRes = await fetch("/api/service-station", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(queueBody)
-      });
-
-      if (!queueRes.ok) {
-        const errorJson = await queueRes.json().catch(() => ({}));
-        throw new Error(errorJson.error || "Erro ao adicionar a jangada à fila da estação.");
-      }
-
-      setSchedulingSuccess("Inspeção agendada com sucesso!");
-      setTimeout(() => {
-        setIsScheduleModalOpen(false);
-      }, 1500);
-    } catch (err: unknown) {
-      setSchedulingError(err instanceof Error ? err.message : "Erro ao agendar.");
-    } finally {
-      setIsScheduling(false);
-    }
-  };
-
-  const handleOpenReceive = async () => {
-    const today = new Date();
-    const localISOTime = toLocalISO(today);
-    setReceiveDate(localISOTime);
-    setReceiveTecnico(data.responsavel || "");
-    setReceiveNote("");
-    setReceiveError("");
-    setReceiveSuccess("");
-    setIsReceiveModalOpen(true);
-
-    try {
-      const res = await fetch("/api/tecnicos?includeInactive=false");
-      if (res.ok) {
-        const raw = await res.json();
-        const list: Tecnico[] = [];
-        if (Array.isArray(raw.stations)) {
-          raw.stations.forEach((station: { tecnicos?: Tecnico[] }) => {
-            if (Array.isArray(station.tecnicos)) {
-              station.tecnicos.forEach((tech: Tecnico) => list.push(tech));
-            }
-          });
-        }
-        if (Array.isArray(raw.unassigned)) {
-          (raw.unassigned as Tecnico[]).forEach((tech: Tecnico) => list.push(tech));
-        }
-
-        const unique: Tecnico[] = [];
-        const seen = new Set();
-        list.forEach(item => {
-          if (item && item.nome && !seen.has(item.nome)) {
-            seen.add(item.nome);
-            unique.push(item);
-          }
-        });
-        setTecnicos(unique);
-      }
-    } catch (err) {
-      console.error("Error loading technicians:", err);
-    }
-  };
-
-  const handleSaveReceive = async () => {
-    setIsReceiving(true);
-    setReceiveError("");
-    setReceiveSuccess("");
-
-    try {
-      const parsedDate = new Date(receiveDate);
-      if (isNaN(parsedDate.getTime())) {
-        throw new Error("Por favor, introduza uma data e hora válidas.");
-      }
-
-      const queueBody = {
-        raftId: data.id,
-        workflowStatus: "entrada_estacao",
-        status: "aguardar",
-        tecnico: receiveTecnico || undefined,
-        observacao: receiveNote || undefined,
-        arrivalDate: parsedDate.toISOString().slice(0, 10),
-        arrivedViaForwarder: false,
-        expectedDeliveryDate: receiveDate
-      };
-
-      const queueRes = await fetch("/api/service-station", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(queueBody)
-      });
-
-      if (!queueRes.ok) {
-        const errorJson = await queueRes.json().catch(() => ({}));
-        throw new Error(errorJson.error || "Erro ao marcar a jangada como recebida na estação.");
-      }
-
-      setReceiveSuccess("Jangada recebida na estação de serviço com sucesso!");
-      fetchJangadaData();
-      setTimeout(() => {
-        setIsReceiveModalOpen(false);
-      }, 1500);
-    } catch (err: unknown) {
-      setReceiveError(err instanceof Error ? err.message : "Erro ao receber a jangada.");
-    } finally {
-      setIsReceiving(false);
-    }
   };
 
   useEffect(() => {
@@ -978,6 +763,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       if (params.get('startInspection') === '1') {
+        setInspectionToOpen(null);
         setIsInspecting(true);
       }
     }
@@ -2047,9 +1833,17 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
     return `${yyyy}-${mm}`;
   };
 
-  const isExpired = (expiryStr?: string | null) => {
-    if (!expiryStr) return false;
-    const expiry = new Date(expiryStr);
+  const isExpired = (expiryRaw?: string | number | null) => {
+    if (!expiryRaw) return false;
+    const expiryStr = String(expiryRaw);
+    const trimmed = expiryStr.trim();
+    let expiry: Date;
+    if (/^\d{4}-\d{2}$/.test(trimmed)) {
+      const [y, m] = trimmed.split('-').map(Number);
+      expiry = new Date(y, m, 0, 23, 59, 59, 999);
+    } else {
+      expiry = new Date(trimmed);
+    }
     if (isNaN(expiry.getTime())) return false;
     return expiry < new Date();
   };
@@ -2111,6 +1905,19 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
   };
 
   // If in inspect mode, render the multi-step wizard
+  const raftLastInspecao = data.inspecoes && data.inspecoes.length > 0
+    ? [...data.inspecoes].sort((a: Inspecao, b: Inspecao) => new Date(b.dataInspecao).getTime() - new Date(a.dataInspecao).getTime())[0]
+    : null;
+
+  const openLastInspection = () => {
+    if (!raftLastInspecao) {
+      alert("Ainda não existe nenhuma vistoria registada para esta jangada.");
+      return;
+    }
+    setInspectionToOpen(raftLastInspecao);
+    setIsInspecting(true);
+  };
+
   if (isInspecting) {
     return (
       <div className="min-h-screen bg-slate-50 py-4 sm:py-8">
@@ -2123,6 +1930,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
             <button 
               onClick={() => {
                 if (confirm('Deseja interromper a inspeção? O rascunho atual será preservado.')) {
+                  setInspectionToOpen(null);
                   setIsInspecting(false);
                 }
               }}
@@ -2131,7 +1939,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
               Sair da Inspeção
             </button>
           </div>
-          <JangadaWizardLoader jangadaId={jangadaId}>
+          <JangadaWizardLoader jangadaId={jangadaId} inspectionToOpen={inspectionToOpen}>
             <WizardRouter />
           </JangadaWizardLoader>
         </div>
@@ -2531,11 +2339,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                   Editar Ficha
                 </button>
                 <button
-                  onClick={() => {
-                    setDuplicarSerial("");
-                    setDuplicarCopiarArtigos(true);
-                    setIsDuplicarOpen(true);
-                  }}
+                  onClick={() => setIsDuplicarOpen(true)}
                   className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-all shadow-sm"
                 >
                   <Copy size={18} className="text-cyan-600" />
@@ -2561,7 +2365,15 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                   )}
                 </button>
                 <button
-                  onClick={() => setIsInspecting(true)}
+                  onClick={openLastInspection}
+                  disabled={!raftLastInspecao}
+                  className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <History size={18} />
+                  Vistoria Registada
+                </button>
+                <button
+                  onClick={() => { setInspectionToOpen(null); setIsInspecting(true); }}
                   className="flex items-center gap-2 px-6 py-3 rounded-xl font-extrabold text-white bg-emerald-600 hover:bg-emerald-700 transition-all shadow-md shadow-emerald-600/20 hover:scale-105"
                 >
                   <ClipboardCheck size={18} />
@@ -3289,21 +3101,29 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
 
               <div className="border-t border-slate-100 pt-4 mt-6 space-y-2">
                 <button
-                  onClick={() => setIsInspecting(true)}
+                  onClick={openLastInspection}
+                  disabled={!raftLastInspecao}
+                  className="w-full bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-transform hover:scale-[1.02] disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <History size={16} />
+                  Vistoria Registada
+                </button>
+                <button
+                  onClick={() => { setInspectionToOpen(null); setIsInspecting(true); }}
                   className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3.5 rounded-xl shadow-md shadow-emerald-500/10 flex items-center justify-center gap-2 transition-transform hover:scale-[1.02]"
                 >
                   <ClipboardCheck size={16} />
                   Registar Vistoria
                 </button>
                 <button
-                  onClick={handleOpenSchedule}
+                  onClick={() => setIsScheduleModalOpen(true)}
                   className="w-full bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-transform hover:scale-[1.02]"
                 >
                   <Calendar size={16} className="text-indigo-600" />
                   Agendar Inspeção
                 </button>
                 <button
-                  onClick={handleOpenReceive}
+                  onClick={() => setIsReceiveModalOpen(true)}
                   className="w-full bg-amber-50 border border-amber-200 hover:bg-amber-100 text-amber-700 font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-transform hover:scale-[1.02]"
                 >
                   <Anchor size={16} className="text-amber-600" />
@@ -5265,183 +5085,19 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
           />
         )}
 
-        {isScheduleModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
-            <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col text-left">
-              <div className="flex justify-between items-center border-b border-slate-200 bg-white px-6 py-4">
-                <h2 className="text-lg font-bold text-slate-800">Agendar Inspeção</h2>
-                <button 
-                  onClick={() => setIsScheduleModalOpen(false)} 
-                  className="text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-full w-8 h-8 flex items-center justify-center transition"
-                >
-                  ✕
-                </button>
-              </div>
-              
-              <div className="p-6 space-y-4">
-                {schedulingError && (
-                  <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
-                    {schedulingError}
-                  </div>
-                )}
-                {schedulingSuccess && (
-                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-700">
-                    {schedulingSuccess}
-                  </div>
-                )}
+        <ScheduleInspectionDialog
+          isOpen={isScheduleModalOpen}
+          onClose={() => setIsScheduleModalOpen(false)}
+          onDone={() => fetchJangadaData()}
+          jangada={data}
+        />
 
-                <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 text-xs text-slate-600">
-                  <p><b>Jangada:</b> {data.brand} {data.model} ({data.serial})</p>
-                  <p><b>Navio:</b> {data.shipNameManual || data.owner || "Sem navio"}</p>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Data / Hora de Início</label>
-                  <input
-                    type="datetime-local"
-                    value={scheduleDate}
-                    onChange={(e) => setScheduleDate(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Técnico Responsável</label>
-                  <select
-                    value={scheduleTecnico}
-                    onChange={(e) => setScheduleTecnico(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <option value="">Escolher técnico...</option>
-                    {tecnicos.map((tecnico) => (
-                      <option key={tecnico.id} value={tecnico.nome}>
-                        {tecnico.nome}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Notas / Observações</label>
-                  <textarea
-                    value={scheduleNote}
-                    onChange={(e) => setScheduleNote(e.target.value)}
-                    placeholder="Instruções ou observações adicionais..."
-                    rows={3}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50 px-6 py-4">
-                <button
-                  type="button"
-                  onClick={() => setIsScheduleModalOpen(false)}
-                  className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleSaveSchedule()}
-                  disabled={isScheduling}
-                  className="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
-                >
-                  {isScheduling ? "A agendar..." : "Gravar Agendamento"}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {isReceiveModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
-            <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col text-left">
-              <div className="flex justify-between items-center border-b border-slate-200 bg-white px-6 py-4">
-                <h2 className="text-lg font-bold text-slate-800">Recebida na Estação</h2>
-                <button 
-                  onClick={() => setIsReceiveModalOpen(false)} 
-                  className="text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-full w-8 h-8 flex items-center justify-center transition"
-                >
-                  ✕
-                </button>
-              </div>
-              
-              <div className="p-6 space-y-4">
-                {receiveError && (
-                  <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
-                    {receiveError}
-                  </div>
-                )}
-                {receiveSuccess && (
-                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-700">
-                    {receiveSuccess}
-                  </div>
-                )}
-
-                <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 text-xs text-slate-600">
-                  <p><b>Jangada:</b> {data.brand} {data.model} ({data.serial})</p>
-                  <p><b>Navio:</b> {data.shipNameManual || data.owner || "Sem navio"}</p>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Data / Hora de Entrada</label>
-                  <input
-                    type="datetime-local"
-                    value={receiveDate}
-                    onChange={(e) => setReceiveDate(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Técnico Responsável</label>
-                  <select
-                    value={receiveTecnico}
-                    onChange={(e) => setReceiveTecnico(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <option value="">Escolher técnico...</option>
-                    {tecnicos.map((tecnico) => (
-                      <option key={tecnico.id} value={tecnico.nome}>
-                        {tecnico.nome}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Notas / Observações</label>
-                  <textarea
-                    value={receiveNote}
-                    onChange={(e) => setReceiveNote(e.target.value)}
-                    placeholder="Estado da jangada à chegada, instruções adicionais..."
-                    rows={3}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50 px-6 py-4">
-                <button
-                  type="button"
-                  onClick={() => setIsReceiveModalOpen(false)}
-                  className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleSaveReceive()}
-                  disabled={isReceiving}
-                  className="rounded-xl bg-amber-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-amber-700 disabled:opacity-50"
-                >
-                  {isReceiving ? "A registar..." : "Registar Receção"}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <ReceiveDialog
+          isOpen={isReceiveModalOpen}
+          onClose={() => setIsReceiveModalOpen(false)}
+          onDone={() => fetchJangadaData()}
+          jangada={data}
+        />
       </div>
 
       {activeTab === 'dgrm' && (
@@ -5805,295 +5461,45 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
       })()}
 
       {/* Certificado Externo Modal */}
-      {isCertificadoExternoOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setIsCertificadoExternoOpen(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 p-6 space-y-5" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
-                  <FileText size={20} />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900">Certificado Externo (DSB / RFD / Zodiac)</h3>
-                  <p className="text-xs text-slate-500">Registe o número e carregue o PDF do certificado do fabricante.</p>
-                </div>
-              </div>
-              <button onClick={() => setIsCertificadoExternoOpen(false)} className="text-slate-400 hover:text-slate-600 p-1">
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Nº do Certificado Externo</label>
-                <input
-                  type="text"
-                  value={certExtNumero}
-                  onChange={(e) => setCertExtNumero(e.target.value)}
-                  placeholder="Ex: DSB-CERT-2026-99"
-                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:ring-2 focus:ring-amber-100 outline-none font-medium"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Documento PDF do Certificado</label>
-                <div className="flex items-center gap-3">
-                  <label className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-slate-300 hover:border-amber-500 rounded-xl cursor-pointer bg-slate-50 hover:bg-amber-50/30 transition-all text-xs font-bold text-slate-600">
-                    <Upload size={16} className="text-amber-600" />
-                    <span>{certExtUrl ? "Substituir Ficheiro PDF" : "Carregar Ficheiro PDF"}</span>
-                    <input
-                      type="file"
-                      accept="application/pdf"
-                      className="hidden"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        try {
-                          setCertExtSaving(true);
-                          const fd = new FormData();
-                          fd.append("file", file);
-                          fd.append("categoria", "certificados");
-                          const res = await fetch("/api/upload-documento", {
-                            method: "POST",
-                            body: fd,
-                          });
-                          const json = await res.json();
-                          if (!res.ok) throw new Error(json.error || "Erro no upload");
-                          const fileUrl = json.url || json.path || json.fileUrl;
-                          if (fileUrl) {
-                            setCertExtUrl(fileUrl);
-                            appToast.success("PDF carregado com sucesso!");
-                          }
-                        } catch (err: unknown) {
-                          appToast.error(err instanceof Error ? err.message : "Erro ao carregar PDF");
-                        } finally {
-                          setCertExtSaving(false);
-                        }
-                      }}
-                    />
-                  </label>
-                </div>
-                {certExtUrl && (
-                  <div className="mt-2 flex items-center justify-between p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
-                    <a href={certExtUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-emerald-800 hover:underline flex items-center gap-1.5 truncate">
-                      <FileText size={14} className="shrink-0" />
-                      <span className="truncate">Ver Certificado PDF Carregado</span>
-                    </a>
-                    <button
-                      type="button"
-                      onClick={() => setCertExtUrl("")}
-                      className="text-xs text-red-600 hover:text-red-800 font-semibold ml-2 shrink-0"
-                    >
-                      Remover
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setIsCertificadoExternoOpen(false)}
-                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl text-sm font-bold text-slate-700 transition"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                disabled={certExtSaving}
-                onClick={async () => {
-                  try {
-                    setCertExtSaving(true);
-                    const res = await fetch(`/api/jangadas/${jangadaId}`, {
-                      method: "PUT",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        certificadoExternoNumero: certExtNumero,
-                        certificadoExternoUrl: certExtUrl,
-                      }),
-                    });
-                    const json = await res.json();
-                    if (!res.ok) throw new Error(json.error || "Erro ao guardar certificado externo");
-                    setData((prev) => ({
-                      ...prev,
-                      certificadoExternoNumero: certExtNumero,
-                      certificadoExternoUrl: certExtUrl,
-                    }));
-                    appToast.success("Certificado externo guardado com sucesso!");
-                    setIsCertificadoExternoOpen(false);
-                  } catch (err: unknown) {
-                    appToast.error(err instanceof Error ? err.message : "Erro ao guardar");
-                  } finally {
-                    setCertExtSaving(false);
-                  }
-                }}
-                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-md transition disabled:opacity-50"
-              >
-                {certExtSaving ? "A Guardar..." : "Guardar Certificado"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <CertificadoExternoDialog
+        isOpen={isCertificadoExternoOpen}
+        onClose={() => setIsCertificadoExternoOpen(false)}
+        jangadaId={jangadaId}
+        initialNumero={String(data.certificadoExternoNumero || "")}
+        initialUrl={String(data.certificadoExternoUrl || "")}
+        onSaved={(numero, url) =>
+          setData((prev) => ({
+            ...prev,
+            certificadoExternoNumero: numero,
+            certificadoExternoUrl: url,
+          }))
+        }
+      />
 
       {/* Sync Result Modal */}
-      {showSyncResult && syncResult && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowSyncResult(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 p-6" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-slate-800">
-                {syncLoading ? 'A sincronizar...' : syncResult.success !== false ? 'Sincronização concluída' : 'Erro na sincronização'}
-              </h3>
-              <button onClick={() => setShowSyncResult(false)} className="text-slate-400 hover:text-slate-600">
-                <X size={20} />
-              </button>
-            </div>
-
-            {syncLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-              </div>
-            ) : syncResult.success === false ? (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 text-red-600 bg-red-50 rounded-xl p-4">
-                  <AlertCircle size={20} />
-                  <p className="text-sm">{syncResult.warning || 'Erro desconhecido'}</p>
-                </div>
-                {syncResult.details && (
-                  <p className="text-xs text-slate-500 bg-slate-50 rounded-lg p-3 font-mono">{syncResult.details}</p>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {syncResult.warning && (
-                  <div className="flex items-center gap-2 text-amber-600 bg-amber-50 rounded-xl p-4">
-                    <AlertCircle size={20} />
-                    <p className="text-sm">{syncResult.warning}</p>
-                  </div>
-                )}
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="bg-green-50 rounded-xl p-4 text-center">
-                    <p className="text-2xl font-bold text-green-700">{syncResult.summary?.added || 0}</p>
-                    <p className="text-xs text-green-600 font-medium">Adicionados</p>
-                  </div>
-                  <div className="bg-blue-50 rounded-xl p-4 text-center">
-                    <p className="text-2xl font-bold text-blue-700">{syncResult.summary?.updated || 0}</p>
-                    <p className="text-xs text-blue-600 font-medium">Atualizados</p>
-                  </div>
-                  <div className="bg-purple-50 rounded-xl p-4 text-center">
-                    <p className="text-2xl font-bold text-purple-700">{syncResult.summary?.stockLinked || 0}</p>
-                    <p className="text-xs text-purple-600 font-medium">Stock ligado</p>
-                  </div>
-                </div>
-                <p className="text-xs text-slate-400 text-center">
-                  Total de itens no pack: {syncResult.summary?.total ?? '?'}
-                  {syncResult.packSource ? ` · Fonte: ${syncResult.packSource}` : ''}
-                </p>
-                {syncResult.hasSnapshot && (
-                  <button
-                    onClick={async () => {
-                      if (!confirm('Tem a certeza? Isto irá restaurar os artigos ao estado anterior à sincronização.')) return;
-                      try {
-                        const revRes = await fetch(`/api/jangadas/${jangadaId}/revert-sync`, { method: 'POST' });
-                        const revJson = await revRes.json();
-                        if (!revRes.ok) throw new Error(revJson.error || revJson.details);
-                        alert(`Sync revertido com sucesso! ${revJson.restored} artigos restaurados.`);
-                        setShowSyncResult(false);
-                        fetchJangadaData();
-                      } catch (err: unknown) {
-                        alert('Erro ao reverter: ' + (err instanceof Error ? err.message : String(err)));
-                      }
-                    }}
-                    className="w-full text-center text-sm text-red-600 hover:text-red-800 font-medium py-2 border border-red-200 rounded-xl hover:bg-red-50 transition"
-                  >
-                    Reverter sincronização (restaurar artigos anteriores)
-                  </button>
-                )}
-              </div>
-            )}
-
-            <div className="mt-4 flex justify-end">
-              <button
-                onClick={() => setShowSyncResult(false)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-sm font-medium transition"
-              >
-                Fechar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <SyncResultDialog
+        isOpen={showSyncResult}
+        loading={syncLoading}
+        result={syncResult}
+        jangadaId={jangadaId}
+        onClose={() => setShowSyncResult(false)}
+        onReverted={() => {
+          setShowSyncResult(false);
+          fetchJangadaData();
+        }}
+      />
 
       {/* Duplicar Ficha Modal */}
-      {isDuplicarOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => !duplicarSaving && setIsDuplicarOpen(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 p-6 space-y-5" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center font-bold">
-                  <Copy size={20} />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900">Duplicar Ficha da Jangada</h3>
-                  <p className="text-xs text-slate-500">
-                    Cria uma nova ficha a partir de <span className="font-mono font-semibold">{data.serial}</span> ({data.brand || 'EUROVINIL'} {data.model || 'COMPACT DRY'}, {data.capacity}P).
-                  </p>
-                </div>
-              </div>
-              <button onClick={() => !duplicarSaving && setIsDuplicarOpen(false)} className="text-slate-400 hover:text-slate-600 p-1">
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Nº de Série da Nova Jangada</label>
-                <input
-                  type="text"
-                  value={duplicarSerial}
-                  onChange={(e) => setDuplicarSerial(e.target.value)}
-                  placeholder="Ex: 2088-EV-2026-01"
-                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:ring-2 focus:ring-cyan-100 outline-none font-medium"
-                />
-                <p className="text-xs text-slate-400 mt-1">Os dados de inspecção, certificados, testes e validades não são copiados.</p>
-              </div>
-
-              <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer transition-all">
-                <input
-                  type="checkbox"
-                  checked={duplicarCopiarArtigos}
-                  onChange={(e) => setDuplicarCopiarArtigos(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded accent-cyan-600"
-                />
-                <div>
-                  <p className="text-sm font-bold text-slate-700">Copiar consumíveis do pack</p>
-                  <p className="text-xs text-slate-500">Copia os artigos/consumíveis actuais da jangada original para a nova ficha.</p>
-                </div>
-              </label>
-            </div>
-
-            <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => !duplicarSaving && setIsDuplicarOpen(false)}
-                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl text-sm font-bold text-slate-700 transition"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                disabled={duplicarSaving || !duplicarSerial.trim()}
-                onClick={() => void handleDuplicar()}
-                className="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-sm font-bold shadow-md transition disabled:opacity-50 flex items-center gap-2"
-              >
-                {duplicarSaving ? <Loader2 size={16} className="animate-spin" /> : <Copy size={16} />}
-                {duplicarSaving ? "A Duplicar..." : "Duplicar Ficha"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <DuplicarFichaDialog
+        isOpen={isDuplicarOpen}
+        onClose={() => setIsDuplicarOpen(false)}
+        serial={data.serial ?? ""}
+        brand={data.brand}
+        model={data.model}
+        capacity={data.capacity}
+        saving={duplicarSaving}
+        onDuplicar={(s, c) => void handleDuplicar(s, c)}
+      />
     </div>
   );
 }

@@ -4,7 +4,7 @@ const ZAPIER_SMS_WEBHOOK_URL = process.env.ZAPIER_SMS_WEBHOOK_URL || "";
 const ZAPIER_WHATSAPP_WEBHOOK_URL = process.env.ZAPIER_WHATSAPP_WEBHOOK_URL || process.env.ZAPIER_WEBHOOK_URL || "";
 
 export function getZapierSmsWebhookUrl(): string | null {
-  return ZAPIER_SMS_WEBHOOK_URL || ZAPIER_WEBHOOK_URL || null;
+  return ZAPIER_SMS_WEBHOOK_URL || null;
 }
 
 export function isZapierSmsConfigured(): boolean {

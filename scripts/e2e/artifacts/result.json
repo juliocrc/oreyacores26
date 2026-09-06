@@ -1,41 +1,68 @@
 {
-  "ok": false,
-  "ordemId": null,
-  "numeroOrdem": null,
+  "ok": true,
+  "ordemId": "2263",
+  "numeroOrdem": "Ordens de Serviço",
   "steps": [
     {
       "name": "login",
       "detail": "Auth API NextAuth",
-      "at": "2026-08-01T18:03:54.309Z"
+      "at": "2026-09-06T02:53:19.323Z"
     },
     {
       "name": "login",
       "detail": "Sessão: julio.correia@orey.com (via julio.correia@orey.com)",
-      "at": "2026-08-01T18:03:54.515Z"
+      "at": "2026-09-06T02:53:19.414Z"
     },
     {
       "name": "login",
       "detail": "cookies: next-auth.csrf-token, next-auth.callback-url, next-auth.session-token",
-      "at": "2026-08-01T18:03:54.519Z"
+      "at": "2026-09-06T02:53:19.415Z"
     },
     {
       "name": "home",
       "detail": "http://127.0.0.1:3000/",
-      "at": "2026-08-01T18:03:57.699Z"
+      "at": "2026-09-06T02:53:22.557Z"
     },
     {
       "name": "jangada",
       "detail": "id=1 serial=160706730",
-      "at": "2026-08-01T18:04:09.755Z"
+      "at": "2026-09-06T02:53:28.545Z"
     },
     {
-      "name": "error",
-      "detail": "page.waitForURL: Timeout 60000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation until \"load\"\n============================================================",
-      "at": "2026-08-01T18:05:12.733Z"
+      "name": "criar-ot",
+      "detail": "criada id=2263",
+      "at": "2026-09-06T02:53:31.533Z"
+    },
+    {
+      "name": "detalhe",
+      "detail": "numero=Ordens de Serviço",
+      "at": "2026-09-06T02:53:37.420Z"
+    },
+    {
+      "name": "workflow",
+      "detail": "API em_progresso 200",
+      "at": "2026-09-06T02:53:37.545Z"
+    },
+    {
+      "name": "checklist",
+      "detail": "0/0",
+      "at": "2026-09-06T02:54:05.578Z"
+    },
+    {
+      "name": "concluir",
+      "detail": "API 200 {\"success\":true,\"consumed\":3,\"warnings\":[\"Stock insuficiente para Insp Jangada\"],\"log\":[\"Comprimidos de Enjoo (SURVITEC)",
+      "at": "2026-09-06T02:54:23.566Z"
+    },
+    {
+      "name": "lista",
+      "detail": "OK",
+      "at": "2026-09-06T02:54:47.802Z"
+    },
+    {
+      "name": "done",
+      "detail": "OS #2263 Ordens de Serviço",
+      "at": "2026-09-06T02:54:47.802Z"
     }
   ],
-  "consoleErrors": [
-    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
-  ],
-  "error": "page.waitForURL: Timeout 60000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation until \"load\"\n============================================================"
+  "consoleErrors": []
 }

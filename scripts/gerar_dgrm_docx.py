@@ -122,7 +122,7 @@ def fill_template(template_path, output_path, data):
             else: p.add_run(relatorio_num)
 
     # Preencher Armador na última linha da tabela
-    owner_nome = data.get('owner', '') or ''
+    owner_nome = data.get('ownerDisplay', '') or data.get('owner', '') or ''
     if len(t.rows) > 0:
         row_owner = t.rows[-1]
         for cell in row_owner.cells:

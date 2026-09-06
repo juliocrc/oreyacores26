@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getAccessContext } from "@/lib/access-control";
 import { logAuditoria } from "@/lib/auditoria";
+import type { Prisma } from "@prisma/client";
 
 export async function POST(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
@@ -74,6 +75,40 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
               motivo: `Consumo definitivo por orçamento aprovado (OT ${ordem.numeroOrdem})`,
               usuario: access.email || "sistema",
               ordemServicoId: ordem.id,
+            },
+          });
+        }
+      }
+
+      // Reflectir a decisão do orçamento na checklist de inspeção associada
+      if (ordem.inspecaoId) {
+        const inspecao = await tx.inspecao.findUnique({
+          where: { id: ordem.inspecaoId },
+          select: { orcamento: true },
+        });
+        const inspecaoOrcamento =
+          inspecao?.orcamento && typeof inspecao.orcamento === "object"
+            ? (inspecao.orcamento as Record<string, unknown>)
+            : null;
+        if (inspecaoOrcamento) {
+          const aprovacaoAtual =
+            inspecaoOrcamento.aprovacaoWhatsApp &&
+            typeof inspecaoOrcamento.aprovacaoWhatsApp === "object"
+              ? (inspecaoOrcamento.aprovacaoWhatsApp as Record<string, unknown>)
+              : {};
+          await tx.inspecao.update({
+            where: { id: ordem.inspecaoId },
+            data: {
+              orcamento: {
+                ...inspecaoOrcamento,
+                aprovacaoWhatsApp: {
+                  ...aprovacaoAtual,
+                  status: novoStatus === "Aprovado" ? "aprovado" : "rejeitado",
+                  aprovadoPorUtilizador: novoStatus === "Aprovado",
+                  respondidoEm: new Date().toISOString(),
+                },
+              } as Prisma.InputJsonValue,
+              updatedAt: new Date(),
             },
           });
         }

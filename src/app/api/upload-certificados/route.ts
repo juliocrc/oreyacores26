@@ -4,6 +4,7 @@ import { writeFile, mkdir, readdir, stat, unlink } from "fs/promises";
 import { join } from "path";
 import { existsSync } from "fs";
 import { del, list, put } from "@vercel/blob";
+import { saveExternalCertificadoToNavioFolder } from "@/lib/certificados-organizados";
 
 const UPLOAD_DIR = join(process.cwd(), "public", "certificados-externos");
 const BLOB_PREFIX = "certificados-externos";
@@ -184,6 +185,9 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const files = formData.getAll("file") as File[];
     const jangadaId = formData.get("jangadaId") as string | null;
+    const certificadoExternoNumero = formData.get("certificadoExternoNumero") as string | null;
+    const shipId = formData.get("shipId") as string | null;
+    const shipName = formData.get("shipName") as string | null;
     
     if (!files || files.length === 0) {
       return NextResponse.json({ error: "Nenhum ficheiro enviado." }, { status: 400 });
@@ -219,6 +223,25 @@ export async function POST(req: NextRequest) {
         const buffer = Buffer.from(bytes);
         const filePath = join(UPLOAD_DIR, safeName);
         await writeFile(filePath, buffer);
+        
+        // Guardar também na pasta organizada do navio (NAVIOS/{navio}/) com nomenclatura padrão
+        if (shipName || shipId) {
+          let resolvedShipName = shipName;
+          if (!resolvedShipName && shipId && shipId !== "") {
+            const navio = await prisma.navio.findUnique({
+              where: { id: Number(shipId) },
+              select: { nome: true },
+            });
+            resolvedShipName = navio?.nome || null;
+          }
+          
+          if (resolvedShipName) {
+            await saveExternalCertificadoToNavioFolder(resolvedShipName, safeName, buffer, {
+              serial: raftSerial || undefined,
+              date: new Date(), // data de upload
+            });
+          }
+        }
       }
       
       // Cria ou atualiza registro no banco de dados
@@ -226,15 +249,31 @@ export async function POST(req: NextRequest) {
         where: { fileName: safeName },
         create: {
           fileName: safeName,
-          raftSerial: raftSerial,
+          raftSerial,
           hasQuadro: false,
           validitiesCount: 0,
         },
         update: {
-          raftSerial: raftSerial,
+          raftSerial,
           updatedAt: new Date(),
         },
       });
+
+      // REGISTO AUTOMÁTICO NA JANGADA: se temos jangadaId e número de certificado externo,
+      // atualiza os campos certificadoExternoUrl e certificadoExternoNumero na jangada
+      if (jangadaId && jangadaId !== "" && certificadoExternoNumero && certificadoExternoNumero.trim()) {
+        const fileUrl = storageEnabled() 
+          ? `https://${process.env.BLOB_PUBLIC_URL || "blob.vercel-storage.com"}/${blobPath(safeName)}`
+          : `/certificados-externos/${encodeURIComponent(safeName)}`;
+        
+        await prisma.jangada.update({
+          where: { id: Number(jangadaId) },
+          data: {
+            certificadoExternoNumero: certificadoExternoNumero.trim(),
+            certificadoExternoUrl: fileUrl,
+          },
+        });
+      }
     }
     
     // Retorna lista atualizada

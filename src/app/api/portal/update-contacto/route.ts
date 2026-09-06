@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getAuthSession } from "@/auth";
-import { clearClientCache } from "@/app/api/portal/cliente-dados/route";
+import { clearClientCache } from "@/lib/client-cache";
 
 export async function PUT(req: NextRequest) {
   try {

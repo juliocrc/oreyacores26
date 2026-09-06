@@ -6,10 +6,11 @@ import { readAuditoriaJson, writeAuditoriaJson } from "@/lib/auditorias-storage"
 import { getApplicableServiceBulletinsForRaft } from "@/modules/rafts/serviceBulletins";
 import { buildDatabaseErrorResponse } from "@/lib/database-errors";
 import { readInspectionChecklistValues, writeInspectionChecklistValues } from "@/lib/inspection-checklist-store";
+import { readJangadaAbate, writeJangadaAbate } from "@/lib/jangada-abate-store";
 import { notifyJangadaEnviada, tryNotifySms } from "@/lib/notify-jangada-sms";
 import { getAccessContext } from "@/lib/access-control";
 import { canEditPath } from "@/lib/user-permissions";
-import { syncRaftArticlesWithPackType } from "@/lib/checklist-sync";
+import { syncRaftArticlesWithPackType, syncRichChecklistToRaft } from "@/lib/checklist-sync";
 import { clearActiveAgendaForRaft, syncNextInspectionAgenda } from "@/lib/agenda-sync";
 import { clearEntregaAgendaEvent, syncEntregaAgendaEvent } from "@/lib/agenda-entrega";
 import { syncAgendaToGoogleCalendar } from "@/lib/google-calendar";
@@ -831,6 +832,16 @@ function normalizeArtigosInput(raw: unknown) {
     } => item !== null);
 }
 
+// Formata uma validade como YYYY-MM-DD usando a data local (evita o shift de
+// mês que o toISOString().slice(0,10) provoca em fusos a leste de UTC em UTC).
+function validadeToLocalYmd(value: Date | string): string {
+  const d = new Date(String(value));
+  if (isNaN(d.getTime())) return String(value).slice(0, 10);
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
 function toClientArtigo(art: {
   id?: number | null;
   name?: string | null;
@@ -838,15 +849,17 @@ function toClientArtigo(art: {
   validade?: Date | string | null;
   referencia?: string | null;
   codigoFabricante?: string | null;
+  stockId?: number | null;
   stock?: { foto?: string | null } | null;
 }) {
   return {
     id: art?.id,
     name: art?.name || "",
     quantidade: art?.quantidade ?? 0,
-    validade: art?.validade ? new Date(String(art.validade)).toISOString().slice(0, 10) : undefined,
+    validade: art?.validade ? validadeToLocalYmd(art.validade) : undefined,
     referencia: art?.referencia || undefined,
     codigoFabricante: art?.codigoFabricante || undefined,
+    stockId: art?.stockId ?? undefined,
     foto: art?.stock?.foto || undefined,
   };
 }
@@ -863,6 +876,7 @@ type ArtigoJangadaDelegate = {
       validade: boolean;
       referencia: boolean;
       codigoFabricante: boolean;
+      stockId: boolean;
       updatedAt: boolean;
       stock: { select: { foto: boolean } };
     };
@@ -873,6 +887,7 @@ type ArtigoJangadaDelegate = {
     validade: Date | null;
     referencia: string | null;
     codigoFabricante: string | null;
+    stockId: number | null;
     updatedAt: Date;
     stock: { foto: string | null } | null;
   }>>;
@@ -890,29 +905,21 @@ async function loadArtigosPersistidosLean(artigoJangadaDelegate: ArtigoJangadaDe
     validade: true,
     referencia: true,
     codigoFabricante: true,
+    stockId: true,
     updatedAt: true,
     stock: { select: { foto: true } },
   };
 
-  // Primeiro tentamos apenas os artigos ativos da ficha (inspecaoId nulo),
-  // preservando exatamente os valores guardados na jangada.
-  let rows = await artigoJangadaDelegate.findMany({
+  // Apenas os artigos ativos da ficha (inspecaoId nulo), preservando exatamente
+  // os valores guardados na jangada. Os artigos de inspeções anteriores pertencem
+  // ao histórico e não são devolvidos como artigos da ficha (evita ressuscitar
+  // validades antigas no GET).
+  const rows = await artigoJangadaDelegate.findMany({
     where: { jangadaId, inspecaoId: null },
     orderBy: [{ id: "asc" }],
     take: 2000,
     select: baseSelect,
   });
-
-  // Compatibilidade com dados antigos: fallback para todos os artigos da jangada,
-  // mantendo seleção enxuta e limite de segurança.
-  if (!rows.length) {
-    rows = await artigoJangadaDelegate.findMany({
-      where: { jangadaId },
-      orderBy: [{ id: "asc" }],
-      take: 2000,
-      select: baseSelect,
-    });
-  }
 
   return rows.map(toClientArtigo);
 }
@@ -988,10 +995,10 @@ function buildStockPhotoMap(stock: Array<{ referencia: string; codigoFabricante:
 }
 
 // Preenche a foto de um artigo da jangada a partir do stock, quando não vem já resolvida
-function enrichArtigoFoto(
-  artigo: { name?: string; referencia?: string; codigoFabricante?: string; foto?: string },
+function enrichArtigoFoto<T extends { name?: string; referencia?: string; codigoFabricante?: string; foto?: string }>(
+  artigo: T,
   photoMap: Map<string, string>
-) {
+): T {
   if (artigo.foto) return artigo;
   if (!artigo.referencia && !artigo.codigoFabricante && !artigo.name) return artigo;
   for (const key of [artigo.referencia || "", artigo.codigoFabricante || "", artigo.name || ""]) {
@@ -1021,6 +1028,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
     const serviceBulletinsApplied = await readServiceBulletinsApplied(id);
     const inspectionChecklistValues = await readInspectionChecklistValues(id);
     const observacoes = await readJangadaObservacoes(id);
+    const abate = await readJangadaAbate(id);
 
     const globalStock = await prisma.stock.findMany({
       where: {
@@ -1119,7 +1127,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
         const matched = matchStockItem(item, globalStock);
         const matchedFoto = matched
           ? enrichArtigoFoto(
-              { referencia: matched.referencia, codigoFabricante: matched.codigoFabricante, name: matched.descricao },
+              { referencia: matched.referencia ?? undefined, codigoFabricante: matched.codigoFabricante ?? undefined, name: matched.descricao, foto: undefined },
               stockPhotoMap
             ).foto
           : undefined;
@@ -1225,6 +1233,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       serviceBulletinsApplied,
       inspectionChecklistValues,
       observacoes,
+      abate,
       inspecoes: inspectionsWithCylinder,
     });
   } catch (err: unknown) {
@@ -1323,6 +1332,7 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
 
     const jangadaData = buildJangadaUpdateData(data || {}, existing);
     const hasServiceBulletinsApplied = Object.prototype.hasOwnProperty.call(data || {}, "serviceBulletinsApplied");
+    const hasAbate = Object.prototype.hasOwnProperty.call(data || {}, "abate");
     const hasInspectionChecklistValues = Object.prototype.hasOwnProperty.call(data || {}, "inspectionChecklistValues");
     const hasObservacoes = Object.prototype.hasOwnProperty.call(data || {}, "observacoes");
     const expectedDeliveryDate = Object.prototype.hasOwnProperty.call(data || {}, 'expectedDeliveryDate')
@@ -1713,9 +1723,22 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
     const inspectionChecklistValues = hasInspectionChecklistValues
       ? await writeInspectionChecklistValues(id, data?.inspectionChecklistValues)
       : await readInspectionChecklistValues(id);
+    if (inspectionChecklistValues && Object.keys(inspectionChecklistValues).length > 0) {
+      try {
+        await syncRichChecklistToRaft(id, inspectionChecklistValues);
+        if (artigoJangadaDelegate) {
+          artigosPersistidos = await loadArtigosPersistidosLean(artigoJangadaDelegate, id);
+        }
+      } catch (syncRichError) {
+        console.error("Erro ao sincronizar rich checklist com a jangada:", syncRichError);
+      }
+    }
     const observacoes = hasObservacoes
       ? await writeJangadaObservacoes(id, data?.observacoes)
       : await readJangadaObservacoes(id);
+    const abate = hasAbate
+      ? await writeJangadaAbate(id, data?.abate)
+      : await readJangadaAbate(id);
 
     return NextResponse.json({
       ...updated,
@@ -1742,6 +1765,7 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
       serviceBulletinsApplied,
       inspectionChecklistValues,
       observacoes,
+      abate,
     });
   } catch (err: unknown) {
     return buildDatabaseErrorResponse(err, err instanceof Error ? err.message : "Erro ao atualizar jangada");

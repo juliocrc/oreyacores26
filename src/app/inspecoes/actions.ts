@@ -119,6 +119,41 @@ export async function generateInspectionCertificateNumber(referenceDate?: string
   return `${prefix}-${String(maxSequence + 1).padStart(3, "0")}`;
 }
 
+export async function generateNextObraNumber(referenceDate?: string | Date | null) {
+  const fallback = new Date();
+  const parsed = referenceDate instanceof Date
+    ? referenceDate
+    : (referenceDate ? new Date(referenceDate) : fallback);
+  const d = Number.isNaN(parsed.getTime()) ? fallback : parsed;
+  const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+
+  const [inspecoes, jangadas] = await Promise.all([
+    prisma.inspecao.findMany({
+      where: { numeroObra: { startsWith: `OBR-${stamp}-` } },
+      select: { numeroObra: true },
+    }),
+    prisma.jangada.findMany({
+      where: { numeroObra: { startsWith: `OBR-${stamp}-` } },
+      select: { numeroObra: true },
+    }),
+  ]);
+
+  const used = new Set<string>();
+  for (const row of [...inspecoes, ...jangadas]) {
+    const v = String(row.numeroObra || "").trim();
+    if (v) used.add(v.toUpperCase());
+  }
+
+  let sequence = 1;
+  let candidate = "";
+  do {
+    candidate = `OBR-${stamp}-${String(sequence).padStart(3, "0")}`;
+    sequence += 1;
+  } while (used.has(candidate.toUpperCase()));
+
+  return candidate;
+}
+
 function normalizeMonthYearToDate(value: unknown): Date | null {
   const raw = String(value ?? "").trim();
   if (!raw) return null;
@@ -360,6 +395,8 @@ export async function saveInspection(payload: SaveInspectionPayload) {
       return oldRaft ? String((oldRaft as any)[key] || "") : null;
     };
 
+    const numeroObra = getField("numeroObra") || (applyStockMovements ? await generateNextObraNumber(dataInspecao) : "");
+
     const inspectionData = {
       certificadoNumero,
       navioNome,
@@ -377,7 +414,7 @@ export async function saveInspection(payload: SaveInspectionPayload) {
       clienteNomeAssinatura: payload.clienteNomeAssinatura || null,
       guiaTransporteUrl: payload.guiaTransporteUrl || null,
 
-      numeroObra: getField("numeroObra"),
+      numeroObra,
       testeWP: getField("testeWP"),
       testeNAP: getField("testeNAP"),
       testeFS: getField("testeFS"),
@@ -487,7 +524,7 @@ export async function saveInspection(payload: SaveInspectionPayload) {
         dataInspecao,
         dataProxInspecao,
         ultimoCertificadoNumero: certificadoNumero,
-        numeroObra: getField("numeroObra") || payload.numeroObra || null,
+        numeroObra: numeroObra || payload.numeroObra || null,
         updatedAt: new Date(),
       };
 
@@ -941,8 +978,8 @@ export async function saveInspection(payload: SaveInspectionPayload) {
     }
   }
 
-  // 5. SYNC AUTOMÁTICO: Sempre criar OS quando inspeção é guardada
-  if (finalJangadaId) {
+  // 5. SYNC AUTOMÁTICO: Criar OS apenas quando a inspeção é FINALIZADA (não em rascunhos parciais)
+  if (finalJangadaId && applyStockMovements) {
     const testesReprovados: string[] = [];
     if (payload.testeWP && ["REPROVOU", "REPROVADO"].includes(String(payload.testeWP).toUpperCase())) testesReprovados.push("testeWP");
     if (payload.testeNAP && ["REPROVOU", "REPROVADO"].includes(String(payload.testeNAP).toUpperCase())) testesReprovados.push("testeNAP");

@@ -6,6 +6,10 @@ import { getWizardSteps, getStepIndexByKey } from '../steps';
 
 export type { GlobalStockItem } from '../types';
 
+function currentWizardSteps(state: WizardState) {
+  return getWizardSteps(state.inspectionData, { hideOrcamento: state.hideOrcamento });
+}
+
 type WizardState = {
   // Navigation
   currentStep: number;
@@ -17,6 +21,8 @@ type WizardState = {
   canProceed: () => boolean;
   validationErrors: string[];
   clearValidationErrors: () => void;
+  hideOrcamento: boolean;
+  setHideOrcamento: (value: boolean) => void;
   
   // Data Payload
   jangadaId: number | null;
@@ -54,31 +60,31 @@ export const useJangadaWizardStore = create<WizardState>()(
       currentStep: 1,
       setStep: (step) => set({ currentStep: step, validationErrors: [] }),
       setStepByKey: (key) => {
-        const steps = getWizardSteps(get().inspectionData);
+        const steps = currentWizardSteps(get());
         const idx = getStepIndexByKey(steps, key);
         if (idx > 0) set({ currentStep: idx, validationErrors: [] });
       },
       currentStepKey: () => {
         const state = get();
-        const steps = getWizardSteps(state.inspectionData);
+        const steps = currentWizardSteps(state);
         return steps[state.currentStep - 1]?.key ?? null;
       },
       nextStep: () => {
         const state = get();
         if (state.canProceed()) {
-          const steps = getWizardSteps(state.inspectionData);
+          const steps = currentWizardSteps(state);
           set({ currentStep: Math.min(state.currentStep + 1, steps.length), validationErrors: [] });
         }
       },
       prevStep: () => set((state) => {
-        const steps = getWizardSteps(state.inspectionData);
+        const steps = currentWizardSteps(state);
         return { currentStep: Math.max(state.currentStep - 1, 1), validationErrors: [] };
       }),
       
       canProceed: () => {
         const state = get();
         const data = state.inspectionData;
-        const steps = getWizardSteps(data);
+        const steps = currentWizardSteps(state);
         const stepKey = steps[state.currentStep - 1]?.key ?? '';
         const errors: string[] = [];
 
@@ -116,6 +122,8 @@ export const useJangadaWizardStore = create<WizardState>()(
       
       validationErrors: [],
       clearValidationErrors: () => set({ validationErrors: [] }),
+      hideOrcamento: false,
+      setHideOrcamento: (value) => set({ hideOrcamento: value }),
       
       jangadaId: null,
       shipId: null,
@@ -145,8 +153,8 @@ export const useJangadaWizardStore = create<WizardState>()(
           packType: raftData?.packType || '',
           capacity: raftData?.capacity || '',
           dataFabrico: raftData?.dataFabrico || '',
-          dataInspecao: draftData?.dataInspecao || raftData?.dataInspecao || getLocalDateKey(),
-          dataProxInspecao: draftData?.dataProxInspecao || raftData?.dataProxInspecao || '',
+          dataInspecao: draftData?.dataInspecao || getLocalDateKey(),
+          dataProxInspecao: draftData?.dataProxInspecao || '',
           shipName: draftData?.navioNome || raftData?.shipNameManual || raftData?.shipDetails?.nome || '',
           
           owner: raftData?.shipDetails?.proprietario || raftData?.ownerDisplay || raftData?.owner || '',
@@ -161,7 +169,8 @@ export const useJangadaWizardStore = create<WizardState>()(
           hruExpiry: raftData?.hruValidade || '',
           radarReflector: raftData?.radarReflector || '',
           radarReflectorExpiry: raftData?.radarReflectorValidade || '',
-          certificadoNumero: raftData?.ultimoCertificadoNumero || '',
+          certificadoNumero: draftData?.certificadoNumero || '',
+          numeroObra: draftData?.numeroObra || '',
           certificadoExternoNumero: raftData?.certificadoExternoNumero || '',
           certificadoExternoUrl: raftData?.certificadoExternoUrl || '',
           artigos: raftData?.artigos || [],
@@ -212,13 +221,37 @@ export const useJangadaWizardStore = create<WizardState>()(
           // Checklist
           checklist: draftData?.checklistSnapshot || {},
           
-          // Pack Substituído
-          packItems: draftData?.artigosSubstituidos?.reduce((acc: any, item: any) => {
-            if (item.referencia && (item.motivo || "") !== "Fecho do Contentor") {
-               acc[item.referencia] = item;
-            }
-            return acc;
-          }, {}) || {},
+          // Pack Substituído — quando se abre a última vistoria registada (consulta/edição)
+          // usamos apenas os artigos com validade que estão atualmente na jangada
+          // (raftData.artigos), preenchidos pelo Step4. Os artigosSubstituidos da inspeção
+          // antiga só restauram o pack num rascunho em curso (Draft).
+          packItems: (String(draftData?.status || "").trim().toLowerCase() === 'draft')
+            ? draftData?.artigosSubstituidos?.reduce((acc: any, item: any) => {
+                if (item.referencia && (item.motivo || "") !== "Fecho do Contentor") {
+                   acc[item.referencia] = item;
+                }
+                return acc;
+              }, {}) || {}
+            : draftData?.artigosSubstituidos?.reduce((acc: any, item: any) => {
+                if (item.referencia && (item.motivo || "") !== "Fecho do Contentor") {
+                  const match = (raftData?.artigos || []).find((a: any) =>
+                    String(a.referencia || "").trim().toLowerCase() === String(item.referencia || "").trim().toLowerCase()
+                  );
+                  const matchValidade = match?.validade ? String(match.validade) : String(item.validade || "");
+                  // Numa inspeção antiga registada, só contam como substituídos os artigos
+                  // que estavam efetivamente preenchidos na base de dados antiga (com validade).
+                  // Os restantes consideram-se verificados (presentes na ficha da jangada).
+                  const preenchido = Number(item.quantidade) > 0 && Boolean(matchValidade);
+                  acc[item.referencia] = {
+                    ...item,
+                    quantidade: preenchido ? Number(item.quantidade) : 0,
+                    quantidadeVerificada: match ? Number(match.quantidade) || 0 : 0,
+                    validade: matchValidade,
+                    validadeOriginal: matchValidade,
+                  };
+                }
+                return acc;
+              }, {}) || {},
 
           // Equipamento de fecho do contentor (cintas, autocolantes, HRU) restaurado do rascunho
           containerClosureItems: (draftData?.artigosSubstituidos || [])
@@ -236,6 +269,13 @@ export const useJangadaWizardStore = create<WizardState>()(
 
           // Orçamento (restaurado a partir do rascunho guardado)
           orcamento: draftData?.orcamento || undefined,
+
+          // Boletins de serviço aplicáveis (marca/modelo) e estado de aplicação
+          applicableServiceBulletins: raftData?.applicableServiceBulletins || [],
+          serviceBulletinsApplied: raftData?.serviceBulletinsApplied || {},
+
+          // Abate da jangada (ficha IM.049/00)
+          abate: raftData?.abate || { ativo: false, tipoBarco: "", motivo: "", detalhes: "" },
         };
         
         set({

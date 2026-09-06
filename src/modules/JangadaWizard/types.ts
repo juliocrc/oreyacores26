@@ -1,3 +1,6 @@
+import type { ApplicableTechnicalBulletin } from "../rafts/types";
+import type { AbateData } from "@/lib/jangada-abate-store";
+
 /**
  * Comprehensive type for the JangadaWizard inspection data.
  * Covers all 9 steps and the store initialization.
@@ -133,6 +136,7 @@ export type OrcamentoAprovacao = {
   respondidoEm?: string;
   alteracoesPedidas?: string;
   validadeDias?: number;
+  aprovadoPorUtilizador?: boolean;
 };
 
 export type OrcamentoData = {
@@ -226,6 +230,13 @@ export type InspectionData = {
 
   // Step 8 — Assinatura
   signatureBase64: string;
+
+  // Boletins de serviço aplicáveis (marca/modelo) e estado de aplicação
+  applicableServiceBulletins?: ApplicableTechnicalBulletin[];
+  serviceBulletinsApplied?: Record<string, "APLICADO" | "EM_VERIFICACAO" | "POR_APLICAR">;
+
+  // Abate da jangada (ficha de abate IM.049/00)
+  abate?: AbateData;
 
   // Allow additional fields from raftData spread
   [key: string]: unknown;

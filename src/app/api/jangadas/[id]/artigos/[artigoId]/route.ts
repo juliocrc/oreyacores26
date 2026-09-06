@@ -58,6 +58,11 @@ export async function PUT(
   if (raw.lote !== undefined) data.lote = String(raw.lote || "").trim() || null;
   if (raw.estado !== undefined) data.estado = String(raw.estado || "ATIVO").trim();
   if (raw.observacoes !== undefined) data.observacoes = String(raw.observacoes || "").trim() || null;
+  if (raw.stockId !== undefined) {
+    data.stockId = Number.isInteger(Number(raw.stockId)) && Number(raw.stockId) > 0
+      ? Number(raw.stockId)
+      : null;
+  }
 
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: "Nenhum campo válido para atualizar." }, { status: 400 });

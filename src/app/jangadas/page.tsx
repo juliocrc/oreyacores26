@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { appToast } from "@/lib/app-toast";
 import { getRecognizedPackTypeOptions } from "@/config/packTemplates";
 import { findRaftTechnicalModel, raftModelData } from "@/modules/rafts/raftModelData";
@@ -229,6 +230,7 @@ function renderPausedInspectionBadge(meta?: PausedInspectionDraftMeta) {
 
 export default function JangadasPage() {
   const router = useRouter();
+  const { status: sessionStatus } = useSession();
 
   const handleRowClick = (id: number, e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
@@ -416,12 +418,14 @@ export default function JangadasPage() {
   }
 
   useEffect(() => {
+    if (sessionStatus !== "authenticated") return;
+
     setIsMounted(true);
     fetchJangadas();
     fetchJangadaCatalogOptions();
     fetchAvailablePackTypeOptions();
     setPausedInspectionDrafts(loadPausedInspectionDraftsByRaft());
-  }, []);
+  }, [sessionStatus]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;

@@ -1,7 +1,7 @@
 "use client";
 import React from 'react';
 import { useJangadaWizardStore } from './store/useJangadaWizardStore';
-import { Plus, Trash2, Tag, Calendar, Hash, Info } from 'lucide-react';
+import { Plus, Trash2, Tag, Calendar, Hash, Info, Search } from 'lucide-react';
 import { raftModelData } from '../rafts/raftModelData';
 import { getInspectionIntervalYears, getInspectionIntervalLabel, getSubstitutionMaxValidityDays } from '../rafts/inspectionInterval';
 
@@ -179,11 +179,27 @@ export default function Step3_Componentes() {
     return cat.includes('VALV') || cat.includes('CILINDRO') || cat.includes('MANGUEIRA') ||
       cat.includes('COMPONENTE') || cat.includes('BEXIGA') || cat.includes('GASKET') ||
       cat.includes('OP_HEAD') || cat.includes('BOBBIN') || cat.includes('TUBO') ||
+      cat.includes('CABECA') || cat.includes('CABEÇA') || cat.includes('DISPARO') ||
       desc.includes('valvula') || desc.includes('valve') || desc.includes('hose') ||
-      desc.includes('mangueira') || desc.includes('operating head') || desc.includes('cabeca') ||
-      desc.includes('cylinder') || desc.includes('cilindro') || desc.includes('o-ring') ||
-      desc.includes('gasket') || desc.includes('vedante') || desc.includes('tubo');
+      desc.includes('mangueira') || desc.includes('operating head') || desc.includes('op head') ||
+      desc.includes('cabeca') || desc.includes('cabeça') || desc.includes('disparo') ||
+      desc.includes('firing') || desc.includes('cylinder') || desc.includes('cilindro') ||
+      desc.includes('o-ring') || desc.includes('gasket') || desc.includes('vedante') ||
+      desc.includes('tubo');
   });
+
+  const [stockSearch, setStockSearch] = React.useState<Record<string, string>>({});
+
+  const searchFilteredStock = (compId: string, items: any[]) => {
+    const q = (stockSearch[compId] || '').trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((s: any) =>
+      (s.referencia || '').toLowerCase().includes(q) ||
+      (s.descricao || '').toLowerCase().includes(q) ||
+      (s.codigoFabricante || '').toLowerCase().includes(q) ||
+      (s.categoria || '').toLowerCase().includes(q)
+    );
+  };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
@@ -246,6 +262,20 @@ export default function Step3_Componentes() {
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Referência (P/N) do Stock</label>
+                  {componentStock.length > 0 && (
+                    <div className="relative mb-1">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Search size={14} className="text-slate-400" />
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Procurar por referência, descrição ou fabricante..."
+                        value={stockSearch[comp.id] || ''}
+                        onChange={(e) => setStockSearch((prev) => ({ ...prev, [comp.id]: e.target.value }))}
+                        className="w-full border-slate-200 rounded-xl pl-9 pr-3 py-2 bg-slate-50 focus:bg-white text-xs transition-colors placeholder:text-slate-400"
+                      />
+                    </div>
+                  )}
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                       <Tag size={14} className="text-slate-400" />
@@ -257,7 +287,7 @@ export default function Step3_Componentes() {
                       className="w-full border-slate-200 rounded-xl pl-9 pr-3 py-2.5 bg-slate-50 focus:bg-white text-sm transition-colors"
                     >
                       <option value="" disabled>Selecionar peça do armazém...</option>
-                      {componentStock.map((s: any) => (
+                      {searchFilteredStock(comp.id, componentStock).map((s: any) => (
                         <option key={s.id} value={s.id}>
                           {s.referencia} - {s.descricao} {s.quantidade > 0 ? `(Qtd: ${s.quantidade})` : '(Sem Stock)'}
                         </option>

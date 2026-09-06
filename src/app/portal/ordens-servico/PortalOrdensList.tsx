@@ -362,7 +362,17 @@ export default function PortalOrdensList({ ordens: ordensProp, navios: naviosPro
       const row = await res.json();
       const meta = row?.metadados && typeof row.metadados === "object" ? row.metadados : {};
       const orc = meta.orcamento && typeof meta.orcamento === "object" ? meta.orcamento : null;
-      const rawLinhas = Array.isArray(orc?.linhas) ? orc.linhas : Array.isArray(meta.linhas) ? meta.linhas : [];
+      let rawLinhas = Array.isArray(orc?.linhas) ? orc.linhas : Array.isArray(meta.linhas) ? meta.linhas : [];
+
+      // Sincronizar com a checklist de inspeção: se a OT ainda não tem linhas de
+      // orçamento, preencher com o orçamento da inspeção associada (checklist).
+      if (rawLinhas.length === 0 && row?.inspecao?.orcamento && typeof row.inspecao.orcamento === "object") {
+        const inspecaoOrc = row.inspecao.orcamento as Record<string, unknown>;
+        const inspecaoLinhas = Array.isArray(inspecaoOrc.linhas) ? inspecaoOrc.linhas : [];
+        if (inspecaoLinhas.length > 0) {
+          rawLinhas = inspecaoLinhas;
+        }
+      }
 
       const linhas: BudgetLine[] = rawLinhas.map((l: Record<string, unknown>, i: number) => {
         const existingId = l.id && String(l.id) ? String(l.id) : `manual-${i}`;

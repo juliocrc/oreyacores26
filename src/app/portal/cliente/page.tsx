@@ -16,6 +16,9 @@ import {
   Chip,
   Stack,
   Divider,
+  FormControl,
+  MenuItem,
+  Select,
   IconButton,
   Tooltip,
 } from "@mui/material";
@@ -44,6 +47,8 @@ import {
   ArrowUpRight,
   Activity,
   Sparkles,
+  Eye,
+  LogOut,
 } from "lucide-react";
 import { APP_CONFIG } from "@/lib/app-config";
 import { getNavioLocationLabel } from "@/lib/navios-page-helpers";
@@ -125,8 +130,26 @@ type OrdemData = {
   dataAbertura: string;
   dataPlaneadaInicio?: string | null;
   dataConclusao?: string | null;
+  dataPrevista?: string | null;
+  valorPecas?: number | null;
+  valorMaoObra?: number | null;
+  valorDesconto?: number | null;
   valorTotal: number;
   isPesca: boolean;
+  isIsentoIva?: boolean | null;
+  orcamento?: {
+    linhas: Array<{
+      referencia?: string;
+      descricao?: string;
+      quantidade: number;
+      precoUnitario: number;
+      total: number;
+    }>;
+    totais: Record<string, number>;
+    valorPecas: number;
+    valorMaoObra: number;
+    valorDesconto: number;
+  };
   jangada?: {
     serial?: string | null;
     brand?: string | null;
@@ -184,11 +207,11 @@ function formatCurrencyCompact(v: number) {
 
 function statusColor(status: string) {
   switch (status?.toLowerCase()) {
-    case "concluida": case "concluido": return "success";
+    case "concluida": case "concluido": case "finalizada": return "success";
     case "pendente": case "aberta": return "warning";
-    case "em_andamento": case "em andamento": return "info";
-    case "cancelada": return "error";
-    case "agendada": return "info";
+    case "em_progresso": case "em andamento": case "em_curso": case "em_andamento": return "info";
+    case "cancelada": case "cancelado": return "error";
+    case "agendada": case "confirmada": case "planeada": return "primary";
     default: return "default";
   }
 }
@@ -210,7 +233,7 @@ function validityStatus(dateStr: string | null | undefined): "ok" | "warning" | 
     const diff = d.getTime() - now.getTime();
     const days = diff / (1000 * 60 * 60 * 24);
     if (days < 0) return "expired";
-    if (days <= 120) return "warning";
+    if (days <= 30) return "warning";
     return "ok";
   } catch { return "none"; }
 }
@@ -241,6 +264,68 @@ function StatusPill({ status }: { status: string }) {
       color={color}
       sx={{ height: 22, fontSize: "0.7rem", fontWeight: 700, "& .MuiChip-label": { px: 1 } }}
     />
+  );
+}
+
+function OrcamentoBreakdown({ orcamento }: { orcamento: NonNullable<OrdemData["orcamento"]> }) {
+  const { linhas, valorPecas, valorMaoObra, valorDesconto } = orcamento;
+  const base = linhas.length > 0 ? linhas.reduce((acc, l) => acc + (l.total || 0), 0) : valorPecas;
+  const subtotal = base + valorMaoObra;
+  const desconto = Math.min(Math.abs(valorDesconto), subtotal);
+  const temLinhas = linhas.length > 0;
+  const temValores = subtotal > 0 || valorDesconto > 0;
+
+  if (!temLinhas && !temValores) return null;
+
+  return (
+    <Box sx={{ mt: 1, p: 1.25, borderRadius: 2, bgcolor: "action.hover", border: "1px solid", borderColor: "divider" }}>
+      <Typography variant="caption" sx={{ fontWeight: 800, textTransform: "uppercase", color: "text.secondary", mb: 0.5, display: "block" }}>
+        Resumo do Orçamento
+      </Typography>
+      {temLinhas && (
+        <Box sx={{ mb: 1 }}>
+          {linhas.map((l, i) => (
+            <Stack key={i} direction="row" justifyContent="space-between" sx={{ fontSize: "0.78rem", py: 0.15 }}>
+              <Typography variant="body2" sx={{ fontSize: "0.78rem", color: "text.primary" }}>
+                {l.quantidade > 0 && <>{l.quantidade}× </>}
+                {l.descricao || l.referencia || "—"}
+              </Typography>
+              <Typography variant="body2" sx={{ fontSize: "0.78rem", fontWeight: 600, whiteSpace: "nowrap", ml: 2 }}>
+                {formatCurrency(l.total || l.precoUnitario)}
+              </Typography>
+            </Stack>
+          ))}
+        </Box>
+      )}
+      <Stack spacing={0.3}>
+        {temLinhas && (
+          <Row label="Peças / materiais" value={formatCurrency(base)} />
+        )}
+        {valorMaoObra > 0 && (
+          <Row label="Mão-de-obra" value={formatCurrency(valorMaoObra)} />
+        )}
+        {desconto > 0 && (
+          <Row label="Desconto" value={`−${formatCurrency(desconto)}`} muted />
+        )}
+        <Stack direction="row" justifyContent="space-between" sx={{ borderTop: "1px dashed", borderColor: "divider", pt: 0.5, mt: 0.3 }}>
+          <Typography variant="body2" sx={{ fontWeight: 800, fontSize: "0.8rem" }}>Total</Typography>
+          <Typography variant="body2" sx={{ fontWeight: 800, fontSize: "0.8rem", whiteSpace: "nowrap", ml: 2 }}>
+            {formatCurrency(subtotal - desconto)}
+          </Typography>
+        </Stack>
+      </Stack>
+    </Box>
+  );
+}
+
+function Row({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
+  return (
+    <Stack direction="row" justifyContent="space-between">
+      <Typography variant="body2" sx={{ fontSize: "0.78rem", color: "text.secondary" }}>{label}</Typography>
+      <Typography variant="body2" sx={{ fontSize: "0.78rem", fontWeight: 600, whiteSpace: "nowrap", ml: 2, color: muted ? "text.secondary" : "text.primary" }}>
+        {value}
+      </Typography>
+    </Stack>
   );
 }
 
@@ -420,10 +505,21 @@ export default function PortalClientePage() {
   const [contactMsg, setContactMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [actionBusy, setActionBusy] = useState<number | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const [previewClienteId, setPreviewClienteId] = useState<number | null>(null);
+  const [previewClientes, setPreviewClientes] = useState<{ id: number; nome: string; nif?: string | null }[]>([]);
+  const isPreviewDev =
+    process.env.NODE_ENV === "development" &&
+    previewClienteId != null &&
+    session?.user?.role !== undefined &&
+    session.user.role !== "CLIENTE";
+
+  const fetchData = useCallback(async (clienteIdOverride?: number) => {
     try {
       setLoading(true);
-      const res = await fetch("/api/portal/cliente-dados");
+      const isPreviewReq =
+        process.env.NODE_ENV === "development" && clienteIdOverride != null && clienteIdOverride > 0;
+      const qs = isPreviewReq ? `?previewCliente=${clienteIdOverride}` : "";
+      const res = await fetch(`/api/portal/cliente-dados${qs}`);
       if (!res.ok) throw new Error("Erro ao carregar dados");
       const json = await res.json();
       setData(json);
@@ -436,15 +532,54 @@ export default function PortalClientePage() {
         codigoPostal: json.cliente.codigoPostal || "",
         localidade: json.cliente.localidade || "",
       });
+      if (isPreviewReq) {
+        try {
+          const listaRes = await fetch("/api/portal/cliente-dados?previewLista=1");
+          if (listaRes.ok) {
+            const lista = await listaRes.json();
+            if (Array.isArray(lista.clientes)) setPreviewClientes(lista.clientes);
+          }
+        } catch {}
+      } else {
+        setPreviewClientes([]);
+      }
     } catch (e: any) { setError(e.message || "Erro ao carregar dados."); }
     finally { setLoading(false); }
   }, []);
 
   useEffect(() => {
-    if (status === "unauthenticated") router.replace("/login");
-    if (status === "authenticated" && session?.user?.role !== "CLIENTE") router.replace("/");
-    if (status === "authenticated" && session?.user?.role === "CLIENTE") fetchData();
+    if (status === "unauthenticated") {
+      router.replace("/login");
+      return;
+    }
+    if (status === "authenticated" && session?.user?.role === "CLIENTE") {
+      setPreviewClienteId(null);
+      fetchData();
+      return;
+    }
+    if (status === "authenticated" && session?.user?.role !== "CLIENTE") {
+      const raw = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("previewCliente") : null;
+      const pid = raw ? Number(raw) : 0;
+      if (process.env.NODE_ENV === "development" && pid > 0) {
+        setPreviewClienteId(pid);
+        fetchData(pid);
+        return;
+      }
+      router.replace("/");
+    }
   }, [status, session, router, fetchData]);
+
+  const handleSwitchPreview = (id: number) => {
+    setPreviewClienteId(id);
+    router.replace(`/portal/cliente?previewCliente=${id}`);
+    fetchData(id);
+  };
+
+  const handleExitPreview = () => {
+    setPreviewClienteId(null);
+    setPreviewClientes([]);
+    router.replace("/");
+  };
 
   const saveContact = async () => {
     setSavingContact(true);
@@ -550,18 +685,18 @@ export default function PortalClientePage() {
       for (const e of navio.extintores) {
         const diasRec = daysUntil(e.dataProxRecarga);
         const diasTest = daysUntil(e.dataProxTesteHidraulico);
-        if (diasRec !== null && diasRec <= 90) items.push({ navio: navio.nome, tipo: "Extintor", titulo: `Extintor ${e.marca || ""} ${e.modelo || ""}`, data: e.dataProxRecarga, label: "Próx. recarga", icon: <Flame size={15} />, color: diasRec < 0 ? "#dc2626" : "#d97706" });
-        if (diasTest !== null && diasTest <= 90) items.push({ navio: navio.nome, tipo: "Extintor", titulo: `Extintor ${e.marca || ""} ${e.modelo || ""}`, data: e.dataProxTesteHidraulico, label: "Próx. teste hidráulico", icon: <Flame size={15} />, color: diasTest < 0 ? "#dc2626" : "#d97706" });
+        if (diasRec !== null && diasRec <= 30) items.push({ navio: navio.nome, tipo: "Extintor", titulo: `Extintor ${e.marca || ""} ${e.modelo || ""}`, data: e.dataProxRecarga, label: "Próx. recarga", icon: <Flame size={15} />, color: diasRec < 0 ? "#dc2626" : "#d97706" });
+        if (diasTest !== null && diasTest <= 30) items.push({ navio: navio.nome, tipo: "Extintor", titulo: `Extintor ${e.marca || ""} ${e.modelo || ""}`, data: e.dataProxTesteHidraulico, label: "Próx. teste hidráulico", icon: <Flame size={15} />, color: diasTest < 0 ? "#dc2626" : "#d97706" });
       }
       for (const c of navio.coletes) {
         const dias = daysUntil(c.dataProxInspecao);
-        if (dias !== null && dias <= 90) items.push({ navio: navio.nome, tipo: "Coletes", titulo: `Colete ${c.marca || ""} ${c.modelo || ""}`, data: c.dataProxInspecao, label: "Próx. inspeção", icon: <LifeBuoy size={15} />, color: dias < 0 ? "#dc2626" : "#d97706" });
+        if (dias !== null && dias <= 30) items.push({ navio: navio.nome, tipo: "Coletes", titulo: `Colete ${c.marca || ""} ${c.modelo || ""}`, data: c.dataProxInspecao, label: "Próx. inspeção", icon: <LifeBuoy size={15} />, color: dias < 0 ? "#dc2626" : "#d97706" });
       }
       for (const ep of navio.epirbs) {
         const diasIns = daysUntil(ep.dataProxInspecao);
         const diasBat = daysUntil(ep.dataValidadeBateria);
-        if (diasIns !== null && diasIns <= 90) items.push({ navio: navio.nome, tipo: "EPIRB", titulo: `EPIRB ${ep.marca || ""} ${ep.modelo || ""}`, data: ep.dataProxInspecao, label: "Próx. inspeção", icon: <Radio size={15} />, color: diasIns < 0 ? "#dc2626" : "#d97706" });
-        if (diasBat !== null && diasBat <= 90) items.push({ navio: navio.nome, tipo: "EPIRB", titulo: `EPIRB ${ep.marca || ""} ${ep.modelo || ""}`, data: ep.dataValidadeBateria, label: "Bateria", icon: <Radio size={15} />, color: diasBat < 0 ? "#dc2626" : "#d97706" });
+        if (diasIns !== null && diasIns <= 30) items.push({ navio: navio.nome, tipo: "EPIRB", titulo: `EPIRB ${ep.marca || ""} ${ep.modelo || ""}`, data: ep.dataProxInspecao, label: "Próx. inspeção", icon: <Radio size={15} />, color: diasIns < 0 ? "#dc2626" : "#d97706" });
+        if (diasBat !== null && diasBat <= 30) items.push({ navio: navio.nome, tipo: "EPIRB", titulo: `EPIRB ${ep.marca || ""} ${ep.modelo || ""}`, data: ep.dataValidadeBateria, label: "Bateria", icon: <Radio size={15} />, color: diasBat < 0 ? "#dc2626" : "#d97706" });
       }
       if (navio.pirotecnicosBordoJson) {
         try {
@@ -569,7 +704,7 @@ export default function PortalClientePage() {
           if (Array.isArray(parsed)) {
             for (const p of parsed) {
               const dias = daysUntil(p?.validade);
-              if (dias !== null && dias <= 90) items.push({ navio: navio.nome, tipo: "Pirotécnicos", titulo: `${p?.item || "Artigo"} (${p?.quantity || "—"})`, data: p?.validade, label: "Validade", icon: <AlertTriangle size={15} />, color: dias < 0 ? "#dc2626" : "#d97706" });
+              if (dias !== null && dias <= 30) items.push({ navio: navio.nome, tipo: "Pirotécnicos", titulo: `${p?.item || "Artigo"} (${p?.quantity || "—"})`, data: p?.validade, label: "Validade", icon: <AlertTriangle size={15} />, color: dias < 0 ? "#dc2626" : "#d97706" });
             }
           }
         } catch {}
@@ -606,6 +741,45 @@ export default function PortalClientePage() {
 
   return (
     <Box sx={{ maxWidth: 1200, mx: "auto", p: { xs: 1.5, md: 4 } }}>
+      {/* PREVIEW BANNER (dev) */}
+      {isPreviewDev && (
+        <Paper sx={{ mb: 2, p: 2, borderRadius: 2.5, bgcolor: "#eef2ff", border: "1px solid #c7d2fe" }} elevation={0}>
+          <Stack direction={{ xs: "column", md: "row" }} spacing={1.5} alignItems={{ xs: "stretch", md: "center" }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Eye size={18} className="text-violet-600" />
+              <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#312e81" }}>
+                Pré-visualização — a ver como cliente
+              </Typography>
+              {data?.cliente && (
+                <Typography variant="caption" sx={{ color: "#6d28d9", fontWeight: 700 }}>
+                  <strong>{data.cliente.nome}</strong> (NIF {data.cliente.nif || "—"})
+                </Typography>
+              )}
+            </Box>
+            <Box sx={{ flex: 1 }} />
+            <FormControl size="small" sx={{ minWidth: 220 }}>
+              <Select
+                value={previewClienteId ?? ""}
+                displayEmpty
+                onChange={(e) => handleSwitchPreview(Number(e.target.value))}
+                sx={{ bgcolor: "background.paper", "& .MuiSelect-select": { py: 0.75, fontSize: "0.85rem" } }}
+              >
+                <MenuItem value="" disabled>Escolher cliente...</MenuItem>
+                {previewClientes.map((c) => (
+                  <MenuItem key={c.id} value={c.id}>
+                    {c.nome}
+                    {c.nif ? ` (${c.nif})` : ""}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <Button size="small" color="secondary" variant="outlined" onClick={handleExitPreview} startIcon={<LogOut size={14} />} sx={{ textTransform: "none", fontWeight: 700 }}>
+              Sair da pré-visualização
+            </Button>
+          </Stack>
+        </Paper>
+      )}
+
       {/* HERO HEADER */}
       <Paper
         sx={{
@@ -701,7 +875,7 @@ export default function PortalClientePage() {
             <Box>
               <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>Validades a ter em atenção</Typography>
               <Typography variant="caption" color="text.secondary">
-                Equipamentos com validade a expirar (90 dias) ou já vencidos
+                Equipamentos com validade a expirar (30 dias) ou já vencidos
               </Typography>
             </Box>
           </Stack>
@@ -987,6 +1161,7 @@ export default function PortalClientePage() {
                           <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
                             {o.tipo}
                             {" · "}Abertura: {formatDate(o.dataAbertura)}
+                            {o.dataPrevista && <>{" · "}Previsão: {formatDate(o.dataPrevista)}</>}
                           </Typography>
                           {o.jangada && (
                             <Box sx={{ mb: 0.5 }}>
@@ -994,7 +1169,18 @@ export default function PortalClientePage() {
                             </Box>
                           )}
                           {o.descricao && <Typography variant="body2" sx={{ mt: 0.5, fontSize: "0.82rem" }}>{o.descricao}</Typography>}
-                          {o.valorTotal > 0 && <Typography variant="body2" sx={{ fontWeight: 700, mt: 0.5 }}>Total: {formatCurrency(o.valorTotal)}</Typography>}
+                          {o.valorTotal > 0 && o.orcamentoStatus === "Aprovado" && <Typography variant="body2" sx={{ fontWeight: 700, mt: 0.5 }}>Total: {formatCurrency(o.valorTotal)}</Typography>}
+                          {o.orcamento && <OrcamentoBreakdown orcamento={o.orcamento} />}
+                          {o.orcamentoStatus === "Aprovado" && (
+                            <Typography variant="body2" sx={{ mt: 1, fontWeight: 600, color: "success.main" }}>
+                              Obrigado! O orçamento foi aprovado e o serviço já se encontra em preparação.
+                            </Typography>
+                          )}
+                          {o.orcamentoStatus === "Rejeitado" && (
+                            <Typography variant="body2" sx={{ mt: 1, fontWeight: 600, color: "error.main" }}>
+                              Orçamento rejeitado. Se pretender alterações, contacte a nossa equipa.
+                            </Typography>
+                          )}
                         </Box>
                         {o.orcamentoStatus === "Emitido" && (
                           <Stack direction="row" spacing={1}>

@@ -248,7 +248,6 @@ export const PACK_TEMPLATES: Record<PackType, ArtigoTemplate[]> = {
     { nome: 'Ação Imediata', quantidadeBase: 1, obrigatorio: true, categoria: 'EQUIPAMENTO' },
     { nome: 'Quadro de Sinais', quantidadeBase: 1, obrigatorio: true, categoria: 'EQUIPAMENTO' },
     { nome: 'Abre-Latas', quantidadeBase: 2, obrigatorio: true, categoria: 'EQUIPAMENTO' },
-    { nome: 'Esponjas', quantidadeBase: 2, obrigatorio: true, categoria: 'EQUIPAMENTO' },
   ],
 
   'R': [
@@ -1063,9 +1062,8 @@ export function validarConformidade(
         quantidadeEsperada: obrigatorio.quantidade,
       });
     } else if (encontrado.quantidade !== undefined && encontrado.quantidade < obrigatorio.quantidade) {
-      excesso.push({
+      faltantes.push({
         nome: obrigatorio.nome,
-        quantidadeAtual: encontrado.quantidade,
         quantidadeEsperada: obrigatorio.quantidade,
       });
     }

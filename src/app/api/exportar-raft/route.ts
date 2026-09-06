@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { buildQuadroInspectionArtifacts, type QuadroTemplateInput } from '@/lib/quadro-template';
 import { getAccessContext } from '@/lib/access-control';
+import { saveQuadroToNavioFolder } from '@/lib/certificados-organizados';
 
 export const runtime = 'nodejs';
 
@@ -29,6 +30,14 @@ export async function POST(request: Request) {
     }
 
     const { buffer, fileName } = await buildQuadroInspectionArtifacts(payload);
+
+    // Guardar no folder organizado por navio (NAVIOS/{navio}/)
+    if (payload.shipName && buffer) {
+      await saveQuadroToNavioFolder(payload.shipName, fileName, buffer, {
+        serial: payload.raftSerial || undefined,
+        date: payload.inspectionDate ? new Date(payload.inspectionDate) : undefined,
+      });
+    }
 
     return new NextResponse(new Uint8Array(buffer), {
       headers: {

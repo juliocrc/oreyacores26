@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const http = require('http');
-const { exec, execSync, spawn } = require('child_process');
+const { exec, execFileSync, execSync, spawn } = require('child_process');
 
 const APP_DIR = __dirname;
 
@@ -68,9 +68,14 @@ function runSync(mode, silent = false) {
   try {
     const syncScript = path.join(APP_DIR, 'scripts', 'sync_gdrive.cjs');
     if (!fs.existsSync(syncScript)) return;
+    const rclonePath = path.join(APP_DIR, 'bin', process.platform === 'win32' ? 'rclone.exe' : 'rclone');
+    if (!fs.existsSync(rclonePath)) {
+      if (!silent) console.log('[Drive] rclone nao encontrado; a continuar em modo local/offline.');
+      return;
+    }
     if (silent && process.env.GDRIVE_SILENT === '1') return;
     console.log(`[Drive] A sincronizar base de dados (${mode})...`);
-    execSync(`node "${syncScript}" --${mode}`, {
+    execFileSync(process.execPath, [syncScript, `--${mode}`], {
       cwd: APP_DIR,
       stdio: 'inherit',
       timeout: 900000,
@@ -84,6 +89,8 @@ function runSyncDetached(mode) {
   try {
     const syncScript = path.join(APP_DIR, 'scripts', 'sync_gdrive.cjs');
     if (!fs.existsSync(syncScript)) return;
+    const rclonePath = path.join(APP_DIR, 'bin', process.platform === 'win32' ? 'rclone.exe' : 'rclone');
+    if (!fs.existsSync(rclonePath)) return;
     console.log(`[Drive] A sincronizar base de dados (${mode})...`);
     const child = spawn(process.execPath, [syncScript, `--${mode}`], {
       cwd: APP_DIR,

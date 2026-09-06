@@ -100,7 +100,7 @@ const CATALOGO_STOCK = [
   { referencia: 'THER-BLANKET-TPA', descricao: 'Manta Térmica de Alta Proteção (TPA)', categoria: 'SOBREVIVÊNCIA E CONSUMÍVEIS', precoVenda: 16.0, codigoFabricante: 'SOLAS/ISO' },
   { referencia: 'FISH-KIT', descricao: 'Kit de Pesca de Sobrevivência', categoria: 'SOBREVIVÊNCIA E CONSUMÍVEIS', precoVenda: 9.5, codigoFabricante: 'SOLAS/ISO' },
   { referencia: 'HELIOGRAPH', descricao: 'Heliógrafo / Espelho de Sinalização', categoria: 'SOBREVIVÊNCIA E CONSUMÍVEIS', precoVenda: 7.0, codigoFabricante: 'SOLAS/ISO' },
-  { referencia: 'TORCH-WATERPROOF', descricao: 'Lanterna Impermeável de Sobrevivência', categoria: 'ILUMINAÇÃO E BATERIAS', precoVenda: 19.0, codigoFabricante: 'SOLAS/ISO' },
+  { referencia: '20909295', descricao: 'Lanterna com Luz e Pilhas Alcalinas sobressalentes', categoria: 'ILUMINAÇÃO E BATERIAS', precoVenda: 23.95, codigoFabricante: 'MM309' },
   { referencia: 'DROGUE-ANCHOR', descricao: 'Âncora Flutuante (Drogue)', categoria: 'SOBREVIVÊNCIA E CONSUMÍVEIS', precoVenda: 22.0, codigoFabricante: 'SOLAS/ISO' },
   { referencia: 'WHISTLE-SOLAS', descricao: 'Apito SOLAS', categoria: 'SOBREVIVÊNCIA E CONSUMÍVEIS', precoVenda: 2.0, codigoFabricante: 'SOLAS' },
   { referencia: 'KNIFE-FLOATING', descricao: 'Faca Flutuante de Segurança', categoria: 'SOBREVIVÊNCIA E CONSUMÍVEIS', precoVenda: 11.0, codigoFabricante: 'SOLAS/ISO' },
@@ -168,7 +168,7 @@ const ASSOCIACOES = [
   { marcas: ['LALIZAS'], modelos: ['ISO-RAFT', 'LEISURE-RAFT', 'LEISURE RAFT', 'LIFERAFT LEISURE-RAFT', 'LALIZAS LEISURE-RAFT', 'CHARTER', 'OFFSHORE', 'SOLAS LIFE RAFT'], refs: ['SYS-HSR-OH-III', 'HEAD-LALIZAS-JS1', 'VAL-AQF-5-100', 'VAL-71891', 'CYL-71863-71867'] },
   { marcas: ['PLASTIMO'], modelos: ['CRUISER', 'TRANSOCEAN ISO 9650-1', 'OFFSHORE'], refs: ['CONN-CYL-THREADED'] },
   { marcas: ['SEA-SAFE', 'EUROVINIL'], modelos: ['PRO-LIGHT', 'ISO 9650-1', 'LEISURE SYNTESY'], refs: ['SYS-NSS', 'SYS-VTE'] },
-  { marcas: ['ZODIAC', 'RFD', 'DSB', 'LALIZAS', 'PLASTIMO', 'SEA-SAFE', 'EUROVINIL'], modelos: ['COASTAL', 'MKIV', 'FERRYMAN', 'ISO-RAFT', 'LEISURE-RAFT', 'LEISURE RAFT', 'LIFERAFT LEISURE-RAFT', 'LALIZAS LEISURE-RAFT', 'OFFSHORE'], refs: ['PYR-ROCKET-RED', 'PYR-FLARE-RED', 'PYR-SMOKE-ORANGE', 'PYR-ROCKET-WHITE', FOOD_RATIONS_STOCK_REFERENCE, DRINKING_WATER_STOCK_REFERENCE, 'MED-KIT-SOLAS', 'MED-KIT-ISO', 'TAB-SICKNESS', 'BAG-SICKNESS', 'THERM-BLANKET', 'THER-BLANKET-TPA', 'FISH-KIT', 'HELIOGRAPH', 'TORCH-WATERPROOF', 'DROGUE-ANCHOR', 'WHISTLE-SOLAS', 'KNIFE-FLOATING', 'MANUAL-SURVIVAL', 'CARD-SALVAGE-SIGNALS', 'REPAIR-KIT-PLUGS', 'HRU-HAMMAR-H20', '08211009R', 'GLUE-NEOPRENE', 'TAPE-DONOTCUT'] },
+  { marcas: ['ZODIAC', 'RFD', 'DSB', 'LALIZAS', 'PLASTIMO', 'SEA-SAFE', 'EUROVINIL'], modelos: ['COASTAL', 'MKIV', 'FERRYMAN', 'ISO-RAFT', 'LEISURE-RAFT', 'LEISURE RAFT', 'LIFERAFT LEISURE-RAFT', 'LALIZAS LEISURE-RAFT', 'OFFSHORE'], refs: ['PYR-ROCKET-RED', 'PYR-FLARE-RED', 'PYR-SMOKE-ORANGE', 'PYR-ROCKET-WHITE', FOOD_RATIONS_STOCK_REFERENCE, DRINKING_WATER_STOCK_REFERENCE, 'MED-KIT-SOLAS', 'MED-KIT-ISO', 'TAB-SICKNESS', 'BAG-SICKNESS', 'THERM-BLANKET', 'THER-BLANKET-TPA', 'FISH-KIT', 'HELIOGRAPH', '20909295', 'DROGUE-ANCHOR', 'WHISTLE-SOLAS', 'KNIFE-FLOATING', 'MANUAL-SURVIVAL', 'CARD-SALVAGE-SIGNALS', 'REPAIR-KIT-PLUGS', 'HRU-HAMMAR-H20', '08211009R', 'GLUE-NEOPRENE', 'TAPE-DONOTCUT'] },
 ];
 
 function buildAssocMap() {

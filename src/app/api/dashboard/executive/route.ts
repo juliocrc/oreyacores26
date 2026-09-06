@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
       margemConcluidasMes,
       jangadas30,
       jangadas60,
-      stockCritico,
+      stockCriticoRows,
       totalClientes,
       totalJangadas,
     ] = await Promise.all([
@@ -66,13 +66,16 @@ export async function GET(req: NextRequest) {
       prisma.jangada.count({
         where: { dataProxInspecao: { gte: in30.toISOString(), lt: in60.toISOString() } },
       }),
-      prisma.stock.count({
+      // Stock crítico: quantidade <= 0 OU (tem mínimo definido e quantidade <= mínimo).
+      // Comparação de campos não é suportada pelo Prisma no SQLite → filtrar em JS.
+      prisma.stock.findMany({
         where: {
           OR: [
             { quantidade: { lte: 0 } },
-            { quantidadeMinima: { not: null }, quantidade: { lte: prisma.stock.fields.quantidadeMinima } },
+            { quantidadeMinima: { not: null } },
           ],
         },
+        select: { quantidade: true, quantidadeMinima: true },
       }),
       prisma.cliente.count(),
       prisma.jangada.count(),
@@ -82,6 +85,12 @@ export async function GET(req: NextRequest) {
       (Number(margemConcluidasMes._sum.valorTotal || 0) ||
         Number(margemConcluidasMes._sum.valorMaoObra || 0) ||
         0);
+
+    const stockCritico = Number(
+      stockCriticoRows.filter(
+        (s) => s.quantidade <= 0 || (s.quantidadeMinima != null && s.quantidade <= s.quantidadeMinima),
+      ).length,
+    );
 
     return NextResponse.json({
       faturacaoMes: Number(faturacaoMes._sum.valorTotal || 0),
@@ -96,7 +105,7 @@ export async function GET(req: NextRequest) {
       margemBrutaMes: margemValor,
       jangadasExpirar30: jangadas30,
       jangadasExpirar60: jangadas60,
-      stockCriticoCount: stockCritico,
+      stockCriticoCount: Number(stockCritico),
       totalClientes,
       totalJangadas,
     });

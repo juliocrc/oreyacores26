@@ -290,8 +290,8 @@ function DataTableNoMemo<T>({
 
   if (loading) {
     return (
-      <div className={`bg-white rounded-2xl border border-slate-200 overflow-hidden ${className}`}>
-        <div className="p-4 border-b border-slate-100">
+      <div className={`bg-white rounded-xl border border-slate-200 overflow-hidden ${className}`}>
+        <div className="p-3 border-b border-slate-100">
           <div className="h-10 bg-slate-100 rounded-xl animate-pulse" />
         </div>
         <div className="p-4 space-y-3">
@@ -305,10 +305,10 @@ function DataTableNoMemo<T>({
 
   return (
     <div
-      className={`bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-sm ${className}`}
+      className={`bg-white rounded-xl border border-slate-200/80 overflow-hidden shadow-sm ${className}`}
     >
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-3 p-4 border-b border-slate-100">
+      <div className="flex flex-wrap items-center gap-2.5 p-3 border-b border-slate-100 bg-slate-50/40">
         <div className="relative flex-1 min-w-[200px] max-w-md">
           <Search
             size={16}

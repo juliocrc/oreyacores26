@@ -10,6 +10,7 @@ import {
   CheckCircle,
   FileText,
   History,
+  ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
 import type { InspectionData } from "./types";
@@ -27,6 +28,7 @@ export const BASE_STEPS_BY_KEY: Record<string, WizardStep> = {
   pack: { key: "pack", title: "Equipamento (Pack)", icon: Package },
   cilindros: { key: "cilindros", title: "Cilindros", icon: Cylinder },
   testes: { key: "testes", title: "Testes", icon: AlertCircle },
+  boletins: { key: "boletins", title: "Boletins de Serviço", icon: ShieldCheck },
   reparacoes: { key: "reparacoes", title: "Reparações / Colagem", icon: Hammer },
   orcamento: { key: "orcamento", title: "Orçamento", icon: Receipt },
   resumo: { key: "resumo", title: "Resumo Final", icon: CheckCircle },
@@ -38,7 +40,10 @@ export function needsRepair(data: InspectionData): boolean {
   return String(data.testes?.testeWP || "").toUpperCase() === "REPROVOU";
 }
 
-export function getWizardSteps(data: InspectionData): { key: string; title: string; icon: LucideIcon }[] {
+export function getWizardSteps(
+  data: InspectionData,
+  opts?: { hideOrcamento?: boolean }
+): { key: string; title: string; icon: LucideIcon }[] {
   const order: string[] = [
     "dados",
     "checklist",
@@ -46,10 +51,12 @@ export function getWizardSteps(data: InspectionData): { key: string; title: stri
     "pack",
     "cilindros",
     "testes",
+    "boletins",
   ];
   if (needsRepair(data)) order.push("reparacoes");
   order.push("orcamento", "resumo", "certificados", "historico");
-  return order.map((key) => BASE_STEPS_BY_KEY[key]);
+  const filtered = opts?.hideOrcamento ? order.filter((key) => key !== "orcamento") : order;
+  return filtered.map((key) => BASE_STEPS_BY_KEY[key]);
 }
 
 export function getStepIndexByKey(steps: { key: string }[], key: string) {

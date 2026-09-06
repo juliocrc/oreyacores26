@@ -648,7 +648,6 @@ export async function replaceOrdemServicoJangadas(
   if (toCreate.length > 0) {
     await (tx as any).ordemServicoJangada.createMany({
       data: toCreate.map((jangadaId) => ({ ordemServicoId, jangadaId })),
-      skipDuplicates: true,
     });
   }
 

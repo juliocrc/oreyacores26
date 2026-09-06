@@ -3,7 +3,7 @@ import React, { useMemo, useEffect, useRef } from 'react';
 import { useJangadaWizardStore } from './store/useJangadaWizardStore';
 import { Receipt, RefreshCw, Search, X, PackageSearch, Info, Download, MessageCircle, Send, ThumbsUp, ThumbsDown, Phone, FileText } from 'lucide-react';
 import { PDFDocument, PDFFont, StandardFonts, rgb } from 'pdf-lib';
-import type { OrcamentoLinha, OrcamentoAprovacao } from './types';
+import type { OrcamentoLinha, OrcamentoAprovacao, GlobalStockItem } from './types';
 import { calcTotal, getIvaRate } from '@/lib/iva';
 import { appToast } from '@/lib/app-toast';
 import * as XLSX from 'xlsx';
@@ -25,13 +25,33 @@ const normalizePhone = (raw: string): string => {
 
 const round = (value: number) => Math.round((value || 0) * 100) / 100;
 
+// Embalagem comercial de comprimidos — o orçamento deve faturar embalagens inteiras de 60.
+const TABLET_PATTERN = /comprimid|pastilh|enjoo\b|seasick|seasickness/i;
+const TABLET_PACK_SIZE = 60;
+
+const roundQtyToCommercialPack = (item: any, quantidade: number) => {
+  const qty = Math.max(0, Number(quantidade) || 0);
+  if (qty <= 0) return 0;
+  const label = String(item?.descricao || item?.name || item?.checklistName || "");
+  const ref = String(item?.referencia || "");
+  if (!TABLET_PATTERN.test(label) && !TABLET_PATTERN.test(ref)) return qty;
+  return Math.ceil(qty / TABLET_PACK_SIZE) * TABLET_PACK_SIZE;
+};
+
 const SERVICE_DESCRIPTIONS: Record<string, string> = {
   "L-JD": "Inspeção de Jangada",
+  "L-CER": "Certificado de Inspeção",
+  "L-LIM": "Limpeza",
+  "L-MAR": "Marcação / Marking",
   "L-FS": "Teste FS",
   "L-NAP": "Teste NAP",
   "L-GI": "Teste GI",
   "L-TH": "Teste Hidrostático",
   "L-CO2": "Carga de CO2",
+};
+
+const SERVICE_FIXED_PRICES: Record<string, number> = {
+  "L-CER": 100,
 };
 
 export default function Step7_Orcamento() {
@@ -60,7 +80,7 @@ export default function Step7_Orcamento() {
 
   const buildServiceLines = (): OrcamentoLinha[] => {
     const testes = inspectionData.testes || {};
-    const refs: string[] = ["L-JD"];
+    const refs: string[] = ["L-JD", "L-CER", "L-LIM", "L-MAR"];
     if (["PASSOU", "REPROVOU", "APROVOU"].includes(testes.testeFS)) refs.push("L-FS");
     if (["PASSOU", "REPROVOU", "APROVOU"].includes(testes.testeNAP)) refs.push("L-NAP");
     if (["PASSOU", "REPROVOU", "APROVOU"].includes(testes.testeGI)) refs.push("L-GI");
@@ -69,7 +89,7 @@ export default function Step7_Orcamento() {
 
     return refs.map((ref) => {
       const stock = globalStock.find((s) => s.referencia === ref);
-      const unitPrice = Number(stock?.precoVenda) || 0;
+      const unitPrice = SERVICE_FIXED_PRICES[ref] ?? (Number(stock?.precoVenda) || 0);
       return {
         id: `service-${ref}`,
         stockId: stock?.id ?? null,
@@ -88,7 +108,7 @@ export default function Step7_Orcamento() {
       .filter((item: any) => Number(item.quantidade) > 0)
       .map((item: any) => {
         const unitPrice = getStockPrice(item.referencia, item.stockId);
-        const quantidade = Number(item.quantidade) || 0;
+        const quantidade = roundQtyToCommercialPack(item, item.quantidade);
         return {
           id: `pack-${item.referencia || item.checklistName}`,
           stockId: item.stockId ?? null,
@@ -140,10 +160,50 @@ export default function Step7_Orcamento() {
         };
       });
 
+  const buildBulletinLines = (): OrcamentoLinha[] => {
+    // Prefill automático: boletim OTS-65 (substituição de PRV após 10 anos) —
+    // adiciona as válvulas de alívio ao orçamento quando aplicável e existem no stock.
+    const applied = inspectionData.serviceBulletinsApplied || {};
+    const bullets = inspectionData.applicableServiceBulletins || [];
+    const otsBulletins = bullets.filter((b: any) =>
+      /ots[\s-]?65|replace all ots|10 year life|prv/i.test(`${b.title || ""} ${b.shortDescription || ""} ${b.reason || ""}`)
+    );
+    if (otsBulletins.length === 0) return [];
+
+    const alreadyRemoved = new Set(orcamento.removedIds || []);
+    const matched: OrcamentoLinha[] = [];
+    const seen = new Set<string>();
+
+    for (const stock of globalStock) {
+      const haystack = `${stock.referencia || ""} ${stock.descricao || ""}`.toLowerCase();
+      const isOts65 = /ots[\s-]?65|prv|valvula de alivio|alívio|relief valve/i.test(haystack);
+      if (!isOts65) continue;
+      const key = stock.referencia || String(stock.id);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const id = `bullet-ots65-${stock.id}`;
+      const sempreAplicar = applied["OTS-65"] === "APLICADO";
+      if (!sempreAplicar && (alreadyRemoved.has(id) || alreadyRemoved.has(key))) continue;
+      const unitPrice = Number(stock.precoVenda) || 0;
+      matched.push({
+        id,
+        stockId: stock.id,
+        referencia: stock.referencia || "OTS65",
+        descricao: stock.descricao || "Válvula de alívio OTS-65",
+        quantidade: 1,
+        unitPrice,
+        total: round(unitPrice),
+        source: "componente" as const,
+      });
+    }
+
+    return matched;
+  };
+
   const buildMergedLines = (removedIdsOverride?: string[]): OrcamentoLinha[] => {
     const current = linhas;
     const removed = new Set(removedIdsOverride || orcamento.removedIds || []);
-    const built = [...buildServiceLines(), ...buildPackLines(), ...buildComponenteLines(), ...buildClosureLines(), ...buildRepairLines()];
+    const built = [...buildServiceLines(), ...buildPackLines(), ...buildComponenteLines(), ...buildClosureLines(), ...buildRepairLines(), ...buildBulletinLines()];
 
     const result: OrcamentoLinha[] = [];
     for (const b of built) {
@@ -200,7 +260,7 @@ export default function Step7_Orcamento() {
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inspectionData.packItems, inspectionData.componentes, inspectionData.testes, inspectionData.globalStock, inspectionData.containerClosureItems]);
+  }, [inspectionData.packItems, inspectionData.componentes, inspectionData.testes, inspectionData.globalStock, inspectionData.containerClosureItems, inspectionData.reparacoes, inspectionData.applicableServiceBulletins, inspectionData.serviceBulletinsApplied]);
 
   const updateLinha = (id: string, patch: Partial<OrcamentoLinha>) => {
     setInspectionData({
@@ -316,6 +376,33 @@ export default function Step7_Orcamento() {
   const valorDesconto = Number(orcamento.valorDesconto) || 0;
   const subtotal = Math.max(0, valorPecas - valorDesconto);
   const total = calcTotal(valorPecas, 0, valorDesconto, Boolean(orcamento.isIsentoIva));
+
+  const ivAplicar = Boolean(orcamento.isIsentoIva) ? 0 : getIvaRate();
+  const valorIva = round(subtotal * ivAplicar);
+
+  const stockById = useMemo(() => {
+    const map = new Map<number, GlobalStockItem>();
+    for (const s of globalStock) map.set(Number(s.id), s);
+    return map;
+  }, [globalStock]);
+
+  const stockRefMap = useMemo(() => {
+    const map = new Map<string, GlobalStockItem>();
+    for (const s of globalStock) {
+      const key = String(s.referencia || "").trim().toLowerCase();
+      if (key) map.set(key, s);
+    }
+    return map;
+  }, [globalStock]);
+
+  const semStock = (l: OrcamentoLinha) => {
+    if (l.source === "service" || l.source === "manual") return false;
+    const st = l.stockId != null ? stockById.get(Number(l.stockId)) : undefined;
+    if (st) return Number(st.quantidade) <= 0;
+    const byRef = l.referencia ? stockRefMap.get(l.referencia.toLowerCase()) : undefined;
+    if (byRef) return Number(byRef.quantidade) <= 0;
+    return false;
+  };
 
   const substituicoesAtivas =
     Object.values(inspectionData.packItems || {}).filter((i: any) => Number(i.quantidade) > 0).length +
@@ -453,9 +540,19 @@ export default function Step7_Orcamento() {
   const marcarAprovado = () => {
     updateAprovacao({
       status: 'aprovado',
+      aprovadoPorUtilizador: false,
       respondidoEm: new Date().toISOString(),
     });
     appToast.success("Orçamento aprovado pelo cliente.");
+  };
+
+  const toggleAprovacaoUtilizador = (aprovado: boolean) => {
+    updateAprovacao({
+      status: aprovado ? 'aprovado' : 'rascunho',
+      aprovadoPorUtilizador: aprovado,
+      respondidoEm: aprovado ? new Date().toISOString() : undefined,
+    });
+    appToast.success(aprovado ? "Orçamento aprovado." : "Aprovação do orçamento removida.");
   };
 
   const [alteracoesInput, setAlteracoesInput] = React.useState('');
@@ -469,6 +566,7 @@ export default function Step7_Orcamento() {
     }
     updateAprovacao({
       status: 'rejeitado',
+      aprovadoPorUtilizador: false,
       alteracoesPedidas: alteracoes,
       respondidoEm: new Date().toISOString(),
     });
@@ -775,6 +873,12 @@ export default function Step7_Orcamento() {
                         <div className="text-[9px] uppercase tracking-wider text-slate-400 mt-0.5">
                           {linha.source === "service" ? "Serviço" : linha.source === "pack" ? "Pack" : linha.source === "componente" ? "Componente" : linha.source === "closure" ? "Fecho Contentor" : "Manual"}
                         </div>
+                        {semStock(linha) && (
+                          <div className="mt-1 inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                            <PackageSearch size={10} />
+                            Sem stock disponível
+                          </div>
+                        )}
                       </td>
                       <td className="px-2 py-2">
                         <input
@@ -782,7 +886,7 @@ export default function Step7_Orcamento() {
                           min="0"
                           step="1"
                           value={linha.quantidade ?? 1}
-                          onChange={(e) => updateLinha(linha.id, { quantidade: Number(e.target.value) })}
+                          onChange={(e) => updateLinha(linha.id, { quantidade: Math.max(0, Math.round(Number(e.target.value) || 0)) })}
                           className="w-full rounded-lg border border-slate-300 px-1.5 py-1 text-right text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
                         />
                       </td>
@@ -792,7 +896,7 @@ export default function Step7_Orcamento() {
                           min="0"
                           step="0.01"
                           value={linha.unitPrice ?? 0}
-                          onChange={(e) => updateLinha(linha.id, { unitPrice: Number(e.target.value) })}
+                          onChange={(e) => updateLinha(linha.id, { unitPrice: Math.max(0, round(Number(e.target.value) || 0)) })}
                           className="w-full rounded-lg border border-slate-300 px-1.5 py-1 text-right text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
                         />
                       </td>
@@ -848,16 +952,24 @@ export default function Step7_Orcamento() {
               <span>Mão de obra (incluída nos serviços)</span>
               <span className="font-semibold text-slate-800">Incluída</span>
             </div>
+            {valorDesconto > 0 && (
+              <div className="flex items-center justify-between text-rose-600 mt-1.5">
+                <span>Desconto</span>
+                <span className="font-semibold">−{formatPrice(valorDesconto)}</span>
+              </div>
+            )}
             <div className="flex items-center justify-between text-slate-600 mt-1.5">
-              <span>Subtotal</span>
+              <span>Subtotal (sem IVA)</span>
               <span className="font-semibold text-slate-800">{formatPrice(subtotal)}</span>
             </div>
             <div className="flex items-center justify-between text-slate-600 mt-1.5">
               <span>IVA</span>
-              <span className="font-semibold text-slate-800">{orcamento.isIsentoIva ? "Isento" : "16%"}</span>
+              <span className="font-semibold text-slate-800">
+                {orcamento.isIsentoIva ? "Isento" : `${Math.round(ivAplicar * 100)}% (${formatPrice(valorIva)})`}
+              </span>
             </div>
             <div className="flex items-center justify-between border-t border-slate-200 mt-2.5 pt-2.5 text-slate-900">
-              <span className="font-bold">Total</span>
+              <span className="font-bold">Total com IVA</span>
               <span className="font-black text-indigo-700">{formatPrice(total)}</span>
             </div>
           </div>
@@ -884,11 +996,27 @@ export default function Step7_Orcamento() {
         </div>
 
         <div className="p-6 space-y-5">
+          <label className="flex items-center gap-3 rounded-xl border border-indigo-200 bg-indigo-50 p-4 cursor-pointer transition-colors hover:bg-indigo-100/70">
+            <input
+              type="checkbox"
+              checked={Boolean(aprovacao.aprovadoPorUtilizador)}
+              onChange={(e) => toggleAprovacaoUtilizador(e.target.checked)}
+              className="h-5 w-5 rounded border-indigo-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            <div>
+              <p className="text-sm font-bold text-indigo-900">Aprovar orçamento</p>
+              <p className="text-xs text-indigo-700 mt-0.5">
+                Marque para registar a aprovação do orçamento pelo utilizador responsável, sem depender do WhatsApp.
+              </p>
+            </div>
+          </label>
           {aprovacao.status === 'aprovado' ? (
             <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
               <ThumbsUp className="text-emerald-600 shrink-0 mt-0.5" size={20} />
               <div>
-                <p className="text-sm font-bold text-emerald-800">Orçamento aprovado pelo cliente</p>
+                <p className="text-sm font-bold text-emerald-800">
+                  {aprovacao.aprovadoPorUtilizador ? 'Orçamento aprovado pelo utilizador' : 'Orçamento aprovado pelo cliente'}
+                </p>
                 <p className="text-xs text-emerald-700 mt-0.5">
                   {aprovacao.respondidoEm
                     ? `Resposta registada a ${new Date(aprovacao.respondidoEm).toLocaleString('pt-PT')}.`

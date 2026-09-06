@@ -2,27 +2,35 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useJangadaWizardStore } from './store/useJangadaWizardStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Save, Cloud, FileCheck, Clock, CheckCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Save, Cloud, FileCheck, CheckCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAutoSave } from './useAutoSave';
 import { getStepProgress } from './progress';
 import { getWizardSteps } from './steps';
 
 export default function WizardLayout({ children }: { children: React.ReactNode }) {
-  const { currentStep, nextStep, prevStep, setStep, validationErrors, clearValidationErrors, inspectionData, isDirty, lastSaved } = useJangadaWizardStore();
+  const { currentStep, nextStep, prevStep, setStep, validationErrors, clearValidationErrors, inspectionData, isDirty, lastSaved, hideOrcamento } = useJangadaWizardStore();
   const router = useRouter();
   useAutoSave();
 
-  const progress = useMemo(() => getStepProgress(inspectionData), [inspectionData]);
+  const progress = useMemo(() => getStepProgress(inspectionData, { hideOrcamento }), [inspectionData, hideOrcamento]);
   const overallPct = Math.round(progress.reduce((s, p) => s + p.percent, 0) / progress.length);
 
-  const steps = useMemo(() => getWizardSteps(inspectionData), [inspectionData]);
+  const steps = useMemo(() => getWizardSteps(inspectionData, { hideOrcamento }), [inspectionData, hideOrcamento]);
   const totalSteps = steps.length;
 
   const progressRef = useRef(overallPct);
   useEffect(() => {
     progressRef.current = overallPct;
   }, [overallPct]);
+
+  // When the step list changes (e.g. orçamento hidden for technicians),
+  // clamp the current step so navigation stays valid.
+  useEffect(() => {
+    if (currentStep > totalSteps) {
+      setStep(totalSteps);
+    }
+  }, [currentStep, totalSteps, setStep]);
 
   // Keyboard shortcuts: Left/Right arrows for navigation, Ctrl+S for draft save
   useEffect(() => {
@@ -55,68 +63,62 @@ export default function WizardLayout({ children }: { children: React.ReactNode }
 
   return (
     <div className="flex flex-col lg:flex-row min-h-[calc(100vh-4rem)] bg-slate-50">
-      {/* Global progress bar (top, full width) */}
-      <div className="w-full lg:w-full bg-white border-b border-slate-200 px-4 lg:px-6 py-3 z-20">
-        <div className="flex items-center gap-4">
-          <div className="hidden sm:block">
-            <h2 className="text-lg font-bold text-slate-800 leading-none">Inspeção</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Fluxo passo a passo</p>
+      {/* Sidebar Navigation with integrated progress bar at top */}
+      <aside className="w-full lg:w-80 bg-white border-r border-slate-200 flex flex-col shadow-sm z-10 relative lg:flex-shrink-0 lg:sticky lg:top-0 lg:h-[calc(100vh-4rem)] lg:overflow-y-auto">
+        {/* Progress bar integrated at top of sidebar */}
+        <div className="px-5 pt-5 pb-4 border-b border-slate-100">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[11px] font-bold text-indigo-700 uppercase tracking-wider">Progresso da Inspeção</span>
+            <span className="text-xs font-extrabold text-slate-700">{overallPct}%</span>
           </div>
-          <div className="flex-1">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs font-bold text-indigo-700 uppercase tracking-wider">Progresso da Inspeção</span>
-              <span className="text-xs font-extrabold text-slate-700">{overallPct}%</span>
-            </div>
-            <div className="h-2.5 w-full rounded-full bg-slate-100 overflow-hidden">
+          <div className="h-2.5 w-full rounded-full bg-slate-100 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-emerald-500 transition-all duration-500"
+              style={{ width: `${overallPct}%` }}
+            />
+          </div>
+          {/* Step segment indicators */}
+          <div className="flex gap-1 mt-1.5">
+            {progress.map((p, i) => (
               <div
-                className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-emerald-500 transition-all duration-500"
-                style={{ width: `${overallPct}%` }}
+                key={p.step}
+                title={`Passo ${i + 1} — ${p.percent}%`}
+                className={`h-1.5 flex-1 rounded-full transition-colors ${
+                  p.percent === 100
+                    ? 'bg-emerald-400'
+                    : p.percent > 0
+                      ? 'bg-indigo-300'
+                      : i + 1 <= currentStep
+                        ? 'bg-amber-300'
+                        : 'bg-slate-200'
+                }`}
               />
-            </div>
-            {/* Step segment indicators */}
-            <div className="flex gap-1 mt-1.5">
-              {progress.map((p, i) => (
-                <div
-                  key={p.step}
-                  title={`Passo ${i + 1} — ${p.percent}%`}
-                  className={`h-1.5 flex-1 rounded-full transition-colors ${
-                    p.percent === 100
-                      ? 'bg-emerald-400'
-                      : p.percent > 0
-                        ? 'bg-indigo-300'
-                        : i + 1 <= currentStep
-                          ? 'bg-amber-300'
-                          : 'bg-slate-200'
-                  }`}
-                />
-              ))}
-            </div>
+            ))}
           </div>
-          <div className="hidden md:flex items-center gap-2 text-xs font-semibold">
+          {/* Save status badge */}
+          <div className="mt-3 flex items-center gap-2 text-xs font-semibold">
             {lastSaved ? (
               <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <Cloud size={14} />
+                <Cloud size={13} />
                 Guardado às {lastSavedLabel}
               </span>
             ) : isDirty ? (
               <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-200">
-                <Save size={14} className="animate-pulse" />
+                <Save size={13} className="animate-pulse" />
                 Por guardar...
               </span>
             ) : (
               <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 text-slate-500 border border-slate-200">
-                <Cloud size={14} />
+                <Cloud size={13} />
                 Sem alterações
               </span>
             )}
+            <span className="ml-auto text-[11px] text-slate-400 font-medium">Passo {currentStep} de {totalSteps}</span>
           </div>
         </div>
-      </div>
 
-      {/* Sidebar Navigation */}
-      <aside className="w-full lg:w-72 bg-white border-r border-slate-200 p-4 lg:p-6 flex flex-col shadow-sm z-10 relative">
-        <nav className="flex-1 overflow-x-auto lg:overflow-visible">
-          <ul className="flex lg:flex-col gap-2 min-w-max lg:min-w-0 pb-2 lg:pb-0">
+        <nav className="flex-1 overflow-y-auto p-3">
+          <ul className="flex flex-col gap-1.5">
             {steps.map((step, i) => {
               const stepNum = i + 1;
               const isActive = currentStep === stepNum;
@@ -127,26 +129,26 @@ export default function WizardLayout({ children }: { children: React.ReactNode }
               const hasIssue = (p?.missing?.length ?? 0) > 0;
 
               return (
-                <li key={step.key} className="relative">
+                <li key={step.key}>
                   <button
                     onClick={() => { if (isReachable) { setStep(stepNum); clearValidationErrors(); } }}
                     disabled={!isReachable}
-                    className={`relative z-10 flex items-center gap-4 w-full p-3 rounded-xl transition-all duration-200 text-left ${
-                      isActive ? 'bg-indigo-50 border border-indigo-100 shadow-sm' : isReachable ? 'hover:bg-slate-50 border border-transparent' : 'border border-transparent cursor-not-allowed opacity-50'
+                    className={`relative flex items-center gap-3 w-full px-3 py-2.5 rounded-xl transition-all duration-200 text-left ${
+                      isActive ? 'bg-indigo-50 border border-indigo-100 shadow-sm' : isReachable ? 'hover:bg-slate-50 border border-transparent' : 'border border-transparent cursor-not-allowed opacity-45'
                     }`}
                   >
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-colors ${
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-colors ${
                       isActive ? 'bg-indigo-600 text-white shadow-md' : pct === 100 ? 'bg-emerald-100 text-emerald-600' : isPast ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-400'
                     }`}>
-                      {pct === 100 && !isActive ? <CheckCircle size={20} /> : <step.icon size={20} />}
+                      {pct === 100 && !isActive ? <CheckCircle size={18} /> : <step.icon size={18} />}
                     </div>
-                    <div className="hidden lg:block flex-1 min-w-0">
-                      <p className={`text-xs font-semibold uppercase tracking-wider ${isActive ? 'text-indigo-600' : 'text-slate-500'}`}>Passo {stepNum} · {pct}%</p>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-[10px] font-semibold uppercase tracking-wider ${isActive ? 'text-indigo-600' : pct === 100 ? 'text-emerald-600' : 'text-slate-500'}`}>Passo {stepNum} · {pct}%</p>
                       <p className={`text-sm font-bold truncate ${isActive ? 'text-slate-900' : 'text-slate-600'}`}>{step.title}</p>
                     </div>
                     {hasIssue && !isActive && (
                       <span
-                        className="hidden lg:inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700"
+                        className="inline-flex items-center justify-center w-5 h-5 text-[10px] font-bold rounded-full bg-amber-100 text-amber-700"
                         title={(p?.missing || []).join('\n')}
                       >
                         {p?.missing?.length}
@@ -162,7 +164,7 @@ export default function WizardLayout({ children }: { children: React.ReactNode }
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col relative w-full">
-        <div className="flex-1 p-4 lg:p-8 overflow-y-auto">
+        <div className="flex-1 p-4 lg:p-6 overflow-y-auto">
           <AnimatePresence mode="wait">
             <motion.div
               key={currentStep}
@@ -170,7 +172,7 @@ export default function WizardLayout({ children }: { children: React.ReactNode }
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.3 }}
-              className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 lg:p-8 min-h-full"
+              className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 lg:p-6 min-h-full"
             >
               {children}
             </motion.div>

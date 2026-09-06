@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getAuthSession } from "@/auth";
 import { logAuditoria } from "@/lib/auditoria";
+import { clearClientCache } from "@/lib/client-cache";
+import type { Prisma } from "@prisma/client";
 
 export async function POST(req: NextRequest) {
   try {
@@ -21,7 +23,7 @@ export async function POST(req: NextRequest) {
 
     const ordem = await prisma.ordemServico.findFirst({
       where: { id: ordemId, clienteId, orcamentoStatus: "Emitido" },
-      select: { id: true, numeroOrdem: true, orcamentoStatus: true },
+      select: { id: true, numeroOrdem: true, orcamentoStatus: true, inspecaoId: true },
     });
 
     if (!ordem) {
@@ -34,6 +36,41 @@ export async function POST(req: NextRequest) {
       where: { id: ordemId },
       data: { orcamentoStatus: novoStatus, updatedAt: new Date() },
     });
+
+    // Espelhar a decisão na inspeção associada (aprovacaoWhatsApp), para sincronizar
+    // com o wizard e o aprovar-orcamento interno.
+    if (ordem.inspecaoId) {
+      const inspecao = await prisma.inspecao.findUnique({
+        where: { id: ordem.inspecaoId },
+        select: { orcamento: true },
+      });
+      const inspecaoOrcamento =
+        inspecao?.orcamento && typeof inspecao.orcamento === "object"
+          ? (inspecao.orcamento as Record<string, unknown>)
+          : null;
+      if (inspecaoOrcamento) {
+        const aprovacaoAtual =
+          inspecaoOrcamento.aprovacaoWhatsApp &&
+          typeof inspecaoOrcamento.aprovacaoWhatsApp === "object"
+            ? (inspecaoOrcamento.aprovacaoWhatsApp as Record<string, unknown>)
+            : {};
+        await prisma.inspecao.update({
+          where: { id: ordem.inspecaoId },
+          data: {
+            orcamento: {
+              ...inspecaoOrcamento,
+              aprovacaoWhatsApp: {
+                ...aprovacaoAtual,
+                status: novoStatus === "Aprovado" ? "aprovado" : "rejeitado",
+                aprovadoPorUtilizador: acao === "aprovar",
+                respondidoEm: new Date().toISOString(),
+              },
+            } as Prisma.InputJsonValue,
+            updatedAt: new Date(),
+          },
+        });
+      }
+    }
 
     if (novoStatus === "Aprovado") {
       const reservas = await prisma.movimentacaoStock.findMany({
@@ -71,6 +108,8 @@ export async function POST(req: NextRequest) {
       descricao: `Orçamento OT ${ordem.numeroOrdem} marcado como ${novoStatus} pelo cliente.`,
       usuario: session.user.email || "cliente",
     });
+
+    clearClientCache(clienteId);
 
     return NextResponse.json({ ok: true, orcamentoStatus: novoStatus });
   } catch (error) {

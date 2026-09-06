@@ -30,18 +30,16 @@ function normalizeText(value?: string | null): string {
  * Quando o pack atual não os espera, os artigos persistidos que correspondem
  * a estes são removidos da lista física da jangada.
  */
-export function isForbiddenPackArticleName(value?: string | null): boolean {
+export function isForbiddenPackArticleName(value?: string | null, packType?: string | null): boolean {
   const norm = normalizeText(value);
   if (!norm) return false;
-  if (isRationArticle(norm)) return true;
-  if (
+  const upperPack = String(packType || '').toUpperCase().trim();
+  const isReducedPack = upperPack === 'R' || upperPack === 'E' || upperPack === 'SOLAS B' || upperPack === 'COASTAL' || upperPack === 'ISO-RAFT' || upperPack.includes('REDUZIDO');
+  if (isRationArticle(norm)) return isReducedPack;
+  const isFishingOrThermal =
     norm.includes("ESTOJO DE PESCA") ||
     norm.includes("FISHING KIT") ||
-    norm.includes("FISH KIT")
-  ) {
-    return true;
-  }
-  if (
+    norm.includes("FISH KIT") ||
     norm.includes("AJUDAS TERMICAS") ||
     norm.includes("AJUDA TERMICA") ||
     norm.includes("MANTAS TERMICAS") ||
@@ -50,10 +48,8 @@ export function isForbiddenPackArticleName(value?: string | null): boolean {
     norm.includes("THERMAL BLANKET") ||
     norm.includes("SURVIVAL BLANKET") ||
     norm === "TPA" ||
-    norm === "TPAS"
-  ) {
-    return true;
-  }
+    norm === "TPAS";
+  if (isFishingOrThermal) return isReducedPack;
   return false;
 }
 
@@ -73,8 +69,8 @@ function isForbiddenPackArticleRef(value?: string | null): boolean {
 function isForbiddenPackArticle(article: {
   name?: string | null;
   referencia?: string | null;
-}): boolean {
-  return isForbiddenPackArticleName(article?.name) || isForbiddenPackArticleRef(article?.referencia);
+}, packType?: string | null): boolean {
+  return isForbiddenPackArticleName(article?.name, packType) || isForbiddenPackArticleRef(article?.referencia);
 }
 
 async function findBestStockMatch(
@@ -87,6 +83,7 @@ async function findBestStockMatch(
     associavelJangada: boolean;
     aplicavelMarcaJangada: string | null;
     aplicavelModeloJangada: string | null;
+    validade?: string | null;
   }>,
   raftBrand?: string | null,
 ): Promise<number | null> {
@@ -233,6 +230,10 @@ export async function syncRaftArticlesWithPackType(
         );
         if (stockId) {
           updateData.stockId = stockId;
+          const matchedStock = allStock.find((s) => s.id === stockId);
+          if (matchedStock?.validade && !existing.validade) {
+            updateData.validade = new Date(matchedStock.validade);
+          }
           summary.stockLinked++;
         }
       }
@@ -280,6 +281,10 @@ export async function syncRaftArticlesWithPackType(
           );
           if (stockId) {
             createData.stockId = stockId;
+            const matchedStock = allStock.find((s) => s.id === stockId);
+            if (matchedStock?.validade) {
+              createData.validade = new Date(matchedStock.validade);
+            }
             summary.stockLinked++;
           }
         }
@@ -293,7 +298,7 @@ export async function syncRaftArticlesWithPackType(
   const forbiddenToRemove = raft.artigos.filter((a) => {
     if (matchedIds.has(a.id)) return false;
     if (a.inspecaoId != null) return false;
-    return isForbiddenPackArticle(a);
+    return isForbiddenPackArticle(a, raft.packType);
   });
 
   if (forbiddenToRemove.length > 0) {
@@ -317,6 +322,7 @@ async function fetchStock() {
         associavelJangada: true,
         aplicavelMarcaJangada: true,
         aplicavelModeloJangada: true,
+        validade: true,
       },
     });
   } catch {

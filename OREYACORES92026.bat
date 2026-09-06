@@ -12,25 +12,15 @@ echo ========================================
 echo Diretorio atual: %CD%
 echo.
 
-:: Verificar se o Node.js esta instalado no PC ou na pen (bin/node.exe)
-set "NODE_EXE=node"
-if exist "%~dp0bin\node.exe" (
-    set "NODE_EXE=%~dp0bin\node.exe"
-    echo [INFO] A usar Node.js embutido na pen (%~dp0bin\node.exe)
-) else if exist "bin\node.exe" (
-    set "NODE_EXE=%CD%\bin\node.exe"
-    echo [INFO] A usar Node.js embutido na pen (bin\node.exe)
-) else (
-    where node >nul 2>&1
-    if errorlevel 1 (
-        echo [ERRO] Node.js nao encontrado neste computador nem na pasta bin\!
-        echo Instale o Node.js v20+ ou coloque o node.exe na pasta bin\ da pen.
-        pause
-        exit /b 1
-    ) else (
-        echo [INFO] A usar Node.js instalado no sistema.
-    )
+:: O pacote e autocontido: usar apenas o Node distribuido na pasta bin.
+set "NODE_EXE=%~dp0bin\node.exe"
+if not exist "%~dp0bin\node.exe" (
+    echo [ERRO] Node.js portatil nao encontrado em "%~dp0bin\node.exe".
+    echo Recrie o pacote com PREPARAR_PACOTE_PORTATIL.ps1.
+    pause
+    exit /b 1
 )
+echo [INFO] A usar Node.js embutido na pen: %NODE_EXE%
 
 :: Verificar se a pasta .next existe
 if not exist ".next" (
@@ -55,9 +45,5 @@ echo.
 
 :: Iniciar launcher.js
 start "" "%NODE_EXE%" launcher.js
-
-:: Aguardar 3 segundos e abrir o navegador
-timeout /t 3 /nobreak >nul
-start "" http://localhost:3000
 
 exit

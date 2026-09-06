@@ -1,10 +1,12 @@
 "use client";
 import React, { useState } from 'react';
 import { useJangadaWizardStore } from './store/useJangadaWizardStore';
-import { CheckCircle, Download, FileText, Loader2, ArrowRight, ExternalLink, Upload, ShieldCheck } from 'lucide-react';
+import { CheckCircle, Download, FileText, Loader2, ArrowRight, ExternalLink, Upload, ShieldCheck, Ban } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { getMandatoryPackItemsForRaft } from '../rafts/mandatoryPack';
 import { appToast } from '@/lib/app-toast';
+import { buildAbateReportDoc, abateReportFilename } from '@/lib/abate-report-pdf';
+import { getAbateMotivoLabel } from '@/lib/abate-constants';
 
 const HarbourOne_URL = "https://survitec2.my.site.com/HarbourOne/login?ec=302&startURL=%2FHarbourOne%2F";
 
@@ -34,6 +36,9 @@ export default function Step9_Certificados() {
       const fd = new FormData();
       fd.append("file", file);
       fd.append("folder", "certificados/externos");
+      // Enviar shipId e shipName para guardar na pasta organizada do navio (NAVIOS/{navio}/)
+      if (inspectionData.shipId) fd.append("shipId", String(inspectionData.shipId));
+      if (inspectionData.shipName) fd.append("shipName", inspectionData.shipName);
       const res = await fetch("/api/upload-documento", { method: "POST", body: fd });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Erro no upload do certificado");
@@ -133,9 +138,11 @@ export default function Step9_Certificados() {
         const packItem = findPackItem(tokens);
         const mandItem = findMandatoryItem(tokens);
         
-        // Use packItem (replacement data) if available, otherwise use mandatory item reference
+        // Só conta como substituído um artigo com substituição registada (quantidade > 0).
+        // Sem registo, o artigo é considerado verificado — nunca se recorre à quantidade
+        // obrigatória do template para marcar substituição no checklist.
+        const quantidade = packItem && Number(packItem.quantidade) > 0 ? Number(packItem.quantidade) : 0;
         const referencia = packItem?.referencia || mandItem?.stockReferences?.[0] || '';
-        const quantidade = packItem?.quantidade || mandItem?.quantity || 0;
         const validade = packItem?.validade || '';
         const lote = packItem?.lote || '';
         
@@ -422,6 +429,40 @@ export default function Step9_Certificados() {
     anchor.remove();
   };
 
+  const handleAbateReport = () => {
+    const abate = inspectionData.abate || { ativo: false };
+    if (!abate.ativo) {
+      appToast.error("A jangada não está assinalada para abate (passo 2 — Checklist).");
+      return;
+    }
+    try {
+      const doc = buildAbateReportDoc({
+        brand: inspectionData.brand || '',
+        model: inspectionData.model || '',
+        serial: inspectionData.serial || '',
+        capacity: inspectionData.capacity ?? '',
+        dataFabrico: inspectionData.dataFabrico || '',
+        dataInspecao: inspectionData.dataInspecao || new Date().toISOString().slice(0, 10),
+        shipName: inspectionData.shipName || inspectionData.shipNameManual || '',
+        owner: inspectionData.owner || '',
+        shipFlag: inspectionData.shipFlag || '',
+        shipImo: inspectionData.shipImo || '',
+        shipCallSign: inspectionData.shipCallSign || '',
+        tipoBarco: abate.tipoBarco || '',
+        motivo: abate.motivo || '',
+        detalhes: abate.detalhes || '',
+        responsavel: inspectionData.responsavel || '',
+      });
+      doc.save(abateReportFilename({
+        serial: inspectionData.serial || '',
+      }));
+      appToast.success("Ficha de Abate (PDF) gerada com sucesso!");
+    } catch (err) {
+      console.error(err);
+      appToast.error("Erro ao gerar a Ficha de Abate.");
+    }
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in zoom-in-95 duration-500">
       <div className="text-center space-y-4 py-8">
@@ -461,6 +502,46 @@ export default function Step9_Certificados() {
             <span className="text-xs font-medium text-blue-400">Tabela de Dados</span>
           </button>
         </div>
+      </div>
+
+      {/* Ficha de Abate */}
+      <div className={`bg-white border rounded-3xl p-8 shadow-sm ${Boolean(inspectionData.abate?.ativo) ? 'border-red-300' : 'border-slate-200'}`}>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+            <Ban className={Boolean(inspectionData.abate?.ativo) ? 'text-red-500' : 'text-slate-400'} />
+            Ficha de Abate de Jangadas Salva-Vidas
+          </h3>
+        </div>
+
+        {Boolean(inspectionData.abate?.ativo) ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-4 bg-red-50 border border-red-200 rounded-2xl text-xs text-red-800">
+              <p className="font-bold mb-1.5">Jangada assinalada para abate</p>
+              <p><span className="font-semibold">Motivo:</span> {getAbateMotivoLabel(inspectionData.abate?.motivo) || '—'}</p>
+              <p className="mt-1"><span className="font-semibold">Tipo de Barco:</span> {inspectionData.abate?.tipoBarco || '—'}</p>
+            </div>
+            <div className="flex flex-col justify-center items-start gap-2">
+              <button
+                onClick={handleAbateReport}
+                className="w-full flex items-center justify-center gap-2 px-6 py-4 rounded-2xl bg-red-500 hover:bg-red-600 text-white font-bold shadow-md transition-all"
+              >
+                <Download size={20} />
+                Gerar Ficha de Abate (PDF)
+              </button>
+              <p className="text-xs text-slate-500">
+                Template IM.049/00 — campos do cabeçalho, tipo de barco, motivo (13–27) e campo 28.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <button
+            disabled
+            className="w-full flex items-center justify-center gap-2 px-6 py-4 rounded-2xl bg-slate-100 text-slate-400 font-bold cursor-not-allowed"
+          >
+            <Ban size={20} />
+            Sem abate assinalado — ative no passo 2 (Checklist)
+          </button>
+        )}
       </div>
 
       {/* Certificado Externo (HarbourOne) */}

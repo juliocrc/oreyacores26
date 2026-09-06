@@ -97,6 +97,7 @@ const ORDEM_INCLUDE = {
       testeWPCamaraInferiorFim: true,
       oficinaTemperatura: true,
       oficinaHumidade: true,
+      orcamento: true,
     },
   },
   serviceStationQueues: {

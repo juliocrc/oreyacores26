@@ -37,6 +37,7 @@ export type JangadaData = {
   certificadoNumeroOriginal?: string;
   numeroObra?: string;
   owner?: string;
+  ownerDisplay?: string;
   shipNameManual?: string;
   inspecoes?: Array<{
     dataInspecao?: string;
@@ -336,7 +337,7 @@ export default function DgrmIdentificationForm({ data }: { data: JangadaData }) 
         {/* Armadores */}
         <div className="row mt-3">
           <span className="label">Armadores / Owners:</span>
-          <span className="val">{fmt(data.owner)}</span>
+          <span className="val">{fmt(data.ownerDisplay)}</span>
         </div>
       </div>
     </div>

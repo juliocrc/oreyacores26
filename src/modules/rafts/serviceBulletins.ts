@@ -16,6 +16,10 @@ const SURVITEC_MKIV_SERVICING_OPTIMISATION_FILE = "Marine Mk IV liferafts — Se
 const SURVITEC_SPARES_CONSOLIDATION_FILE = "Marine liferafts — Spare parts _ Consolidation of multiple branded part numbers.pdf";
 const SURVITEC_EMERGENCY_PACK_PROTECTIVE_FOAM_FILE = "Marine liferafts — Emergency pack_ Position of protective foam.pdf";
 const SURVITEC_DK99_OPERATING_HEAD_FILE = "Marine liferafts and MES — Inflation system _ Replace the Thanner DK99 operating head.pdf";
+const RFD_DYMO_TAPE_DATA_LABELS_FILE = "Marine liferafts - Container _ Introduction of dymo tape on data labels.pdf";
+const SURVITEC_26900_PRESSURE_CONVERSIONS_FILE = "Marine Service Manual_ Correction of pressure conversions in Manual 269-00.pdf";
+const SURVITEC_LIFERAFT_CONDEMNATION_FILE = "Liferaft condemnation.pdf";
+const SURVITEC_ADHESIVE_SEAMS_FILE = "Marine Liferafts_ Enhanced inspection of adhesive seams.pdf";
 
 function normalizeToken(value: unknown): string {
   return String(value ?? "")
@@ -695,6 +699,126 @@ export const technicalBulletins: TechnicalBulletin[] = [
         equipmentAliases: ["DK99", "DK99 HEAD", "DK99S"],
         referenceAliases: ["Z63127", "Z63126", "ZC30651", "ZC30652", "08969009", "Z64766", "DK99-SERVICE-KIT"],
         reasonSuffix: "ALERTA SB 20/25-A: confirmar o serial da cabeça de disparo DK99 contra o Apêndice 1; se abrangido, devolver a cabeça à Survitec Dunmurry e instalar cabeça nova com etiqueta 'Q.C. PASSED' na próxima revisão",
+      },
+    ],
+  },
+  {
+    id: "rfd-dymo-tape-data-labels-54-16",
+    title: "Marine liferafts – Container: Introduction of dymo tape on data labels",
+    bulletinNumber: "SB 54/16 Ver.1",
+    shortDescription: "Fita dymo nas etiquetas de dados do contentor",
+    issueDate: "Sep/16",
+    fileName: RFD_DYMO_TAPE_DATA_LABELS_FILE,
+    manufacturer: "SURVITEC / RFD / DSB",
+    description: "A informação da data label (no exterior do contentor) deixa de ser escrita com tinta permanente e passa a ser exibida com fita dymo (fita adesiva com texto preto, cassete 6 mm TZe211 Brother, p/n 11845009), porque a tinta tende a desvanecer e torna a etiqueta ilegível.",
+    appliesToBrands: ["SURVITEC", "RFD", "RFDB", "SSPI", "SSS", "EUROVINIL", "EV", "DSB", "DBC", "TOYO", "ZODIAC", "LALIZAS", "PLASTIMO", "VIKING", "OCEAN SAFETY", "ARIMAR", "SEAGO", "ALMAR", "FORWATER", "SEA-SAFE"],
+    servicePeriodicity: "Aplicar na próxima revisão programada das jangadas afetadas; enquanto não aplicado, a informação da data label permanece em tinta permanente.",
+    notes: [
+      "Boletim analisado do PDF 'Marine liferafts — Container _ Introduction of dymo tape on data labels.pdf' (SB 54/16 Ver.1, RFD Beaufort Inc., Sep/16).",
+      "Aplica-se a TODAS as Marine liferafts: a data label fica no exterior do contentor e a tinta permanente desvanece.",
+      "Tarefas: copiar a informação de cada campo da data label para uma etiqueta dymo; limpar a data label com água quente e sabão e pano sem fiapos; secar com pano seco; colar cada etiqueta dymo na localização correta. Se a data label precisar de ser substituída, seguir o Service Manual.",
+      "Peça indicada: Dymo tape cassette 6 mm TZe211 Brother tape, com texto preto — part number 11845009 (quantidade 'as required', obtida localmente).",
+      "Ferramenta: Dymo labelmaker (obtida localmente).",
+      "Registo: 'None required'; Reporting: 'None required'.",
+      "Por decisão operacional, o boletim fica aplicável por defeito a todas as jangadas do sistema.",
+    ],
+    rules: [
+      {
+        label: "Todas as Marine liferafts",
+        aliases: [],
+        reasonSuffix: "implementado por defeito: reescrever a informação da data label do contentor em fita dymo (p/n 11845009, cassete TZe211 6 mm) na próxima revisão programada",
+      },
+    ],
+  },
+  {
+    id: "survitec-26900-pressure-conversions-40-16",
+    title: "Marine Service Manual: Correction of pressure conversions in Manual 269-00",
+    bulletinNumber: "SB 40/16 Ver.1",
+    shortDescription: "Correção das conversões de pressão do Manual M269-00",
+    issueDate: "Sep/16",
+    fileName: SURVITEC_26900_PRESSURE_CONVERSIONS_FILE,
+    manufacturer: "SURVITEC / RFD / DSB",
+    description: "Corrige as conversões de pressão do Manual M269-00 (Marine MK IV Family Version 5): hemispherical pressures de insuflação corrigidas para Throwover 2.8–3.2 psi / 1970–2250 mm WG / 193–221 mb e Davit-launch 3.5–4 psi / 2441–2814 mm WG / 239–276 mb.",
+    appliesToBrands: ["SURVITEC", "RFD", "RFDB", "SSPI", "SSS", "EUROVINIL", "EV", "DSB", "DBC", "TOYO", "ZODIAC"],
+    servicePeriodicity: "Atualização documental: usar as conversões corrigidas na próxima revisão programada das jangadas M269-00 (Marine MK IV Family Version 5).",
+    notes: [
+      "Boletim analisado do PDF 'Marine Service Manual_ Correction of pressure conversions in Manual 269-00.pdf' (SB 40/16 Ver.1, Survitec Group Dunmurry, Sep/16).",
+      "É uma atualização documental apenas (section 6.2: 'Service Manual 269-00 will be updated and re-issued'), sem peças nem ferramentas requeridas.",
+      "Correções (Section 5, página 510): 3.5 (b)(i) Throwover — inflamar os compartimentos entre 2.8 psi / 1970 mm WG / 193 mb e 3.2 psi / 2250 mm WG / 221 mb; 3.5 (b)(ii) Davit-launch — inflamar entre 3.5 psi / 2441 mm WG / 239 mb e 4 psi / 2814 mm WG / 276 mb; 3.5 (e)(ii) Davit-launch — 3.5 psi / 2441 mm WG / 239 mb (correção de 241 mb → 239 mb).",
+      "As antigas instruções citavam '4907 mb' e '5605 mb' de forma incorreta (unidades mm WG a 1970/2250 respetivamente), agora corrigidas para mb real (193/221).",
+      "Registo: usar o protocolo documental standard; Reporting: 'None required'.",
+    ],
+    rules: [
+      {
+        label: "Marine MK IV Family (Manual M269-00)",
+        canonicalModel: "SURVIVA MKIV TO",
+        aliases: ["SURVIVA MKIV", "SURVIVA MK IV", "MKIV", "MK IV", "MK4", "M269-00", "M269 00"],
+        technicalModels: ["SURVIVA MKIV TO"],
+        reasonSuffix: "atualização documental SB 40/16 Ver.1: usar as pressões corrigidas do M269-00 (Throwover 193–221 mb / 2.8–3.2 psi; Davit-launch 239–276 mb / 3.5–4 psi) na próxima revisão",
+      },
+    ],
+  },
+  {
+    id: "survitec-liferaft-condemnation-57-2-2016",
+    title: "Liferaft Condemnation",
+    bulletinNumber: "SB 57-2 2016",
+    shortDescription: "Critérios de condenação de jangadas",
+    issueDate: "25 July 2016",
+    fileName: SURVITEC_LIFERAFT_CONDEMNATION_FILE,
+    manufacturer: "SURVITEC ZODIAC",
+    description: "Define os critérios para condenar uma jangada: qualquer jangada ativada acidentalmente (no mar ou no cais), sujeita a fogo/calor intenso, a exposição anormal e prolongada a água, ou com falhas estruturais (NAP test/floor seam negativo, separação de costuras adesivas ou soldadas) ou reparação economicamente inviável, deve ser condenada.",
+    appliesToBrands: ["SURVITEC", "RFD", "RFDB", "SSPI", "SSS", "EUROVINIL", "EV", "DSB", "DBC", "TOYO", "ZODIAC", "LALIZAS", "PLASTIMO", "VIKING", "OCEAN SAFETY", "ARIMAR", "SEAGO", "ALMAR", "FORWATER", "SEA-SAFE"],
+    servicePeriodicity: "Aplicar quando ocorrer uma condição de condenação; a condenação deve ser registada na reinspição (tab 'Condemn a Liferaft').",
+    notes: [
+      "Boletim analisado do PDF 'Liferaft condemnation.pdf' (Service Bulletin n° 57-2 2016, Survitec Group, 25 July 2016).",
+      "Obrigatório condenar: 1) qualquer jangada que tenha sido disparada acidentalmente (no mar ou no dockside) — mesmo que visualmente pareça em bom estado, o tecido foi submetido a esforços importantes que a retiram de serviço; 2) qualquer jangada com exposição anormal e prolongada à água doce ou salgada (ex.: armazenamento inadequado, lavagens pesadas).",
+      "Outras razões de condenação: After ship wreck · Damaged by strong heat (fire on board or similar) · Vandalism · NAP test / Floor seam test negative · Separation of adhesive or welded seams · Beyond economical repair · Other.",
+      "Deve ser executada no local de reinspição e registada no separador 'Condemn a Liferaft' do portal Survitec (apps2.survitecgroup.com).",
+      "Contactos do boletim: Nadia Delaoutre-Pollato (General Manager) e Laura Clarin (Training and Network Manager); Survitec Zodiac, Route de Chatenet, 17210 Chevanceaux, França.",
+    ],
+    rules: [
+      {
+        label: "Todas as jangadas",
+        aliases: [],
+        reasonSuffix: "critérios de condenação SB 57-2 2016: ativação acidental, exposição anormal a água/fogo, falhas estruturais (NAP test / floor seam negativo, separação de costuras) ou reparação economicamente inviável — avaliar e condenar se aplicável",
+      },
+    ],
+  },
+  {
+    id: "rfd-enhanced-inspection-adhesive-seams-18-08",
+    title: "Marine – Liferafts: Enhanced inspection of adhesive seams",
+    bulletinNumber: "SB 18/08 Marine Ver.2",
+    shortDescription: "Inspeção reforçada das juntas adesivas (floor/buoyancy e lifting strap)",
+    issueDate: "Mar/12",
+    fileName: SURVITEC_ADHESIVE_SEAMS_FILE,
+    manufacturer: "RFD BEAUFORT / SURVITEC / DSB",
+    description: "Reforça a inspeção das juntas adesivas entre o piso (floor) e a câmara de flutuação (e, nas davit-launch, entre a cinta de elevação e o piso) nas jangadas Surviva / Seafarer / Seasava fabricadas antes de 2002; a cola degradada (castanho-escuro brilhante e quebradiça) implica a condenação da jangada.",
+    appliesToBrands: ["SURVITEC", "RFD", "RFDB", "SSPI", "SSS", "EUROVINIL", "EV", "DSB", "DBC"],
+    servicePeriodicity: "Aplicar em cada revisão programada das jangadas afetadas (DOM < 2002); a inspeção é feita em cada serviço, nas juntas ainda não inspecionadas.",
+    notes: [
+      "Boletim analisado do PDF 'Marine Liferafts_ Enhanced inspection of adhesive seams.pdf' (SB 18/08 Marine Ver.2, RFD Beaufort Limited, Dunmurry, Mar/12 — original Dec/08).",
+      "Equipamento afetado: jangadas Surviva, Seafarer e Seasava com Data of Manufacture (DOM) anterior a 2002.",
+      "As juntas afetadas localizam-se entre o piso (floor) e a câmara de flutuação (buoyancy tube); nas jangadas davit-launch pode também ser afetada a junta entre a cinta de elevação exterior e o piso. As restantes juntas adesivas não são afetadas.",
+      "Inspeção: remover a jangada do contentor, insuflar e, com espátula, iniciar a separação das juntas nos cantos (distância de 50 mm, ou 100 mm se já marcada com patch de 50 mm); se necessário usar pistola de ar quente para soltar a junta. Não usar força excessiva.",
+      "Cola degradada = aspeto castanho-escuro brilhante e quebradiça (dá para raspar com a unha); cola em bom estado = bege, tipo borracha, resistente à separação.",
+      "Após inspeção, as zonas com cola em bom estado são reparadas conforme o service manual e marcadas com patch de tecido RFD 1015/1 de 50 mm de diâmetro (têxtil para fora); numa segunda reinspesão a separação aumenta para 100 mm e marca-se com um segundo patch de 50 mm.",
+      "Registo obrigatório: anotar 'SB18/08 Ver 2' no cartão da jangada, no certificado de reinspesão (se aplicável) e no cartão 'Liferaft Service Record' (dentro do contentor).",
+      "Reporting: jangadas com juntas adesivas degradadas devem ser condenadas no formulário online de condenação (secção 28, com a menção exata 'Liferaft condemned in accordance with SB18/08 Ver 2').",
+      "Como o sistema usa `dataFabrico` como proxy do DOM, a regra aplica-se às famílias acima com ano de fabrico < 2002; sem ano de fabrico registado o alerta mantém-se para confirmação do técnico.",
+    ],
+    rules: [
+      {
+        label: "Surviva / Seafarer / Seasava com DOM < 2002",
+        aliases: [
+          "SURVIVA MK I", "SURVIVA MKI", "MK I", "MKI",
+          "SURVIVA MK II", "SURVIVA MKII", "MK II", "MKII",
+          "SURVIVA MK III", "SURVIVA MKIII", "MK III", "MKIII",
+          "SURVIVA MK IV", "SURVIVA MKIV", "MK IV", "MKIV",
+          "SEAFARER", "SEASAVA", "SEASAVA PLUS", "SEASAVA PLUS R", "SEASAVA PRO-ISO",
+        ],
+        technicalModels: ["SURVIVA MKII", "SURVIVA MKIII", "SURVIVA MKIV TO", "SEASAVA PLUS", "SEASAVA PRO-ISO"],
+        yearTo: 2001,
+        reasonSuffix: "SB 18/08 Ver.2: realizar a inspeção reforçada das juntas adesivas floor/buoyancy (e lifting strap nas davit-launch); cola degradada (castanho-escuro, quebradiça) => condenar",
       },
     ],
   },

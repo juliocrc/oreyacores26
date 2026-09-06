@@ -3,6 +3,7 @@ import { getAuthSession } from '@/auth';
 import { redirect } from 'next/navigation';
 import prisma from '@/lib/prisma';
 import JangadaDetailPageClient from './JangadaDetailPageClient';
+import type { JangadaFormData } from './JangadaDetailPageClient';
 
 export default async function JangadaInspectionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -39,12 +40,30 @@ export default async function JangadaInspectionPage({ params }: { params: Promis
 
   const cliente = ship?.cliente || null;
 
-  const jangada = {
+  function nullToUndefined<T>(obj: T): T {
+    if (obj === null || obj === undefined) return undefined as T;
+    if (Array.isArray(obj)) return obj.map(nullToUndefined) as T;
+    if (typeof obj === 'object') {
+      // Never recurse into Date (or any non-plain object) — it would be
+      // shredded into {}. Dates (e.g. artigo validade) must pass through.
+      if (obj instanceof Date) return obj as T;
+      const proto = Object.getPrototypeOf(obj);
+      if (proto !== Object.prototype && proto !== null) return obj as T;
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+        out[k] = v === null ? undefined : (typeof v === 'object' && v !== null ? nullToUndefined(v) : v);
+      }
+      return out as T;
+    }
+    return obj;
+  }
+
+  const jangada = nullToUndefined({
     ...jangadaRaw,
     ship,
     cliente,
     inspecoes,
-  };
+  });
 
   const ships = (await prisma.navio.findMany({
     select: {
@@ -73,7 +92,7 @@ export default async function JangadaInspectionPage({ params }: { params: Promis
   return (
     <JangadaDetailPageClient
       jangadaId={numericId}
-      initialData={jangada}
+      initialData={jangada as unknown as JangadaFormData}
       ships={ships}
     />
   );

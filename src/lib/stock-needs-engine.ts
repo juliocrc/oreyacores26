@@ -689,11 +689,13 @@ export async function computeStockNeeds(options?: {
   }));
 
   // strip internal fields
-  const cleanNeeds: NeedRow[] = needs.map((n) => {
-    const { _matchedBy, ...rest } = n as NeedRow & { _matchedBy?: unknown };
-    void _matchedBy;
-    return rest;
-  });
+  const cleanNeeds: NeedRow[] = needs
+    .filter((n) => n.hasValidity)
+    .map((n) => {
+      const { _matchedBy, ...rest } = n as NeedRow & { _matchedBy?: unknown };
+      void _matchedBy;
+      return rest;
+    });
 
   return {
     generatedAt: new Date().toISOString(),

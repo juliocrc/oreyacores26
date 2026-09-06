@@ -49,6 +49,9 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
       quantidade: Number(data.quantidade || 1),
       validade: parsedValidade,
       codigoFabricante: String(data.lote || data.codigoFabricante || "").trim() || null,
+      stockId: Number.isInteger(Number(data.stockId))
+        ? Number(data.stockId)
+        : undefined,
       jangadaId 
     }
   });

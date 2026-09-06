@@ -5,14 +5,16 @@ import { Loader2, AlertTriangle, RefreshCw, Trash2 } from 'lucide-react';
 
 export default function JangadaWizardLoader({ 
   jangadaId, 
-  children 
+  children,
+  inspectionToOpen 
 }: { 
   jangadaId: number;
   children: React.ReactNode;
+  inspectionToOpen?: any;
 }) {
   const [loading, setLoading] = useState(true);
   const [draftToRestore, setDraftToRestore] = useState<any>(null);
-  const [serverData, setServerData] = useState<{ raftData: any; latestInsp: any } | null>(null);
+  const [serverData, setServerData] = useState<{ raftData: any; latestInsp: any; draftData: any } | null>(null);
   const { initializeWizard, setStep, setStepByKey, setInspectionData, setGlobalStock } = useJangadaWizardStore();
 
   function restoreStep(draft: any) {
@@ -54,6 +56,37 @@ export default function JangadaWizardLoader({
     }
   }
 
+  async function autoGenerateNumbers(raftData: any, draftData: any) {
+  try {
+    // Numa nova vistoria (sem rascunho de inspeção em curso) geramos certificado e obra.
+    // Num rascunho em curso mantemos os números já atribuídos à inspeção.
+    const isDraft = Boolean(draftData?.id);
+    if (isDraft) return;
+
+    const res = await fetch(`/api/inspecoes?nextCertificate=1&referenceDate=${new Date().toISOString().slice(0, 10)}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    const updates: Record<string, unknown> = {};
+
+    if (data?.certificadoNumero) {
+      const newCert = String(data.certificadoNumero || "").trim();
+      const lastCert = String(raftData?.ultimoCertificadoNumero || "").trim();
+      // Nunca reutilizar o último certificado da jangada numa nova vistoria
+      if (newCert && newCert !== lastCert) {
+        updates.certificadoNumero = newCert;
+      }
+    }
+    if (data?.numeroObra) {
+      updates.numeroObra = String(data.numeroObra);
+    }
+    if (Object.keys(updates).length > 0) {
+      setInspectionData(updates);
+    }
+  } catch (error) {
+    console.error("Erro ao gerar números automáticos:", error);
+  }
+}
+
   useEffect(() => {
     async function loadData() {
       try {
@@ -67,10 +100,35 @@ export default function JangadaWizardLoader({
         const inspList = await inspRes.json();
         const latestInsp = Array.isArray(inspList) && inspList.length > 0 ? inspList[0] : null;
 
-        setServerData({ raftData, latestInsp });
+        // Permite abrir o wizard a partir de um ?inspecaoId= na URL (ex.: botão "Vistoria Registada")
+        const urlInspectionId = typeof window !== 'undefined'
+          ? (() => {
+              const raw = new URLSearchParams(window.location.search).get('inspecaoId');
+              const parsed = raw ? parseInt(raw, 10) : NaN;
+              return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+            })()
+          : null;
+
+        // 1) Inspeção específica (prop) — ex.: botão "Vistoria Registada" / última vistoria
+        const explicitInspection = inspectionToOpen?.id ? inspectionToOpen : null;
+        // 2) Inspeção específica por ?inspecaoId= na URL
+        const queryInspection = urlInspectionId
+          ? (Array.isArray(inspList) ? inspList.find((i: any) => Number(i?.id) === urlInspectionId) : null) || null
+          : null;
+
+        // 3) Rascunho em curso (Draft). Uma inspeção concluída/condenada
+        //    significa que esta é uma NOVA vistoria → criamos uma nova inspeção (draftData null).
+        const draftData =
+          explicitInspection || queryInspection ||
+          (latestInsp && String(latestInsp.status || "").trim().toLowerCase() === 'draft' ? latestInsp : null);
+
+        setServerData({ raftData, latestInsp, draftData });
 
         // Check if there is a local draft (matches useAutoSave key pattern)
-        const localDraftRaw = localStorage.getItem(`jangada-wizard-draft-${jangadaId}`);
+        // (ignorado quando abrimos uma inspeção específica — consulta/edição de vistoria registada)
+        const localDraftRaw = !explicitInspection && !queryInspection
+          ? localStorage.getItem(`jangada-wizard-draft-${jangadaId}`)
+          : null;
         if (localDraftRaw) {
           const draft = JSON.parse(localDraftRaw);
           // Only offer restoration if draft has actual data and is valid
@@ -81,7 +139,11 @@ export default function JangadaWizardLoader({
         }
 
         // Initialize Store from Server
-        initializeWizard(raftData, latestInsp);
+        initializeWizard(raftData, draftData);
+        // Quando abrimos uma inspeção específica (consulta/edição) mantemos os números já atribuídos
+        if (!explicitInspection && !queryInspection) {
+          autoGenerateNumbers(raftData, draftData);
+        }
         setLoading(false);
         void loadStock();
       } catch (error) {
@@ -107,12 +169,12 @@ export default function JangadaWizardLoader({
     }
 
     loadData();
-  }, [jangadaId, initializeWizard]);
+  }, [jangadaId, initializeWizard, inspectionToOpen]);
 
   const handleRestore = () => {
     if (serverData && draftToRestore) {
       // Initialize with base config, then override with draft
-      initializeWizard(serverData.raftData, serverData.latestInsp);
+      initializeWizard(serverData.raftData, serverData.draftData);
       setInspectionData(draftToRestore.inspectionData);
       restoreStep(draftToRestore);
       setDraftToRestore(null);
@@ -124,7 +186,8 @@ export default function JangadaWizardLoader({
   const handleDiscard = () => {
     if (serverData) {
       localStorage.removeItem(`jangada-wizard-draft-${jangadaId}`);
-      initializeWizard(serverData.raftData, serverData.latestInsp);
+      initializeWizard(serverData.raftData, serverData.draftData);
+      autoGenerateNumbers(serverData.raftData, serverData.draftData);
       setDraftToRestore(null);
       setLoading(false);
       void loadStock();

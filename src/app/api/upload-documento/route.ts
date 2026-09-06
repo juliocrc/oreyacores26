@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import path from 'path';
 import fs from 'fs';
+import prisma from '@/lib/prisma';
 import { isAllowedFolder, listFiles, saveFile } from '@/lib/documentos-storage';
+import { saveExternalCertificadoToNavioFolder } from '@/lib/certificados-organizados';
 
 type FolderType = 'documentacao' | 'legislacao' | 'ordens-servico' | 'certificados';
 
@@ -25,6 +27,8 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
     const folder = formData.get('folder') as FolderType | null;
+    const shipId = formData.get('shipId') as string | null;
+    const shipName = formData.get('shipName') as string | null;
 
     if (!file) {
       return NextResponse.json(
@@ -68,6 +72,11 @@ export async function POST(request: NextRequest) {
 
     const bytes = await file.arrayBuffer();
     let savedName: string;
+    const buffer = Buffer.from(bytes);
+    
+    // Se for certificado externo, guardar também na pasta organizada do navio
+    const isExternalCert = String(folder) === 'certificados/externos';
+    
     if (isAllowedFolder(folder)) {
       savedName = await saveFile(folder, sanitizeFilename(file.name), bytes, file.type);
     } else {
@@ -81,8 +90,28 @@ export async function POST(request: NextRequest) {
         const base = path.basename(savedName, ext);
         finalName = `${base}_${counter}${ext}`;
       }
-      fs.writeFileSync(path.join(dir, finalName), Buffer.from(bytes));
+      fs.writeFileSync(path.join(dir, finalName), buffer);
       savedName = finalName;
+    }
+
+    // Se for certificado externo e tivermos shipName/shipId, guardar na pasta do navio
+    if (isExternalCert && buffer) {
+      let resolvedShipName = shipName;
+      let resolvedDate = new Date();
+
+      if (!resolvedShipName && shipId && shipId !== "") {
+        const navio = await prisma.navio.findUnique({
+          where: { id: Number(shipId) },
+          select: { nome: true },
+        });
+        resolvedShipName = navio?.nome || null;
+      }
+
+      if (resolvedShipName) {
+        await saveExternalCertificadoToNavioFolder(resolvedShipName, savedName, buffer, {
+          date: resolvedDate,
+        });
+      }
     }
 
     return NextResponse.json({

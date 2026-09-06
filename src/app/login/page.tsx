@@ -58,7 +58,7 @@ interface ServiceStationOption {
   regiaoOperacional: string | null;
 }
 
-export const ACTIVE_SERVICE_STATION_COOKIE = "active_service_station_id";
+const ACTIVE_SERVICE_STATION_COOKIE = "active_service_station_id";
 
 function setActiveStationCookie(stationId: number) {
   document.cookie = `${ACTIVE_SERVICE_STATION_COOKIE}=${stationId}; path=/; max-age=${60 * 60 * 24 * 30}; samesite=lax`;

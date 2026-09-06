@@ -283,6 +283,40 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // De-dup por jangada ativa: impedir criar uma nova OT enquanto existir uma OT ativa
+    // (pendente/em_progresso) para a mesma jangada com o mesmo tipo de intervenção.
+    // Aplica-se apenas a inspeções periódicas (sem testes reprovados): reutiliza a existente
+    // em vez de duplicar (ex.: OS-2026-0005 e OS-2026-0006 para a mesma jangada/embarcação).
+    // Reparações (testes reprovados) geram sempre OT própria para não perder a sequência de trabalho.
+    if (!hasFailedTests) {
+      const activeJangadaOrders = await prisma.ordemServico.findMany({
+        where: {
+          jangadaId,
+          inspecaoId: { not: inspecaoId },
+          status: { in: ["pendente", "em_progresso"] },
+        },
+        select: { id: true, numeroOrdem: true, orcamentoStatus: true, inspecaoId: true },
+        orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+        take: 1,
+      });
+      if (activeJangadaOrders[0]) {
+        const active = activeJangadaOrders[0];
+        // Reaproveitar a OT ativa associando-a a esta inspeção (quando ainda não tem nenhuma)
+        if (!active.inspecaoId) {
+          await prisma.ordemServico.update({
+            where: { id: active.id },
+            data: { inspecaoId },
+          });
+        }
+        return NextResponse.json({
+          synced: false,
+          action: "reusing",
+          message: `Já existe a OT ativa ${active.numeroOrdem} para esta jangada. Reutilizada em vez de criar duplicada.`,
+          ordemServicoId: active.id,
+        });
+      }
+    }
+
     const referenceDate = inspecao.dataInspecao
       ? new Date(inspecao.dataInspecao)
       : new Date();

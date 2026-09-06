@@ -2,12 +2,16 @@ import React, { useState, useEffect } from "react";
 import { Wifi, WifiOff, RefreshCw } from "lucide-react";
 
 export default function OfflineStatusIndicator() {
-  const [isOnline, setIsOnline] = useState<boolean>(() => typeof window !== "undefined" && navigator.onLine);
+  // Keep the server render and the first client render identical. The actual
+  // browser connection state is applied after hydration in the effect below.
+  const [isOnline, setIsOnline] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+
+    setIsOnline(navigator.onLine);
 
     const handleOnline = () => {
       setIsOnline(true);

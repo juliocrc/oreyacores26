@@ -288,6 +288,7 @@ export default function Step4_PackMascara() {
         </div>
         {(() => {
           const insufficientItems = mandatoryItems.filter((item) => {
+            if (!item.validityFieldName) return false;
             const data = packItems[item.checklistName] || {};
             const qty = data.quantidade || 0;
             return qty > 0 && qty > getStockAvailableForLabel(inspectionData.globalStock, item.label);
@@ -351,8 +352,12 @@ export default function Step4_PackMascara() {
                       <p className="font-semibold text-slate-800 flex items-center gap-2">
                         {item.label}
                         {data.quantidade > 0 && (
-                          <span className="inline-flex items-center text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
-                            ✓ Substituído
+                          <span className={`inline-flex items-center text-[9px] font-bold px-2 py-0.5 rounded-full border ${
+                            item.validityFieldName
+                              ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                              : 'bg-indigo-50 text-indigo-600 border-indigo-200'
+                          }`}>
+                            {item.validityFieldName ? '✓ Substituído' : '✓ Presente'}
                           </span>
                         )}
                       </p>
@@ -421,7 +426,7 @@ export default function Step4_PackMascara() {
                           value={data.quantidade || ''}
                           onChange={(e) => handleItemChange(item.checklistName, 'quantidade', parseInt(e.target.value) || 0)}
                           className={`w-full text-sm rounded-xl px-2 py-2 bg-white focus:ring-2 transition-colors ${
-                            data.quantidade > 0 && (data.quantidade || 0) > getStockAvailableForLabel(inspectionData.globalStock, item.label)
+                            item.validityFieldName && data.quantidade > 0 && (data.quantidade || 0) > getStockAvailableForLabel(inspectionData.globalStock, item.label)
                               ? 'border-red-300 ring-2 ring-red-100 bg-red-50'
                               : 'border-slate-200 focus:ring-indigo-100'
                           }`}
@@ -454,6 +459,7 @@ export default function Step4_PackMascara() {
                       )
                     )}
                     {(() => {
+                      if (!item.validityFieldName) return null;
                       const selectedStock = data.stockId
                         ? (inspectionData.globalStock || []).find((s: any) => s.id === data.stockId)
                         : null;

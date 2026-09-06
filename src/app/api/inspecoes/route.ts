@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { buildDatabaseErrorResponse } from "@/lib/database-errors";
-import { generateInspectionCertificateNumber, saveInspection } from "@/app/inspecoes/actions";
+import { generateInspectionCertificateNumber, generateNextObraNumber, saveInspection } from "@/app/inspecoes/actions";
 import { saveInspectionSnapshot } from '@/lib/inspection-snapshots';
 import { beginApiRequest, captureApiError, finishApiRequest, withRequestId } from '@/lib/observability';
 import { parseOrdemServicoMeta, toOrdemServicoMetaJson } from "@/lib/ordens-servico";
@@ -103,8 +103,11 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     if (searchParams.get('nextCertificate') === '1') {
       const referenceDate = searchParams.get('referenceDate');
-      const certificadoNumero = await generateInspectionCertificateNumber(referenceDate);
-      return respond({ certificadoNumero }, undefined, { nextCertificate: true, referenceDate: referenceDate || null });
+      const [certificadoNumero, numeroObra] = await Promise.all([
+        generateInspectionCertificateNumber(referenceDate),
+        generateNextObraNumber(referenceDate),
+      ]);
+      return respond({ certificadoNumero, numeroObra }, undefined, { nextCertificate: true, referenceDate: referenceDate || null });
     }
 
     const checkCertificate = searchParams.get('checkCertificate');

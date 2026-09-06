@@ -21,7 +21,8 @@ export default function Step8_ResumoFinal() {
     setStep,
     setStepByKey,
     setIsSaving,
-    isSaving
+    isSaving,
+    hideOrcamento
   } = useJangadaWizardStore();
 
   const [selectedTecnicoId, setSelectedTecnicoId] = useState<string>('');
@@ -32,14 +33,24 @@ export default function Step8_ResumoFinal() {
     fetch('/api/tecnicos?includeInactive=false')
       .then(res => res.json())
       .then(data => {
-        if (Array.isArray(data)) {
-          setTecnicos(data);
-          if (inspectionData.responsavel) {
-            const match = data.find(t => t.nome.toLowerCase() === inspectionData.responsavel.toLowerCase());
-            if (match) {
-              setSelectedTecnicoId(String(match.id));
-            }
-          }
+        const list: any[] = [];
+        if (data && typeof data === 'object' && !Array.isArray(data)) {
+          (data.stations || []).forEach((station: any) => {
+            if (Array.isArray(station.tecnicos)) list.push(...station.tecnicos);
+          });
+          if (Array.isArray(data.unassigned)) list.push(...data.unassigned);
+        } else if (Array.isArray(data)) {
+          list.push(...data);
+        }
+        const uniqueMap = new Map<number | string, any>();
+        list.forEach(t => {
+          if (t && t.id != null) uniqueMap.set(t.id, t);
+        });
+        const unique = Array.from(uniqueMap.values());
+        setTecnicos(unique);
+        if (inspectionData.responsavel) {
+          const match = unique.find(t => t.nome?.toLowerCase() === String(inspectionData.responsavel).toLowerCase());
+          if (match) setSelectedTecnicoId(String(match.id));
         }
       })
       .catch(err => console.error('Erro ao carregar técnicos:', err));
@@ -95,6 +106,16 @@ export default function Step8_ResumoFinal() {
     const reprovados = checklistItems.filter((item: any) => item.status === 'REPROVADO');
     if (reprovados.length > 0) {
       list.push({ text: `Existem ${reprovados.length} itens do checklist exterior/interior marcados como Reprovado.`, step: 2, isCritical: true });
+    }
+    if (inspectionData.abate?.ativo) {
+      const motivoAbate = String(inspectionData.abate.motivo || '').trim();
+      list.push({
+        text: motivoAbate
+          ? `Jangada assinalada para ABATE — motivo ${motivoAbate} registado. Será emitida a Ficha de Abate (IM.049/00).`
+          : 'Jangada assinalada para ABATE, mas sem motivo selecionado no passo 2.',
+        step: 2,
+        isCritical: !motivoAbate,
+      });
     }
 
     // Step 3 Validations
@@ -363,7 +384,7 @@ export default function Step8_ResumoFinal() {
       testeWPCamaraInferiorQueda: infDropStr || null,
 
       // Inspeção Fields
-      status: isFinal ? (criticalCount > 0 ? "Condenada" : "Concluída") : "Draft",
+      status: isFinal ? ((inspectionData.abate?.ativo || criticalCount > 0) ? "Condenada" : "Concluída") : "Draft",
       responsavel: inspectionData.responsavel || "Operador",
        applyStockMovements: isFinal,
        signatureBase64: inspectionData.signatureBase64 || null,
@@ -492,6 +513,10 @@ export default function Step8_ResumoFinal() {
           testeNAPCamaraInferiorInicio: inspectionData.testes?.napCamaraInfInicio,
           testeNAPCamaraInferiorFim: inspectionData.testes?.napCamaraInfFim,
           testeNAPInstrumento: inspectionData.testes?.napManometroId,
+          // Boletins de serviço aplicados
+          serviceBulletinsApplied: inspectionData.serviceBulletinsApplied || {},
+          // Abate da jangada (ficha IM.049/00)
+          abate: inspectionData.abate || null,
         };
 
         const jangadaRes = await fetch(`/api/jangadas/${jangadaId}`, {
@@ -570,10 +595,17 @@ export default function Step8_ResumoFinal() {
 
   const handleFinish = () => {
     const criticalWarnings = warnings.filter(w => w.isCritical);
+    const abateAtivo = Boolean(inspectionData.abate?.ativo);
+
     if (criticalWarnings.length > 0) {
-      const msg = `Atenção: Existem ${criticalWarnings.length} validações críticas:\n\n${criticalWarnings.map(w => `• ${w.text}`).join('\n')}\n\nA inspeção NÃO pode ser finalizada até corrigir estes itens.`;
-      alert(msg);
-      return;
+      if (abateAtivo) {
+        const msg = `A jangada está assinalada para ABATE. Existem ${criticalWarnings.length} validações críticas (o estado final será "Condenada"):\n\n${criticalWarnings.map(w => `• ${w.text}`).join('\n')}\n\nConfirmas a finalização como Condenada?`;
+        if (!window.confirm(msg)) return;
+      } else {
+        const msg = `Atenção: Existem ${criticalWarnings.length} validações críticas:\n\n${criticalWarnings.map(w => `• ${w.text}`).join('\n')}\n\nA inspeção NÃO pode ser finalizada até corrigir estes itens.`;
+        alert(msg);
+        return;
+      }
     }
     saveToBackend(true);
   };
@@ -811,7 +843,7 @@ export default function Step8_ResumoFinal() {
                 </div>
               </div>
 
-              {(() => {
+              {!hideOrcamento && (() => {
                 const orcLinhas = inspectionData.orcamento?.linhas || [];
                 if (orcLinhas.length === 0 && !inspectionData.orcamento?.usarOrcamento) return null;
                 const orcSubtotal = orcLinhas.reduce((s: number, l: any) => s + (Number(l.quantidade) || 0) * (Number(l.unitPrice) || 0), 0);
@@ -854,17 +886,27 @@ export default function Step8_ResumoFinal() {
                 onClick={handleFinish}
                 disabled={isSaving}
                 className={`w-2/3 py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${
-                  criticalCount === 0 
-                    ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/30' 
-                    : 'bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-500/30'
+                  Boolean(inspectionData.abate?.ativo)
+                    ? 'bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/30'
+                    : criticalCount === 0 
+                      ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/30' 
+                      : 'bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-500/30'
                 }`}
               >
                 <Save size={20} />
-                {isSaving ? "A Processar..." : (criticalCount === 0 ? 'Fechar Inspeção e Gravar' : 'Finalizar com Falhas (Condenada)')}
+                {isSaving
+                  ? "A Processar..."
+                  : Boolean(inspectionData.abate?.ativo)
+                    ? 'Finalizar como Condenada (Abate)'
+                    : (criticalCount === 0 ? 'Fechar Inspeção e Gravar' : 'Finalizar com Falhas (Condenada)')}
               </button>
             </div>
             {criticalCount > 0 && (
-              <p className="text-center text-xs mt-3 text-amber-200">Existem falhas que reprovam a jangada</p>
+              <p className="text-center text-xs mt-3 text-amber-200">
+                {Boolean(inspectionData.abate?.ativo)
+                  ? 'Jangada será finalizada como Condenada (Abate)'
+                  : 'Existem falhas que reprovam a jangada'}
+              </p>
             )}
           </div>
         </div>

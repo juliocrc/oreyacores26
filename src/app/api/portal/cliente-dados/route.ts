@@ -1,36 +1,47 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getAuthSession } from "@/auth";
-
-const clientDataCache = new Map<string, { data: unknown; expiresAt: number }>();
-
-function getCachedClientData(clienteId: number) {
-  const key = `client:${clienteId}`;
-  const cached = clientDataCache.get(key);
-  if (cached && cached.expiresAt > Date.now()) return cached.data;
-  clientDataCache.delete(key);
-  return null;
-}
-
-function setCachedClientData(clienteId: number, data: unknown) {
-  const key = `client:${clienteId}`;
-  clientDataCache.set(key, { data, expiresAt: Date.now() + 30 * 60 * 1000 });
-}
-
-export function clearClientCache(clienteId: number) {
-  clientDataCache.delete(`client:${clienteId}`);
-}
+import { getCachedClientData, setCachedClientData } from "@/lib/client-cache";
+import { parseOrdemServicoMeta } from "@/lib/ordens-servico";
 
 export async function GET(req: NextRequest) {
   try {
     const session = await getAuthSession();
-    if (!session?.user || session.user.role !== "CLIENTE" || !session.user.clienteId) {
+    if (!session?.user) {
       return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
     }
 
-    const clienteId = Number(session.user.clienteId);
+    const isDev = process.env.NODE_ENV === "development";
+    const { searchParams } = new URL(req.url);
+    const previewCliente = Number(searchParams.get("previewCliente")) || 0;
+    const previewLista = searchParams.get("previewLista") === "1";
 
-    const cached = getCachedClientData(clienteId);
+    // Modo de pré-visualização (apenas dev): staff ADMIN/USER pode ver o portal como um cliente.
+    const isPreview = isDev && session.user.role !== "CLIENTE";
+    if (previewLista) {
+      if (!isPreview) return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
+      const clientes = await prisma.cliente.findMany({
+        select: { id: true, nome: true, nif: true, numeroCliente: true },
+        orderBy: { nome: "asc" },
+      });
+      return NextResponse.json({ clientes });
+    }
+
+    if (session.user.role === "CLIENTE" && !session.user.clienteId) {
+      return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
+    }
+
+    const clienteId = isPreview && previewCliente > 0
+      ? previewCliente
+      : session.user.role === "CLIENTE"
+        ? Number(session.user.clienteId)
+        : 0;
+
+    if (!clienteId) {
+      return NextResponse.json({ error: "Cliente não indicado." }, { status: 400 });
+    }
+
+    const cached = isPreview ? null : getCachedClientData(clienteId);
     if (cached) return NextResponse.json(cached);
 
     const cliente = await prisma.cliente.findUnique({
@@ -146,8 +157,14 @@ export async function GET(req: NextRequest) {
           dataAbertura: true,
           dataPlaneadaInicio: true,
           dataConclusao: true,
+          dataPrevista: true,
+          valorPecas: true,
+          valorMaoObra: true,
+          valorDesconto: true,
           valorTotal: true,
           isPesca: true,
+          isIsentoIva: true,
+          metadados: true,
           jangada: {
             select: {
               serial: true,
@@ -208,8 +225,41 @@ export async function GET(req: NextRequest) {
       (navio as any).epirbs = epiByShip.get(navio.id) || [];
     }
 
-    const result = { cliente, ordens, faturas };
-    setCachedClientData(clienteId, result);
+    const preview = isPreview ? { active: true, clienteId } : undefined;
+
+    const clienteOrdens = ordens.map((o) => {
+      const meta = parseOrdemServicoMeta(o.metadados);
+      const linhas = Array.isArray(meta.linhas)
+        ? meta.linhas
+            .filter((l) => l && (l.descricao || l.referencia))
+            .map((l) => ({
+              referencia: l.referencia ?? "",
+              descricao: l.descricao ?? "",
+              quantidade: Number(l.quantidade) || 0,
+              precoUnitario: Number(l.unitPrice) || 0,
+              total: Number(l.total) ?? (Number(l.quantidade) || 0) * (Number(l.unitPrice) || 0),
+            }))
+        : [];
+      const totais = (meta.totais && typeof meta.totais === "object" ? meta.totais : {}) as Record<string, number>;
+      const { metadados: _omit, ...ordem } = o;
+      const num = (v: unknown) => {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : 0;
+      };
+      return {
+        ...ordem,
+        orcamento: {
+          linhas,
+          totais,
+          valorPecas: num(o.valorPecas ?? totais.pecas ?? totais.valorPecas),
+          valorMaoObra: num(o.valorMaoObra ?? totais.maoObra ?? totais.valorMaoObra),
+          valorDesconto: num(o.valorDesconto ?? totais.desconto ?? totais.valorDesconto),
+        },
+      };
+    });
+
+    const result = { cliente, ordens: clienteOrdens, faturas, preview };
+    if (!isPreview) setCachedClientData(clienteId, result);
 
     return NextResponse.json(result);
   } catch (error) {

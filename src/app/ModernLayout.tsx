@@ -191,22 +191,17 @@ function getOnlineStatusServerSnapshot() {
   return true;
 }
 
-function subscribeNothing() {
-  return () => undefined;
-}
-
 export default function ModernLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = React.useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = React.useState(() => {
-    if (typeof window === "undefined") return false;
-    try { return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true"; } catch { return false; }
-  });
+  // Keep the initial tree identical on the server and client. Restore the
+  // user's sidebar preference only after hydration.
+  const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
   const [accountAnchorEl, setAccountAnchorEl] = React.useState<null | HTMLElement>(null);
   const [activeStationCode, setActiveStationCode] = React.useState<string | null>(null);
   const [assistenciaPendentes, setAssistenciaPendentes] = React.useState(0);
   const [loginAlertsQueue, setLoginAlertsQueue] = React.useState<LoginAlertEvent[]>([]);
   const [appToastQueue, setAppToastQueue] = React.useState<AppToastPayload[]>([]);
-  const mounted = React.useSyncExternalStore(subscribeNothing, () => true, () => false);
+  const [mounted, setMounted] = React.useState(false);
   const isOnline = React.useSyncExternalStore(subscribeOnlineStatus, getOnlineStatusSnapshot, getOnlineStatusServerSnapshot);
   const activeLoginAlert = loginAlertsQueue[0] ?? null;
   const activeAppToast = appToastQueue[0] ?? null;
@@ -217,6 +212,16 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
   const { data: session, status } = useSession();
   const canRenderInteractiveHeader = mounted;
   const { themeName, setThemeName, themeOptions } = useAppThemeController();
+
+  React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- enable browser-only interactions after hydration
+    setMounted(true);
+    try {
+      setSidebarCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true");
+    } catch {
+      // Ignore storage failures and keep the expanded sidebar.
+    }
+  }, []);
 
   const isLoginPage = pathname === "/login";
   const isAreaClientePage = pathname === "/area-cliente";
@@ -487,7 +492,7 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
 
   const drawer = (
     <div style={{ transition: "width 0.25s cubic-bezier(0.4, 0, 0.2, 1)" }}>
-      <Toolbar sx={{ minHeight: { xs: 64 } }}>
+      <Toolbar sx={{ minHeight: { xs: 64 }, px: { xs: 1.5, sm: 2 } }}>
         {sidebarCollapsed ? (
           <Box sx={{ display: "flex", justifyContent: "center", width: "100%" }}>
             <Avatar sx={{ width: 32, height: 32, bgcolor: "primary.main", fontSize: 16 }}>⚓</Avatar>
@@ -528,7 +533,7 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
               bgcolor: sidebarCollapsed ? "transparent" : "rgba(248,250,252,0.8)",
               borderRadius: 2,
               px: sidebarCollapsed ? 0 : 0.75,
-              py: 0.75,
+              py: 0.5,
             }}
           >
             {!sidebarCollapsed && (
@@ -561,17 +566,18 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
                       selected={active}
                       title={sidebarCollapsed ? item.label : undefined}
                       sx={{
-                        borderRadius: 2,
+                        borderRadius: 2.5,
                         px: sidebarCollapsed ? 0 : 1.75,
-                        py: sidebarCollapsed ? 1 : 1,
+                        py: sidebarCollapsed ? 0.75 : 0.75,
                         justifyContent: sidebarCollapsed ? "center" : "flex-start",
                         minWidth: sidebarCollapsed ? 44 : undefined,
                         border: "1px solid transparent",
                         transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
                         '&.Mui-selected': {
-                            bgcolor: 'rgba(59, 130, 246, 0.16)',
+                          bgcolor: 'action.selected',
                             color: 'primary.main',
-                            borderColor: 'rgba(59, 130, 246, 0.24)',
+                          borderColor: 'primary.main',
+                          borderLeftWidth: 3,
                         },
                         '&.Mui-selected:hover': {
                             bgcolor: 'rgba(59, 130, 246, 0.22)',
@@ -647,8 +653,8 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
             variant="contained"
             fullWidth
             sx={{
-              borderRadius: 3,
-              py: 1.25,
+              borderRadius: 2,
+              py: 1,
               fontWeight: 800,
               fontSize: "13px",
               textTransform: "none",
@@ -677,7 +683,7 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
           backgroundImage: (theme) => `linear-gradient(90deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
         }}
       >
-        <Toolbar>
+        <Toolbar sx={{ gap: { xs: 0.5, sm: 1 } }}>
           {!isStandalonePage && <IconButton color="inherit" aria-label="open drawer" edge="start" onClick={handleDrawerToggle} sx={{ mr: 2, display: { md: "none" } }}>
             <MenuIcon />
           </IconButton>}

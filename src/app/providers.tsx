@@ -26,7 +26,6 @@ function isAppThemeName(value: unknown): value is AppThemeName {
 const themeChangeListeners = new Set<() => void>();
 
 function readStoredTheme(): AppThemeName {
-  if (typeof window === "undefined") return DEFAULT_APP_THEME;
   try {
     const persisted = window.localStorage.getItem(STORAGE_KEY);
     if (isAppThemeName(persisted)) return persisted;
@@ -34,16 +33,6 @@ function readStoredTheme(): AppThemeName {
     // no-op
   }
   return DEFAULT_APP_THEME;
-}
-
-function subscribeToThemeStore(onStoreChange: () => void) {
-  if (typeof window === "undefined") return () => {};
-  themeChangeListeners.add(onStoreChange);
-  window.addEventListener("storage", onStoreChange);
-  return () => {
-    themeChangeListeners.delete(onStoreChange);
-    window.removeEventListener("storage", onStoreChange);
-  };
 }
 
 function setStoredThemeName(next: AppThemeName) {
@@ -113,11 +102,22 @@ function OfflineSyncBootstrap() {
 
 export default function Providers({ children, session }: { children: React.ReactNode; session?: Session | null }) {
   const [queryClient] = React.useState(() => new QueryClient());
-  const themeName = React.useSyncExternalStore(
-    subscribeToThemeStore,
-    readStoredTheme,
-    () => DEFAULT_APP_THEME,
-  );
+  // The first client render must match SSR. Read localStorage only after
+  // hydration so persisted themes cannot change MUI class names mid-hydration.
+  const [themeName, setThemeNameState] = React.useState<AppThemeName>(DEFAULT_APP_THEME);
+
+  React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- restore persisted theme after hydration
+    setThemeNameState(readStoredTheme());
+
+    const handleThemeChange = () => setThemeNameState(readStoredTheme());
+    themeChangeListeners.add(handleThemeChange);
+    window.addEventListener("storage", handleThemeChange);
+    return () => {
+      themeChangeListeners.delete(handleThemeChange);
+      window.removeEventListener("storage", handleThemeChange);
+    };
+  }, []);
 
   React.useEffect(() => {
     const root = document.documentElement;
@@ -127,7 +127,10 @@ export default function Providers({ children, session }: { children: React.React
   const muiTheme = React.useMemo(() => createAppTheme(themeName), [themeName]);
   const controller = React.useMemo<ThemeControllerContextValue>(() => ({
     themeName,
-    setThemeName: setStoredThemeName,
+    setThemeName: (next) => {
+      setThemeNameState(next);
+      setStoredThemeName(next);
+    },
     themeOptions: APP_THEME_OPTIONS,
   }), [themeName]);
 

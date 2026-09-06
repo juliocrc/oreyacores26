@@ -5,7 +5,7 @@ import "./globals.css";
 import "leaflet/dist/leaflet.css";
 import ModernLayout from "./ModernLayout";
 import Providers from "./providers";
-import EmotionSSRProvider from "./emotion-ssr-provider";
+import { AppRouterCacheProvider } from "@mui/material-nextjs/v16-appRouter";
 import RuntimeClientGuard from "./runtime-client-guard";
 import { getAuthSession } from "@/auth";
 import { APP_METADATA } from "@/lib/app-config";
@@ -109,7 +109,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="pt" data-theme={DEFAULT_APP_THEME} suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: EARLY_RUNTIME_RECOVERY_SCRIPT }} />
+        <Script id="early-runtime-recovery" strategy="beforeInteractive">
+          {EARLY_RUNTIME_RECOVERY_SCRIPT}
+        </Script>
         <link rel="manifest" href="/manifest.json" />
         <link rel="icon" type="image/png" href="/icon-192x192.png" />
         <meta name="theme-color" content="#1e3a8a" />
@@ -118,12 +120,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <meta name="apple-mobile-web-app-title" content="Orey Técnica" />
       </head>
       <body data-theme={DEFAULT_APP_THEME} suppressHydrationWarning className={`font-sans antialiased bg-slate-50 text-slate-900`}>
-        <EmotionSSRProvider>
+        <AppRouterCacheProvider options={{ enableCssLayer: true }}>
           <RuntimeClientGuard />
           <Providers session={session}>
             <ModernLayout>{children}</ModernLayout>
           </Providers>
-        </EmotionSSRProvider>
+        </AppRouterCacheProvider>
         <ScrollToTop />
         <ToastContainer />
         <Script src="/sw-register.js" strategy="afterInteractive" />

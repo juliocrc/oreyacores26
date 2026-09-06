@@ -163,7 +163,7 @@ export const PACK_FIELD_DEFINITIONS: PackFieldDefinition[] = [
     name: 'lanterna',
     category: 'SINALIZAÇÃO',
     section: 'emergency',
-    stockReferences: ['TORCH-WATERPROOF'],
+    stockReferences: ['20909295'],
     defaultQuantity: 1,
   },
   {
@@ -863,6 +863,7 @@ function dedupeMandatoryItems(items: MandatoryPackItem[]) {
       if (existing) {
         existing.quantity = Math.max(existing.quantity, item.quantity);
         existing.stockReferences = dedupe([...existing.stockReferences, ...item.stockReferences]);
+        existing.articleTokens = dedupe([...(existing.articleTokens || []), ...(item.articleTokens || [])]);
       }
       continue;
     }
@@ -934,7 +935,7 @@ export function getMandatoryPackItemsForRaft(context: PackContext) {
       .map((item) => buildMandatoryItem(item, selectedPack.pack, capacity, 'technical', templateFallbacks));
 
     const upperPack = String(packCode || '').toUpperCase().trim();
-    if (upperPack === 'R' || upperPack === 'E' || upperPack === 'SOLAS B' || upperPack.includes('R') || upperPack.includes('E') || upperPack.includes('SOLAS B') || upperPack.includes('REDUZIDO')) {
+    if (upperPack === 'R' || upperPack === 'E' || upperPack === 'SOLAS B' || upperPack === 'COASTAL' || upperPack === 'ISO-RAFT' || upperPack.includes('REDUZIDO') || upperPack.includes('SOLAS B')) {
       techItems = techItems.filter((i) => !isRationArticle(i.label) && !isRationArticle(i.checklistName));
     }
     return dedupeMandatoryItems(techItems);
@@ -952,7 +953,7 @@ export function getMandatoryPackItemsForRaft(context: PackContext) {
   }, normalizedTemplatePack, capacity, 'template', templateFallbacks));
 
   const upperPack = String(packCode || '').toUpperCase().trim();
-  if (upperPack === 'R' || upperPack === 'E' || upperPack === 'SOLAS B' || upperPack.includes('R') || upperPack.includes('E') || upperPack.includes('SOLAS B') || upperPack.includes('REDUZIDO')) {
+  if (upperPack === 'R' || upperPack === 'E' || upperPack === 'SOLAS B' || upperPack === 'COASTAL' || upperPack === 'ISO-RAFT' || upperPack.includes('REDUZIDO') || upperPack.includes('SOLAS B')) {
     fallbackItems = fallbackItems.filter((i) => !isRationArticle(i.label) && !isRationArticle(i.checklistName));
   }
 
@@ -1043,8 +1044,33 @@ export function findMatchingArticleForPackItem(item: MandatoryPackItem, articles
       }
     }
 
-    return tokens.some((token) => articleName.includes(token) || token.includes(articleName));
+    return tokens.some((token) => matchesWholeWords(articleName, token) || matchesWholeWords(token, articleName));
   }) || null;
+}
+
+/**
+ * Retorna true se `needle` aparece em `container` como uma sequencia de
+ * palavras inteiras (delimitadas por espacos). Ambos ja vem normalizados com
+ * normalizeText (palavras separadas por espacos, maiusculas). Isto evita falsos
+ * positivos de substring parcial, como "RACAO" dentro de "REPARACAO".
+ */
+function matchesWholeWords(container: string, needle: string): boolean {
+  if (!container || !needle) return false;
+  const needWords = needle.split(' ').filter(Boolean);
+  if (needWords.length === 0) return false;
+  const containerWords = container.split(' ').filter(Boolean);
+  if (containerWords.length < needWords.length) return false;
+  for (let i = 0; i <= containerWords.length - needWords.length; i++) {
+    let ok = true;
+    for (let j = 0; j < needWords.length; j++) {
+      if (containerWords[i + j] !== needWords[j]) {
+        ok = false;
+        break;
+      }
+    }
+    if (ok) return true;
+  }
+  return false;
 }
 
 /**

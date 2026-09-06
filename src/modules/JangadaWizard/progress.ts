@@ -14,8 +14,8 @@ const has = (v: unknown) => {
   return s.length > 0 && s !== '0';
 };
 
-export function getStepProgress(data: InspectionData): StepProgress[] {
-  const steps = getWizardSteps(data);
+export function getStepProgress(data: InspectionData, opts?: { hideOrcamento?: boolean }): StepProgress[] {
+  const steps = getWizardSteps(data, opts);
   const results: Record<string, { percent: number; missing: string[] }> = {
     dados: step1Percent(data),
     checklist: step2Percent(data),
@@ -23,6 +23,7 @@ export function getStepProgress(data: InspectionData): StepProgress[] {
     pack: step4Percent(data),
     cilindros: step5Percent(data),
     testes: step6Percent(data),
+    boletins: step6CPercent(data),
     reparacoes: stepReparacoesPercent(data),
     orcamento: step7Percent(data),
     resumo: step8Percent(data),
@@ -140,6 +141,16 @@ function step6Percent(d: InspectionData) {
     else missing.push(label);
   }
   return { percent: Math.round((filled / results.length) * 100), missing };
+}
+
+function step6CPercent(d: InspectionData) {
+  const bulletins = d.applicableServiceBulletins || [];
+  if (bulletins.length === 0) return { percent: 100, missing: [] };
+  const applied = d.serviceBulletinsApplied || {};
+  const answered = bulletins.filter((b) => applied[b.id] && applied[b.id] !== 'POR_APLICAR').length;
+  const missing: string[] = [];
+  if (answered < bulletins.length) missing.push(`${bulletins.length - answered} boletim(ens) por aplicar`);
+  return { percent: Math.round((answered / bulletins.length) * 100), missing };
 }
 
 function stepReparacoesPercent(d: InspectionData) {

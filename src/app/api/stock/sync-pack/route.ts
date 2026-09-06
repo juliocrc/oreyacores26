@@ -353,10 +353,36 @@ export async function POST(req: Request) {
             message: `Artigo criado no stock (ID: ${newStock.id})`,
           });
         } else if (action === "link_stock" && item.stockId) {
+          const stockTarget = await prisma.stock.findUnique({
+            where: { id: item.stockId },
+          });
+
+          if (!stockTarget) {
+            results.push({
+              reference: item.packReference,
+              status: "error",
+              message: `Stock ID ${item.stockId} não encontrado`,
+            });
+            continue;
+          }
+
+          const linked = await prisma.artigoJangada.updateMany({
+            where: {
+              inspecaoId: null,
+              OR: [
+                { referencia: { in: [item.packReference, stockTarget.referencia] } },
+                ...(item.packLabel
+                  ? [{ name: { contains: item.packLabel } }]
+                  : []),
+              ],
+            },
+            data: { stockId: item.stockId },
+          });
+
           results.push({
             reference: item.packReference,
             status: "linked",
-            message: `Artigo vinculado ao stock ID: ${item.stockId}`,
+            message: `Artigo vinculado ao stock ID: ${item.stockId} (${linked.count} artigo(s) atualizado(s))`,
           });
         } else if (action === "update_min_qty" && item.stockId && item.newMinQty !== undefined) {
           await prisma.stock.update({

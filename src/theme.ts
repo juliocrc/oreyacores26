@@ -124,25 +124,25 @@ export function createAppTheme(themeName: AppThemeName) {
     },
     typography: {
       fontFamily: 'Inter, Arial, Helvetica, sans-serif',
-      fontSize: 17,
+      fontSize: 16,
       h1: {
         fontSize: 'clamp(2rem, 1.6rem + 1.2vw, 3rem)',
         fontWeight: 800,
         letterSpacing: '-0.02em',
         color: preset.textPrimary,
-        textShadow: darkMode ? '0 2px 16px rgba(15, 23, 42, 0.35)' : '0 1px 0 rgba(255,255,255,0.85), 0 10px 20px rgba(124,58,237,0.12)',
+        textShadow: darkMode ? '0 1px 10px rgba(15, 23, 42, 0.25)' : 'none',
       },
       h2: {
         fontSize: 'clamp(1.55rem, 1.3rem + 0.8vw, 2.25rem)',
         fontWeight: 800,
         color: preset.textPrimary,
-        textShadow: darkMode ? '0 2px 14px rgba(15, 23, 42, 0.28)' : '0 1px 0 rgba(255,255,255,0.8), 0 8px 18px rgba(124,58,237,0.1)',
+        textShadow: darkMode ? '0 1px 8px rgba(15, 23, 42, 0.2)' : 'none',
       },
       h3: {
         fontSize: 'clamp(1.25rem, 1.1rem + 0.45vw, 1.7rem)',
         fontWeight: 700,
         color: preset.textPrimary,
-        textShadow: darkMode ? '0 1px 10px rgba(15, 23, 42, 0.25)' : '0 1px 0 rgba(255,255,255,0.75), 0 6px 14px rgba(236,72,153,0.08)',
+        textShadow: darkMode ? '0 1px 6px rgba(15, 23, 42, 0.18)' : 'none',
       },
       h4: {
         fontWeight: 700,
@@ -152,13 +152,13 @@ export function createAppTheme(themeName: AppThemeName) {
         fontSize: '1rem',
         lineHeight: 1.7,
         color: preset.textPrimary,
-        textShadow: darkMode ? '0 1px 8px rgba(15, 23, 42, 0.16)' : '0 1px 0 rgba(255,255,255,0.7)',
+        textShadow: 'none',
       },
       body2: {
         fontSize: '0.95rem',
         lineHeight: 1.65,
         color: preset.textSecondary,
-        textShadow: darkMode ? '0 1px 6px rgba(15, 23, 42, 0.12)' : '0 1px 0 rgba(255,255,255,0.6)',
+        textShadow: 'none',
       },
       button: {
         fontSize: '0.96rem',
@@ -194,22 +194,29 @@ export function createAppTheme(themeName: AppThemeName) {
       MuiToolbar: {
         styleOverrides: {
           root: {
-            minHeight: 72,
+            minHeight: 64,
           },
         },
       },
       MuiButton: {
         styleOverrides: {
           root: {
-            borderRadius: themeName === 'deluxe' ? 12 : 16,
-            paddingInline: 18,
-            paddingBlock: 10,
+            borderRadius: themeName === 'deluxe' ? 10 : 12,
+            paddingInline: 16,
+            paddingBlock: 8,
+            minHeight: 40,
+            transition: 'background-color 160ms ease, box-shadow 160ms ease, transform 160ms ease',
             boxShadow: themeName === 'deluxe'
-              ? '0 4px 14px 0 rgba(212, 175, 55, 0.2)'
-              : (darkMode ? '0 12px 24px rgba(2, 6, 23, 0.35)' : '0 12px 24px rgba(91, 33, 182, 0.14)'),
+              ? '0 2px 8px rgba(212, 175, 55, 0.12)'
+              : (darkMode ? '0 4px 12px rgba(2, 6, 23, 0.2)' : '0 4px 12px rgba(15, 23, 42, 0.08)'),
             border: themeName === 'deluxe'
               ? '1px solid rgba(212, 175, 55, 0.3)'
               : (darkMode ? '1px solid rgba(148,163,184,0.14)' : '1px solid rgba(124,58,237,0.08)'),
+            '&:hover': {
+              boxShadow: themeName === 'deluxe'
+                ? '0 4px 12px rgba(212, 175, 55, 0.18)'
+                : '0 6px 16px rgba(15, 23, 42, 0.12)',
+            },
           },
         },
       },
@@ -266,14 +273,14 @@ export function createAppTheme(themeName: AppThemeName) {
       MuiCard: {
         styleOverrides: {
           root: {
-            borderRadius: themeName === 'deluxe' ? 20 : 22,
+            borderRadius: themeName === 'deluxe' ? 16 : 18,
             overflow: 'hidden',
             border: themeName === 'deluxe'
               ? '1px solid rgba(212, 175, 55, 0.15)'
               : (darkMode ? '1px solid rgba(148,163,184,0.08)' : '1px solid rgba(124,58,237,0.08)'),
             boxShadow: themeName === 'deluxe'
               ? '0 12px 40px -10px rgba(0, 0, 0, 0.5)'
-              : (darkMode ? '0 18px 42px rgba(2,6,23,0.42)' : '0 18px 42px rgba(91,33,182,0.12)'),
+              : (darkMode ? '0 10px 24px rgba(2,6,23,0.28)' : '0 10px 24px rgba(15,23,42,0.08)'),
             backgroundImage: themeName === 'deluxe'
               ? 'linear-gradient(180deg, rgba(15, 23, 42, 0.75) 0%, rgba(11, 15, 25, 0.85) 100%)'
               : undefined,
