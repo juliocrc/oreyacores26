@@ -21,7 +21,7 @@ const path = require("path");
 
 const ROOT = path.resolve(__dirname, "..");
 const DB_REL = "prisma/local.db";
-const DB_PATH = path.join(ROOT, DB_REL);
+const DB_PATH = process.env.GDRIVE_DB_LOCAL_PATH || path.join(ROOT, DB_REL);
 const RCLONE = path.join(ROOT, "bin", "rclone.exe");
 
 function loadEnv(fileName) {

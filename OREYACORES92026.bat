@@ -1,10 +1,8 @@
 @echo off
-title Orey Acores - Iniciar na Pen USB
+title Orey Acores - Portatil
 color 0B
-
-:: Obter a letra da unidade onde este script esta a correr (ex: E:, F:, G:)
-set "USB_DRIVE=%~dp0"
-cd /d "%USB_DRIVE%"
+setlocal
+cd /d "%~dp0"
 
 echo ========================================
 echo   GESTOR NAVAL OREY TECNICA - PORTATIL
@@ -14,36 +12,41 @@ echo.
 
 :: O pacote e autocontido: usar apenas o Node distribuido na pasta bin.
 set "NODE_EXE=%~dp0bin\node.exe"
-if not exist "%~dp0bin\node.exe" (
+if not exist "%NODE_EXE%" (
     echo [ERRO] Node.js portatil nao encontrado em "%~dp0bin\node.exe".
     echo Recrie o pacote com PREPARAR_PACOTE_PORTATIL.ps1.
     pause
     exit /b 1
 )
-echo [INFO] A usar Node.js embutido na pen: %NODE_EXE%
 
 :: Verificar se a pasta .next existe
-if not exist ".next" (
+if not exist "%~dp0.next" (
     echo [ERRO] Pasta .next nao encontrada!
     echo Execute REBUILD_USB.bat neste computador primeiro.
     pause
     exit /b 1
 )
 
-:: Garantir base de dados local
-if not exist "prisma\local.db" (
-    if exist "prisma\schema.sqlite.prisma" (
-        echo [INFO] A inicializar base de dados local...
-        "%NODE_EXE%" node_modules\@prisma\client\runtime\index.js >nul 2>&1
-    )
-)
+if not exist "%~dp0terminal_logs" mkdir "%~dp0terminal_logs"
 
-echo.
+:: Limitar memoria para PCs fracos e evitar crashes por OOM.
+set "NODE_OPTIONS=--max-old-space-size=2048"
+
 echo [INFO] A iniciar aplicacao...
 echo [INFO] Mantenha esta janela aberta enquanto utiliza o sistema.
+echo [INFO] Registos e erros em: terminal_logs\launcher.log
+echo.
+echo ----------------------------------------------------------------------
+echo  Se a aplicacao fechar, abra terminal_logs\launcher.log para ver o
+echo  motivo. A aplicacao funciona sem ser administrador (dados caiem
+echo  para a pasta do utilizador se a pen/ACL bloquear escrita).
+echo ----------------------------------------------------------------------
 echo.
 
-:: Iniciar launcher.js
-start "" "%NODE_EXE%" launcher.js
+"%NODE_EXE%" "%~dp0launcher.js"
 
-exit
+echo.
+echo [INFO] O servidor terminou (codigo %ERRORLEVEL%).
+echo [INFO] Detalhes e erros em terminal_logs\launcher.log
+echo.
+pause
