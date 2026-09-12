@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { normalizeArtigoValidade } from "@/lib/date-utils";
 import { PACK_FIELD_DEFINITIONS } from "@/modules/rafts/mandatoryPack";
 import { readInspectionChecklistValues, writeInspectionChecklistValues } from "@/lib/inspection-checklist-store";
 import { getAccessContext } from "@/lib/access-control";
@@ -52,8 +53,7 @@ export async function PUT(
   if (raw.referencia !== undefined) data.referencia = String(raw.referencia || "").trim() || null;
   if (raw.quantidade !== undefined) data.quantidade = Number(raw.quantidade) || 0;
   if (raw.validade !== undefined) {
-    const d = raw.validade ? new Date(raw.validade) : null;
-    data.validade = d && !isNaN(d.getTime()) ? d : null;
+    data.validade = normalizeArtigoValidade(raw.validade);
   }
   if (raw.lote !== undefined) data.lote = String(raw.lote || "").trim() || null;
   if (raw.estado !== undefined) data.estado = String(raw.estado || "ATIVO").trim();

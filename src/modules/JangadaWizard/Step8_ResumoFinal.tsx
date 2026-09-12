@@ -67,7 +67,7 @@ export default function Step8_ResumoFinal() {
         })
         .catch(err => console.error('Erro ao carregar certificações:', err));
     } else {
-      setCerts([]);
+      Promise.resolve().then(() => setCerts([]));
     }
   }, [selectedTecnicoId]);
 
@@ -409,6 +409,7 @@ export default function Step8_ResumoFinal() {
         usarOrcamento: Boolean(inspectionData.orcamento?.usarOrcamento),
         removedIds: inspectionData.orcamento?.removedIds || [],
         aprovacaoWhatsApp: inspectionData.orcamento?.aprovacaoWhatsApp || null,
+        certificadoRevisao: inspectionData.orcamento?.certificadoRevisao || null,
       },
       ordemId: ordemId ? parseInt(ordemId, 10) : null,
     };
@@ -458,8 +459,6 @@ export default function Step8_ResumoFinal() {
           packType: inspectionData.packType,
           capacity: inspectionData.capacity,
           dataFabrico: inspectionData.dataFabrico,
-          dataInspecao: inspectionData.dataInspecao,
-          dataProxInspecao: inspectionData.dataProxInspecao,
           launchType: inspectionData.launchType,
           fabricType: inspectionData.fabricType,
           painterLength: inspectionData.painterLength,
@@ -838,7 +837,22 @@ export default function Step8_ResumoFinal() {
                 </div>
                 <div>
                   <p className="text-xs text-indigo-200 font-medium uppercase tracking-wider mb-0.5">Estado</p>
-                  <p className="font-semibold text-emerald-300">Em Rascunho</p>
+                  {Boolean(inspectionData.abate?.ativo) ? (
+                    <p className="font-bold text-red-300 flex items-center gap-1.5">
+                      <ShieldAlert size={14} />
+                      Condenada (Abate)
+                    </p>
+                  ) : criticalCount > 0 ? (
+                    <p className="font-bold text-amber-300 flex items-center gap-1.5">
+                      <AlertTriangle size={14} />
+                      Com Falhas Críticas
+                    </p>
+                  ) : (
+                    <p className="font-semibold text-emerald-300 flex items-center gap-1.5">
+                      <CheckCircle size={14} />
+                      Pronto a Fechar
+                    </p>
+                  )}
                   <p className="text-xs text-indigo-100">Próx. Insp: {formatDateDisplay(inspectionData.dataProxInspecao, '?')}</p>
                 </div>
               </div>
@@ -908,9 +922,77 @@ export default function Step8_ResumoFinal() {
                   : 'Existem falhas que reprovam a jangada'}
               </p>
             )}
+</div>
+          </div>
+
+          {/* Pré-requisitos de Fecho */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-4 flex items-center gap-2">
+              <FileText size={16} className="text-slate-400" />
+              Dossier de Fecho
+            </h3>
+            {(() => {
+              const items = [
+                {
+                  label: 'Técnico responsável selecionado',
+                  ok: Boolean(selectedTecnicoId),
+                  hint: selectedTecnicoId ? 'Selecionado' : 'Pendente',
+                },
+                {
+                  label: 'Assinatura digital do técnico',
+                  ok: Boolean(inspectionData.signatureBase64),
+                  hint: inspectionData.signatureBase64 ? 'Assinada' : 'Pendente',
+                },
+                {
+                  label: 'Certificação do fabricante',
+                  ok: !checkTechnicianCertification(),
+                  hint: checkTechnicianCertification() ? 'Em falta' : 'Válida',
+                  skip: !selectedTecnicoId,
+                },
+                {
+                  label: 'Nome do cliente / comandante',
+                  ok: Boolean(String((inspectionData as any).clienteNomeAssinatura || "").trim()),
+                  hint: String((inspectionData as any).clienteNomeAssinatura || "").trim() ? 'Registado' : 'Pendente',
+                },
+                {
+                  label: 'Assinatura de aceitação',
+                  ok: Boolean(String((inspectionData as any).clienteAssinaturaBase64 || "")),
+                  hint: String((inspectionData as any).clienteAssinaturaBase64 || "") ? 'Assinado' : 'Pendente',
+                },
+              ];
+              const done = items.filter(i => i.ok).length;
+              const total = items.filter(i => !i.skip).length;
+              const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+              return (
+                <div className="space-y-3">
+                  <div>
+                    <div className="flex items-center justify-between text-xs font-bold mb-1">
+                      <span className="text-slate-600">Preparação do dossier</span>
+                      <span className={pct === 100 ? 'text-emerald-600' : 'text-indigo-600'}>{pct}%</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${pct === 100 ? 'bg-emerald-500' : 'bg-indigo-500'}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    {items.filter(i => !i.skip).map((item, idx) => (
+                      <div key={idx} className="flex items-center justify-between gap-3 text-xs">
+                        <span className="flex items-center gap-2 font-medium text-slate-600">
+                          {item.ok ? <CheckCircle size={14} className="text-emerald-500" /> : <span className="w-3.5 h-3.5 rounded-full border-2 border-slate-300" />}
+                          {item.label}
+                        </span>
+                        <span className={`font-bold ${item.ok ? 'text-emerald-600' : 'text-slate-400'}`}>{item.hint}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       </div>
-    </div>
   );
 }

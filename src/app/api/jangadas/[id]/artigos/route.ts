@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { parseFlexibleDateValue } from "@/lib/date-display";
+import { normalizeArtigoValidade } from "@/lib/date-utils";
 
 const artigoJangadaDelegate = prisma.artigoJangada;
 
@@ -38,8 +38,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
 
   let parsedValidade: Date | null = null;
   if (data.validade) {
-    const d = parseFlexibleDateValue(String(data.validade));
-    if (d) parsedValidade = d;
+    parsedValidade = normalizeArtigoValidade(String(data.validade));
   }
 
   const artigo = await artigoJangadaDelegate.create({

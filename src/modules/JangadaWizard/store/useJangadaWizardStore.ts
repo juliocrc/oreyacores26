@@ -167,6 +167,7 @@ export const useJangadaWizardStore = create<WizardState>()(
           maxStowageHeight: raftData?.maxStowageHeight || '',
           hruReference: raftData?.hruReferencia || '',
           hruExpiry: raftData?.hruValidade || '',
+          hruTipo: raftData?.hruTipo || '',
           radarReflector: raftData?.radarReflector || '',
           radarReflectorExpiry: raftData?.radarReflectorValidade || '',
           certificadoNumero: draftData?.certificadoNumero || '',

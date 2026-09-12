@@ -327,3 +327,106 @@ export function formatDateAuto(value: unknown): string {
   if (raw.includes('T')) return formatDateTime(raw);
   return formatDate(raw);
 }
+
+/**
+ * Normalize any validade input to a Date at local midnight on the 1st of the parsed month.
+ * Handles: Date objects, "YYYY-MM-DD", "MM/YYYY", "YYYY-MM", "MM-YY", etc.
+ * Returns null if input is empty or unparseable.
+ *
+ * Used when writing ArtigoJangada.validade to ensure the DateTime column
+ * always stores a clean 1st-of-month date, avoiding timezone-shifted or
+ * partial-date serialization issues (e.g. raw Date.toString() leaking).
+ */
+export function normalizeArtigoValidade(value: Date | string | null | undefined): Date | null {
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return null;
+    // Use the ISO representation (UTC) to extract year/month, avoiding local
+    // timezone shift that would move e.g. a 1st-of-January date into December
+    // when the Azores are at UTC-1 in winter.
+    const iso = value.toISOString();
+    const m = iso.match(/^(\d{4})-(\d{2})/);
+    if (m) return new Date(Number(m[1]), Number(m[2]) - 1, 1);
+    // Fallback (should not happen for valid Date objects)
+    return new Date(value.getFullYear(), value.getMonth(), 1);
+  }
+  const d = parseFlexibleDate(value);
+  if (!d) return null;
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+
+/**
+ * Convert any date-ish value to a "YYYY-MM" string for `<input type="month">`.
+ * Timezone-safe: reads the calendar month/year from the string itself (or UTC
+ * components) instead of `new Date(str).getMonth()`, which shifts by one month
+ * in negative-offset timezones (e.g. Azores winter, UTC-1) for full-date
+ * inputs like "2009-05-01" or ISO datetimes.
+ *
+ * Returns "" for null/empty/unparseable input.
+ */
+export function toMonthInput(value: string | Date | null | undefined): string {
+  if (!value) return '';
+  const str = String(value);
+
+  // Already in YYYY-MM/YYYY-MM-DD/ISO format -> take the first 7 chars.
+  // This is the timezone-safe path for the common stored values
+  // ("2028-01-01T00:00:00.000Z", "2009-05-01", "2016-07", ...).
+  const iso = str.match(/^(\d{4})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}`;
+
+  // MM/YYYY in hand.
+  const mmYyyy = str.match(/^(\d{1,2})\/(\d{4})$/);
+  if (mmYyyy) return `${mmYyyy[2]}-${mmYyyy[1].padStart(2, '0')}`;
+
+  // Legacy fallback using UTC components so negative-offset timezones
+  // don't push the date into the previous month.
+  const d = new Date(str);
+  if (Number.isNaN(d.getTime())) return '';
+  const yyyy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  return `${yyyy}-${mm}`;
+}
+
+/**
+ * Format any date-ish value as "MM/YYYY" (Portuguese month display).
+ * Timezone-safe: always extracts year/month from the raw string via regex,
+ * falling back to UTC components (never local getMonth).
+ * Returns "—" for null/empty/unparseable input.
+ */
+export function formatMonthPt(value: unknown): string {
+  if (!value) return '—';
+  const str = String(value).trim();
+  if (!str) return '—';
+
+  // YYYY-MM / YYYY-MM-DD / full ISO -> "MM/YYYY"
+  const iso = str.match(/^(\d{4})-(\d{2})/);
+  if (iso) return `${iso[2]}/${iso[1]}`;
+
+  // MM/YYYY -> passthrough
+  if (/^\d{1,2}\/\d{4}$/.test(str)) return str;
+
+  // MM/YY -> MM/YYYY
+  const mmYy = str.match(/^(\d{1,2})\/(\d{2})$/);
+  if (mmYy) return `${mmYy[1]}/${2000 + Number(mmYy[2])}`;
+
+  // Fallback: use UTC components to avoid timezone shift.
+  const d = new Date(str);
+  if (Number.isNaN(d.getTime())) return str;
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const yyyy = d.getUTCFullYear();
+  return `${mm}/${yyyy}`;
+}
+
+/**
+ * Return a Date set to 23:59:59.999 on the last day of the given "YYYY-MM" month.
+ * Used by expiry checks where validade is stored as a month (MM/YYYY/YYYY-MM).
+ * The resulting instant is in LOCAL time (Azores), safe for same-day comparisons
+ * with `new Date()`.
+ */
+export function parseMonthEnd(yearMonth: string): Date | null {
+  const m = yearMonth.match(/^(\d{4})-(\d{2})$/);
+  if (!m) return null;
+  const y = Number(m[1]);
+  const month = Number(m[2]);
+  if (month < 1 || month > 12) return null;
+  return new Date(y, month, 0, 23, 59, 59, 999);
+}

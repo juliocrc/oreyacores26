@@ -3,6 +3,7 @@
 
 import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import JsBarcode from "jsbarcode";
+import QRCode from "qrcode";
 import { useSession } from "next-auth/react";
 import { stockItemSupportsValidity } from "@/lib/stock-validity";
 import {
@@ -389,7 +390,16 @@ function StockPageContent() {
     }
   }
 
-  function printLabels(items: ItemStock[]) {
+  async function buildQrDataUrl(item: ItemStock): Promise<string | null> {
+    try {
+      const target = `${window.location.origin}/stock?id=${item.id}`;
+      return await QRCode.toDataURL(target, { width: 140, margin: 1, errorCorrectionLevel: "M" });
+    } catch {
+      return null;
+    }
+  }
+
+  async function printLabels(items: ItemStock[]) {
     const totalPorFolha = Math.max(1, Number(etiquetasPorFolha) || 24);
     const totalColunas = Math.max(1, Number(colunasPorLinha) || 3);
 
@@ -399,8 +409,10 @@ function StockPageContent() {
       return;
     }
 
+    const qrUrls = await Promise.all(validItems.map((item) => buildQrDataUrl(item)));
+
     const labelBlocks = validItems
-      .map((item) => {
+      .map((item, idx) => {
         const referencia = String(item.referencia || "").trim();
         const nome = String(item.nome || item.descricao || "Sem nome").trim();
         const fotoRaw = String(fotosByItemId[item.id] || item.foto || "").trim();
@@ -410,6 +422,7 @@ function StockPageContent() {
               : `${window.location.origin}${fotoRaw.startsWith("/") ? fotoRaw : `/${fotoRaw}`}`)
           : "";
         const barcode = buildBarcodeDataUrl(referencia);
+        const qr = qrUrls[idx] || null;
         if (!barcode) return "";
 
         return `
@@ -419,7 +432,10 @@ function StockPageContent() {
             </div>
             <div class="ref">${escapeHtml(referencia)}</div>
             <div class="name">${escapeHtml(nome)}</div>
-            <img class="barcode" src="${barcode}" alt="Código de barras ${escapeHtml(referencia)}" />
+            <div class="codes">
+              <img class="barcode" src="${barcode}" alt="Código de barras ${escapeHtml(referencia)}" />
+              ${qr ? `<img class="qr" src="${qr}" alt="QR ${escapeHtml(referencia)}" />` : ""}
+            </div>
           </div>
         `;
       })
@@ -545,6 +561,9 @@ function StockPageContent() {
               overflow: hidden;
             }
             .barcode { width: 100%; height: 18mm; object-fit: contain; }
+            .codes { display: flex; align-items: center; justify-content: center; gap: 4mm; }
+            .codes .barcode { flex: 1; height: 16mm; }
+            .qr { height: 16mm; width: 16mm; object-fit: contain; }
           </style>
         </head>
         <body>
@@ -2767,7 +2786,7 @@ function StockPageContent() {
                           </button>
                         )}
                         <button className="bg-blue-500 px-2 py-1 rounded text-xs text-white" onClick={() => openViewItem(item)}>Ver ficha</button>
-                        <button className="bg-indigo-600 px-2 py-1 rounded text-xs text-white" onClick={() => printLabels([item])}>Etiqueta</button>
+                        <button className="bg-indigo-600 px-2 py-1 rounded text-xs text-white" onClick={() => void printLabels([item])}>Etiqueta</button>
                         <button className="bg-red-500 px-2 py-1 rounded text-xs text-white" onClick={() => handleDelete(item.id)}>Excluir</button>
                       </>
                     ) : (
@@ -2909,7 +2928,7 @@ function StockPageContent() {
                               <>
                                 <button className="bg-green-600 px-2 py-1 rounded text-xs text-white" onClick={() => handleStockOperation(item.id, "entrada")}>+1</button>
                                 <button className="bg-orange-500 px-2 py-1 rounded text-xs text-white" onClick={() => handleStockOperation(item.id, "saida")}>-1</button>
-                                <button className="bg-indigo-600 px-2 py-1 rounded text-xs text-white" onClick={() => printLabels([item])}>Etiqueta</button>
+                                <button className="bg-indigo-600 px-2 py-1 rounded text-xs text-white" onClick={() => void printLabels([item])}>Etiqueta</button>
                                 <button className="bg-red-500 px-2 py-1 rounded text-xs text-white" onClick={() => handleDelete(item.id)}>Excluir</button>
                               </>
                             ) : null}
@@ -3012,7 +3031,7 @@ function StockPageContent() {
                       <>
                         <button className="bg-green-600 px-2 py-1 rounded text-xs text-white" onClick={() => handleStockOperation(item.id, "entrada")}>+1</button>
                         <button className="bg-orange-500 px-2 py-1 rounded text-xs text-white" onClick={() => handleStockOperation(item.id, "saida")}>-1</button>
-                        <button className="bg-indigo-600 px-2 py-1 rounded text-xs text-white" onClick={() => printLabels([item])}>Etiqueta</button>
+                        <button className="bg-indigo-600 px-2 py-1 rounded text-xs text-white" onClick={() => void printLabels([item])}>Etiqueta</button>
                         <button className="bg-red-500 px-2 py-1 rounded text-xs text-white" onClick={() => handleDelete(item.id)}>Excluir</button>
                       </>
                     ) : null}

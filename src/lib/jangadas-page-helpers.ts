@@ -1,6 +1,6 @@
 import { getRecognizedPackTypeOptions } from "@/config/packTemplates";
 import { certificateItemHasManagedValidity } from "@/lib/certificate-validity";
-import { findRaftTechnicalModel } from "@/modules/rafts/raftModelData";
+import { findRaftTechnicalModel, raftModelData } from "@/modules/rafts/raftModelData";
 import { findMatchingArticleForPackItem, getMandatoryPackItemsForRaft } from "@/modules/rafts/mandatoryPack";
 import type { Jangada, PausedInspectionDraftMeta, JangadaListColumnKey } from "@/types/jangadas-page";
 import { JANGADA_LIST_COLUMNS } from "@/types/jangadas-page";
@@ -399,8 +399,7 @@ export function normalizeModelFilterKey(value: unknown): string {
   return String(value ?? "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, " ")
-    .trim()
+    .replace(/[^A-Z0-9]+/gi, "")
     .toUpperCase();
 }
 
@@ -409,6 +408,42 @@ export function normalizeModelFilterLabel(value: unknown): string {
     .replace(/\s+/g, " ")
     .trim()
     .toUpperCase();
+}
+
+function stripRaftConfigSuffix(key: string): string {
+  if (key.length > 2 && (key.endsWith("TO") || key.endsWith("DL"))) return key.slice(0, -2);
+  return key;
+}
+
+export function normalizeModelMatchKey(value: unknown): string {
+  return stripRaftConfigSuffix(normalizeModelFilterKey(value));
+}
+
+export function canonicalizeRaftModelLabel(brand: unknown, model: unknown): string | null {
+  const key = normalizeModelMatchKey(model);
+  if (!key) return null;
+  const brandKey = normalizeModelFilterKey(brand);
+
+  const models = (
+    Object.entries(raftModelData) as Array<[string, Array<{ name: string; aliases?: string[] }>]>
+  )
+    .filter(([catalogBrand]) => {
+      const candidateBrandKey = normalizeModelFilterKey(catalogBrand);
+      return (
+        !brandKey ||
+        candidateBrandKey === brandKey ||
+        candidateBrandKey.includes(brandKey) ||
+        brandKey.includes(candidateBrandKey)
+      );
+    })
+    .flatMap(([, entries]) => entries);
+
+  const match = models.find((entry) => {
+    if (normalizeModelMatchKey(entry.name) === key) return true;
+    return (entry.aliases || []).some((alias) => normalizeModelMatchKey(alias) === key);
+  });
+
+  return match ? match.name : null;
 }
 
 export function uniqueNormalizedLabels(values: Array<string | null | undefined>): string[] {

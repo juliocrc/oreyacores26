@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useMemo, useCallback } from "react";
-import { Search, FileText, ChevronDown, ChevronRight, Activity, Calendar, Download, Loader2 } from "lucide-react";
+import { Search, FileText, ChevronDown, ChevronRight, Activity, Calendar, Download, Loader2, CheckCircle2, Timer, XCircle, ListChecks } from "lucide-react";
 import Link from "next/link";
 import { formatValidityDisplay } from "@/lib/date-display";
 
@@ -31,6 +31,7 @@ type Props = {
 
 export default function InspecoesClient({ initialData, totalCount, pageSize }: Props) {
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "concluida" | "curso" | "condenada" | "sem_status">("all");
   const [expandedMonths, setExpandedMonths] = useState<Record<string, boolean>>({});
   const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({});
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
@@ -70,14 +71,51 @@ export default function InspecoesClient({ initialData, totalCount, pageSize }: P
   }, [currentPage, pageSize, loadingMore, hasMore]);
 
   const filteredData = useMemo(() => {
-    if (!searchTerm) return allData;
+    let list = allData;
+    if (statusFilter !== "all") {
+      list = list.filter((insp) => {
+        const s = (insp.status || "").toLowerCase();
+        if (statusFilter === "concluida") return s === "concluída" || s === "concluida" || s === "aprovado";
+        if (statusFilter === "curso") return s === "draft" || s === "rascunho" || s === "pendente" || s === "em curso";
+        if (statusFilter === "condenada") return s === "condenada" || s === "reprovou";
+        if (statusFilter === "sem_status") return !insp.status;
+        return true;
+      });
+    }
+    if (!searchTerm) return list;
     const lower = searchTerm.toLowerCase();
-    return allData.filter((insp) =>
+    return list.filter((insp) =>
       insp.certificadoNumero?.toLowerCase().includes(lower) ||
       insp.navioNome?.toLowerCase().includes(lower) ||
       insp.jangadaSerial?.toLowerCase().includes(lower)
     );
-  }, [allData, searchTerm]);
+  }, [allData, searchTerm, statusFilter]);
+
+  const statusInfo = (status: string | null | undefined) => {
+    const s = (status || "").toLowerCase();
+    if (s === "concluída" || s === "concluida" || s === "aprovado") {
+      return { label: status || "Concluída", dot: "bg-emerald-500", badge: "bg-emerald-100 text-emerald-800", pulse: true };
+    }
+    if (s === "draft" || s === "rascunho" || s === "pendente" || s === "em curso") {
+      return { label: status || "Em curso", dot: "bg-amber-500", badge: "bg-amber-100 text-amber-800", pulse: true };
+    }
+    if (s === "condenada" || s === "reprovou") {
+      return { label: status || "Condenada", dot: "bg-red-500", badge: "bg-red-100 text-red-700", pulse: false };
+    }
+    return { label: status || "S/ estado", dot: "bg-slate-400", badge: "bg-slate-100 text-slate-600", pulse: false };
+  };
+
+  const counts = useMemo(() => {
+    const c = { total: allData.length, concluida: 0, curso: 0, condenada: 0, sem_status: 0 };
+    allData.forEach((insp) => {
+      const s = (insp.status || "").toLowerCase();
+      if (s === "concluída" || s === "concluida" || s === "aprovado") c.concluida++;
+      else if (s === "draft" || s === "rascunho" || s === "pendente" || s === "em curso") c.curso++;
+      else if (s === "condenada" || s === "reprovou") c.condenada++;
+      else c.sem_status++;
+    });
+    return c;
+  }, [allData]);
 
   const groupedData = useMemo(() => {
     const groups: Record<string, InspecaoData[]> = {};
@@ -131,6 +169,61 @@ export default function InspecoesClient({ initialData, totalCount, pageSize }: P
 
   return (
     <div className="space-y-6">
+      {/* Status Summary Strip */}
+      <div className="bg-sky-50 border border-sky-200 rounded-2xl p-4 grid grid-cols-2 md:grid-cols-4 gap-3 shadow-sm">
+        <button onClick={() => setStatusFilter("all")} className={`flex items-center gap-3 text-left rounded-xl p-2 transition-all ${statusFilter === "all" ? "bg-white ring-1 ring-sky-300 shadow-sm" : "hover:bg-white/60"}`}>
+          <ListChecks className="w-8 h-8 text-sky-600 shrink-0" />
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">Total Registos</p>
+            <p className="text-xl font-black text-sky-700">{counts.total}</p>
+          </div>
+        </button>
+        <button onClick={() => setStatusFilter("concluida")} className={`flex items-center gap-3 text-left rounded-xl p-2 transition-all ${statusFilter === "concluida" ? "bg-white ring-1 ring-emerald-300 shadow-sm" : "hover:bg-white/60"}`}>
+          <CheckCircle2 className="w-8 h-8 text-emerald-600 shrink-0" />
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">Concluídas</p>
+            <p className="text-xl font-black text-emerald-700">{counts.concluida}</p>
+          </div>
+        </button>
+        <button onClick={() => setStatusFilter("curso")} className={`flex items-center gap-3 text-left rounded-xl p-2 transition-all ${statusFilter === "curso" ? "bg-white ring-1 ring-amber-300 shadow-sm" : "hover:bg-white/60"}`}>
+          <Timer className="w-8 h-8 text-amber-600 shrink-0" />
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">Em Curso / Draft</p>
+            <p className="text-xl font-black text-amber-700">{counts.curso}</p>
+          </div>
+        </button>
+        <button onClick={() => setStatusFilter("condenada")} className={`flex items-center gap-3 text-left rounded-xl p-2 transition-all ${statusFilter === "condenada" ? "bg-white ring-1 ring-red-300 shadow-sm" : "hover:bg-white/60"}`}>
+          <XCircle className="w-8 h-8 text-red-600 shrink-0" />
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">Condenadas</p>
+            <p className="text-xl font-black text-red-600">{counts.condenada}</p>
+          </div>
+        </button>
+      </div>
+
+      {/* Quick Filters */}
+      <div className="flex flex-wrap gap-2">
+        {([
+          { key: "all" as const, label: "Todas" },
+          { key: "concluida" as const, label: `Concluídas (${counts.concluida})` },
+          { key: "curso" as const, label: `Em curso / Draft (${counts.curso})` },
+          { key: "condenada" as const, label: `Condenadas (${counts.condenada})` },
+          { key: "sem_status" as const, label: `S/ estado (${counts.sem_status})` },
+        ]).map((f) => (
+          <button
+            key={f.key}
+            onClick={() => setStatusFilter(f.key)}
+            className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all ${
+              statusFilter === f.key
+                ? "bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-200"
+                : "bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
       {/* Search Bar */}
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-3">
         <Search className="text-slate-400" />
@@ -209,11 +302,18 @@ export default function InspecoesClient({ initialData, totalCount, pageSize }: P
                             </div>
 
                             <div className="flex items-center gap-3">
-                              <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                                insp.status === "Concluída" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
-                              }`}>
-                                {insp.status}
-                              </span>
+                              {(() => {
+                                const st = statusInfo(insp.status);
+                                return (
+                                  <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold ${st.badge}`}>
+                                    <span className="relative inline-flex">
+                                      <span className={`w-2 h-2 rounded-full ${st.dot} ${st.pulse ? "animate-pulse" : ""}`} />
+                                      {st.pulse && <span className={`absolute inline-flex h-full w-full rounded-full ${st.dot} opacity-60 animate-ping`} />}
+                                    </span>
+                                    {st.label}
+                                  </span>
+                                );
+                              })()}
                               
                               <button
                                 onClick={(e) => handleDownloadOrey(e, insp)}

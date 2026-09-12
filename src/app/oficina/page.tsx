@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Wrench, Plus, Edit, Trash2, ShieldAlert, Cpu, Gauge } from "lucide-react";
+import { Wrench, Plus, Edit, Trash2, ShieldAlert, Cpu, Gauge, Search, AlertTriangle, CheckCircle2, CalendarClock, XCircle, Activity, Scale, KeyRound, Filter } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { appToast } from "@/lib/app-toast";
 
 type EquipOficina = {
@@ -15,6 +16,7 @@ type EquipOficina = {
   certificadoUrl: string | null;
   ativo: boolean;
   observacoes: string | null;
+  updatedAt: string;
 };
 
 const INITIAL_FORM = {
@@ -36,6 +38,7 @@ export default function OficinaPage() {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState(INITIAL_FORM);
   const [editId, setEditId] = useState<number | null>(null);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     fetchItems();
@@ -128,12 +131,43 @@ export default function OficinaPage() {
   const getStatus = (dateStr: string) => {
     const diff = new Date(dateStr).getTime() - Date.now();
     const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-    if (days < 0) return { label: "Vencido", color: "bg-red-100 text-red-800 border-red-200" };
-    if (days <= 30) return { label: "A Vencer (30d)", color: "bg-orange-100 text-orange-800 border-orange-200" };
-    return { label: "Válido", color: "bg-green-100 text-green-800 border-green-200" };
+    if (days < 0) return { label: days < -30 ? `Vencido (${-days}d)` : `Vencido (${-days} dia${-days === 1 ? "" : "s"})`, color: "bg-red-100 text-red-800 border-red-200", type: "expired" as const };
+    if (days <= 30) return { label: days === 0 ? "Vence Hoje" : `Vence em ${days}d`, color: "bg-orange-100 text-orange-800 border-orange-200", type: "soon" as const };
+    return { label: "Válido", color: "bg-green-100 text-green-800 border-green-200", type: "ok" as const };
   };
 
+  const allItems = items.filter(i => {
+    if (activeTab === "calibracao") return calibracaoTypes.includes(i.tipo);
+    return i.tipo.startsWith("compressor");
+  });
+
+  const filteredItems = allItems.filter(i => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return i.nome.toLowerCase().includes(q) || i.referencia.toLowerCase().includes(q) || i.tipo.includes(q);
+  });
+
   const expiredCount = items.filter(i => new Date(i.dataProxCalibracao).getTime() < Date.now()).length;
+  const soonIndex = allItems.filter(i => {
+    const days = Math.ceil((new Date(i.dataProxCalibracao).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    return days >= 0 && days <= 30;
+  });
+  const validCount = allItems.filter(i => getStatus(i.dataProxCalibracao).type === "ok").length;
+  const totalListed = allItems.length;
+
+  const EQUIP_ICONS: Record<string, LucideIcon> = {
+    barometro: Gauge,
+    manometro: Activity,
+    balanca: Scale,
+    chave_dinamometrica: KeyRound,
+    calibracao: Gauge,
+    compressor_filtro: Filter,
+    compressor_oleo: Cpu,
+    compressor_ar: Activity,
+  };
+  const workbench = calibracoesList.filter(i => i.ativo);
+  const benchReady = workbench.filter(i => getStatus(i.dataProxCalibracao).type === "ok").length;
+  const benchPct = workbench.length ? Math.round((benchReady / workbench.length) * 100) : 0;
 
   return (
     <div className="min-h-screen bg-slate-50 py-8">
@@ -173,6 +207,38 @@ export default function OficinaPage() {
           </div>
         )}
 
+        {/* Resume strip */}
+        <div className="bg-sky-50 border border-sky-200 rounded-2xl p-4 grid grid-cols-2 md:grid-cols-4 gap-3 shadow-sm">
+          <div className="flex items-center gap-3">
+            <CheckCircle2 className="w-8 h-8 text-emerald-600 shrink-0" />
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">Válidos</p>
+              <p className="text-xl font-black text-emerald-700">{validCount}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-8 h-8 text-orange-500 shrink-0" />
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">A Vencer (30d)</p>
+              <p className="text-xl font-black text-orange-600">{soonIndex.length}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <XCircle className="w-8 h-8 text-red-600 shrink-0" />
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">Vencidos</p>
+              <p className="text-xl font-black text-red-600">{expiredCount}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <CalendarClock className="w-8 h-8 text-sky-600 shrink-0" />
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">Registos (tab)</p>
+              <p className="text-xl font-black text-sky-700">{totalListed}</p>
+            </div>
+          </div>
+        </div>
+
         {/* Tabs */}
         <div className="flex border-b border-slate-200 gap-4">
           <button
@@ -195,8 +261,118 @@ export default function OficinaPage() {
           </button>
         </div>
 
+        {/* Workbench */}
+        {activeTab === "calibracao" && (
+          <div className="bg-sky-50 border border-sky-200 rounded-3xl p-5 shadow-sm">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
+              <div>
+                <h2 className="text-slate-900 font-black flex items-center gap-2">
+                  <Wrench className="w-5 h-5 text-sky-600" />
+                  Mesa de Trabalho
+                </h2>
+                <p className="text-slate-600 text-xs mt-0.5">
+                  Bancada de ensaio — ferramentas críticas prontas para a próxima inspeção
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="text-right">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">Prontidão da Bancada</p>
+                  <p className="text-lg font-black text-sky-700">{benchReady} / {workbench.length}</p>
+                </div>
+                <div className="w-40 h-2.5 bg-white border border-slate-200 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${benchPct === 100 ? "bg-emerald-500" : benchPct >= 50 ? "bg-amber-400" : "bg-red-500"}`}
+                    style={{ width: `${benchPct}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {workbench.length === 0 ? (
+              <p className="text-slate-500 italic text-sm text-center py-6">Sem equipamentos ativos na bancada.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {workbench.map((item) => {
+                  const status = getStatus(item.dataProxCalibracao);
+                  const Icon = EQUIP_ICONS[item.tipo] || Gauge;
+                  const updated = item.updatedAt ? new Date(item.updatedAt) : null;
+                  return (
+                    <div
+                      key={item.id}
+                      className={`relative rounded-2xl p-4 border flex flex-col gap-3 transition-all hover:shadow-lg ${
+                        status.type === "ok" ? "bg-white border-emerald-200"
+                        : status.type === "soon" ? "bg-orange-50 border-orange-300"
+                        : "bg-red-50 border-red-300"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className={`p-3 rounded-xl ${status.type === "ok" ? "bg-emerald-100 text-emerald-700" : status.type === "soon" ? "bg-orange-100 text-orange-700" : "bg-red-100 text-red-700"}`}>
+                          <Icon className="w-7 h-7" />
+                        </div>
+                        <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-bold ${status.color}`}>
+                          <span className="relative inline-flex">
+                            <span className={`w-1.5 h-1.5 rounded-full ${status.type === "ok" ? "bg-emerald-500" : status.type === "soon" ? "bg-orange-500" : "bg-red-500"} ${status.type !== "expired" ? "animate-pulse" : ""}`} />
+                            {status.type !== "expired" && <span className={`absolute inline-flex h-full w-full rounded-full ${status.type === "ok" ? "bg-emerald-500" : "bg-orange-500"} opacity-60 animate-ping`} />}
+                          </span>
+                          {status.label}
+                        </span>
+                      </div>
+
+                      <div>
+                        <p className="text-slate-900 font-bold text-sm leading-tight">{item.nome}</p>
+                        <p className="text-slate-500 font-mono text-xs mt-1">{item.referencia}</p>
+                      </div>
+
+                      <div className="text-xs text-slate-600 space-y-1 mt-auto">
+                        <p className="flex items-center justify-between">
+                          <span>Próx. calibração</span>
+                          <span className="font-semibold text-slate-900">{new Date(item.dataProxCalibracao).toLocaleDateString("pt-PT")}</span>
+                        </p>
+                        <p className="flex items-center justify-between">
+                          <span>Registo atualizado</span>
+                          <span className="font-semibold text-slate-700">{updated ? updated.toLocaleDateString("pt-PT") : "—"}</span>
+                        </p>
+                      </div>
+
+                      {status.type === "expired" && (
+                        <div className="absolute inset-x-3 bottom-3 bg-red-100 border border-red-300 text-red-700 text-[10px] font-bold rounded-lg px-2 py-1 text-center uppercase tracking-wide">
+                          Fora de serviço — recalibrar
+                        </div>
+                      )}
+
+                      <button
+                        onClick={() => handleOpenEdit(item)}
+                        className={`mt-1 w-full py-2 rounded-xl text-xs font-bold border transition-colors ${
+                          status.type === "expired"
+                            ? "bg-red-600 text-white border-red-600 hover:bg-red-500"
+                            : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
+                        }`}
+                      >
+                        {status.type === "expired" ? "Recalibrar" : "Editar / Verificar"}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* List Table */}
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-slate-100 flex items-center gap-3">
+            <div className="relative flex-1 max-w-md">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Pesquisar por nome, referência ou tipo..."
+                className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-600"
+              />
+            </div>
+            <span className="text-xs font-semibold text-slate-400 ml-auto">{filteredItems.length} resultado{filteredItems.length === 1 ? "" : "s"}</span>
+          </div>
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="bg-slate-50 text-slate-600 border-b border-slate-100 font-bold">
@@ -215,12 +391,12 @@ export default function OficinaPage() {
                 <tr>
                   <td colSpan={8} className="text-center py-10 text-slate-500">A carregar...</td>
                 </tr>
-              ) : (activeTab === "calibracao" ? calibracoesList : compressor).length === 0 ? (
+              ) : (filteredItems).length === 0 ? (
                 <tr>
                   <td colSpan={8} className="text-center py-10 text-slate-400 italic">Nenhum registo nesta categoria.</td>
                 </tr>
               ) : (
-                (activeTab === "calibracao" ? calibracoesList : compressor).map((item) => {
+                filteredItems.map((item) => {
                   const status = getStatus(item.dataProxCalibracao);
                   return (
                     <tr key={item.id} className="hover:bg-slate-50/50">

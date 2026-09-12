@@ -342,15 +342,15 @@ export default function AlertasPage() {
         <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-50 p-4">
           <div className="bg-white rounded-3xl shadow-2xl border border-slate-200/80 max-w-lg w-full overflow-hidden flex flex-col relative animate-in fade-in zoom-in-95 duration-250">
             {/* Header */}
-            <div className="bg-slate-900 text-white p-6 flex justify-between items-center relative overflow-hidden">
-              <div className="absolute -top-16 -right-16 w-32 h-32 bg-indigo-500/10 rounded-full blur-xl pointer-events-none" />
+            <div className="bg-gradient-to-r from-sky-100 to-indigo-100 text-slate-900 p-6 flex justify-between items-center relative overflow-hidden border-b border-sky-200">
+              <div className="absolute -top-16 -right-16 w-32 h-32 bg-indigo-200/40 rounded-full blur-xl pointer-events-none" />
               <div>
                 <h3 className="font-bold text-lg">Notificar Cliente</h3>
-                <p className="text-xs text-slate-400 mt-1">Alertar vencimento para: {selectedAlert.referencia}</p>
+                <p className="text-xs text-slate-600 mt-1">Alertar vencimento para: {selectedAlert.referencia}</p>
               </div>
               <button
                 onClick={() => setIsNotifying(false)}
-                className="text-slate-400 hover:text-white rounded-full p-1.5 hover:bg-white/10 transition cursor-pointer"
+                className="text-slate-500 hover:text-slate-900 rounded-full p-1.5 hover:bg-white/70 transition cursor-pointer"
               >
                 <X size={18} />
               </button>

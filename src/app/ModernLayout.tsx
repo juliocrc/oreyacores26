@@ -96,6 +96,7 @@ const navSections: NavSection[] = [
       { label: "Cobranças", href: "/cobrancas", icon: "💰", roles: ["ADMIN", "USER"] },
       { label: "Contas a Receber", href: "/contas-receber", icon: "📊", roles: ["ADMIN"] },
       { label: "Relatório de Validades", href: "/relatorio-validades", icon: "📅", roles: ["ADMIN", "USER"] },
+      { label: "Rentabilidade", href: "/rentabilidade", icon: "📊", roles: ["ADMIN"] },
     ],
   },
   {
@@ -133,6 +134,7 @@ const navSections: NavSection[] = [
     label: "Documentação & Qualidade",
     items: [
       { label: "Qualidade de Dados", href: "/qualidade-dados", icon: "✅", roles: ["ADMIN"] },
+      { label: "Integridade", href: "/integridade", icon: "🔐", roles: ["ADMIN"] },
       { label: "Conformidade DGRM", href: "/dgrm", icon: "📄", roles: ["ADMIN"] },
       { label: "Auditorias", href: "/auditorias", icon: "🔎", roles: ["ADMIN"] },
       { label: "Departamento Técnico", href: "/departamento-tecnico", icon: "🧠", roles: ["ADMIN"] },

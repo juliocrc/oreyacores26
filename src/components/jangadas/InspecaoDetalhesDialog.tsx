@@ -17,7 +17,7 @@ export function InspecaoDetalhesDialog({
   const [prevSnapshot, setPrevSnapshot] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingPrev, setLoadingPrev] = useState(false);
-  const [activeSubTab, setActiveSubTab] = useState<'geral' | 'cilindro' | 'artigos' | 'substituicoes'>('geral');
+  const [activeSubTab, setActiveSubTab] = useState<'geral' | 'cilindro' | 'artigos' | 'substituicoes' | 'checklist'>('geral');
   const [isEditing, setIsEditing] = useState(false);
   const [editNumeroObra, setEditNumeroObra] = useState(inspecao.numeroObra || '');
   const [saving, setSaving] = useState(false);
@@ -27,10 +27,15 @@ export function InspecaoDetalhesDialog({
   // Determine if the date was auto‑calculated
   const isAutoCalculated = !inspecao.dataProxInspecao && needsThreeYearRule(snapshot?.brand);
 
+  const checklistSnapshot: Record<string, { status?: string; notes?: string; fotos?: string[] }> | null =
+    inspecao.checklistSnapshot && typeof inspecao.checklistSnapshot === 'object'
+      ? inspecao.checklistSnapshot
+      : null;
+
   // Fetch previous inspection snapshot for comparison
   const fetchPreviousSnapshot = async () => {
     if (!inspecao.jangadaId) return;
-    setLoadingPrev(true);
+    Promise.resolve().then(() => setLoadingPrev(true));
     try {
       // Get previous inspection for this jangada
       const res = await fetch(`/api/inspecoes/previous?jangadaId=${inspecao.jangadaId}&beforeDate=${inspecao.dataInspecao}`);
@@ -52,7 +57,7 @@ export function InspecaoDetalhesDialog({
   };
 
   useEffect(() => {
-    fetchPreviousSnapshot();
+    Promise.resolve().then(fetchPreviousSnapshot);
   }, [inspecao.jangadaId, inspecao.dataInspecao]);
 
   const printFichaHistorica = () => {
@@ -79,6 +84,31 @@ export function InspecaoDetalhesDialog({
         <td style="padding: 4px 8px; text-align: center;">${art.quantidade}</td>
         <td style="padding: 4px 8px; font-weight: 600; text-align: left;">${art.validade ? formatValidityDisplay(art.validade) : '—'}</td>
       </tr>
+    `).join('');
+
+    const CHECKLIST_LABELS: Record<string, string> = {
+      cobertura_exterior: 'Cobertura Exterior', saida_antena: 'Saída de Antena', refletores: 'Refletores',
+      tubo_identificacao: 'Tubo de Identificação', costuras_juntas: 'Protectores de Juntas', camara_fundos: 'Câmara e Fundo',
+      sistema_endireitar: 'Sistema de Endireitar', bolsas_estabilizacao: 'Bolsas de Estabilização', luz_exterior_bateria: 'Luz Exterior e Bateria',
+      escada_borda: 'Rampa ou Escada', grinalda_espelhos: 'Grinalda e Espelhos', escada_entrada: 'Escada de Entrada',
+      grinalda_interior: 'Grinalda Interior', anel_linha: 'Anel com Linha', faca_seguranca: 'Facas de Segurança',
+      cobertura_interior: 'Cobertura Interior', fecho_cobertura: 'Fecho da Cobertura', colectores_agua: 'Colectores de Água',
+      manual_instrucoes: 'Manual de Instruções', tecido_camara_fundo: 'Tecido de Câmara e Fundo', luz_interior_bateria: 'Luz Interior e Bateria',
+    };
+
+    const checklistSnap = (inspecao as any).checklistSnapshot || {};
+    const fotoGroups = Object.entries(checklistSnap)
+      .map(([key, value]: [string, any]) => ({ key, ...value }))
+      .filter((item) => Array.isArray(item.fotos) && item.fotos.length > 0);
+    const fotosHtml = fotoGroups.map((item) => `
+      <div style="margin-bottom: 6px;">
+        <div style="font-size: 8px; font-weight: bold; color: #475569; text-transform: uppercase; margin-bottom: 4px;">
+          ${CHECKLIST_LABELS[item.key] || item.key}${item.status ? ` (${item.status})` : ''} — ${item.fotos.length} foto(s)
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+          ${item.fotos.map((f: string) => `<img src="${f}" style="width: 96px; height: 72px; object-fit: cover; border: 1px solid #e2e8f0; border-radius: 4px;" />`).join('')}
+        </div>
+      </div>
     `).join('');
 
     const htmlContent = `
@@ -204,6 +234,13 @@ export function InspecaoDetalhesDialog({
               </tbody>
             </table>
           </div>
+
+          ${fotoGroups.length > 0 ? `
+          <div class="box" style="margin-top: 10px; page-break-inside: avoid;">
+            <div class="box-title">6. Evidências Fotográficas do Checklist</div>
+            ${fotosHtml}
+          </div>
+          ` : ''}
 
           <script>
             window.onload = function() {
@@ -519,7 +556,7 @@ export function InspecaoDetalhesDialog({
 
   useEffect(() => {
     if (!inspecao.certificadoNumero) return;
-    setLoading(true);
+    Promise.resolve().then(() => setLoading(true));
     fetch(`/api/inspecoes/snapshot?certificadoNumero=${encodeURIComponent(inspecao.certificadoNumero)}`)
       .then(res => res.json())
       .then(data => {
@@ -633,6 +670,7 @@ export function InspecaoDetalhesDialog({
               { id: 'cilindro', label: 'Cilindro & Ensaios (WP)', icon: Cylinder },
               { id: 'artigos', label: 'Artigos no Pack', icon: Package },
               { id: 'substituicoes', label: 'Histórico Substituições', icon: RotateCcw },
+              ...(checklistSnapshot ? [{ id: 'checklist', label: 'Checklist & Fotos', icon: ClipboardCheck }] : []),
             ].map(tab => (
               <button
                 key={tab.id}
@@ -698,6 +736,82 @@ export function InspecaoDetalhesDialog({
               <span>Técnico Responsável: <strong className="text-indigo-950 font-bold">{inspecao.responsavel}</strong></span>
             </div>
           )}
+
+          {/* Linha Temporal do Ciclo de Vida */}
+          <div className="bg-white border border-slate-150 rounded-2xl p-5">
+            <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4 border-b border-slate-100 pb-3">
+              <Calendar size={16} className="text-slate-500" />
+              Linha Temporal do Ciclo de Vida
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+              {(() => {
+                const statusColor = (s: string) =>
+                  s === 'Concluída' ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                  : s === 'Draft' ? 'bg-blue-100 text-blue-800 border-blue-200'
+                  : 'bg-amber-100 text-amber-800 border-amber-200';
+
+                const events: Array<{ label: string; date: string; sub?: string; active?: boolean; badge?: boolean; pending?: boolean }> = [];
+
+                if (prevSnapshot?.dataInspecao) {
+                  events.push({
+                    label: 'Vistoria Anterior',
+                    date: formatDate(prevSnapshot.dataInspecao),
+                    sub: prevSnapshot.certificadoNumero || 'Cert. anterior',
+                  });
+                }
+                if (snapshot?.testeWP) {
+                  events.push({
+                    label: 'Ensaio de Pressão (WP)',
+                    date: formatDate(snapshot.testeWP),
+                    sub: snapshot.testeWPHoraInicio ? `${snapshot.testeWPHoraInicio} → ${snapshot.testeWPHoraFim || '—'}` : 'Realizado',
+                  });
+                }
+                events.push({
+                  label: 'Última Inspeção',
+                  date: formatDate(inspecao.dataInspecao),
+                  sub: `${inspecao.status}${inspecao.responsavel ? ` · ${inspecao.responsavel}` : ''}`,
+                  active: true,
+                  badge: true,
+                });
+                if (inspecao.certificadoNumero) {
+                  events.push({
+                    label: 'Certificado Emitido',
+                    date: formatDate(inspecao.dataInspecao),
+                    sub: `Nº ${inspecao.certificadoNumero}`,
+                  });
+                }
+                events.push({
+                  label: 'Próxima Vistoria',
+                  date: formatDate(computedNextDate) || '—',
+                  sub: inspecao.dataProxInspecao ? 'Agendada' : 'A calcular (3 anos)',
+                  pending: true,
+                });
+
+                return events.map((ev, i) => (
+                  <div
+                    key={i}
+                    className={`relative rounded-xl border p-3 ${ev.active ? 'border-indigo-200 bg-indigo-50/50' : ev.pending ? 'border-slate-200 bg-slate-50' : 'border-slate-100 bg-white'}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${
+                        ev.active ? 'bg-indigo-600' : ev.pending ? 'bg-slate-400' : i === 0 && !prevSnapshot ? 'bg-slate-200' : 'bg-emerald-500'
+                      }`} />
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{ev.label}</p>
+                    </div>
+                    <p className="text-sm font-black text-slate-800 mt-1.5">{ev.date}</p>
+                    {ev.sub && (
+                      <p className="text-[11px] text-slate-500 font-medium truncate">{ev.sub}</p>
+                    )}
+                    {ev.badge && inspecao.status && (
+                      <span className={`inline-block mt-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold border ${statusColor(inspecao.status)}`}>
+                        {inspecao.status}
+                      </span>
+                    )}
+                  </div>
+                ));
+              })()}
+            </div>
+          </div>
 
           {/* Conditional Sub-Tabs content based on snapshot loading */}
           {loading ? (
@@ -1098,6 +1212,69 @@ export function InspecaoDetalhesDialog({
                       </div>
                     </>
                   )}
+                </div>
+              )}
+
+              {activeSubTab === 'checklist' && checklistSnapshot && (
+                <div className="space-y-3 animate-in fade-in duration-150">
+                  <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                    <ClipboardCheck size={16} className="text-slate-500" />
+                    <span>Checklist de Inspeção ({Object.keys(checklistSnapshot).length} itens)</span>
+                  </h3>
+
+                  {(() => {
+                    const counts: Record<string, number> = {};
+                    Object.values(checklistSnapshot).forEach((v) => {
+                      const s = v?.status || '—';
+                      counts[s] = (counts[s] || 0) + 1;
+                    });
+                    return (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        {Object.entries(counts).map(([s, n]) => (
+                          <div key={s} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-center">
+                            <p className="text-xl font-black text-slate-800">{n}</p>
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{s}</p>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+
+                  <div className="space-y-2.5">
+                    {Object.entries(checklistSnapshot).map(([itemId, item]) => {
+                      const status = item?.status || '';
+                      const statusColor =
+                        status === 'OK'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : status === 'REPROVADO'
+                            ? 'bg-red-100 text-red-800'
+                            : status === 'SUBSTITUIDO'
+                              ? 'bg-sky-100 text-sky-800'
+                              : status === 'NA'
+                                ? 'bg-slate-200 text-slate-600'
+                                : 'bg-amber-100 text-amber-800';
+                      const fotos = Array.isArray(item?.fotos) ? item!.fotos : [];
+                      return (
+                        <div key={itemId} className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <p className="text-sm font-bold text-slate-800">{itemId}</p>
+                            {status && <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${statusColor}`}>{status}</span>}
+                          </div>
+                          {item?.notes && <p className="mt-1 text-xs text-slate-600">{item.notes}</p>}
+                          {fotos.length > 0 && (
+                            <div className="mt-2.5 flex flex-wrap gap-2">
+                              {fotos.map((url, i) => (
+                                <a key={i} href={url} target="_blank" rel="noreferrer" title="Abrir foto de evidência">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={url} alt={`Evidência ${i + 1}`} className="h-16 w-16 rounded-lg border border-slate-200 object-cover shadow-sm" />
+                                </a>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </>

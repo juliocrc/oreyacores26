@@ -17,6 +17,7 @@ export type AbateReportInput = {
   motivo?: string;
   detalhes?: string;
   responsavel?: string;
+  signatureBase64?: string;
 };
 
 function asString(value: unknown) {
@@ -207,6 +208,16 @@ export function buildAbateReportDoc(input: AbateReportInput) {
     doc.setTextColor(80, 80, 80);
     doc.text(asString(input.responsavel), margin + 150, y + 5.5);
     doc.setTextColor(0, 0, 0);
+  }
+
+  const assinatura = asString(input.signatureBase64);
+  if (assinatura && /^data:image\/(png|jpe?g|webp);base64,/.test(assinatura)) {
+    try {
+      const base64 = assinatura.split(",")[1];
+      doc.addImage(base64, "PNG", margin + 152, y + 1.2, 34, 4.4);
+    } catch {
+      // assinatura inválida — ignora silenciosamente
+    }
   }
 
   doc.setFont("helvetica", "normal");

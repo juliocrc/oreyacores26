@@ -66,21 +66,18 @@ export async function POST(request: Request) {
       fs.writeFileSync(dbPath, buffer);
 
       try {
-        const importScript = path.resolve(process.cwd(), "scripts/import-sqlite-to-pg.ts");
-        if (!fs.existsSync(importScript)) {
+        const { importSqliteToPostgres } = await import("@/lib/import-sqlite-to-postgres");
+        const result = await importSqliteToPostgres({
+          sqlitePath: dbPath,
+          pgUrl: process.env.DATABASE_URL!,
+        });
+
+        if (!result.ok) {
           return NextResponse.json(
-            { error: "Script de importação não encontrado no servidor." },
+            { error: `Falha na importação para PostgreSQL: ${result.error}` },
             { status: 500 }
           );
         }
-
-        const { execSync } = await import("child_process");
-        execSync(`npx tsx "${importScript}"`, {
-          env: { ...process.env, IMPORT_DATABASE_URL: process.env.DATABASE_URL! },
-          cwd: process.cwd(),
-          timeout: 180_000,
-          stdio: "pipe",
-        });
 
         return NextResponse.json({
           success: true,

@@ -134,7 +134,7 @@ export default function RelatorioValidadesPage() {
           </div>
           <button
             onClick={handleExportPdf}
-            className="ml-auto inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 transition-colors"
+            className="ml-auto inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors"
           >
             <Printer size={16} />
             Exportar PDF

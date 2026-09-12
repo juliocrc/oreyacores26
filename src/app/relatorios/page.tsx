@@ -13,6 +13,7 @@ import type { Inspection, Raft, Navio, StockItem, ServiceOrder, ObraFormState, P
 import { SERVICE_STOCK_ITEMS, FIXED_ARTICLE_PRICES, RAFT_RELATED_STOCK_KEYWORDS } from "@/types/relatorios-page";
 import { normalizeList, safeReadJson, formatDate, normalizeText, splitApplicability, getApplicabilityBadge, getRaftKeywordScore, getShipDisplayName, getShipOptionLabel, buildSuggestedObraNumber, toNumber, formatCurrency, isOrderClosed, isOrderLate, getPriorityWeight, resolveArticleUnitPrice, formatDateLongPt } from "@/lib/relatorios-page-helpers";
 import { IVA_ISENCAO_CODES } from "@/lib/iva-isencao-codes";
+import { buildAddressLine } from "@/lib/client-address";
 
 export default function RelatoriosPage() {
   return (
@@ -716,12 +717,11 @@ function RelatoriosContent() {
 
     const clienteNomeDeclarante = String(selectedNavio.cliente?.nome || "").trim() || "[Nome do cliente]";
     const clienteNifDeclarante = String(selectedNavio.cliente?.nif || "").trim() || "[NIF do cliente]";
-    const addressParts = [
-      selectedNavio.cliente?.morada,
-      selectedNavio.cliente?.codigoPostal,
-      selectedNavio.cliente?.localidade
-    ].filter(Boolean);
-    const clienteMorada = addressParts.length > 0 ? addressParts.join(', ') : "[Morada não registada]";
+    const clienteMorada = buildAddressLine({
+      morada: selectedNavio.cliente?.morada,
+      codigoPostal: selectedNavio.cliente?.codigoPostal,
+      localidade: selectedNavio.cliente?.localidade,
+    });
 
     const ivaCodeInfo = IVA_ISENCAO_CODES.find(c => c.code === declarationIvaCode);
     const ivaCodeDisplay = ivaCodeInfo ? `${ivaCodeInfo.code} — ${ivaCodeInfo.mencao}` : "M05 — Isento artigo 14.º do CIVA";

@@ -184,15 +184,15 @@ export default function CaisPage() {
     <div className="min-h-screen bg-slate-100 flex flex-col items-center py-6 px-4">
       <div className="w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="bg-slate-900 text-white p-5 flex items-center justify-between">
+        <div className="bg-gradient-to-r from-sky-100 to-indigo-100 text-slate-900 p-5 flex items-center justify-between border-b border-sky-200">
           <div className="flex items-center gap-2">
-            <Ship className="h-5 w-5 text-indigo-400" />
+            <Ship className="h-5 w-5 text-indigo-700" />
             <h1 className="font-bold text-base">Check-In / Out de Cais</h1>
           </div>
           <button
             onClick={() => void loadData()}
             disabled={loading}
-            className="p-1.5 hover:bg-slate-800 rounded transition-colors text-slate-400 hover:text-white"
+            className="p-1.5 hover:bg-white/70 rounded transition-colors text-slate-500 hover:text-slate-900"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           </button>

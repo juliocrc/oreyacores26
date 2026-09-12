@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { normalizeStockValidityValue, stockItemSupportsValidity } from "@/lib/stock-validity";
+import { findConflictingValidityStock } from "@/lib/stock-utils";
 import { isFoodRationsLike, normalizeStockReferenceByRule } from "@/lib/stock-reference-rules";
 import { normalizeStockCategory } from "@/lib/stock-categories";
 import { getAccessContext } from "@/lib/access-control";
@@ -223,7 +224,7 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
     // Buscar record atual para validar estacao
     const current = await prisma.stock.findUnique({
       where: { id },
-      select: { observacoes: true, serviceStationId: true, quantidade: true, referencia: true, estadoCargaCilindro: true },
+      select: { observacoes: true, serviceStationId: true, quantidade: true, referencia: true, validade: true, estadoCargaCilindro: true },
     });
 
     if (!current) {
@@ -302,6 +303,27 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
     const data = normalizePartialStockPayload(body, current.observacoes ?? null);
     if (Object.keys(data).length === 0) {
       return NextResponse.json({ error: 'Nenhum campo válido para atualizar stock' }, { status: 400 });
+    }
+
+    if (data.referencia || data.validade) {
+      const validadeNovo = typeof data.validade === 'string' && data.validade ? data.validade : (current.validade || null);
+      const referenciaFinal = typeof data.referencia === 'string' && data.referencia ? data.referencia : current.referencia;
+      if (validadeNovo && referenciaFinal) {
+        const conflito = await findConflictingValidityStock({
+          referencia: referenciaFinal,
+          validade: validadeNovo,
+        });
+        if (conflito && conflito.id !== id) {
+          return NextResponse.json(
+            {
+              error: `Conflito de validades para a referência ${referenciaFinal}: outro registo (ID ${conflito.id}) tem validade ${conflito.validade} e este tem ${validadeNovo}. Corrija a validade ou unifique as quantidades.`,
+              duplicateId: conflito.id,
+              existingValidade: conflito.validade,
+            },
+            { status: 409 }
+          );
+        }
+      }
     }
 
     const updated = await prisma.stock.update({

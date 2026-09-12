@@ -2,6 +2,8 @@
 import Link from "next/link";
 import PremiumCharts from "@/components/dashboard/PremiumCharts";
 import AcoesDeHojePanel from "@/components/dashboard/AcoesDeHojePanel";
+import FleetStatusPanel from "@/components/dashboard/FleetStatusPanel";
+import TarefasDoDiaPanel from "@/components/dashboard/TarefasDoDiaPanel";
 import ExecutiveKpis from "@/components/dashboard/ExecutiveKpis";
 import QuickImportActions from "@/components/dashboard/QuickImportActions";
 import OfflineStatusIndicator from "@/components/OfflineStatusIndicator";
@@ -1636,6 +1638,10 @@ export default function DashboardPage() {
             </motion.div>
 
             <AcoesDeHojePanel />
+
+            <FleetStatusPanel />
+
+            <TarefasDoDiaPanel />
           </motion.div>
         )}
 

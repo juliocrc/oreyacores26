@@ -67,7 +67,7 @@ type CatalogItem = {
   fabricante?: string | null;
 };
 
-type CatalogTipoEquipamento = 'COLETE' | 'JANGADA';
+type CatalogTipoEquipamento = 'COLETE' | 'JANGADA' | 'FATO_IMERSAO';
 
 function cleanValue(value: unknown): string {
   return String(value || '')
@@ -83,6 +83,7 @@ function inferTipoFromSheetName(sheetName: string): CatalogTipoEquipamento | nul
   const n = normalizeHeader(sheetName);
   if (n.includes('COLETE')) return 'COLETE';
   if (n.includes('JANGADA')) return 'JANGADA';
+  if (n.includes('FATO') || n.includes('IMERSAO')) return 'FATO_IMERSAO';
   return null;
 }
 
@@ -282,7 +283,13 @@ async function ensureCatalogStructure() {
         FROM pg_type
         WHERE typname = 'CatalogTipoEquipamento'
       ) THEN
-        CREATE TYPE "CatalogTipoEquipamento" AS ENUM ('COLETE', 'JANGADA');
+        CREATE TYPE "CatalogTipoEquipamento" AS ENUM ('COLETE', 'JANGADA', 'FATO_IMERSAO');
+      ELSE
+        BEGIN
+          ALTER TYPE "CatalogTipoEquipamento" ADD VALUE IF NOT EXISTS 'FATO_IMERSAO';
+        EXCEPTION
+          WHEN duplicate_object THEN NULL;
+        END;
       END IF;
     END
     $$;

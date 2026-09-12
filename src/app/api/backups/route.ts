@@ -1,11 +1,7 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import { requireAdminOrBypass } from '@/app/api/backups/_lib';
-
-const execAsync = promisify(exec);
 
 export async function GET() {
   const auth = await requireAdminOrBypass();
@@ -64,9 +60,15 @@ export async function POST() {
   if (!auth.ok) return NextResponse.json({ error: 'Não autorizado' }, { status: auth.status });
 
   try {
-    console.log('[API Backups] Triggering backup script...');
-    await execAsync('node scripts/db_backup.js');
-    return NextResponse.json({ success: true });
+    const { runBackup } = await import('@/../scripts/db_backup');
+    const result = await runBackup();
+    if (!result.ok) {
+      return NextResponse.json(
+        { error: result.error || 'Erro ao executar backup' },
+        { status: 500 }
+      );
+    }
+    return NextResponse.json({ success: true, verified: result.verified });
   } catch (err) {
     console.error('[API Backups] Failed to run backup:', err);
     return NextResponse.json({ error: (err as Error).message || 'Erro ao executar backup' }, { status: 500 });

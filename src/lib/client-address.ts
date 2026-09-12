@@ -120,6 +120,21 @@ export function extractNumeroMoradaFromMorada(morada: unknown) {
   return combined || null;
 }
 
+export function buildAddressLine(input: Partial<ClienteAddressFields>): string {
+  const morada = normalizeNullableText(input.morada);
+  const moradaNumero = normalizeNullableText(input.moradaNumero);
+  const codigoPostal = normalizeNullableText(input.codigoPostal);
+  const localidade = normalizeNullableText(input.localidade);
+
+  const parts = [
+    morada,
+    moradaNumero,
+    `${codigoPostal ?? ""} ${localidade ?? ""}`.trim(),
+  ].filter(Boolean);
+
+  return parts.length > 0 ? parts.join(", ") : "[Morada não registada]";
+}
+
 export function deriveClienteAddressFields(input: {
   morada?: unknown;
   moradaNumero?: unknown;

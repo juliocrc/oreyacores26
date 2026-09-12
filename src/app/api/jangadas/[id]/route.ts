@@ -17,6 +17,7 @@ import { syncAgendaToGoogleCalendar } from "@/lib/google-calendar";
 import { isKnownPackTypeName, resolveMandatoryPackItemsForRaftAsync } from "@/lib/custom-pack-types";
 import { deleteJangadaById } from "@/lib/jangada-delete";
 import { canonicalizeDateFields } from "@/lib/date-display";
+import { normalizeArtigoValidade } from "@/lib/date-utils";
 import { computeInspectionDigest, shortDigest } from "@/lib/integrity-stamp";
 import { generateInspectionCertificateNumber } from "@/app/inspecoes/actions";
 import { getInspectionSnapshot, saveInspectionSnapshot } from "@/lib/inspection-snapshots";
@@ -810,7 +811,7 @@ function normalizeArtigosInput(raw: unknown) {
 
       const validadeRaw = String(entry?.validade || "").trim();
       const validadeParsed = validadeRaw ? Date.parse(validadeRaw) : Number.NaN;
-      const validade = Number.isNaN(validadeParsed) ? null : new Date(validadeParsed);
+      const validade = Number.isNaN(validadeParsed) ? null : normalizeArtigoValidade(new Date(validadeParsed));
 
       const referencia = entry?.referencia ? String(entry.referencia).trim() : null;
       const codigoFabricante = entry?.codigoFabricante ? String(entry.codigoFabricante).trim() : null;

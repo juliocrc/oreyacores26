@@ -191,7 +191,7 @@ export function SubstituirArtigoDialog({
                         onClick={() => setFiltro(option.key as typeof filtro)}
                         className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
                           filtro === option.key
-                            ? 'bg-slate-900 text-white'
+                            ? 'bg-indigo-600 text-white'
                             : 'border border-slate-200 bg-white text-slate-600 hover:border-slate-300'
                         }`}
                       >

@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import { requireAdminOrBypass } from "@/app/api/backups/_lib";
-import { spawn } from "child_process";
 
 export const runtime = "nodejs";
 
@@ -47,23 +46,23 @@ export async function POST(request: Request) {
       try { fs.unlinkSync(tempFilePath); } catch {}
 
       if (isPostgres) {
-        const importScript = path.resolve(process.cwd(), "scripts/import-sqlite-to-pg.cjs");
-        if (!fs.existsSync(importScript)) {
-          return NextResponse.json({ error: "Script de importação não encontrado." }, { status: 500 });
-        }
-
-        const child = spawn("node", [importScript], {
-          env: { ...process.env, IMPORT_DATABASE_URL: process.env.DATABASE_URL! },
-          cwd: process.cwd(),
-          detached: true,
-          stdio: "ignore",
+        const { importSqliteToPostgres } = await import("@/lib/import-sqlite-to-postgres");
+        const result = await importSqliteToPostgres({
+          sqlitePath: dbPath,
+          pgUrl: process.env.DATABASE_URL!,
         });
-        child.unref();
+
+        if (!result.ok) {
+          return NextResponse.json(
+            { error: `Falha na importação para PostgreSQL: ${result.error}` },
+            { status: 500 }
+          );
+        }
 
         return NextResponse.json({
           success: true,
           complete: true,
-          message: "Base de dados recebida e importação para PostgreSQL iniciada em segundo plano!",
+          message: "Base de dados importada para PostgreSQL com sucesso!",
         });
       }
 

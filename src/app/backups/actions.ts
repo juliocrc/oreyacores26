@@ -3,7 +3,6 @@
 import fs from "fs";
 import path from "path";
 import { requireAdminOrBypass } from "@/app/api/backups/_lib";
-import { spawn } from "child_process";
 
 const isPostgres =
   (process.env.DATABASE_URL || "").startsWith("postgresql://") ||
@@ -54,22 +53,19 @@ export async function importDatabaseAction(formData: FormData) {
 
       fs.writeFileSync(dbPath, buffer);
 
-      const importScript = path.resolve(process.cwd(), "scripts/import-sqlite-to-pg.cjs");
-      if (!fs.existsSync(importScript)) {
-        return { success: false, error: "Script de importação não encontrado no servidor." };
-      }
-
-      const child = spawn("node", [importScript], {
-        env: { ...process.env, IMPORT_DATABASE_URL: process.env.DATABASE_URL! },
-        cwd: process.cwd(),
-        detached: true,
-        stdio: "ignore",
+      const { importSqliteToPostgres } = await import("@/lib/import-sqlite-to-postgres");
+      const result = await importSqliteToPostgres({
+        sqlitePath: dbPath,
+        pgUrl: process.env.DATABASE_URL!,
       });
-      child.unref();
+
+      if (!result.ok) {
+        return { success: false, error: `Falha na importação para PostgreSQL: ${result.error}` };
+      }
 
       return {
         success: true,
-        message: "Importação iniciada em segundo plano! Os dados aparecerão na aplicação em instantes.",
+        message: "Backup importado e sincronizado com PostgreSQL com sucesso!",
       };
     }
 
@@ -115,22 +111,19 @@ export async function importFromGoogleDriveAction() {
 
       fs.writeFileSync(dbPath, buffer);
 
-      const importScript = path.resolve(process.cwd(), "scripts/import-sqlite-to-pg.cjs");
-      if (!fs.existsSync(importScript)) {
-        return { success: false, error: "Script de importação não encontrado no servidor." };
-      }
-
-      const child = spawn("node", [importScript], {
-        env: { ...process.env, IMPORT_DATABASE_URL: process.env.DATABASE_URL! },
-        cwd: process.cwd(),
-        detached: true,
-        stdio: "ignore",
+      const { importSqliteToPostgres } = await import("@/lib/import-sqlite-to-postgres");
+      const result = await importSqliteToPostgres({
+        sqlitePath: dbPath,
+        pgUrl: process.env.DATABASE_URL!,
       });
-      child.unref();
+
+      if (!result.ok) {
+        return { success: false, error: `Falha na importação para PostgreSQL: ${result.error}` };
+      }
 
       return {
         success: true,
-        message: `Backup '${fileName}' descarregado do Google Drive e importação iniciada em segundo plano!`,
+        message: `Backup '${fileName}' descarregado do Google Drive e sincronizado com PostgreSQL com sucesso!`,
       };
     }
 

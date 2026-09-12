@@ -1980,7 +1980,7 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
                           Abrir ficheiro
                         </a>
                       ) : (
-                        <Link href={doc.href} className="inline-flex rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800">
+                        <Link href={doc.href} className="inline-flex rounded-full bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700">
                           Abrir ficha
                         </Link>
                       )}
@@ -2861,7 +2861,7 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  className="bg-slate-900 hover:bg-slate-800 text-white px-3 py-2 rounded text-sm font-medium shadow transition disabled:cursor-not-allowed disabled:bg-slate-400"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded text-sm font-medium shadow transition disabled:cursor-not-allowed disabled:bg-indigo-300"
                   onClick={handleGerarCertificadoColetes}
                   disabled={generatingColeteCertificate || generatingColeteVerificationSheet}
                   title="Gerar um DOCX com o template oficial dos coletes, até 14 por página"

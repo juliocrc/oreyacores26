@@ -1,7 +1,7 @@
 "use client";
 import React from 'react';
 import { useJangadaWizardStore } from './store/useJangadaWizardStore';
-import { Plus, Trash2, Tag, Calendar, Hash, Info, Search } from 'lucide-react';
+import { Plus, Trash2, Tag, Calendar, Hash, Info, Search, AlertTriangle, ShieldCheck, BatteryFull } from 'lucide-react';
 import { raftModelData } from '../rafts/raftModelData';
 import { getInspectionIntervalYears, getInspectionIntervalLabel, getSubstitutionMaxValidityDays } from '../rafts/inspectionInterval';
 
@@ -190,6 +190,49 @@ export default function Step3_Componentes() {
 
   const [stockSearch, setStockSearch] = React.useState<Record<string, string>>({});
 
+  const HRU_TYPE_OPTIONS = [
+    'DESCARTÁVEL',
+    'REUTILIZÁVEL',
+    'DESCONHECIDO',
+  ];
+
+  const LIGHT_STATUS_OPTIONS = [
+    'OK',
+    'SUBSTITUIDO',
+    'REPROVADO',
+    'NA',
+  ];
+
+  const updateHruField = (field: string, value: string) => {
+    setInspectionData({ [field]: value } as any);
+  };
+
+  const updateLightItem = (itemId: string, field: string, value: string) => {
+    const current = inspectionData.checklist?.[itemId] || {};
+    setInspectionData({
+      checklist: {
+        ...(inspectionData.checklist || {}),
+        [itemId]: { ...current, [field]: value },
+      },
+    });
+  };
+
+  const checkExpiry = (validade: string, referenceDate: string) => {
+    if (!validade || !referenceDate) return null;
+    const [vYear, vMonth] = validade.split('-').map(Number);
+    const valDate = new Date(vYear, (vMonth || 1) - 1, 1);
+    const [rYear, rMonth] = referenceDate.split('-').map(Number);
+    const refDate = new Date(rYear, (rMonth || 1) - 1, 1);
+    if (isNaN(valDate.getTime()) || isNaN(refDate.getTime())) return null;
+    return valDate < refDate ? 'expired' : 'ok';
+  };
+
+  const hruExpiryStatus = checkExpiry(inspectionData.hruExpiry, inspectionData.dataInspecao);
+  const luzExteriorItem = inspectionData.checklist?.['luz_exterior_bateria'] || {};
+  const luzInteriorItem = inspectionData.checklist?.['luz_interior_bateria'] || {};
+  const luzExteriorStatus = checkExpiry(luzExteriorItem.validade || '', inspectionData.dataInspecao);
+  const luzInteriorStatus = checkExpiry(luzInteriorItem.validade || '', inspectionData.dataInspecao);
+
   const searchFilteredStock = (compId: string, items: any[]) => {
     const q = (stockSearch[compId] || '').trim().toLowerCase();
     if (!q) return items;
@@ -215,6 +258,195 @@ export default function Step3_Componentes() {
           <Plus size={18} />
           Adicionar Componente
         </button>
+      </div>
+
+      {/* State summary strip */}
+      <div className="bg-sky-50 rounded-2xl p-4 text-slate-900 border border-sky-200 shadow-sm flex flex-col sm:flex-row sm:items-center gap-4">
+        <div className="grid grid-cols-3 gap-3 flex-1 text-center">
+          <div className="bg-white border border-sky-200 rounded-lg py-2 shadow-sm">
+            <p className="text-lg font-black text-sky-700">{componentes.length}</p>
+            <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Registados</p>
+          </div>
+          <div className="bg-white border border-emerald-200 rounded-lg py-2 shadow-sm">
+            <p className="text-lg font-black text-emerald-700">{componentes.filter((c: any) => Boolean(c.validade)).length}</p>
+            <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">C/ Validade</p>
+          </div>
+          <div className="bg-white border border-amber-200 rounded-lg py-2 shadow-sm">
+            <p className="text-lg font-black text-amber-700 flex items-center justify-center gap-1.5">
+              {componentes.filter((c: any) => c.validade && checkValidityWarning(c.validade, inspectionData.dataProxInspecao, inspectionData.dataInspecao, inspectionData.brand, inspectionData.shipDetails) === 'warning').length}
+              {componentes.filter((c: any) => c.validade && checkValidityWarning(c.validade, inspectionData.dataProxInspecao, inspectionData.dataInspecao, inspectionData.brand, inspectionData.shipDetails) === 'warning').length > 0 && (
+                <AlertTriangle className="w-4 h-4" />
+              )}
+            </p>
+            <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Em Alerta</p>
+          </div>
+        </div>
+        <div className="hidden sm:block text-right">
+          <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Estado dos componentes</p>
+          <p className="text-sm font-bold text-slate-900">
+            {componentes.filter((c: any) => c.validade && checkValidityWarning(c.validade, inspectionData.dataProxInspecao, inspectionData.dataInspecao, inspectionData.brand, inspectionData.shipDetails) === 'warning').length === 0
+              ? 'Todos conformes' 
+              : 'Requer atenção'}
+          </p>
+        </div>
+      </div>
+
+      {/* HRU — Libertador Hidrostático */}
+      <div className="border border-slate-200 rounded-2xl bg-white p-6 shadow-sm">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="bg-rose-50 p-2 rounded-lg text-rose-600">
+            <ShieldCheck size={20} />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-slate-800">HRU — Libertador Hidrostático</h3>
+            <p className="text-xs text-slate-500">Referência e validade também constam no passo 1 (Identificação).</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Tipo de HRU</label>
+            <select
+              value={inspectionData.hruTipo || ''}
+              onChange={(e) => updateHruField('hruTipo', e.target.value)}
+              className="w-full border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50 focus:bg-white text-sm transition-colors font-medium"
+            >
+              <option value="" disabled>Selecionar tipo...</option>
+              {HRU_TYPE_OPTIONS.map(opt => (
+                <option key={opt} value={opt}>{opt}</option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Referência (P/N)</label>
+            <input
+              type="text"
+              placeholder="Ex: Hammar H20"
+              value={inspectionData.hruReference || ''}
+              onChange={(e) => updateHruField('hruReference', e.target.value)}
+              className="w-full border rounded-xl px-3 py-2.5 bg-slate-50 focus:bg-white text-sm transition-colors"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Validade</label>
+            <input
+              type="month"
+              value={inspectionData.hruExpiry || ''}
+              onChange={(e) => updateHruField('hruExpiry', e.target.value)}
+              className={`w-full border rounded-xl px-3 py-2.5 bg-slate-50 focus:bg-white text-sm transition-colors ${
+                hruExpiryStatus === 'expired'
+                  ? 'border-red-300 ring-2 ring-red-100 bg-red-50 text-red-900'
+                  : 'border-slate-200'
+              }`}
+            />
+          </div>
+        </div>
+
+        {hruExpiryStatus === 'expired' && (
+          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800 flex items-start gap-2">
+            <AlertTriangle size={18} className="shrink-0 mt-0.5 text-red-500" />
+            <div>
+              <p className="font-bold">HRU expirado ({inspectionData.hruExpiry})</p>
+              <p className="mt-0.5 text-xs leading-relaxed">
+                Substituir o HRU dentro do prazo de validade do fabricante. Verificar ainda o n.º de série e a etiqueta
+                de validade do HRU quando se substituir.
+              </p>
+            </div>
+          </div>
+        )}
+
+        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600 leading-relaxed">
+          {inspectionData.hruTipo === 'DESCARTÁVEL' ? (
+            <p>
+              HRU <strong>descartável</strong> (ex.: Hammar H-series) — confirmar a data de validade estampada e
+              substituir dentro do prazo indicado pelo fabricante; o HRU que disparou não deve ser religado.
+            </p>
+          ) : inspectionData.hruTipo === 'REUTILIZÁVEL' ? (
+            <p>
+              HRU <strong>reutilizável</strong> — verificar o mecanismo e o serviço periódico conforme o manual do
+              fabricante antes de voltar a ser colocado em serviço.
+            </p>
+          ) : (
+            <p>Confirme o tipo de HRU e a ponta fracável (weak link) do painter — 2,2 ± 0,4 kN (LSA Code 4.1.6.2).</p>
+          )}
+        </div>
+      </div>
+
+      {/* Luzes do Coberto & Baterias */}
+      <div className="border border-slate-200 rounded-2xl bg-white p-6 shadow-sm">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="bg-amber-50 p-2 rounded-lg text-amber-600">
+            <BatteryFull size={20} />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-slate-800">Luzes do Coberto & Baterias</h3>
+            <p className="text-xs text-slate-500">Estado sincronizado com o checklist (passo 2). Registe validade e voltagem medidas.</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {[
+            { itemId: 'luz_exterior_bateria', label: 'Coberto Exterior', item: luzExteriorItem, statusCheck: luzExteriorStatus },
+            { itemId: 'luz_interior_bateria', label: 'Coberto Interior', item: luzInteriorItem, statusCheck: luzInteriorStatus },
+          ].map(({ itemId, label, item, statusCheck }) => (
+            <div key={itemId} className="rounded-xl border border-slate-200 p-4 space-y-3">
+              <p className="text-sm font-bold text-slate-800">Luz — {label}</p>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Estado da luz/bateria</label>
+                <select
+                  value={item.status || ''}
+                  onChange={(e) => updateLightItem(itemId, 'status', e.target.value)}
+                  className="w-full border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50 focus:bg-white text-sm transition-colors font-medium"
+                >
+                  <option value="" disabled>Selecionar estado...</option>
+                  {LIGHT_STATUS_OPTIONS.map(opt => (
+                    <option key={opt} value={opt}>{opt === 'OK' ? 'Bom Estado' : opt === 'SUBSTITUIDO' ? 'Substituída' : opt === 'REPROVADO' ? 'Reprovada' : 'N/A'}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Validade da bateria</label>
+                  <input
+                    type="month"
+                    value={item.validade || ''}
+                    onChange={(e) => updateLightItem(itemId, 'validade', e.target.value)}
+                    className={`w-full border rounded-xl px-3 py-2.5 bg-slate-50 focus:bg-white text-sm transition-colors ${
+                      statusCheck === 'expired'
+                        ? 'border-red-300 ring-2 ring-red-100 bg-red-50 text-red-900'
+                        : 'border-slate-200'
+                    }`}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Voltagem (V)</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: 4.1"
+                    value={item.voltagem || ''}
+                    onChange={(e) => updateLightItem(itemId, 'voltagem', e.target.value)}
+                    className="w-full border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50 focus:bg-white text-sm transition-colors"
+                  />
+                </div>
+              </div>
+              {statusCheck === 'expired' && (
+                <p className="text-[11px] font-semibold text-red-700 flex items-center gap-1.5 bg-red-50 border border-red-200 rounded-lg px-2 py-1.5">
+                  <AlertTriangle size={13} className="shrink-0 text-red-500" />
+                  Bateria expirada ({item.validade}) — substituir.
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600 leading-relaxed">
+          <p>
+            Baterias <strong>sem data</strong>: substituir anualmente. Com <strong>data</strong>: substituir até a
+            expiração. Baterias de ativação por água (water-activated): substituir sempre que forem ativadas
+            (46 CFR 28.140; LSA Code 4.1.3.3 — luz exterior 50–70 flashes/min, ≥ 12 h; luz interior ≥ 12 h).
+            Verificar a voltagem medida antes do acondicionamento.
+          </p>
+        </div>
       </div>
 
       {componentes.length === 0 ? (

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { normalizeArtigoValidade } from "@/lib/date-utils";
 import { Prisma } from "@prisma/client";
 import { writeInspectionSnapshot } from "@/lib/inspection-snapshots";
 
@@ -124,7 +125,7 @@ export async function POST(request: NextRequest) {
               name: String(art.name),
               referencia: art.referencia ? String(art.referencia) : null,
               quantidade: parseInt(art.quantidade, 10) || 1,
-              validade: art.validade ? new Date(art.validade) : null,
+              validade: normalizeArtigoValidade(art.validade),
             },
           });
           createdArtigos.push(created);
@@ -366,7 +367,7 @@ export async function PUT(request: NextRequest) {
               name: String(art.name),
               referencia: art.referencia ? String(art.referencia) : null,
               quantidade: parseInt(art.quantidade, 10) || 1,
-              validade: art.validade ? new Date(art.validade) : null,
+              validade: normalizeArtigoValidade(art.validade),
             },
           });
           createdArtigos.push(created);

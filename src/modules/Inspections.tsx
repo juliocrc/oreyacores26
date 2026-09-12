@@ -7,7 +7,7 @@ import { getSeaSafeSpec } from "./rafts/seaSafeModelData";
 import { broadcastServiceStationSync } from "@/lib/service-station-sync";
 import { DRINKING_WATER_REFERENCE_CANDIDATES, DRINKING_WATER_STOCK_REFERENCE, FOOD_RATIONS_REFERENCE_CANDIDATES, FOOD_RATIONS_STOCK_REFERENCE } from "@/lib/stock-reference-rules";
 import { dedupeRaftArticles } from "./rafts/mandatoryPack";
-import { formatValidityDisplay } from "@/lib/date-display";
+import { formatValidityDisplay, normalizeMonthYearValue } from "@/lib/date-display";
 
 type ViewMode = "quadros" | "lista" | "detalhes";
 const CHECKLIST_DRAFT_PREFIX = "inspection-wizard-draft";
@@ -1538,7 +1538,7 @@ export default function Inspections() {
         const isExpiring = months < 12;
         validityInfo = (
           <span className={`ml-2 text-xs font-semibold ${isExpiring ? 'text-red-600' : 'text-gray-500'}`}>
-            Validade: {new Date(validade).toLocaleDateString('pt-PT')} {isExpiring && <span className="ml-1 bg-red-100 text-red-700 px-2 py-0.5 rounded">Substituir</span>}
+            Validade: {(() => { const ym = normalizeMonthYearValue(validade); return ym ? `${ym.split('-')[1]}/${ym.split('-')[0]}` : '—'; })()} {isExpiring && <span className="ml-1 bg-red-100 text-red-700 px-2 py-0.5 rounded">Substituir</span>}
           </span>
         );
       }
@@ -3073,15 +3073,15 @@ export default function Inspections() {
           
           <div className="w-full max-w-lg rounded-xl bg-white shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[90vh]">
             {/* Header */}
-            <div className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between">
+            <div className="bg-gradient-to-r from-sky-100 to-indigo-100 text-slate-900 px-4 py-3 flex items-center justify-between border-b border-sky-200">
               <div className="flex items-center gap-2">
-                <span className="text-indigo-400 text-lg">📷</span>
+                <span className="text-indigo-700 text-lg">📷</span>
                 <h3 className="font-semibold text-sm">Leitor Óptico — Inspeções</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setIsScanOpenInsp(false)}
-                className="text-slate-400 hover:text-white transition-colors text-lg font-bold"
+                className="text-slate-500 hover:text-slate-900 transition-colors text-lg font-bold"
               >
                 &times;
               </button>

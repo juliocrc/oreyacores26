@@ -2,7 +2,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useJangadaWizardStore } from './store/useJangadaWizardStore';
 import { getTestRecommendations, type TestRecommendation } from '@/modules/rafts/testRules';
-import { Activity, Gauge, ArrowDownToLine, Droplet, Clock, AlertTriangle, Info, CheckCircle2, XCircle, HelpCircle } from 'lucide-react';
+import { getDlLoadReference } from '@/modules/rafts/dlLoadReference';
+import { Activity, Gauge, ArrowDownToLine, Droplet, Clock, Timer, Play, Pause, RotateCcw, AlertTriangle, Info, CheckCircle2, XCircle, HelpCircle, ShieldAlert } from 'lucide-react';
 
 const TEST_ICONS: Record<string, React.ElementType> = {
   testeWP: Gauge,
@@ -55,6 +56,42 @@ export default function Step6_Testes() {
   const testes = inspectionData.testes || {};
   const [equipments, setEquipments] = useState<any[]>([]);
 
+  const [timerSec, setTimerSec] = useState(0);
+  const [timerRunning, setTimerRunning] = useState(false);
+
+  useEffect(() => {
+    if (!timerRunning) return;
+    const id = window.setInterval(() => setTimerSec((s) => s + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [timerRunning]);
+
+  const nowHHMM = () => {
+    const d = new Date();
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  };
+
+  const formatTimer = (total: number) => {
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  };
+
+  const handleStartTimer = () => {
+    setTimerRunning(true);
+    if (!testes.wpHoraInicio) handleTestChange('wpHoraInicio', nowHHMM());
+  };
+
+  const handleStopTimer = () => {
+    setTimerRunning(false);
+    if (timerSec > 0) handleTestChange('wpHoraFim', nowHHMM());
+  };
+
+  const handleResetTimer = () => {
+    setTimerRunning(false);
+    setTimerSec(0);
+  };
+
   const recommendations = useMemo(() => getTestRecommendations({
     brand: inspectionData.brand,
     model: inspectionData.model,
@@ -70,6 +107,21 @@ export default function Step6_Testes() {
   }, [recommendations]);
 
   const ageYears = recommendations[0]?.ageYears ?? null;
+
+  const isDavit = useMemo(() => {
+    const launch = (inspectionData.launchType || '').toLowerCase();
+    return launch === 'dl' || launch.includes('davit') || launch.includes('turco');
+  }, [inspectionData.launchType]);
+
+  const dlReference = useMemo(
+    () =>
+      getDlLoadReference({
+        brand: inspectionData.brand,
+        model: inspectionData.model,
+        capacity: inspectionData.capacity,
+      }),
+    [inspectionData.brand, inspectionData.model, inspectionData.capacity],
+  );
 
   const requiredButSkipped = useMemo(() => {
     return recommendations.filter(r =>
@@ -115,6 +167,46 @@ export default function Step6_Testes() {
       <div>
         <h2 className="text-2xl font-bold text-slate-800">6. Testes Operacionais e de Pressão</h2>
         <p className="text-slate-600 mt-1">Registe os resultados dos testes estruturais realizados na jangada.</p>
+      </div>
+
+      {/* State summary strip */}
+      <div className="bg-sky-50 rounded-2xl p-4 text-slate-900 border border-sky-200 shadow-sm flex flex-col sm:flex-row sm:items-center gap-4">
+        <div className="grid grid-cols-3 gap-3 flex-1 text-center">
+          <div className="bg-emerald-50 border border-emerald-300 rounded-lg py-2 shadow-sm">
+            <p className="text-lg font-black text-emerald-700 flex items-center justify-center gap-1.5">
+              {recommendations.filter((r) => testes[r.testId] === 'PASSOU').length}
+              <CheckCircle2 className="w-4 h-4" />
+            </p>
+            <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Passou</p>
+          </div>
+          <div className="bg-red-50 border border-red-300 rounded-lg py-2 shadow-sm">
+            <p className="text-lg font-black text-red-700 flex items-center justify-center gap-1.5">
+              {recommendations.filter((r) => testes[r.testId] === 'REPROVOU').length}
+              <XCircle className="w-4 h-4" />
+            </p>
+            <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Reprovou</p>
+          </div>
+          <div className="bg-slate-100 border border-slate-300 rounded-lg py-2 shadow-sm">
+            <p className="text-lg font-black text-slate-700 flex items-center justify-center gap-1.5">
+              {recommendations.filter((r) => !testes[r.testId] || testes[r.testId] === 'N/A').length}
+              <HelpCircle className="w-4 h-4" />
+            </p>
+            <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Por registar</p>
+          </div>
+        </div>
+        <div className="hidden sm:block text-right">
+          <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Situação global</p>
+          {requiredButSkipped.length > 0 ? (
+            <p className="text-sm font-bold text-amber-700 flex items-center gap-1.5">
+              <ShieldAlert className="w-4 h-4" />
+              {requiredButSkipped.length} obrigatório(s) como N/A
+            </p>
+          ) : (
+            <p className="text-sm font-bold text-emerald-700">
+              {recommendations.filter((r) => testes[r.testId] === 'REPROVOU').length > 0 ? 'Com reprovações' : 'Pronto para avançar'}
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Age-Based Test Summary */}
@@ -244,6 +336,51 @@ export default function Step6_Testes() {
                   </div>
                 </div>
 
+                {rec.testId === 'testeDL' && isDavit && dlReference && (
+                  <div className={`mt-5 ml-[3.25rem] rounded-xl border p-4 ${
+                    rec.status === 'required'
+                      ? 'bg-amber-50 border-amber-200'
+                      : 'bg-sky-50 border-sky-200'
+                  }`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <ArrowDownToLine size={16} className={rec.status === 'required' ? 'text-amber-600' : 'text-sky-600'} />
+                      <p className={`text-sm font-bold ${rec.status === 'required' ? 'text-amber-800' : 'text-sky-900'}`}>
+                        {rec.status === 'required'
+                          ? 'Carga de suspensão/sobrecarga (1,1 × G) — obrigatória este ano'
+                          : 'Referência de suspensão (1,1 × G) — só suspensão com sobrecarga a cada 2º serviço'}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
+                      <p className="text-2xl font-black tabular-nums text-slate-900">
+                        {dlReference.minKg !== null && dlReference.maxKg !== null
+                          ? dlReference.minKg === dlReference.maxKg
+                            ? `${dlReference.minKg.toLocaleString('pt-PT')} kg`
+                            : `${dlReference.minKg.toLocaleString('pt-PT')} – ${dlReference.maxKg.toLocaleString('pt-PT')} kg`
+                          : dlReference.formulaKg !== null
+                            ? `≈ ${dlReference.formulaKg.toLocaleString('pt-PT')} kg`
+                            : '—'}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        medido no anel de elevação · mínimo {dlReference.durationMinutes} min
+                        {dlReference.minKg !== null && dlReference.maxKg !== null && dlReference.minKg !== dlReference.maxKg
+                          ? ' · P1 min–max (pele + lastro)'
+                          : ''}
+                      </p>
+                    </div>
+                    {dlReference.maxKg === null && (
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        Fórmula: 75 kg × {dlReference.capacity} pessoas × 1,1 — confirmar com o fabricante.
+                      </p>
+                    )}
+                    {dlReference.source && (
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        {dlReference.source.doc}
+                        {dlReference.source.note ? ` — ${dlReference.source.note}` : ''}
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 {isWP && currentResult === 'PASSOU' && (
                   <div className="mt-6 ml-[3.25rem] grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 bg-slate-50 p-5 rounded-2xl border border-slate-200">
                     <div className="col-span-full mb-2 flex justify-between items-center">
@@ -317,10 +454,68 @@ export default function Step6_Testes() {
                       </div>
                     </div>
 
+<div className="col-span-full bg-sky-50 rounded-xl p-4 border border-sky-300 flex flex-wrap items-center gap-x-4 gap-y-3 shadow-sm">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-indigo-100 shrink-0">
+                          <Timer size={20} className="text-indigo-700" />
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wider text-slate-600 font-bold">Cronómetro de Teste WP</p>
+                          <p className="text-3xl font-black tabular-nums font-mono text-slate-900 leading-none mt-0.5">{formatTimer(timerSec)}</p>
+                          {timerRunning && (
+                            <p className="text-[10px] text-emerald-700 font-bold mt-1 flex items-center gap-1">
+                              <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                              Teste em curso...
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 ml-auto flex-wrap">
+                        <button
+                          type="button"
+                          onClick={handleStartTimer}
+                          disabled={timerRunning}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 transition"
+                        >
+                          <Play size={14} />
+                          {testes.wpHoraInicio ? 'Retomar t.' : 'Iniciar Teste (Agora)'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleStopTimer}
+                          disabled={!timerRunning && timerSec === 0}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 transition"
+                        >
+                          <Pause size={14} />
+                          Terminar (Agora)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleResetTimer}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 transition"
+                        >
+                          <RotateCcw size={14} />
+                          Repor
+                        </button>
+                      </div>
+                    </div>
+
                     <div className="space-y-1.5">
-                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Hora Início</label>
-                      <input 
-                        type="time" 
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center justify-between gap-2">
+                        Hora Início
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleTestChange('wpHoraInicio', nowHHMM());
+                            setTimerRunning(true);
+                          }}
+                          className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2 py-1 rounded-md border border-indigo-200"
+                        >
+                          Agora
+                        </button>
+                      </label>
+                      <input
+                        type="time"
                         value={testes.wpHoraInicio || ''}
                         onChange={(e) => {
                           const val = e.target.value;
@@ -337,9 +532,21 @@ export default function Step6_Testes() {
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Hora Fim (Automático +60m)</label>
-                      <input 
-                        type="time" 
+<label className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center justify-between gap-2">
+                        Hora Fim (Automático +60m)
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleTestChange('wpHoraFim', nowHHMM());
+                            setTimerRunning(false);
+                          }}
+                          className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2 py-1 rounded-md border border-indigo-200"
+                        >
+                          Agora
+                        </button>
+                      </label>
+                      <input
+                        type="time"
                         value={testes.wpHoraFim || ''}
                         onChange={(e) => handleTestChange('wpHoraFim', e.target.value)}
                         className="w-full border-slate-200 rounded-xl px-3 py-2 bg-white text-sm focus:ring-2 focus:ring-indigo-100"

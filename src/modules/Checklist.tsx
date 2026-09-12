@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import { normalizeMonthYearValue } from "@/lib/date-display";
 import {
   buildInspectionChecklistFromQuadro,
   type ChecklistRaftInput,
@@ -112,7 +113,7 @@ export default function Checklist({ raft, initialValues, onSave, onItemAction, o
     setScanQuery("");
     setShowScanner(true);
     setUseCamera(true);
-    setScanMessage({ text: "Aponte a câmara ao código do artigo de substituição.", type: "info" });
+    setScanMessage({ text: "Aponte a cï¿½mara ao cï¿½digo do artigo de substituiï¿½ï¿½o.", type: "info" });
   };
 
   const applySuggestedReplacementTarget = () => {
@@ -122,7 +123,7 @@ export default function Checklist({ raft, initialValues, onSave, onItemAction, o
     jumpToField(f.name);
     setPendingReplacementFieldName(f.name);
     setSuggestedReplacementFieldName(null);
-    setScanMessage({ text: `Sugestão aplicada: ${f.label}. Leia novamente.`, type: "info" });
+    setScanMessage({ text: `Sugestï¿½o aplicada: ${f.label}. Leia novamente.`, type: "info" });
   };
 
   useEffect(() => {
@@ -143,7 +144,7 @@ export default function Checklist({ raft, initialValues, onSave, onItemAction, o
         () => {}
       );
     } catch {
-      setScanMessage({ text: "Não foi possível aceder à câmera.", type: "error" });
+      setScanMessage({ text: "Nï¿½o foi possï¿½vel aceder ï¿½ cï¿½mera.", type: "error" });
       setUseCamera(false);
     }
   };
@@ -161,7 +162,7 @@ export default function Checklist({ raft, initialValues, onSave, onItemAction, o
     if (pendingReplacementFieldName) {
       const targetField = findFieldByName(pendingReplacementFieldName);
       if (!targetField || !targetField.packItem) {
-        setScanMessage({ text: "Não foi possível identificar o item.", type: "error" });
+        setScanMessage({ text: "Nï¿½o foi possï¿½vel identificar o item.", type: "error" });
         setPendingReplacementFieldName(null);
         setSuggestedReplacementFieldName(null);
         return;
@@ -171,11 +172,11 @@ export default function Checklist({ raft, initialValues, onSave, onItemAction, o
         if (suggestedField) {
           setSuggestedReplacementFieldName(suggestedField.name);
           jumpToField(suggestedField.name);
-          setScanMessage({ text: `Código não corresponde a "${targetField.label}". Sugestão: "${suggestedField.label}".`, type: "info" });
+          setScanMessage({ text: `Cï¿½digo nï¿½o corresponde a "${targetField.label}". Sugestï¿½o: "${suggestedField.label}".`, type: "info" });
           return;
         }
         setSuggestedReplacementFieldName(null);
-        setScanMessage({ text: `Código não corresponde ao item: ${targetField.label}`, type: "error" });
+        setScanMessage({ text: `Cï¿½digo nï¿½o corresponde ao item: ${targetField.label}`, type: "error" });
         return;
       }
       setSuggestedReplacementFieldName(null);
@@ -183,11 +184,12 @@ export default function Checklist({ raft, initialValues, onSave, onItemAction, o
       if (onItemAction) {
         const stockItem = await onItemAction(targetField.name, "replace", targetField.packItem);
         if (stockItem?.validade && targetField.packItem?.validityFieldName) {
-          const valStr = new Date(stockItem.validade).toISOString().slice(0, 10);
+          const ym = normalizeMonthYearValue(String(stockItem.validade));
+          const valStr = ym ? `${ym}-01` : String(stockItem.validade);
           handleFieldChange(targetField.packItem.validityFieldName, valStr);
-          setScanMessage({ text: `Substituído · validade ${valStr}`, type: "success" });
+          setScanMessage({ text: `Substituï¿½do ï¿½ validade ${valStr}`, type: "success" });
         } else {
-          setScanMessage({ text: `Substituição registada: ${targetField.label}`, type: "success" });
+          setScanMessage({ text: `Substituiï¿½ï¿½o registada: ${targetField.label}`, type: "success" });
         }
       }
       setPendingReplacementFieldName(null);
@@ -214,7 +216,7 @@ export default function Checklist({ raft, initialValues, onSave, onItemAction, o
       setScanMessage({ text: `Identificado: ${matchedField.label}`, type: "success" });
       setTimeout(() => { setScanMessage(null); setScanQuery(""); }, 2000);
     } else {
-      setScanMessage({ text: "Equipamento não identificado.", type: "error" });
+      setScanMessage({ text: "Equipamento nï¿½o identificado.", type: "error" });
       setTimeout(() => setScanMessage(null), 3000);
     }
   };
@@ -246,7 +248,7 @@ export default function Checklist({ raft, initialValues, onSave, onItemAction, o
           </svg>
         </button>
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-bold text-slate-900 truncate">{raft.brand} {raft.model} — {raft.serial}</p>
+          <p className="text-xs font-bold text-slate-900 truncate">{raft.brand} {raft.model} ï¿½ {raft.serial}</p>
           <p className="text-[10px] text-slate-400 mt-0.5">{answered}/{total} itens respondidos</p>
         </div>
         <button
@@ -270,22 +272,22 @@ export default function Checklist({ raft, initialValues, onSave, onItemAction, o
 
       {/* Scanner panel */}
       {showScanner && (
-        <div className="bg-slate-900 border-b border-slate-700 p-4 shrink-0 space-y-3">
+        <div className="bg-sky-50 border-b border-sky-200 p-4 shrink-0 space-y-3">
           <div className="flex gap-2">
             <input
               autoFocus
               type="text"
-              placeholder="Referência ou código..."
+              placeholder="Referï¿½ncia ou cï¿½digo..."
               value={scanQuery}
               onKeyDown={(e) => e.key === "Enter" && handleBarcodeScan(scanQuery)}
               onChange={(e) => setScanQuery(e.target.value)}
-              className="flex-1 bg-white/10 border border-white/20 rounded-xl px-4 py-2.5 text-white placeholder:text-white/30 outline-none focus:ring-2 focus:ring-sky-500 font-mono text-sm"
+              className="flex-1 bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-sky-500 font-mono text-sm"
             />
             <button
               onClick={() => setUseCamera((c) => !c)}
-              className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wide transition-all ${useCamera ? "bg-amber-500 text-white" : "bg-white/10 text-white hover:bg-white/20"}`}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wide transition-all ${useCamera ? "bg-amber-500 text-white" : "bg-white text-slate-700 border border-slate-300 hover:bg-slate-100"}`}
             >
-              {useCamera ? "Parar" : "Câmera"}
+              {useCamera ? "Parar" : "Cï¿½mera"}
             </button>
           </div>
           {useCamera && (
@@ -305,7 +307,7 @@ export default function Checklist({ raft, initialValues, onSave, onItemAction, o
                   onClick={applySuggestedReplacementTarget}
                   className="ml-3 rounded-lg bg-white/20 px-3 py-1 hover:bg-white/30"
                 >
-                  Usar sugestão
+                  Usar sugestï¿½o
                 </button>
               )}
             </div>
@@ -313,14 +315,14 @@ export default function Checklist({ raft, initialValues, onSave, onItemAction, o
         </div>
       )}
 
-      {/* Main card — one item at a time */}
+      {/* Main card ï¿½ one item at a time */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 overflow-y-auto">
         <div className="w-full max-w-sm space-y-5">
 
           {/* Section badge */}
           <div className="flex items-center justify-center">
             <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 bg-slate-100 px-3 py-1 rounded-full">
-              {(current as any).sectionTitle} · {itemInSection}/{sectionTotal}
+              {(current as any).sectionTitle} ï¿½ {itemInSection}/{sectionTotal}
             </span>
           </div>
 
@@ -337,7 +339,7 @@ export default function Checklist({ raft, initialValues, onSave, onItemAction, o
             )}
           </div>
 
-          {/* Checkbox — OK / Falha */}
+          {/* Checkbox ï¿½ OK / Falha */}
           {isCheckbox && (
             <div className="flex gap-3 pt-2">
               <button
@@ -410,7 +412,7 @@ export default function Checklist({ raft, initialValues, onSave, onItemAction, o
             Saltar ?
           </button>
 
-          {/* Dot navigation — sliding window */}
+          {/* Dot navigation ï¿½ sliding window */}
           <div className="flex items-center justify-center gap-1.5 pt-2">
             {allFields.slice(Math.max(0, currentIndex - 4), currentIndex + 6).map((f, dotIdx) => {
               const realIdx = Math.max(0, currentIndex - 4) + dotIdx;
@@ -450,9 +452,9 @@ export default function Checklist({ raft, initialValues, onSave, onItemAction, o
         </button>
         <button
           onClick={currentIndex >= total - 1 ? () => onSave(values) : goNext}
-          className="flex items-center gap-1 px-6 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-black uppercase tracking-wide hover:bg-slate-700 active:scale-95 transition-all"
+          className="flex items-center gap-1 px-6 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-black uppercase tracking-wide hover:bg-indigo-700 active:scale-95 transition-all"
         >
-          {currentIndex >= total - 1 ? "Concluir" : "Próximo"}
+          {currentIndex >= total - 1 ? "Concluir" : "Prï¿½ximo"}
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
           </svg>

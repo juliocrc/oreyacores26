@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import React from 'react';
 import { Edit2, X, Plus } from 'lucide-react';
+import { toMonthInput } from '@/lib/date-utils';
 
 interface ArtigoJangada {
   id?: number;
@@ -15,19 +16,6 @@ interface ArtigoJangada {
   quantidadeSubstituida?: number | null;
   lastInspecaoId?: number | null;
 }
-
-const toMonthInput = (val: string | Date | null | undefined): string => {
-  if (!val) return '';
-  const str = String(val);
-  if (/^\d{4}-\d{2}/.test(str)) return str.substring(0, 7);
-  const mmYyyy = str.match(/^(\d{1,2})\/(\d{4})$/);
-  if (mmYyyy) return `${mmYyyy[2]}-${mmYyyy[1].padStart(2, '0')}`;
-  const d = new Date(str);
-  if (isNaN(d.getTime())) return '';
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  return `${yyyy}-${mm}`;
-};
 
 interface EditarArtigoProps {
   jangadaId: number;

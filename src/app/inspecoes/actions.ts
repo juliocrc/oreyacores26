@@ -34,7 +34,7 @@ type SaveInspectionPayload = {
   responsavel?: string | null;
   certificadoNumero?: string | null;
   sourceFile?: string | null;
-  checklistSnapshot?: Record<string, string | number | boolean>;
+  checklistSnapshot?: Record<string, unknown>;
   artigosSubstituidos?: SaveInspectionReplacementItem[];
   applyStockMovements?: boolean | null;
   signatureBase64?: string | null;
@@ -386,8 +386,9 @@ export async function saveInspection(payload: SaveInspectionPayload) {
     }
 
     const getField = (key: string) => {
-      if (payload.checklistSnapshot && payload.checklistSnapshot[key] !== undefined) {
-        return String(payload.checklistSnapshot[key] || "");
+      const snapVal = payload.checklistSnapshot && payload.checklistSnapshot[key];
+      if (snapVal !== undefined && snapVal !== null && typeof snapVal !== "object") {
+        return String(snapVal || "");
       }
       if ((payload as any)[key] !== undefined) {
         return String((payload as any)[key] || "");
@@ -438,6 +439,10 @@ export async function saveInspection(payload: SaveInspectionPayload) {
       oficinaHumidade: getField("oficinaHumidade"),
 
       orcamento: payload.orcamento || Prisma.DbNull,
+      checklistSnapshot:
+        payload.checklistSnapshot && Object.keys(payload.checklistSnapshot).length > 0
+          ? (payload.checklistSnapshot as Prisma.InputJsonValue)
+          : Prisma.DbNull,
     };
 
     const inspecao = existingInspection

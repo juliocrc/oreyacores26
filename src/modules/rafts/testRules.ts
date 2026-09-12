@@ -8,6 +8,7 @@ export type AutomaticRaftTests = {
   testeFS: TestResult;
   testeGI: TestResult;
   testeDL: TestResult;
+  isDlOverloadDue: boolean;
   ageYears: number | null;
   source: 'manufacturer' | 'age' | 'unknown-age';
   technicalModelName: string | null;
@@ -135,15 +136,19 @@ function normalizeLaunchType(value?: string | null) {
 function getFallbackTests(ageYears: number | null, launchType?: string | null): AutomaticRaftTests {
   const normalizedLaunchType = normalizeLaunchType(launchType);
   const hasKnownAge = ageYears !== null;
+  const isDavit = normalizedLaunchType === 'DL';
   const giDue = hasKnownAge && ageYears >= 5 && ageYears % 5 === 0;
-  const napAndFsDue = hasKnownAge && ageYears >= 11;
+  const fsDue = hasKnownAge && ageYears >= 10;
+  const napDue = fsDue;
+  const dlOverloadDue = isDavit && (ageYears === null || (ageYears > 0 && ageYears % 2 === 0));
 
   return {
     testeWP: 'YES',
-    testeNAP: napAndFsDue ? 'YES' : 'NO',
-    testeFS: napAndFsDue ? 'YES' : 'NO',
+    testeNAP: napDue ? 'YES' : 'NO',
+    testeFS: fsDue ? 'YES' : 'NO',
     testeGI: giDue ? 'YES' : 'NO',
-    testeDL: normalizedLaunchType === 'DL' ? 'NO' : 'N/A',
+    testeDL: isDavit ? (dlOverloadDue ? 'YES' : 'NO') : 'N/A',
+    isDlOverloadDue: dlOverloadDue,
     ageYears,
     source: hasKnownAge ? 'age' : 'unknown-age',
     technicalModelName: null,
@@ -291,28 +296,24 @@ export function getTestRecommendations(args: {
           : 'Consultar fabricante para calendário de GI.',
   );
 
-  const fsNapRequired = age !== null && age >= 11;
-  const fsNapFirstTime = age !== null && age === 11;
+  const fsRequired = age !== null && age >= 10;
+  const napRequired = fsRequired;
 
   const fsRec = buildRec(
     'testeFS',
     'Floor Seam',
     'FS',
     automatic.testeFS,
-    fsNapRequired,
-    fsNapRequired
-      ? fsNapFirstTime
-        ? `Ano 11 — FS obrigatório pela primeira vez (a partir do 11º ano, anual).`
-        : `Jangada com ${age} anos — FS obrigatório (a partir do 11º ano, anual).`
-      : age !== null && age >= 10
-        ? `Jangada com ${age} anos — FS será obrigatório a partir do 11º ano.`
-        : age !== null
-          ? `Jangada com ${age} anos — FS não obrigatório ainda (inicia ao 11º ano).`
-          : 'Idade desconhecida — FS obrigatório a partir do 11º ano.',
-    fsNapRequired
-      ? `FS obrigatório — ${age} anos (a partir do 11º ano, anual).`
-      : age !== null && age < 11
-        ? `Próximo FS previsto para o ano ${11} (daqui a ${11 - age} ano(s)).`
+    fsRequired,
+    fsRequired
+      ? `Jangada com ${age} anos — FS obrigatório (a partir do 10º ano, anual).`
+      : age !== null
+        ? `Jangada com ${age} anos — teste FS inicia no 10º ano.`
+        : 'Idade desconhecida — FS obrigatório a partir do 10º ano.',
+    fsRequired
+      ? `FS obrigatório — ${age} anos (a partir do 10º ano, anual).`
+      : age !== null && age < 10
+        ? `Próximo FS previsto no ano 10 (daqui a ${10 - age} ano(s)).`
         : 'Consultar fabricante.',
   );
 
@@ -321,34 +322,35 @@ export function getTestRecommendations(args: {
     'Necessary Additional Pressure',
     'NAP',
     automatic.testeNAP,
-    fsNapRequired,
-    fsNapRequired
-      ? fsNapFirstTime
-        ? `Ano 11 — NAP obrigatório pela primeira vez (a partir do 11º ano, anual).`
-        : `Jangada com ${age} anos — NAP obrigatório (a partir do 11º ano, anual).`
-      : age !== null && age >= 10
-        ? `Jangada com ${age} anos — NAP será obrigatório a partir do 11º ano.`
-        : age !== null
-          ? `Jangada com ${age} anos — NAP não obrigatório ainda (inicia ao 11º ano).`
-          : 'Idade desconhecida — NAP obrigatório a partir do 11º ano.',
-    fsNapRequired
-      ? `NAP obrigatório — ${age} anos (a partir do 11º ano, anual).`
-      : age !== null && age < 11
-        ? `Próximo NAP previsto para o ano ${11} (daqui a ${11 - age} ano(s)).`
+    napRequired,
+    napRequired
+      ? `Jangada com ${age} anos — NAP obrigatório (anual após o 10º ano, incluindo anos de GI).`
+      : age !== null
+        ? `Jangada com ${age} anos — teste NAP inicia no ano 10.`
+        : 'Idade desconhecida — NAP obrigatório a partir do 10º ano.',
+    napRequired
+      ? `NAP obrigatório — ${age} anos (anual após o 10º ano; A.761(18) Anexo 2 e manual do fabricante).`
+      : age !== null && age < 10
+        ? `Próximo NAP previsto no ano 10 (daqui a ${10 - age} ano(s)).`
         : 'Consultar fabricante.',
   );
 
+  const dlOverloadDue = Boolean(automatic.isDlOverloadDue);
   const dlRec = buildRec(
     'testeDL',
     'Davit Load',
     'DL',
     automatic.testeDL,
-    isDavit,
+    isDavit && dlOverloadDue,
     isDavit
-      ? `Teste DL obrigatório — tipo de lançamento: Davit-Launch.`
+      ? dlOverloadDue
+        ? `Teste DL obrigatório — suspensão/sobrecarga (10%) a cada 2º serviço.`
+        : `Ano sem suspensão com sobrecarga — executar apenas o teste operacional de libertação do gancho.`
       : `Tipo de lançamento: ${args.launchType || 'Desconhecido'} — DL não aplicável (apenas Davit-Launch).`,
     isDavit
-      ? 'DL obrigatório para jangadas de lançamento por turco (davit).'
+      ? dlOverloadDue
+        ? 'Teste de suspensão com sobrecarga de 10% (A.761(18)/USCG) — a cada 2º serviço anual.'
+        : 'Suspensão com sobrecarga de 10% apenas a cada 2º serviço; este ano basta a libertação operacional.'
       : 'DL apenas aplicável a jangadas com lançamento por davit/turco.',
   );
 

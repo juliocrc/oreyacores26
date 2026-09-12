@@ -54,6 +54,22 @@ export default function AuditoriasPage() {
 
   const title = useMemo(() => (query ? `Auditorias (filtro: ${query})` : "Auditorias"), [query]);
 
+  const resumo = useMemo(() => {
+    const porUtilizador = new Map<string, number>();
+    const porOperacao: Record<string, number> = { CREATE: 0, UPDATE: 0, DELETE: 0 };
+    let maisRecente: AuditoriaItem | null = null;
+    for (const it of items) {
+      const u = (it.usuario || "—").trim();
+      porUtilizador.set(u, (porUtilizador.get(u) || 0) + 1);
+      if (porOperacao[it.tipoOperacao] !== undefined) porOperacao[it.tipoOperacao] += 1;
+      if (!maisRecente || new Date(it.createdAt) > new Date(maisRecente.createdAt)) maisRecente = it;
+    }
+    const topUsers = Array.from(porUtilizador.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+    return { porUtilizador: topUsers, porOperacao, maisRecente, total: items.length };
+  }, [items]);
+
   return (
     <div className="p-6">
       <div className="max-w-6xl">
@@ -148,6 +164,66 @@ export default function AuditoriasPage() {
               onChange={(e) => setEndDate(e.target.value)}
               className="w-full rounded border px-3 py-1 bg-white text-sm outline-none focus:border-slate-400 h-[34px]"
             />
+          </div>
+        </div>
+
+        {/* Resumo — quem alterou o quê e quando */}
+        <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h2 className="text-xs font-black uppercase tracking-wider text-slate-500 mb-3">Utilizadores mais ativos</h2>
+            <div className="space-y-1.5">
+              {resumo.porUtilizador.length === 0 && <p className="text-xs text-slate-400">Sem dados.</p>}
+              {resumo.porUtilizador.map(([user, count]) => {
+                const pct = resumo.total ? Math.round((count / resumo.total) * 100) : 0;
+                return (
+                  <div key={user} className="flex items-center gap-2">
+                    <span className="w-28 truncate text-xs font-bold text-slate-700">{user}</span>
+                    <div className="h-2 flex-1 rounded-full bg-slate-100 overflow-hidden">
+                      <div className={`h-full rounded-full ${pct >= 40 ? "bg-indigo-600" : pct >= 15 ? "bg-sky-500" : "bg-slate-300"}`} style={{ width: `${Math.max(pct, 4)}%` }} />
+                    </div>
+                    <span className="text-xs font-black text-slate-600">{count}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h2 className="text-xs font-black uppercase tracking-wider text-slate-500 mb-3">Operações no período</h2>
+            <div className="space-y-1.5">
+              {(["CREATE", "UPDATE", "DELETE"] as const).map((op) =>
+                resumo.porOperacao[op] > 0 ? (
+                  <div key={op} className="flex items-center justify-between rounded-xl border px-3 py-2 text-xs font-bold">
+                    <span
+                      className={
+                        op === "CREATE" ? "text-emerald-700" : op === "UPDATE" ? "text-sky-700" : "text-red-700"
+                      }
+                    >
+                      {op === "CREATE" ? "Criados" : op === "UPDATE" ? "Atualizações" : "Eliminações"}
+                    </span>
+                    <span className="text-slate-700">{resumo.porOperacao[op]}</span>
+                  </div>
+                ) : null
+              )}
+              {Object.values(resumo.porOperacao).every((v) => v === 0) && (
+                <p className="text-xs text-slate-400">Sem dados.</p>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h2 className="text-xs font-black uppercase tracking-wider text-slate-500 mb-3">Último registo</h2>
+            {resumo.maisRecente ? (
+              <div className="space-y-1 text-xs">
+                <p className="font-extrabold text-slate-800">{resumo.maisRecente.tabela} · {resumo.maisRecente.tipoOperacao}</p>
+                <p className="text-slate-500">{resumo.maisRecente.descricao || "Sem descrição"}</p>
+                <p className="text-slate-400">
+                  {resumo.maisRecente.usuario || "—"} · {new Date(resumo.maisRecente.createdAt).toLocaleString("pt-PT")}
+                </p>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400">Sem registos.</p>
+            )}
           </div>
         </div>
 

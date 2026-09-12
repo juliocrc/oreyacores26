@@ -53,12 +53,13 @@ import { getTestRecommendations } from '@/modules/rafts/testRules';
 import { buildWpDerivedValues, convertMbarToUnit } from '@/lib/quadro-payload';
 import { raftModelData } from '@/modules/rafts/raftModelData';
 import QrLabelGeneratorDialog from '@/components/jangadas/QrLabelGeneratorDialog';
+import { toMonthInput, formatMonthPt, parseMonthEnd } from '@/lib/date-utils';
 import InspectionCompareDialog from '@/components/InspectionCompareDialog';
 import HistoricaInspecaoDialog from '@/components/jangadas/HistoricaInspecaoDialog';
 import LiferaftDiagram from '@/components/jangadas/LiferaftDiagram';
 import { formatDate, getLocalDateKey, getLocalMidnight } from '@/lib/date-utils';
 import { buildInspectionIcs, downloadIcsFile } from '@/lib/ics';
-import { formatValidityDisplay } from '@/lib/date-display';
+import { formatValidityDisplay, normalizeMonthYearValue } from '@/lib/date-display';
 import { fmtPeso } from '@/lib/liferaft-diagram-helpers';
 import { getContainerClosureMatchBundle } from '@/modules/rafts/containerClosureStraps';
 import DgrmIdentificationForm, { type JangadaData as DgrmJangadaData } from '@/components/shared/DgrmIdentificationForm';
@@ -812,15 +813,44 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
     }
   };
 
+  const autoSyncRef = React.useRef(false);
+
+  const autoSyncPack = async () => {
+    try {
+      const res = await fetch(`/api/jangadas/${jangadaId}/sync-pack`, { method: 'POST' });
+      const json = await res.json();
+      if (res.ok) {
+        const s = json.summary;
+        if (s && (s.added > 0 || s.updated > 0 || s.removed > 0 || s.validadeAtualizada > 0)) {
+          appToast.success(
+            `Pack sincronizado automaticamente: +${s.added} adicionado(s), ~${s.updated} atualizado(s), -${s.removed} removido(s), ${s.validadeAtualizada} validade(s) do stock`
+          );
+        }
+        fetchJangadaData();
+      }
+    } catch {
+      // Silencioso — o sync manual continua disponível
+    }
+  };
+
   React.useEffect(() => {
     if (!initialData) {
       setLoadingData(true);
       fetchJangadaData()
-        .then(() => setLoadingData(false))
+        .then(() => {
+          setLoadingData(false);
+          if (!autoSyncRef.current) {
+            autoSyncRef.current = true;
+            autoSyncPack();
+          }
+        })
         .catch(() => {
           setErrorData(true);
           setLoadingData(false);
         });
+    } else if (!autoSyncRef.current) {
+      autoSyncRef.current = true;
+      autoSyncPack();
     }
   }, [jangadaId, initialData]);
 
@@ -1793,19 +1823,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
     }
   };
 
-  const formatMonthYear = (dateStr?: string | null) => {
-    if (!dateStr) return '—';
-    const str = String(dateStr);
-    const parts = str.split('-');
-    if (parts.length >= 2) {
-      return `${parts[1]}/${parts[0]}`;
-    }
-    const d = new Date(str);
-    if (isNaN(d.getTime())) return str;
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const yyyy = d.getFullYear();
-    return `${mm}/${yyyy}`;
-  };
+  const formatMonthYear = (dateStr?: string | null) => formatMonthPt(dateStr);
 
   const handleStampInspecao = async (id: number) => {
     try {
@@ -1819,32 +1837,12 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
     }
   };
 
-  const toMonthInputFormat = (dateStr?: string | null) => {
-    if (!dateStr) return '';
-    if (/^\d{4}-\d{2}$/.test(dateStr)) return dateStr;
-    const mmYyyy = dateStr.match(/^(\d{1,2})\/(\d{4})$/);
-    if (mmYyyy) {
-      return `${mmYyyy[2]}-${mmYyyy[1].padStart(2, '0')}`;
-    }
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return '';
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    return `${yyyy}-${mm}`;
-  };
-
   const isExpired = (expiryRaw?: string | number | null) => {
     if (!expiryRaw) return false;
     const expiryStr = String(expiryRaw);
     const trimmed = expiryStr.trim();
-    let expiry: Date;
-    if (/^\d{4}-\d{2}$/.test(trimmed)) {
-      const [y, m] = trimmed.split('-').map(Number);
-      expiry = new Date(y, m, 0, 23, 59, 59, 999);
-    } else {
-      expiry = new Date(trimmed);
-    }
-    if (isNaN(expiry.getTime())) return false;
+    const expiry = (/^\d{4}-\d{2}$/.test(trimmed) ? parseMonthEnd(trimmed) : new Date(trimmed));
+    if (!expiry || isNaN(expiry.getTime())) return false;
     return expiry < new Date();
   };
 
@@ -2724,7 +2722,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                     <input 
                       type="month"
                       className="w-full border-slate-200 rounded-xl px-4 py-2.5 bg-slate-50 text-sm"
-                      value={toMonthInputFormat(editForm.dataFabrico)} 
+                      value={toMonthInput(editForm.dataFabrico)} 
                       onChange={(e) => handleEditChange('dataFabrico', e.target.value)} 
                     />
                   ) : (
@@ -3408,7 +3406,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                           name: found.descricao,
                           referencia: found.referencia || prev.referencia,
                           codigoFabricante: found.codigoFabricante || prev.codigoFabricante,
-                          validade: found.validade ? new Date(found.validade).toISOString().slice(0, 7) : prev.validade,
+                          validade: normalizeMonthYearValue(found.validade) || prev.validade,
                           stockId: found.id
                         }));
                       } else {

@@ -123,7 +123,7 @@ export default function Step7_Orcamento() {
 
   const buildComponenteLines = (): OrcamentoLinha[] =>
     (inspectionData.componentes || [])
-      .filter((comp: any) => comp.reference || comp.stockId)
+      .filter((comp: any) => (comp.stockId && String(comp.stockId) !== '') || comp.validade || comp.serialLote)
       .map((comp: any) => {
         const unitPrice = getStockPrice(comp.reference, comp.stockId);
         return {
@@ -406,7 +406,7 @@ export default function Step7_Orcamento() {
 
   const substituicoesAtivas =
     Object.values(inspectionData.packItems || {}).filter((i: any) => Number(i.quantidade) > 0).length +
-    (inspectionData.componentes || []).filter((c: any) => c.reference || c.stockId).length;
+    (inspectionData.componentes || []).filter((c: any) => (c.stockId && String(c.stockId) !== '') || c.validade || c.serialLote).length;
 
   const aprovacao = orcamento.aprovacaoWhatsApp || { status: 'rascunho' as const };
   const ivaRate = getIvaRate();

@@ -9,6 +9,7 @@ import { formatDateDisplay } from "@/lib/date-display";
 import { formatDateLongPt } from "@/lib/relatorios-page-helpers";
 import { User, Ship, FileText, ClipboardList, Settings, Mail, Phone, MapPin, Save, Search, Plus, Trash2, ExternalLink, AlertTriangle, Loader2, Building2, Receipt, History, MessageSquare, CreditCard, DollarSign, KeyRound } from "lucide-react";
 import { IVA_ISENCAO_CODES } from "@/lib/iva-isencao-codes";
+import { buildAddressLine } from "@/lib/client-address";
 
 type Navio = { id: number; nome: string; matricula: string; portoRegisto?: string | null; ilha: string | null; tipoPesca: string; clienteId?: number | null; cliente?: { id: number; nome: string } | null };
 type Cliente = { id: number; nome: string; numeroCliente?: string | null; modoPagamento?: string | null; nif?: string | null; email?: string | null; telefone?: string | null; telmovel?: string | null; morada?: string | null; moradaNumero?: string | null; codigoPostal?: string | null; localidade?: string | null; ilha?: string | null; observacoes?: string | null; navios: Navio[] };
@@ -228,13 +229,7 @@ export default function ClienteDetalhePage() {
 
     const clienteNomeDeclarante = String(cliente.nome || "").trim() || "[Nome do cliente]";
     const clienteNifDeclarante = String(cliente.nif || "").trim() || "[NIF do cliente]";
-    const addressParts = [
-      cliente.morada,
-      cliente.moradaNumero,
-      cliente.codigoPostal,
-      cliente.localidade
-    ].filter(Boolean);
-    const clienteMorada = addressParts.length > 0 ? addressParts.join(", ") : "[Morada não registada]";
+    const clienteMorada = buildAddressLine(cliente);
 
     const navioNome = String(navio?.nome || "").trim() || "[Nome da Embarcação]";
     const navioMatricula = String(navio?.matricula || "").trim() || "[Matrícula]";

@@ -2212,7 +2212,7 @@ function EstacaoServicoContent() {
                   onClick={() => setLembreteChannel("sms")}
                   className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition ${
                     lembreteChannel === "sms"
-                      ? "border-slate-800 bg-slate-800 text-white"
+                      ? "border-indigo-600 bg-indigo-600 text-white"
                       : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
                   }`}
                 >
@@ -2246,7 +2246,7 @@ function EstacaoServicoContent() {
                   disabled={lembreteSending || !lembreteText.trim()}
                   className={`rounded-xl border px-4 py-2 text-xs font-semibold text-white transition ${
                     lembreteChannel === "sms"
-                      ? "border-slate-800 bg-slate-800 hover:bg-slate-900"
+                      ? "border-indigo-600 bg-indigo-600 hover:bg-indigo-700"
                       : "border-emerald-600 bg-emerald-600 hover:bg-emerald-700"
                   } disabled:opacity-50`}
                 >

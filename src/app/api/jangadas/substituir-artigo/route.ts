@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { normalizeArtigoValidade } from '@/lib/date-utils';
 import type { Prisma } from '@prisma/client';
 
 type StockWhereInput = {
@@ -188,7 +189,7 @@ export async function POST(request: NextRequest) {
           quantidade: requestedQuantity,
           codigoFabricante: novoStock.codigoFabricante || undefined,
           stockId: novoStock.id,
-          validade: novoStock.validade ? new Date(novoStock.validade) : undefined,
+          validade: normalizeArtigoValidade(novoStock.validade) || undefined,
         },
       });
 
@@ -235,7 +236,7 @@ export async function POST(request: NextRequest) {
               name: novoStock.descricao,
               codigoFabricante: novoStock.codigoFabricante || undefined,
               stockId: novoStock.id,
-              validade: novoStock.validade ? new Date(novoStock.validade) : undefined,
+              validade: normalizeArtigoValidade(novoStock.validade) || undefined,
             }
           });
         } else {
@@ -248,7 +249,7 @@ export async function POST(request: NextRequest) {
               referencia: novaReferencia,
               codigoFabricante: novoStock.codigoFabricante || undefined,
               stockId: novoStock.id,
-              validade: novoStock.validade ? new Date(novoStock.validade) : undefined,
+              validade: normalizeArtigoValidade(novoStock.validade) || undefined,
             }
           });
         }

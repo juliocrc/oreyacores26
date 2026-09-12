@@ -5,7 +5,7 @@ import { buildDatabaseErrorResponse } from "@/lib/database-errors";
 import { normalizeStockCategory } from "@/lib/stock-categories";
 import { getAccessContext } from "@/lib/access-control";
 import { canEditPath, canViewPath } from "@/lib/user-permissions";
-import { normalizeStockPayload, findDuplicateCylinderStock, canEditStock } from "@/lib/stock-utils";
+import { normalizeStockPayload, findDuplicateCylinderStock, findConflictingValidityStock, canEditStock } from "@/lib/stock-utils";
 import { resolveActiveServiceStationId } from "@/lib/station-selection";
 import { beginApiRequest, captureApiError, finishApiRequest, withRequestId } from '@/lib/observability';
 import { parsePageParams, paginatedResponse } from "@/lib/pagination";
@@ -401,6 +401,18 @@ export async function POST(req: NextRequest) {
             { status: 409 },
           );
         }
+
+        const conflito = await findConflictingValidityStock(item);
+        if (conflito) {
+          return respond(
+            {
+              error: `Conflito de validades para a referência ${item.referencia}: já existe no stock (ID ${conflito.id}) com validade ${conflito.validade}. Junte a quantidade ao registo existente ou corrija a validade.`,
+              duplicateId: conflito.id,
+              existingValidade: conflito.validade,
+            },
+            { status: 409 },
+          );
+        }
       }
 
       const created = await prisma.stock.createMany({ data });
@@ -417,6 +429,18 @@ export async function POST(req: NextRequest) {
           {
             error: `Já existe um cilindro com essa referência/número de série no stock (ID ${duplicate.id}).`,
             duplicateId: duplicate.id,
+          },
+          { status: 409 },
+        );
+      }
+
+      const conflito = await findConflictingValidityStock(payload);
+      if (conflito) {
+        return respond(
+          {
+            error: `Conflito de validades para a referência ${payload.referencia}: já existe no stock (ID ${conflito.id}) com validade ${conflito.validade}. Junte a quantidade ao registo existente ou corrija a validade.`,
+            duplicateId: conflito.id,
+            existingValidade: conflito.validade,
           },
           { status: 409 },
         );

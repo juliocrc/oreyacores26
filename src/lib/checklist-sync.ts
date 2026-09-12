@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma";
 import { parseFlexibleDate } from "./agenda-sync";
+import { normalizeArtigoValidade } from "./date-utils";
 import { resolveMandatoryPackItemsForRaftAsync } from "@/lib/custom-pack-types";
 import { isRationArticle } from "@/config/packTemplates";
 import type { Prisma } from "@prisma/client";
@@ -162,7 +163,7 @@ export async function syncRaftArticlesWithPackType(
     return {
       success: true,
       warning: "Nenhum artigo de pack definido para este tipo de pack.",
-      summary: { added: 0, updated: 0, stockLinked: 0, removed: 0, total: 0 },
+      summary: { added: 0, updated: 0, stockLinked: 0, validadeAtualizada: 0, removed: 0, total: 0 },
       packSource: resolvedPack.source,
     };
   }
@@ -176,6 +177,7 @@ export async function syncRaftArticlesWithPackType(
     added: 0,
     updated: 0,
     stockLinked: 0,
+    validadeAtualizada: 0,
     removed: 0,
     total: expectedItems.length,
   };
@@ -222,19 +224,34 @@ export async function syncRaftArticlesWithPackType(
         updateData.quantidade = item.quantity;
       }
 
-      if (linkStock && !existing.stockId && allStock.length) {
-        const stockId = await findBestStockMatch(
-          item,
-          allStock,
-          raft.brand,
-        );
-        if (stockId) {
-          updateData.stockId = stockId;
-          const matchedStock = allStock.find((s) => s.id === stockId);
-          if (matchedStock?.validade && !existing.validade) {
-            updateData.validade = new Date(matchedStock.validade);
+      if (linkStock && allStock.length) {
+        let matchedId: number | null = existing.stockId ?? null;
+        let matchedStock = existing.stockId
+          ? allStock.find((s) => s.id === existing.stockId) ?? null
+          : null;
+
+        if (!matchedStock) {
+          matchedId = await findBestStockMatch(
+            item,
+            allStock,
+            raft.brand,
+          );
+          matchedStock = matchedId ? allStock.find((s) => s.id === matchedId) ?? null : null;
+        }
+
+        if (matchedId && matchedStock) {
+          if (existing.stockId !== matchedId) {
+            updateData.stockId = matchedId;
           }
           summary.stockLinked++;
+          if (matchedStock.validade) {
+            const validity = normalizeArtigoValidade(matchedStock.validade);
+            const current = normalizeArtigoValidade(existing.validade);
+            if (validity && (!current || current.getTime() !== validity.getTime())) {
+              updateData.validade = validity;
+              summary.validadeAtualizada++;
+            }
+          }
         }
       }
 
@@ -283,7 +300,7 @@ export async function syncRaftArticlesWithPackType(
             createData.stockId = stockId;
             const matchedStock = allStock.find((s) => s.id === stockId);
             if (matchedStock?.validade) {
-              createData.validade = new Date(matchedStock.validade);
+              createData.validade = normalizeArtigoValidade(matchedStock.validade);
             }
             summary.stockLinked++;
           }
@@ -420,7 +437,7 @@ export async function syncRichChecklistToRaft(
         await prisma.artigoJangada.update({
           where: { id: matchedArtigo.id },
           data: {
-            validade: parsedValidade,
+            validade: normalizeArtigoValidade(parsedValidade),
             updatedAt: new Date(),
           },
         });

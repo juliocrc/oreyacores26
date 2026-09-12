@@ -18,6 +18,7 @@ interface Inspecao {
   numeroObra?: string | null;
   testeWP?: string | null;
   artigos?: ArtigoInspecao[];
+  checklistSnapshot?: Record<string, { status?: string; notes?: string; fotos?: string[] }>;
 }
 
 interface InspecaoDetalhesDialogProps {

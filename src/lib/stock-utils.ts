@@ -95,3 +95,34 @@ export async function findDuplicateCylinderStock(payload: ReturnType<typeof norm
     }) || null
   );
 }
+
+// Detecta a mesma referência com validades conflitantes (lotes diferentes / erro de registo)
+export type ConflictingValidityPayload = {
+  referencia?: string | null;
+  validade?: string | null;
+  categoria?: string | null;
+  descricao?: string | null;
+  codigoFabricante?: string | null;
+};
+
+export async function findConflictingValidityStock(payload: ConflictingValidityPayload) {
+  if (!payload?.validade) return null;
+  const key = normalizeCylinderSerialKey(payload.referencia);
+  if (!key) return null;
+
+  const candidates = await prisma.stock.findMany({
+    where: { referencia: { equals: String(payload.referencia || ""), mode: "insensitive" } },
+    select: {
+      id: true,
+      referencia: true,
+      descricao: true,
+      validade: true,
+      lote: true,
+      quantidade: true,
+      localizacao: true,
+    },
+    take: 200,
+  });
+
+  return candidates.find((c) => c.validade && String(c.validade).trim() !== payload.validade) || null;
+}

@@ -34,6 +34,8 @@ export type CylinderData = {
   dataTeste: string;
   dataProxTeste: string;
   nextTestDate?: string;
+  cargaNominal?: string;
+  cilindroRecarregado?: boolean;
 };
 
 export type TestResult = "PASSOU" | "REPROVOU" | "N/A" | "";
@@ -75,6 +77,9 @@ export type TestesData = {
 export type ChecklistItem = {
   status?: string;
   notes?: string;
+  fotos?: string[];
+  validade?: string;
+  voltagem?: string;
 };
 
 export type ComponenteItem = {
@@ -139,6 +144,14 @@ export type OrcamentoAprovacao = {
   aprovadoPorUtilizador?: boolean;
 };
 
+export type CertificadoRevisao = {
+  status: 'pendente' | 'aprovado' | 'rejeitado';
+  revistoPorNome?: string;
+  revistoPorId?: string;
+  revistoEm?: string;
+  comentario?: string;
+};
+
 export type OrcamentoData = {
   linhas: OrcamentoLinha[];
   valorMaoObra: number;
@@ -147,6 +160,7 @@ export type OrcamentoData = {
   usarOrcamento?: boolean;
   removedIds?: string[];
   aprovacaoWhatsApp?: OrcamentoAprovacao;
+  certificadoRevisao?: CertificadoRevisao;
 };
 
 export type InspectionData = {
@@ -177,6 +191,7 @@ export type InspectionData = {
   hruValidade: string;
   hruReference: string;
   hruExpiry: string;
+  hruTipo?: string;
   radarReflector: string;
   radarReflectorExpiry: string;
   shipDetails: ShipDetails;

@@ -7,7 +7,7 @@ import { useSession } from "next-auth/react";
 import { appToast } from "@/lib/app-toast";
 import { getRecognizedPackTypeOptions } from "@/config/packTemplates";
 import { findRaftTechnicalModel, raftModelData } from "@/modules/rafts/raftModelData";
-import { QrCode, X, Calendar } from "lucide-react";
+import { QrCode, X, Calendar, AlertTriangle } from "lucide-react";
 import { Html5QrcodeScanner } from "html5-qrcode";
 import type { Jangada, JangadaCatalogOption, JangadaListColumnKey, PausedInspectionDraftMeta } from "@/types/jangadas-page";
 import { INITIAL_FORM, FALLBACK_INFLATION_SYSTEM_OPTIONS, FIRING_HEAD_KEYWORDS, JANGADA_LIST_COLUMNS, JANGADA_LIST_COLUMNS_KEY } from "@/types/jangadas-page";
@@ -40,7 +40,8 @@ import {
   getJangadaAssociationTone,
   getJangadaAssociationRowClassName,
   normalizeModelFilterKey,
-  normalizeModelFilterLabel,
+  normalizeModelMatchKey,
+  canonicalizeRaftModelLabel,
   uniqueNormalizedLabels,
   getArtigosStatus,
   normalizeLaunchTypeValue,
@@ -337,6 +338,27 @@ export default function JangadasPage() {
   // Novo: modo de visualização
   const [viewMode, setViewMode] = useState<'lista' | 'detalhes' | 'quadros' | 'conformidade'>("lista");
   const [pausedInspectionDrafts, setPausedInspectionDrafts] = useState<Record<number, PausedInspectionDraftMeta>>({});
+  const [draftsFound, setDraftsFound] = useState<Array<{ id: string; serial: string; savedAt: string }>>([]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const found = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith("jangada-wizard-draft-")) {
+        try {
+          const val = JSON.parse(localStorage.getItem(key) || "{}");
+          const id = key.replace("jangada-wizard-draft-", "");
+          found.push({
+            id,
+            serial: val.inspectionData?.serial || `ID ${id}`,
+            savedAt: val.savedAt || new Date().toISOString(),
+          });
+        } catch {}
+      }
+    }
+    setDraftsFound(found);
+  }, []);
 
   // Sync filters to URL
   useEffect(() => {
@@ -471,25 +493,25 @@ export default function JangadasPage() {
     if (!filterModel) return;
 
     const selectedBrandKey = normalizeModelFilterKey(filterBrand);
-    const selectedModelKey = normalizeModelFilterKey(filterModel);
+    const selectedModelKey = normalizeModelMatchKey(filterModel);
 
     const hasModelInCatalog = Object.entries(raftModelData as Record<string, Array<{ name: string }>>).some(
       ([catalogBrand, entries]) => {
         if (selectedBrandKey && normalizeModelFilterKey(catalogBrand) !== selectedBrandKey) return false;
-        return (entries || []).some((entry) => normalizeModelFilterKey(entry?.name) === selectedModelKey);
+        return (entries || []).some((entry) => normalizeModelMatchKey(entry?.name) === selectedModelKey);
       }
     );
 
     const hasModelInData = jangadas.some((j) => {
       const matchesBrand =
         !selectedBrandKey || normalizeModelFilterKey(j.brand) === selectedBrandKey;
-      return matchesBrand && normalizeModelFilterKey(j.model) === selectedModelKey;
+      return matchesBrand && normalizeModelMatchKey(j.model) === selectedModelKey;
     });
 
     const hasModelInCatalogOptions = catalogOptions.some((entry) => {
       const matchesBrand =
         !selectedBrandKey || normalizeModelFilterKey(entry.marca) === selectedBrandKey;
-      return matchesBrand && normalizeModelFilterKey(entry.modelo) === selectedModelKey;
+      return matchesBrand && normalizeModelMatchKey(entry.modelo) === selectedModelKey;
     });
 
     if (!hasModelInCatalog && !hasModelInData && !hasModelInCatalogOptions) {
@@ -694,7 +716,7 @@ export default function JangadasPage() {
       !filterBrand || normalizeModelFilterKey(j.brand) === normalizeModelFilterKey(filterBrand);
     const matchesModel =
       !filterModel ||
-      normalizeModelFilterKey(j.model) === normalizeModelFilterKey(filterModel);
+      normalizeModelMatchKey(j.model) === normalizeModelMatchKey(filterModel);
     const matchesPack =
       !filterPackType || normalizeModelFilterKey(j.packType || "") === normalizeModelFilterKey(filterPackType);
     const matchesCapacity =
@@ -754,9 +776,10 @@ export default function JangadasPage() {
     [...jangadas.map((j) => ({ brand: j.brand, model: j.model })), ...catalogOptions.map((entry) => ({ brand: entry.marca, model: entry.modelo }))]
       .filter((item) => !filterBrand || normalizeModelFilterKey(item.brand) === normalizeModelFilterKey(filterBrand))
       .reduce((acc, item) => {
-        const key = normalizeModelFilterKey(item.model);
+        const canonical = canonicalizeRaftModelLabel(item.brand, item.model) || item.model;
+        const key = normalizeModelMatchKey(canonical);
         if (!key || acc.has(key)) return acc;
-        acc.set(key, normalizeModelFilterLabel(item.model));
+        acc.set(key, canonical);
         return acc;
       }, new Map<string, string>())
       .values()
@@ -839,12 +862,16 @@ export default function JangadasPage() {
   ]);
 
   const selectedBrandKey = normalizeModelFilterKey(form.brand);
+  const selectedBrandLabel = selectedBrandKey ? (brandLabelByKey.get(selectedBrandKey) || form.brand || selectedBrandKey) : "";
   const modelsFromCatalogByBrand = selectedBrandKey
-    ? (catalogModelsByBrandKey.get(selectedBrandKey) || [])
-    : Array.from(catalogModelsByBrandKey.values()).flat();
+    ? (catalogModelsByBrandKey.get(selectedBrandKey) || []).map((m) => canonicalizeRaftModelLabel(selectedBrandLabel, m) || m)
+    : Array.from(catalogModelsByBrandKey.entries()).flatMap(([brandKey, models]) => {
+        const brandLabel = brandLabelByKey.get(brandKey) || brandKey;
+        return models.map((m) => canonicalizeRaftModelLabel(brandLabel, m) || m);
+      });
   const modelsFromDataByBrand = jangadas
     .filter((j) => !selectedBrandKey || normalizeModelFilterKey(j.brand) === selectedBrandKey)
-    .map((j) => j.model);
+    .map((j) => canonicalizeRaftModelLabel(j.brand, j.model) || j.model);
 
   const modelOptions = uniqueNormalizedLabels([
     ...modelsFromCatalogByBrand,
@@ -853,12 +880,16 @@ export default function JangadasPage() {
   ]);
 
   const filterSelectedBrandKey = normalizeModelFilterKey(filterBrand);
+  const filterSelectedBrandLabel = filterSelectedBrandKey ? (brandLabelByKey.get(filterSelectedBrandKey) || filterBrand || filterSelectedBrandKey) : "";
   const filterModelsFromCatalogByBrand = filterSelectedBrandKey
-    ? (catalogModelsByBrandKey.get(filterSelectedBrandKey) || [])
-    : Array.from(catalogModelsByBrandKey.values()).flat();
+    ? (catalogModelsByBrandKey.get(filterSelectedBrandKey) || []).map((m) => canonicalizeRaftModelLabel(filterSelectedBrandLabel, m) || m)
+    : Array.from(catalogModelsByBrandKey.entries()).flatMap(([brandKey, models]) => {
+        const brandLabel = brandLabelByKey.get(brandKey) || brandKey;
+        return models.map((m) => canonicalizeRaftModelLabel(brandLabel, m) || m);
+      });
   const filterModelsFromDataByBrand = jangadas
     .filter((j) => !filterSelectedBrandKey || normalizeModelFilterKey(j.brand) === filterSelectedBrandKey)
-    .map((j) => j.model);
+    .map((j) => canonicalizeRaftModelLabel(j.brand, j.model) || j.model);
 
   const filterModelOptions = uniqueNormalizedLabels([
     ...filterModelsFromCatalogByBrand,
@@ -1038,6 +1069,28 @@ export default function JangadasPage() {
   return (
     <div className="min-h-screen bg-slate-50 py-8">
       <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8">
+        {draftsFound.length > 0 && (
+          <div className="mb-6 rounded-2xl bg-amber-50 border border-amber-200 p-4 text-amber-900 flex items-center justify-between shadow-sm">
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="text-amber-600 shrink-0" size={24} />
+              <div>
+                <p className="font-bold text-sm">Rascunhos de inspeção por concluir detectados neste dispositivo</p>
+                <p className="text-xs text-amber-700">Encontrámos {draftsFound.length} inspeção(ões) em rascunho guardadas localmente.</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              {draftsFound.map((d) => (
+                <button
+                  key={d.id}
+                  onClick={() => router.push(`/jangadas/${d.id}/inspecao`)}
+                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition shadow-sm"
+                >
+                  Retomar ({d.serial})
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="app-hero-panel mb-6 flex flex-col gap-4 rounded-2xl p-6 text-white">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { execSync } from "child_process";
+import fs from "fs";
+import path from "path";
+import { Pool } from "pg";
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,44 +13,46 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Não autorizado." }, { status: 403 });
     }
 
-    const isPostgres = (process.env.DATABASE_URL || "").startsWith("postgresql");
-    const schemaFile = isPostgres ? "schema.postgresql.prisma" : "schema.prisma";
+    const dbUrl = process.env.DATABASE_URL || "";
+    if (!dbUrl.startsWith("postgresql") && !dbUrl.startsWith("postgres://")) {
+      return NextResponse.json({ error: "DATABASE_URL não é PostgreSQL." }, { status: 400 });
+    }
+
+    const schemaFile = path.join(process.cwd(), "prisma", "schema.sql");
+    if (!fs.existsSync(schemaFile)) {
+      return NextResponse.json({ error: "prisma/schema.sql não encontrado." }, { status: 500 });
+    }
+
+    const sql = fs.readFileSync(schemaFile, "utf8");
+
     let psqlOutput = "";
     let generateOutput = "";
 
-    if (isPostgres) {
-      try {
-        psqlOutput = execSync(`psql "$DATABASE_URL" -f prisma/schema.sql 2>&1`, {
-          cwd: process.cwd(),
-          timeout: 120000,
-          encoding: "utf-8",
-          stdio: "pipe",
-        });
-      } catch (e: any) {
-        psqlOutput = e.stdout || e.stderr || e.message || "psql failed";
-      }
+    try {
+      const pool = new Pool({
+        connectionString: dbUrl,
+        max: 1,
+        ssl: { rejectUnauthorized: false },
+        statement_timeout: 120_000,
+      });
+      await pool.query(sql);
+      await pool.end();
+      psqlOutput = "schema.sql executado com sucesso";
+    } catch (e: unknown) {
+      psqlOutput = e instanceof Error ? e.message : String(e);
     }
 
-    try {
-      generateOutput = execSync(`npx prisma generate --schema prisma/${schemaFile}`, {
-        cwd: process.cwd(),
-        timeout: 60000,
-        encoding: "utf-8",
-        stdio: "pipe",
-      });
-    } catch (e: any) {
-      generateOutput = e.stderr || e.message || "generate failed";
-    }
+    generateOutput = "prisma generate executado no build (não necessário em runtime)";
 
     return NextResponse.json({
       ok: true,
-      isPostgres,
-      schemaFile,
+      isPostgres: true,
+      schemaFile: "schema.sql",
       psql: psqlOutput.slice(-1000),
       generate: generateOutput.slice(-500),
     });
-  } catch (error: any) {
-    console.error("[setup-db] Erro:", error?.message || error);
-    return NextResponse.json({ error: error?.message || "Erro interno." }, { status: 500 });
+  } catch (error: unknown) {
+    console.error("[setup-db] Erro:", (error as Error)?.message || error);
+    return NextResponse.json({ error: (error as Error)?.message || "Erro interno." }, { status: 500 });
   }
 }

@@ -73,7 +73,7 @@ export const saveInspectionSchema = z
     responsavel: stringOrNull,
     certificadoNumero: stringOrNull,
     sourceFile: stringOrNull,
-    checklistSnapshot: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
+    checklistSnapshot: z.record(z.string(), z.unknown()).optional(),
     artigosSubstituidos: artigosSubstituidosSchema.optional(),
     applyStockMovements: booleanOrNull,
     signatureBase64: stringOrNull,

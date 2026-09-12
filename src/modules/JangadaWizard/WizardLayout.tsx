@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useJangadaWizardStore } from './store/useJangadaWizardStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Save, Cloud, FileCheck, CheckCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Save, Cloud, FileCheck, CheckCircle, Clock, LifeBuoy, ShieldCheck } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAutoSave } from './useAutoSave';
 import { getStepProgress } from './progress';
@@ -12,6 +12,15 @@ export default function WizardLayout({ children }: { children: React.ReactNode }
   const { currentStep, nextStep, prevStep, setStep, validationErrors, clearValidationErrors, inspectionData, isDirty, lastSaved, hideOrcamento } = useJangadaWizardStore();
   const router = useRouter();
   useAutoSave();
+
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const clock = now.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const todayLabel = now.toLocaleDateString('pt-PT', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
 
   const progress = useMemo(() => getStepProgress(inspectionData, { hideOrcamento }), [inspectionData, hideOrcamento]);
   const overallPct = Math.round(progress.reduce((s, p) => s + p.percent, 0) / progress.length);
@@ -60,6 +69,33 @@ export default function WizardLayout({ children }: { children: React.ReactNode }
   const lastSavedLabel = lastSaved
     ? lastSaved.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
     : null;
+
+  const exportBlackBox = () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ inspectionData, lastSaved: new Date().toISOString() }, null, 2));
+    const dlAnchorElem = document.createElement('a');
+    dlAnchorElem.setAttribute("href", dataStr);
+    dlAnchorElem.setAttribute("download", `blackbox-draft-${inspectionData.serial || 'jangada'}-${new Date().toISOString().slice(0,10)}.json`);
+    dlAnchorElem.click();
+    dlAnchorElem.remove();
+  };
+
+  const importBlackBox = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileReader = new FileReader();
+    if (e.target.files && e.target.files[0]) {
+      fileReader.readAsText(e.target.files[0], "UTF-8");
+      fileReader.onload = (event) => {
+        try {
+          const parsed = JSON.parse(event.target?.result as string);
+          if (parsed.inspectionData) {
+            useJangadaWizardStore.getState().setInspectionData(parsed.inspectionData);
+            alert("Rascunho importado com sucesso via Box Negra!");
+          }
+        } catch (err) {
+          alert("Erro ao ler ficheiro JSON de backup.");
+        }
+      };
+    }
+  };
 
   return (
     <div className="flex flex-col lg:flex-row min-h-[calc(100vh-4rem)] bg-slate-50">
@@ -164,6 +200,66 @@ export default function WizardLayout({ children }: { children: React.ReactNode }
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col relative w-full">
+        {/* Operational header — realistic inspection station */}
+        <header className="bg-gradient-to-r from-sky-200 via-sky-100 to-indigo-100 text-slate-900 border-b border-sky-300/60 px-4 lg:px-6 py-3 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 shrink-0 shadow-sm">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-500 to-indigo-700 flex items-center justify-center shadow-lg shrink-0">
+              <LifeBuoy className="w-5 h-5 text-white" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-sky-700 flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                Oficina · Posto de Inspeção
+              </p>
+              <p className="text-sm font-black truncate text-slate-900">
+                {[inspectionData.brand, inspectionData.model, inspectionData.serial].filter(Boolean).join(' · ') || 'Jangada sem identificação'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap sm:ml-auto">
+            {inspectionData.capacity ? (
+              <span className="px-2.5 py-1 rounded-lg bg-white/70 border border-sky-300 text-xs font-bold text-slate-700">{inspectionData.capacity} pax</span>
+            ) : null}
+            {inspectionData.packType ? (
+              <span className="px-2.5 py-1 rounded-lg bg-white/70 border border-sky-300 text-xs font-bold text-slate-700">{inspectionData.packType}</span>
+            ) : null}
+            {inspectionData.numeroObra ? (
+              <span className="px-2.5 py-1 rounded-lg bg-amber-100 border border-amber-300 text-amber-800 text-xs font-bold">OB {inspectionData.numeroObra}</span>
+            ) : null}
+            <div className="hidden md:flex flex-col items-end leading-tight">
+              <span className="text-[10px] uppercase tracking-wider text-slate-600 font-semibold">{todayLabel}</span>
+              <span className="flex items-center gap-1.5 font-mono text-lg font-black text-emerald-700 tabular-nums">
+                <Clock className="w-4 h-4 text-emerald-600" />
+                {clock}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={exportBlackBox}
+                title="Exportar backup instantâneo (Box Negra)"
+                className="px-2.5 py-1 rounded-lg bg-white/70 hover:bg-white text-slate-700 text-xs font-bold border border-sky-300 transition"
+              >
+                💾 Exportar JSON
+              </button>
+              <label
+                title="Restaurar de backup JSON"
+                className="px-2.5 py-1 rounded-lg bg-white/70 hover:bg-white text-slate-700 text-xs font-bold border border-sky-300 transition cursor-pointer"
+              >
+                📂 Importar JSON
+                <input type="file" accept=".json" onChange={importBlackBox} className="hidden" />
+              </label>
+            </div>
+            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${
+              isDirty ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+            }`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${isDirty ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
+              {isDirty ? 'Por guardar' : lastSaved ? 'Síncrono' : 'Pronto'}
+            </div>
+          </div>
+        </header>
+
         <div className="flex-1 p-4 lg:p-6 overflow-y-auto">
           <AnimatePresence mode="wait">
             <motion.div
@@ -214,7 +310,10 @@ export default function WizardLayout({ children }: { children: React.ReactNode }
                 </button>
               ) : (
                 <button
-                  onClick={() => router.push('/jangadas')}
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent('wizard-save-draft'));
+                    router.push('/jangadas');
+                  }}
                   className="flex items-center gap-2 px-8 py-2.5 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md hover:shadow-lg transition-all"
                 >
                   <FileCheck size={20} />

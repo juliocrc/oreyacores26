@@ -138,6 +138,7 @@ export const PACK_FIELD_DEFINITIONS: PackFieldDefinition[] = [
       'SINAL FUMIGENO', 'SINAIS FUMÍGENOS',
       'SINAIS FUMÍGENOS FLUTUANTES', 'SINAL FUMÍGENO FLUTUANTE',
       'SINAIS DE FUMO FLUTUANTES', 'SINAL DE FUMO FLUTUANTE',
+      'SIGNAL, LIFESMOKE', 'LIFESMOKE', 'LIFESMOKE SIGNAL',
     ],
     label: 'Potes de Fumo',
     englishLabel: 'Floating Smoke Signals',

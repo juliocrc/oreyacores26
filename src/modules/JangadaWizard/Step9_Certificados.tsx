@@ -1,7 +1,8 @@
 "use client";
 import React, { useState } from 'react';
 import { useJangadaWizardStore } from './store/useJangadaWizardStore';
-import { CheckCircle, Download, FileText, Loader2, ArrowRight, ExternalLink, Upload, ShieldCheck, Ban } from 'lucide-react';
+import { CheckCircle, Download, FileText, Loader2, ArrowRight, ExternalLink, Upload, ShieldCheck, Ban, UserCheck } from 'lucide-react';
+import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { getMandatoryPackItemsForRaft } from '../rafts/mandatoryPack';
 import { appToast } from '@/lib/app-toast';
@@ -12,6 +13,7 @@ const HarbourOne_URL = "https://survitec2.my.site.com/HarbourOne/login?ec=302&st
 
 export default function Step9_Certificados() {
   const router = useRouter();
+  const { data: session } = useSession();
   const { inspectionData, setInspectionData, jangadaId, shipId, inspecaoId } = useJangadaWizardStore();
   const [loading, setLoading] = useState<string | null>(null);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
@@ -20,6 +22,46 @@ export default function Step9_Certificados() {
   const hasExternalCert = Boolean(
     (inspectionData.certificadoExternoNumero || '').trim() || (inspectionData.certificadoExternoUrl || '').trim()
   );
+
+  const revisao = inspectionData.orcamento?.certificadoRevisao || { status: 'pendente' as const };
+  const revisaoAprovada = revisao.status === 'aprovado';
+  const tecnicoCampo = inspectionData.responsavel || '';
+  const revisor = session?.user?.name || '';
+
+  const aprovarRevisao = () => {
+    const orc = inspectionData.orcamento || {
+      linhas: [],
+      valorMaoObra: 0,
+      valorDesconto: 0,
+      isIsentoIva: false,
+    };
+    setInspectionData({
+      ...inspectionData,
+      orcamento: {
+        ...orc,
+        certificadoRevisao: {
+          status: 'aprovado',
+          revistoPorNome: revisor,
+          revistoPorId: session?.user?.id,
+          revistoEm: new Date().toISOString(),
+        },
+      },
+    });
+    appToast.success("Certificado revisto e aprovado como 2º par de olhos.");
+  };
+
+  const limparRevisao = () => {
+    const orc = inspectionData.orcamento || {
+      linhas: [],
+      valorMaoObra: 0,
+      valorDesconto: 0,
+      isIsentoIva: false,
+    };
+    setInspectionData({
+      ...inspectionData,
+      orcamento: { ...orc, certificadoRevisao: { status: 'pendente' as const } },
+    });
+  };
 
   const openHarbourOne = () => {
     window.open(HarbourOne_URL, "_blank", "noopener,noreferrer");
@@ -354,6 +396,10 @@ export default function Step9_Certificados() {
   };
 
   const handleGenerate = async (type: 'orey-html' | 'orey-xlsx' | 'survitec' | 'quadro-xlsx') => {
+    if (!revisaoAprovada) {
+      appToast.error("Aprove primeiro o certificado como 2º par de olhos antes de emitir.");
+      return;
+    }
     setLoading(type);
     setPreviewHtml(null);
     try {
@@ -452,6 +498,7 @@ export default function Step9_Certificados() {
         motivo: abate.motivo || '',
         detalhes: abate.detalhes || '',
         responsavel: inspectionData.responsavel || '',
+        signatureBase64: inspectionData.signatureBase64 || '',
       });
       doc.save(abateReportFilename({
         serial: inspectionData.serial || '',
@@ -484,24 +531,90 @@ export default function Step9_Certificados() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <button 
             onClick={() => handleGenerate('orey-xlsx')}
-            disabled={loading !== null}
-            className="flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 border-emerald-100 bg-emerald-50 hover:bg-emerald-100 hover:border-emerald-200 transition-all text-emerald-700 font-bold"
+            disabled={loading !== null || !revisaoAprovada}
+            title={revisaoAprovada ? "" : "É necessária a aprovação como 2º par de olhos"}
+            className={`flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 transition-all font-bold disabled:cursor-not-allowed ${
+              revisaoAprovada
+                ? "border-emerald-100 bg-emerald-50 hover:bg-emerald-100 hover:border-emerald-200 text-emerald-700"
+                : "border-slate-200 bg-slate-50 text-slate-400"
+            }`}
           >
             {loading === 'orey-xlsx' ? <Loader2 className="animate-spin" size={32} /> : <Download size={32} />}
             <span>Exportar Excel</span>
-            <span className="text-xs font-medium text-emerald-400">Certificado .xlsx</span>
+            <span className="text-xs font-medium opacity-70">Certificado .xlsx</span>
           </button>
 
           <button 
             onClick={() => handleGenerate('quadro-xlsx')}
-            disabled={loading !== null}
-            className="flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 border-blue-100 bg-blue-50 hover:bg-blue-100 hover:border-blue-200 transition-all text-blue-700 font-bold"
+            disabled={loading !== null || !revisaoAprovada}
+            title={revisaoAprovada ? "" : "É necessária a aprovação como 2º par de olhos"}
+            className={`flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 transition-all font-bold disabled:cursor-not-allowed ${
+              revisaoAprovada
+                ? "border-blue-100 bg-blue-50 hover:bg-blue-100 hover:border-blue-200 text-blue-700"
+                : "border-slate-200 bg-slate-50 text-slate-400"
+            }`}
           >
             {loading === 'quadro-xlsx' ? <Loader2 className="animate-spin" size={32} /> : <FileText size={32} />}
             <span>Quadro Inspeção</span>
-            <span className="text-xs font-medium text-blue-400">Tabela de Dados</span>
+            <span className="text-xs font-medium opacity-70">Tabela de Dados</span>
           </button>
         </div>
+      </div>
+
+      {/* Revisão final (2º par de olhos) */}
+      <div className={`bg-white border rounded-3xl p-8 shadow-sm ${revisaoAprovada ? 'border-emerald-300' : 'border-slate-200'}`}>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+            <UserCheck className={revisaoAprovada ? 'text-emerald-600' : 'text-slate-400'} />
+            Revisão final — 2º par de olhos
+          </h3>
+          {revisaoAprovada ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">
+              <CheckCircle size={14} />
+              Aprovado por {revisao.revistoPorNome || '—'}
+              {revisao.revistoEm ? ` · ${new Date(revisao.revistoEm).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' })} ${new Date(revisao.revistoEm).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}` : ''}
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700">
+              Pendente de revisão
+            </span>
+          )}
+        </div>
+
+        <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+          Antes de emitir o certificado, um segundo técnico deve conferir o registo. Idealmente diferente do
+          técnico de campo
+          {tecnicoCampo ? <span className="font-bold text-slate-700"> ({tecnicoCampo})</span> : null}
+          .
+        </p>
+
+        {revisaoAprovada ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm font-bold text-emerald-700">{revisao.revistoPorNome}</span>
+            <button
+              onClick={limparRevisao}
+              className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50 transition"
+            >
+              Repor para pendente
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={aprovarRevisao}
+              disabled={!revisor}
+              className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-40 transition"
+            >
+              <UserCheck size={16} />
+              Aprovar certificado ({revisor || 'sessão indisponível'})
+            </button>
+            {revisor && tecnicoCampo && revisor.trim().toLowerCase() === tecnicoCampo.trim().toLowerCase() && (
+              <span className="text-[11px] font-semibold text-amber-600">
+                Estás a rever o teu próprio registo — idealmente outro técnico faz esta revisão.
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Ficha de Abate */}
@@ -662,7 +775,7 @@ export default function Step9_Certificados() {
       <div className="flex justify-center pt-8">
         <button 
           onClick={() => router.push('/jangadas')}
-          className="px-8 py-4 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold flex items-center gap-3 transition-transform hover:scale-105"
+          className="px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold flex items-center gap-3 transition-transform hover:scale-105"
         >
           Voltar para a Lista de Jangadas
           <ArrowRight size={20} />

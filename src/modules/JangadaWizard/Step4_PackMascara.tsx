@@ -57,22 +57,31 @@ const maskMonthYearInput = (raw: string) => {
   return `${digits.slice(0, 2)}/${digits.slice(2)}`;
 };
 
-const getStockCandidatesForLabel = (globalStock: any[], label: string) => {
-  const queryDesc = (label || '').toLowerCase();
-  const firstWord = queryDesc.split(' ')[0];
+const STOCK_LIST_STOPWORDS = new Set([
+  'de', 'do', 'da', 'dos', 'das', 'em', 'com', 'para', 'por',
+  'o', 'a', 'os', 'as', 'e', 'c', 'p', 'q',
+]);
+
+const getStockMatchWords = (text?: string) => {
+  const words = String(text || '').toLowerCase().match(/[\p{L}\p{N}]+/gu) || [];
+  return words.filter((w) => w.length >= 3 && !STOCK_LIST_STOPWORDS.has(w));
+};
+
+const getStockCandidatesForLabel = (globalStock: any[], label: string, refs?: string[]) => {
+  const refSet = new Set((refs || []).map((r: any) => String(r).trim().toLowerCase()).filter(Boolean));
+  const words = getStockMatchWords(label);
   return (globalStock || [])
     .filter((s: any) => s.quantidade > 0)
     .filter((s: any) => {
-      const stockDesc = (s.descricao || '').toLowerCase();
-      const refDesc = (s.referencia || '').toLowerCase();
-      return stockDesc.includes(firstWord) ||
-             refDesc.includes(firstWord) ||
-             (s.categoria && s.categoria === 'PACK');
+      const refStr = String(s.referencia || '').trim().toLowerCase();
+      if (refSet.size > 0 && refSet.has(refStr)) return true;
+      const descWords = getStockMatchWords(s.descricao);
+      return words.some((w) => descWords.includes(w));
     });
 };
 
-const getStockAvailableForLabel = (globalStock: any[], label: string) => {
-  return getStockCandidatesForLabel(globalStock, label).reduce(
+const getStockAvailableForLabel = (globalStock: any[], label: string, refs?: string[]) => {
+  return getStockCandidatesForLabel(globalStock, label, refs).reduce(
     (sum, s: any) => sum + (s.quantidade || 0),
     0
   );
@@ -116,6 +125,45 @@ const checkValidityWarning = (validadeStr: string, dataProxInspecao: string, dat
     return 'warning';
   }
   return 'ok';
+};
+
+const getAnteriorValidityStatus = (
+  validadeOriginal: string | undefined,
+  dataProxInspecao: string,
+  dataInspecao: string,
+  brand: string,
+  shipDetails: any
+) => {
+  const parsed = parseMonthYear(String(validadeOriginal || ''));
+  if (!parsed) return null;
+  const expDate = new Date(parsed.year, parsed.month - 1, 1);
+
+  let proxStr = dataProxInspecao;
+  if (!proxStr && dataInspecao) {
+    const years = getInspectionIntervalYears(brand, '', shipDetails);
+    const parts = dataInspecao.split('-');
+    if (parts[0] && parts[0].length === 4) {
+      const year = parseInt(parts[0]) + years;
+      const month = parts[1] || '01';
+      const day = parts[2] || '01';
+      proxStr = `${year}-${month}-${day}`;
+    }
+  }
+  if (!proxStr) return null;
+
+  const [pYear, pMonth] = proxStr.split('-').map(Number);
+  const proxDate = new Date(pYear, (pMonth || 1) - 1, 1);
+  if (isNaN(expDate.getTime()) || isNaN(proxDate.getTime())) return null;
+
+  const diffDays = Math.ceil((expDate.getTime() - proxDate.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays >= 0) {
+    return { level: 'ok' as const, diffDays, expDate, proxDate };
+  }
+  const gapDays = -diffDays;
+  if (gapDays < 365) {
+    return { level: 'critical' as const, diffDays, gapDays, expDate, proxDate };
+  }
+  return { level: 'warn' as const, diffDays, gapDays, expDate, proxDate };
 };
 
 const PACK_ICONS: Record<string, any> = {
@@ -184,14 +232,19 @@ export default function Step4_PackMascara() {
       const initialPackItems: any = {};
       mandatoryItems.forEach(item => {
         const matched = findMatchingArticleForPackItem(item, (inspectionData.artigos || []) as any[]) as any;
+        let validityFromRaft = matched ? toMonthYearFormat(matched.validade) : '';
+        if (!validityFromRaft) {
+          const candidate = getStockCandidatesForLabel(inspectionData.globalStock, item.label, item.stockReferences)[0];
+          validityFromRaft = candidate?.validade ? toMonthYearFormat(candidate.validade) : '';
+        }
         initialPackItems[item.checklistName] = {
           checklistName: item.checklistName,
           name: item.label,
           descricao: item.label,
-          quantidade: item.quantity,
+          quantidade: 0,
           quantidadeVerificada: matched ? matched.quantidade : 0,
-          validade: matched ? toMonthYearFormat(matched.validade) : '',
-          validadeOriginal: matched ? toMonthYearFormat(matched.validade) : '',
+          validade: validityFromRaft,
+          validadeOriginal: validityFromRaft,
           lote: matched ? matched.codigoFabricante || matched.referencia || '' : '',
           referencia: matched ? matched.referencia : '',
           stockId: matched ? matched.id : undefined,
@@ -199,7 +252,7 @@ export default function Step4_PackMascara() {
       });
       setInspectionData({ packItems: initialPackItems });
     }
-  }, [mandatoryItems, packItems, setInspectionData, inspectionData.artigos]);
+  }, [mandatoryItems, packItems, setInspectionData, inspectionData.artigos, inspectionData.globalStock]);
 
   const updateItem = (referenciaStr: string, field: string, value: string) => {
     const updated = { ...packItems };
@@ -291,7 +344,7 @@ export default function Step4_PackMascara() {
             if (!item.validityFieldName) return false;
             const data = packItems[item.checklistName] || {};
             const qty = data.quantidade || 0;
-            return qty > 0 && qty > getStockAvailableForLabel(inspectionData.globalStock, item.label);
+            return qty > 0 && qty > getStockAvailableForLabel(inspectionData.globalStock, item.label, item.stockReferences);
           });
           if (insufficientItems.length === 0) return null;
           return (
@@ -312,16 +365,17 @@ export default function Step4_PackMascara() {
 
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
         <div className="grid grid-cols-12 gap-4 bg-slate-50 px-6 py-4 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider">
-          <div className="col-span-12 lg:col-span-4">Artigo de Emergência</div>
-          <div className="col-span-6 lg:col-span-2 text-center">Obrigatório</div>
-          <div className="col-span-6 lg:col-span-3 text-center">Verificado / Substituído</div>
-          <div className="col-span-12 lg:col-span-3">Nova Validade / Lote</div>
+          <div className="col-span-12 lg:col-span-3">Artigo de Emergência</div>
+          <div className="col-span-3 lg:col-span-1 text-center">Qtd. Obrig.</div>
+          <div className="col-span-4 lg:col-span-2 text-center">Qtd. Verificada</div>
+          <div className="col-span-5 lg:col-span-2 text-center">Qtd. Substituída</div>
+          <div className="col-span-12 lg:col-span-4">Validade na Jangada</div>
         </div>
 
         <div className="divide-y divide-slate-100">
           {mandatoryItems.length === 0 ? (
             <div className="p-8 text-center text-slate-500">
-              Configure o "Tipo de Pack" e "Capacidade" no Passo 1 para ver os itens obrigatórios.
+              Configure o &quot;Tipo de Pack&quot; e &quot;Capacidade&quot; no Passo 1 para ver os itens obrigatórios.
             </div>
           ) : (
             mandatoryItems.map((item) => {
@@ -341,10 +395,18 @@ export default function Step4_PackMascara() {
                 inspectionData.shipDetails
               );
               const isWarning = warningStatus === 'warning';
-              
+
+              const anteriorStatus = getAnteriorValidityStatus(
+                data.validadeOriginal,
+                inspectionData.dataProxInspecao,
+                inspectionData.dataInspecao,
+                inspectionData.brand,
+                inspectionData.shipDetails
+              );
+
               return (
-                <div key={item.checklistName} className="grid grid-cols-12 gap-4 px-6 py-5 items-center hover:bg-slate-50/50 transition-colors">
-                  <div className="col-span-12 lg:col-span-4 flex items-center gap-3">
+                <div key={item.checklistName} className="grid grid-cols-12 gap-4 px-6 py-5 items-start hover:bg-slate-50/50 transition-colors">
+                  <div className="col-span-12 lg:col-span-3 flex items-center gap-3">
                     <div className={`p-2 rounded-lg ${color}`}>
                       <IconComponent size={20} />
                     </div>
@@ -362,78 +424,43 @@ export default function Step4_PackMascara() {
                         )}
                       </p>
                       <p className="text-[10px] uppercase tracking-wider text-slate-400 font-medium">{item.category}</p>
-                      {data.validadeOriginal && (() => {
-                        const parts = data.validadeOriginal.split('-').map(Number);
-                        const vYear = parts[0] || new Date().getFullYear();
-                        const vMonth = parts[1] || 1;
-                        const expDate = new Date(vYear, vMonth - 1, 1);
-                        const insDate = new Date(inspectionData.dataInspecao || Date.now());
-                        const diffDays = Math.ceil((expDate.getTime() - insDate.getTime()) / (1000 * 60 * 60 * 24));
-                        const isExpired = diffDays < 0;
-                        const isNearExpiry = diffDays <= 60;
-                        return (
-                          <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
-                            <span className={`px-2 py-0.5 rounded-md font-bold flex items-center gap-1 ${
-                              isExpired ? 'bg-red-100 text-red-800 border border-red-200' :
-                              isNearExpiry ? 'bg-amber-100 text-amber-800 border border-amber-200' :
-                              'bg-slate-100 text-slate-700'
-                            }`}>
-                              <span>Anterior: {data.validadeOriginal}</span>
-                              {isExpired && <span>(Caducado)</span>}
-                              {isNearExpiry && !isExpired && <span>(A caducar)</span>}
-                            </span>
-                            {(isExpired || isNearExpiry) && data.quantidade === 0 && (
-                              <button
-                                type="button"
-                                onClick={() => handleItemChange(item.checklistName, 'quantidade', item.quantity || 1)}
-                                className="text-[10px] font-extrabold px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md shadow-sm transition"
-                              >
-                                Substituir Agora
-                              </button>
-                            )}
-                          </div>
-                        );
-                      })()}
                     </div>
                   </div>
                   
-                  <div className="col-span-6 lg:col-span-2 flex justify-center">
+                  <div className="col-span-3 lg:col-span-1 flex justify-center">
                     <div className="bg-slate-100 px-3 py-1.5 rounded-lg text-slate-700 font-semibold text-sm w-fit border border-slate-200">
                       {item.quantityLabel}
                     </div>
                   </div>
 
-                  <div className="col-span-6 lg:col-span-3 flex flex-col gap-1.5">
-                    <div className="flex gap-2">
-                      <div className="w-1/2">
-                        <label className="text-[10px] uppercase text-slate-400 font-bold mb-1 block lg:hidden">Verificado</label>
-                        <input
-                          type="number"
-                          min="0"
-                          placeholder="Verif."
-                          value={data.quantidadeVerificada || ''}
-                          onChange={(e) => handleItemChange(item.checklistName, 'quantidadeVerificada', parseInt(e.target.value) || 0)}
-                          className="w-full text-sm border-slate-200 rounded-xl px-2 py-2 bg-white focus:ring-2 focus:ring-indigo-100 transition-colors"
-                          title="Quantidade Verificada"
-                        />
-                      </div>
-                      <div className="w-1/2">
-                        <label className="text-[10px] uppercase text-slate-400 font-bold mb-1 block lg:hidden">Substituído</label>
-                        <input
-                          type="number"
-                          min="0"
-                          placeholder="Subst."
-                          value={data.quantidade || ''}
-                          onChange={(e) => handleItemChange(item.checklistName, 'quantidade', parseInt(e.target.value) || 0)}
-                          className={`w-full text-sm rounded-xl px-2 py-2 bg-white focus:ring-2 transition-colors ${
-                            item.validityFieldName && data.quantidade > 0 && (data.quantidade || 0) > getStockAvailableForLabel(inspectionData.globalStock, item.label)
-                              ? 'border-red-300 ring-2 ring-red-100 bg-red-50'
-                              : 'border-slate-200 focus:ring-indigo-100'
-                          }`}
-                          title="Quantidade Substituída"
-                        />
-                      </div>
-                    </div>
+                  <div className="col-span-4 lg:col-span-2 space-y-1.5">
+                    <label className="text-[10px] uppercase text-slate-400 font-bold mb-1 block lg:hidden">Verificada</label>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="0"
+                      value={data.quantidadeVerificada ?? ''}
+                      onChange={(e) => handleItemChange(item.checklistName, 'quantidadeVerificada', parseInt(e.target.value) || 0)}
+                      className="w-full text-sm border-slate-200 rounded-xl px-2 py-2 bg-white focus:ring-2 focus:ring-indigo-100 transition-colors"
+                      title="Quantidade Verificada"
+                    />
+                  </div>
+
+                  <div className="col-span-5 lg:col-span-2 space-y-1.5">
+                    <label className="text-[10px] uppercase text-slate-400 font-bold mb-1 block lg:hidden">Substituída</label>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="0"
+                      value={data.quantidade ?? ''}
+                      onChange={(e) => handleItemChange(item.checklistName, 'quantidade', parseInt(e.target.value) || 0)}
+                      className={`w-full text-sm rounded-xl px-2 py-2 bg-white focus:ring-2 transition-colors ${
+                        item.validityFieldName && data.quantidade > 0 && (data.quantidade || 0) > getStockAvailableForLabel(inspectionData.globalStock, item.label, item.stockReferences)
+                          ? 'border-red-300 ring-2 ring-red-100 bg-red-50'
+                          : 'border-slate-200 focus:ring-indigo-100'
+                      }`}
+                      title="Quantidade Substituída"
+                    />
                     <label className="flex items-center gap-1.5 text-[11px] font-semibold cursor-pointer select-none">
                       <input
                         type="checkbox"
@@ -464,7 +491,7 @@ export default function Step4_PackMascara() {
                         ? (inspectionData.globalStock || []).find((s: any) => s.id === data.stockId)
                         : null;
                       const selectedStockAvailable = selectedStock?.quantidade || 0;
-                      const totalAvailable = getStockAvailableForLabel(inspectionData.globalStock, item.label);
+                      const totalAvailable = getStockAvailableForLabel(inspectionData.globalStock, item.label, item.stockReferences);
                       const qty = data.quantidade || 0;
                       const insufficientTotal = qty > 0 && qty > totalAvailable;
                       const insufficientSelected = selectedStock && qty > 0 && qty > selectedStockAvailable;
@@ -486,7 +513,51 @@ export default function Step4_PackMascara() {
                     })()}
                   </div>
 
-                  <div className="col-span-12 lg:col-span-3 flex flex-col gap-3">
+                  <div className="col-span-12 lg:col-span-4 flex flex-col gap-3">
+                    <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                      {data.validadeOriginal ? (
+                        anteriorStatus ? (
+                          <span className={`px-2 py-1 rounded-lg font-bold flex items-center gap-1.5 border ${
+                            anteriorStatus.level === 'critical'
+                              ? 'bg-red-600 text-white border-red-700'
+                              : anteriorStatus.level === 'warn'
+                                ? 'bg-amber-50 text-amber-800 border-amber-300'
+                                : 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                          }`}>
+                            <span>Jangada: {data.validadeOriginal}</span>
+                            {anteriorStatus.level === 'critical' && <span>{'< 12m p/ próxima'}</span>}
+                            {anteriorStatus.level === 'warn' && <span>(Vencida p/ próxima)</span>}
+                          </span>
+                        ) : (
+                          <span className="px-2 py-1 rounded-lg font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                            Jangada: {data.validadeOriginal}
+                          </span>
+                        )
+                      ) : (
+                        <span className="px-2 py-1 rounded-lg font-bold bg-slate-100 text-slate-400 border border-slate-200">
+                          Sem validade registada
+                        </span>
+                      )}
+                      {anteriorStatus && (anteriorStatus.level === 'critical' || anteriorStatus.level === 'warn') && data.quantidade === 0 && (
+                        <button
+                          type="button"
+                          onClick={() => handleItemChange(item.checklistName, 'quantidade', item.quantity || 1)}
+                          className="text-[10px] font-extrabold px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md shadow-sm transition"
+                        >
+                          Substituir Agora
+                        </button>
+                      )}
+                    </div>
+                    {anteriorStatus?.level === 'critical' && (
+                      <p className="text-[10px] text-red-700 font-bold leading-tight">
+                        ⛔ Sugestão de substituição — a validade não cobre a próxima inspeção com margem mínima de 12 meses.
+                      </p>
+                    )}
+                    {anteriorStatus?.level === 'warn' && (
+                      <p className="text-[10px] text-amber-700 font-semibold leading-tight">
+                        ⚠️ A validade expira antes da próxima inspeção (sem folga de 12 meses). Considere substituir.
+                      </p>
+                    )}
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Lote no Stock (Opcional)</label>
                       <div className="flex gap-2">
@@ -600,7 +671,7 @@ export default function Step4_PackMascara() {
 
       {stockDialogKey && (() => {
         const dialogItem = mandatoryItems.find((i) => i.checklistName === stockDialogKey);
-        const candidates = getStockCandidatesForLabel(inspectionData.globalStock, dialogItem?.label || '')
+        const candidates = getStockCandidatesForLabel(inspectionData.globalStock, dialogItem?.label || '', (dialogItem as any)?.stockReferences)
           .sort((a: any, b: any) => (b.quantidade || 0) - (a.quantidade || 0));
 
         return (

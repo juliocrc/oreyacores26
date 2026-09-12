@@ -1,9 +1,10 @@
 "use client";
-import React from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { useJangadaWizardStore } from './store/useJangadaWizardStore';
 import { PACK_TEMPLATES } from '@/config/packTemplates';
-import { useEffect, useState } from 'react';
 import { getInspectionIntervalYears, getInspectionIntervalLabel } from '../rafts/inspectionInterval';
+import { LIFERAFT_REFERENCE_CATALOG } from '@/data/liferaftReference';
+import { normalizeModelMatchKey } from '@/lib/jangadas-page-helpers';
 
 const SOS_BRANDS = ['SOS', 'SURVITEC', 'VIKING', 'LALIZAS', 'ZODIAC', 'PLASTIMO', 'EUROVINIL'];
 const isSosBrand = (brand: string, model?: string) => {
@@ -67,6 +68,25 @@ export default function Step1_DadosGerais() {
     inspectionData.shipDetails
   ) === 'warning';
 
+  const catalogMatch = useMemo(() => {
+    const bKey = normalizeModelMatchKey(inspectionData.brand);
+    const mKey = normalizeModelMatchKey(inspectionData.model);
+    if (!bKey || !mKey) return null;
+    return LIFERAFT_REFERENCE_CATALOG.find(
+      (entry) => normalizeModelMatchKey(entry.marca) === bKey && normalizeModelMatchKey(entry.modelo) === mKey
+    ) || null;
+  }, [inspectionData.brand, inspectionData.model]);
+
+  useEffect(() => {
+    if (catalogMatch && !inspectionData.launchType) {
+      if (catalogMatch.tipos.includes('DL')) {
+        setInspectionData({ launchType: 'Davit-Launched' });
+      } else if (catalogMatch.tipos.includes('TOB')) {
+        setInspectionData({ launchType: 'Throw-Over' });
+      }
+    }
+  }, [catalogMatch, inspectionData.launchType, setInspectionData]);
+
   const handleChange = (field: string, value: any) => {
     const nextData = { ...inspectionData, [field]: value };
     if ((field === 'dataInspecao' || field === 'brand' || field === 'model') && nextData.dataInspecao) {
@@ -101,6 +121,32 @@ export default function Step1_DadosGerais() {
       </datalist>
 
     <div className="space-y-8 animate-in fade-in duration-300">
+      {/* Operational identity plaque */}
+      <div className="bg-sky-50 rounded-2xl p-5 text-slate-900 border border-sky-200 shadow-sm relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-sky-500 via-indigo-500 to-emerald-500" />
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-sky-700">Placa de Identificação</p>
+            <p className="text-lg font-black mt-0.5">{inspectionData.serial || 'S/N —'}</p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+            {[
+              { label: 'Marca', value: inspectionData.brand },
+              { label: 'Modelo', value: inspectionData.model },
+              { label: 'Cap.', value: inspectionData.capacity ? `${inspectionData.capacity} pax` : '' },
+              { label: 'Pack', value: inspectionData.packType },
+            ].map((cell) => (
+              <div key={cell.label} className="bg-white border border-slate-200 rounded-lg px-3 py-2 shadow-sm">
+                <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">{cell.label}</p>
+                <p className={`text-sm font-bold truncate max-w-[10rem] ${cell.value ? 'text-slate-900' : 'text-slate-400'}`}>
+                  {cell.value || '—'}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <div>
         <h2 className="text-2xl font-bold text-slate-800">1. Identificação Operacional</h2>
         <p className="text-slate-600 mt-1">Registe os dados identificativos da jangada e as suas características principais.</p>
@@ -142,6 +188,22 @@ export default function Step1_DadosGerais() {
             value={inspectionData.model || ''}
             onChange={(e) => handleChange('model', e.target.value)}
           />
+          {catalogMatch && (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 space-y-1">
+              <p className="font-bold flex items-center gap-1">
+                <span>✓ Catálogo Oficial XLS:</span> {catalogMatch.fabricante} ({catalogMatch.paisOrigem || '—'})
+              </p>
+              {catalogMatch.certificacoes.length > 0 && (
+                <p><strong>Certificações:</strong> {catalogMatch.certificacoes.join(', ')}</p>
+              )}
+              {catalogMatch.tipos.length > 0 && (
+                <p><strong>Tipos:</strong> {catalogMatch.tipos.join(', ')}</p>
+              )}
+              {catalogMatch.tamanhos.length > 0 && (
+                <p><strong>Capacidades válidas:</strong> {catalogMatch.tamanhos.join(', ')} pax</p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Capacidade */}
