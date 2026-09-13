@@ -9,6 +9,7 @@ services:
     runtime: node
     plan: standard
     branch: main
+    renderSubdomainPolicy: enabled
     buildCommand: "chmod +x scripts/render-build.sh && ./scripts/render-build.sh"
     startCommand: "node .next/standalone/server.js"
     healthCheckPath: /api/health
@@ -22,10 +23,8 @@ services:
         value: 3000
       - key: SUPABASE_DATABASE_URL
         sync: false
-        value: "postgres://postgres:SUA_SENHA_AQUI@db.seu-projeto.supabase.co:5432/postgres?sslmode=require"
       - key: DATABASE_URL
         sync: false
-        value: "postgres://postgres:SUA_SENHA_AQUI@db.seu-projeto.supabase.co:5432/postgres?sslmode=require"
       - key: AUTH_BYPASS
         value: "false"
       - key: NEXTAUTH_SECRET
