@@ -13,6 +13,7 @@ import {
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
+import { STOCK_LIST_DENSITY_KEY } from "@/types/stock-page";
 
 type MonthlyNeed = {
   month: string;
@@ -181,6 +182,24 @@ function StockReposicoesPageInner() {
   const [pedidos, setPedidos] = useState<any[]>([]);
   const [pedidosLoading, setPedidosLoading] = useState(false);
   const [onlyValidityMonthly, setOnlyValidityMonthly] = useState(true);
+  const [listDensity, setListDensity] = useState<"default" | "compact">(() => {
+    if (typeof window === "undefined") return "default";
+    try {
+      return window.localStorage.getItem(STOCK_LIST_DENSITY_KEY) === "compact" ? "compact" : "default";
+    } catch {
+      return "default";
+    }
+  });
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(STOCK_LIST_DENSITY_KEY, listDensity);
+    } catch {
+      /* ignore */
+    }
+  }, [listDensity]);
+  const tableDensityClass =
+    listDensity === "compact" ? "[&_td]:!p-1.5 [&_th]:!px-2 [&_th]:!py-1.5 [&_td]:!text-xs" : "";
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -475,6 +494,13 @@ function StockReposicoesPageInner() {
                 </button>
                 <button
                   type="button"
+                  onClick={() => setListDensity((prev) => (prev === "compact" ? "default" : "compact"))}
+                  className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold ring-1 ring-white/25 ${listDensity === "compact" ? "bg-white text-blue-700" : "bg-white/15 text-white hover:bg-white/20"}`}
+                >
+                  {listDensity === "compact" ? "Densidade: Compacta" : "Densidade: Normal"}
+                </button>
+                <button
+                  type="button"
                   onClick={() => exportCsv(selectedKeys.size ? "selected" : "filtered")}
                   disabled={!filteredRows.some((r) => r.comprar > 0)}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-600 disabled:opacity-50"
@@ -688,24 +714,24 @@ function StockReposicoesPageInner() {
             {consumoTop.length === 0 ? (
               <div className="p-8 text-center text-sm text-slate-500">Sem saídas registadas nos últimos 90 dias.</div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm">
+              <div className="max-h-[70vh] overflow-auto">
+                <table className={`min-w-full text-sm ${tableDensityClass}`}>
                   <thead>
                     <tr className="border-b border-slate-200 bg-white text-left text-xs uppercase tracking-wide text-slate-500">
-                      <th className="px-4 py-3">Artigo</th>
-                      <th className="px-4 py-3">Ref</th>
-                      <th className="px-4 py-3 text-right">Consumo 90d</th>
-                      <th className="px-4 py-3 text-right">Média / mês</th>
-                      <th className="px-4 py-3 text-right">Procura pack 90d</th>
-                      <th className="px-4 py-3 text-right">Demanda ajustada</th>
-                      <th className="px-4 py-3 text-right">Stock</th>
-                      <th className="px-4 py-3 text-right">Comprar</th>
+                      <th className="sticky top-0 z-30 bg-white left-0 border-r border-slate-200 px-4 py-3">Artigo</th>
+                      <th className="sticky top-0 z-30 bg-white px-4 py-3">Ref</th>
+                      <th className="sticky top-0 z-20 bg-white px-4 py-3 text-right">Consumo 90d</th>
+                      <th className="sticky top-0 z-20 bg-white px-4 py-3 text-right">Média / mês</th>
+                      <th className="sticky top-0 z-20 bg-white px-4 py-3 text-right">Procura pack 90d</th>
+                      <th className="sticky top-0 z-20 bg-white px-4 py-3 text-right">Demanda ajustada</th>
+                      <th className="sticky top-0 z-20 bg-white px-4 py-3 text-right">Stock</th>
+                      <th className="sticky top-0 z-20 bg-white px-4 py-3 text-right">Comprar</th>
                     </tr>
                   </thead>
                   <tbody>
                     {consumoTop.map((row) => (
-                      <tr key={`${row.referencia}-${row.nome}`} className="border-b border-slate-100 hover:bg-slate-50/80">
-                        <td className="px-4 py-3 font-semibold text-slate-900">{row.nome}</td>
+                      <tr key={`${row.referencia}-${row.nome}`} className="border-b border-slate-100 bg-white hover:bg-slate-50/80">
+                        <td className="sticky left-0 z-10 bg-inherit border-r border-slate-200 px-4 py-3 font-semibold text-slate-900">{row.nome}</td>
                         <td className="px-4 py-3 font-mono text-xs text-slate-500">{row.referencia || "—"}</td>
                         <td className="px-4 py-3 text-right font-bold text-slate-800">{row.consumoHistorico90d || 0}</td>
                         <td className="px-4 py-3 text-right text-slate-600">{row.consumoMedioMensal ?? "—"}</td>
@@ -849,26 +875,26 @@ function StockReposicoesPageInner() {
             {filteredRows.length === 0 ? (
               <div className="p-10 text-center text-sm text-slate-500">Nenhuma linha com os filtros atuais.</div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm">
+              <div className="max-h-[70vh] overflow-auto">
+                <table className={`min-w-full text-sm ${tableDensityClass}`}>
                   <thead>
                     <tr className="border-b border-slate-200 bg-white text-left text-xs uppercase tracking-wide text-slate-500">
-                      <th className="px-3 py-3 w-8" />
-                      <th className="px-3 py-3">Artigo</th>
+                      <th className="sticky top-0 z-30 bg-white left-0 w-8 px-3 py-3 border-r border-slate-200" />
+                      <th className="sticky top-0 z-30 bg-white left-8 px-3 py-3 border-r border-slate-200">Artigo</th>
                       {activeTab === "planeamento" && (
                         <>
-                          <th className="px-3 py-3 text-right">30d</th>
-                          <th className="px-3 py-3 text-right">90d</th>
-                          <th className="px-3 py-3 text-right">12m</th>
+                          <th className="sticky top-0 z-20 bg-white px-3 py-3 text-right">30d</th>
+                          <th className="sticky top-0 z-20 bg-white px-3 py-3 text-right">90d</th>
+                          <th className="sticky top-0 z-20 bg-white px-3 py-3 text-right">12m</th>
                         </>
                       )}
-                      <th className="px-3 py-3 text-right">Necessidade</th>
-                      <th className="px-3 py-3 text-right">Stock</th>
-                      <th className="px-3 py-3 text-right">Comprar</th>
-                      <th className="px-3 py-3 text-right">Saldo</th>
-                      <th className="px-3 py-3 text-right">Consumo 90d</th>
-                      <th className="px-3 py-3">Limite / planeamento</th>
-                      <th className="px-3 py-3">Ações</th>
+                      <th className="sticky top-0 z-20 bg-white px-3 py-3 text-right">Necessidade</th>
+                      <th className="sticky top-0 z-20 bg-white px-3 py-3 text-right">Stock</th>
+                      <th className="sticky top-0 z-20 bg-white px-3 py-3 text-right">Comprar</th>
+                      <th className="sticky top-0 z-20 bg-white px-3 py-3 text-right">Saldo</th>
+                      <th className="sticky top-0 z-20 bg-white px-3 py-3 text-right">Consumo 90d</th>
+                      <th className="sticky top-0 z-20 bg-white px-3 py-3">Limite / planeamento</th>
+                      <th className="sticky top-0 z-30 bg-white right-0 px-3 py-3 border-l border-slate-200">Ações</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -877,11 +903,11 @@ function StockReposicoesPageInner() {
                       return (
                         <React.Fragment key={row.key}>
                           <tr
-                            className={`border-b border-slate-100 align-top hover:bg-slate-50/80 ${
-                              tone === "critical" ? "bg-rose-50/40" : tone === "warn" ? "bg-amber-50/30" : ""
+                            className={`border-b border-slate-100 bg-white align-top hover:bg-slate-50/80 ${
+                              tone === "critical" ? "!bg-rose-50/40" : tone === "warn" ? "!bg-amber-50/30" : ""
                             }`}
                           >
-                            <td className="px-3 py-3">
+                            <td className="sticky left-0 z-10 bg-inherit border-r border-slate-200 px-3 py-3">
                               <input
                                 type="checkbox"
                                 checked={selectedKeys.has(row.key)}
@@ -889,7 +915,7 @@ function StockReposicoesPageInner() {
                                 className="rounded border-slate-300"
                               />
                             </td>
-                            <td className="px-3 py-3">
+                            <td className="sticky left-8 z-10 bg-inherit border-r border-slate-200 px-3 py-3">
                               <div className="flex flex-col gap-0.5">
                                 <span className="font-semibold text-slate-900">{row.nome}</span>
                                 <span className="font-mono text-[11px] text-slate-500">{row.referencia || "sem ref"}</span>
@@ -960,7 +986,7 @@ function StockReposicoesPageInner() {
                                 )}
                               </div>
                             </td>
-                            <td className="px-3 py-3">
+                            <td className="sticky right-0 z-10 bg-inherit border-l border-slate-200 px-3 py-3">
                               {row.stockMatched?.[0]?.id ? (
                                 <Link
                                   href={`/stock/${row.stockMatched[0].id}`}

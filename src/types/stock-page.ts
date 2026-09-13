@@ -92,6 +92,7 @@ export const STOCK_NEW_ITEM_DRAFT_KEY = "stock-new-item-draft-v1";
 export const STOCK_LIST_COLUMNS_KEY = "stock-list-columns-v1";
 export const STOCK_CATEGORY_ACCORDIONS_KEY = "stock-category-accordions-v1";
 export const STOCK_SCOPE_KEY = "stock-scope-v1";
+export const STOCK_LIST_DENSITY_KEY = "stock-list-density-v1";
 
 export const STOCK_LIST_COLUMNS: Array<{ key: StockListColumnKey; label: string }> = [
   { key: "foto", label: "Foto" },

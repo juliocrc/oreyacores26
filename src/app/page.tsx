@@ -1529,16 +1529,16 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                <div className="overflow-x-auto relative z-10 border border-slate-200 rounded-2xl bg-white">
+                <div className="max-h-[70vh] overflow-auto relative z-10 border border-slate-200 rounded-2xl bg-white">
                   <table className="min-w-full text-sm">
                     <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 font-semibold">
                       <tr>
-                        <th className="px-4 py-3 text-left">Tipo</th>
-                        <th className="px-4 py-3 text-left">Artigo / Descrição</th>
-                        <th className="px-4 py-3 text-left">Ref. / Lote</th>
-                        <th className="px-4 py-3 text-left">Validade</th>
-                        <th className="px-4 py-3 text-left">Localização</th>
-                        <th className="px-4 py-3 text-right">Qtd</th>
+                        <th className="sticky top-0 z-30 bg-slate-50 left-0 border-r border-slate-200 px-4 py-3 text-left">Tipo</th>
+                        <th className="sticky top-0 z-20 bg-slate-50 px-4 py-3 text-left">Artigo / Descrição</th>
+                        <th className="sticky top-0 z-20 bg-slate-50 px-4 py-3 text-left">Ref. / Lote</th>
+                        <th className="sticky top-0 z-20 bg-slate-50 px-4 py-3 text-left">Validade</th>
+                        <th className="sticky top-0 z-20 bg-slate-50 px-4 py-3 text-left">Localização</th>
+                        <th className="sticky top-0 z-20 bg-slate-50 px-4 py-3 text-right">Qtd</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -1547,8 +1547,8 @@ export default function DashboardPage() {
                         ...expiringAlerts.expiring30d,
                         ...expiringAlerts.expiring60d
                       ].slice(0, 15).map((item, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                          <td className="px-4 py-3">
+                        <tr key={idx} className="bg-white hover:bg-slate-50 transition-colors">
+                          <td className="sticky left-0 z-10 bg-inherit border-r border-slate-200 px-4 py-3">
                             <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${item.type === 'stock' ? 'bg-indigo-50 text-indigo-700 border border-indigo-150' : 'bg-teal-50 text-teal-700 border border-teal-150'}`}>
                               {item.type === 'stock' ? 'Armazém' : 'Jangada'}
                             </span>

@@ -129,6 +129,9 @@ const EXPIRING_KEYWORDS = [
   'flare parachute',
   'paraquedas',
   'foguetes',
+  'foguetão',
+  'fogueteao',
+  'foguetao',
   'red hand flare',
   'hand flare',
   'handflare',
@@ -147,12 +150,15 @@ const EXPIRING_KEYWORDS = [
   'água potável',
   'saco de agua',
   'saco de água',
+  'saco agua',
   'food rations',
   'food ration',
   'racoes alimentares',
   'rações alimentares',
   'racoes',
   'rações',
+  'racao',
+  'ração',
   // Primeiros socorros
   'first aid kit',
   'farmacia',
@@ -181,20 +187,37 @@ const EXPIRING_KEYWORDS = [
   'luz interior e bateria',
   'luz exterior e bateria',
   'luz de cupula e bateria',
+  'luz interior',
+  'luz exterior',
+  'bateria litio',
 ];
 
-// Categorias que podem ter validade (fallback quando não encontrar por keyword)
+// Categorias que podem ter validade (fallback quando não encontrar por keyword) —
+// restrito à lista branca do utilizador (só estas famílias têm prazo).
 const CATEGORIES_WITH_VALIDITY = [
   'PRIMEIROS SOCORROS',    // farmácias, comprimidos
-  'CONSUMÍVEIS',            // águas, rações
-  'PIROTÉCNICOS',           // foguetes, fachos, fumos
-  'SINALIZAÇÃO',            // alguns consumíveis de sinalização com validade
-  'CILINDROS',              // cilindros com testes hidráulicos
-  'ILUMINAÇÃO',             // baterias de lítio e pilhas
+  'PIROTÉCNICOS',          // foguetes, fachos, fumos
+  'ILUMINAÇÃO',            // baterias de lítio e pilhas
 ];
 
 function normalizeText(value: unknown) {
   return normalizeLooseText(value ?? '');
+}
+
+// Palavras vazias de significado (conectores) ignoradas no matching de keywords.
+const STOPWORDS = new Set(['de', 'da', 'do', 'das', 'dos', 'com', 'para', 'sem', 'e', 'c', 'p']);
+
+function splitTokens(value: string) {
+  return value.split(' ').filter((t) => t.length > 1 && !STOPWORDS.has(t));
+}
+
+// True se todas as palavras da keyword existirem como palavras COMPLETAS no texto.
+// Nunca casa por substring, para que "racao" não corresponda a "reparacao".
+function keywordMatches(haystack: string, keyword: string) {
+  if (!keyword) return false;
+  const haystackTokens = new Set(splitTokens(normalizeText(haystack)));
+  const keywordTokens = splitTokens(normalizeText(keyword));
+  return keywordTokens.length > 0 && keywordTokens.every((t) => haystackTokens.has(t));
 }
 
 export function stockItemSupportsValidity(input: {
@@ -214,12 +237,12 @@ export function stockItemSupportsValidity(input: {
   ].filter(Boolean).join(' '));
 
   // 1. Se contém palavras de artigos SEM validade → retorna false imediatamente
-  if (NON_EXPIRING_KEYWORDS.some((keyword) => haystack.includes(normalizeText(keyword)))) {
+  if (NON_EXPIRING_KEYWORDS.some((keyword) => keywordMatches(haystack, keyword))) {
     return false;
   }
 
   // 2. Se contém palavras de artigos COM validade → retorna true imediatamente
-  if (EXPIRING_KEYWORDS.some((keyword) => haystack.includes(normalizeText(keyword)))) {
+  if (EXPIRING_KEYWORDS.some((keyword) => keywordMatches(haystack, keyword))) {
     return true;
   }
 

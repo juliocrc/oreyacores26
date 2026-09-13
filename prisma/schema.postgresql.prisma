@@ -65,6 +65,8 @@ model Colete {
   apitoRef         String?
   apitoLote        String?
   apitoValidade    String?
+  mecanismoInflacao  String?
+  mecanismoValidade  String?
   
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
@@ -104,6 +106,7 @@ model Epirb {
   @@index([estado])
   @@index([tipo])
   @@index([dataProxInspecao])
+  @@index([marca, modelo])
 }
 
 model VerificacaoColete {
@@ -416,6 +419,12 @@ model Navio {
   radarReflectorValidade String?
   portoRegisto           String?
   territorioGrupo        String?
+  anoConstrucao          Int?
+  potenciaMotorKw        Float?
+  lotacao                Int?
+  estadoNavio            String? // "ativo", "inativo", "abatido", "naufragado"
+  dataEstado             DateTime?
+  cfr                    String?
   ativo                  Boolean  @default(true)
   clienteId              Int?
   cliente                Cliente? @relation("ClienteNavios", fields: [clienteId], references: [id])
@@ -470,6 +479,7 @@ model AgendaEvento {
   @@index([raftSerial])
   @@index([date])
   @@index([serviceStationId])
+  @@index([serviceStationId, date])
   @@index([status])
   @@index([responsavel, date])
 }
@@ -548,6 +558,8 @@ model Jangada {
   dataFabrico                          String
   packType                             String
   containerModel                       String?
+  containerSize                        String?
+  closureStrapsJson                    String?
   capacity                             Int
   owner                                String
   shipId                               Int?
@@ -555,6 +567,9 @@ model Jangada {
   dataInspecao                         String?
   dataProxInspecao                     String?
   ultimoCertificadoNumero              String?
+  certificadoExternoNumero             String?
+  certificadoExternoUrl                String?
+  certificadoNumeroOriginal             String?
   cylinderSerial                       String?
   cylinderTara                         String?
   cylinderPesoBruto                    String?
@@ -616,6 +631,7 @@ model Jangada {
   certificadoAtivo                     CertificadoExtraido?  @relation("JangadaCertificadoAtivo", fields: [certificadoAtivoId], references: [id])
   serviceStation                       ServiceStation?       @relation(fields: [serviceStationId], references: [id])
   signatureBase64                      String?
+  syncSnapshot                        String?
 
   @@index([serviceStationId])
   @@index([certificadoAtivoId])
@@ -693,6 +709,8 @@ model Stock {
   precoVenda             Float
   quantidade             Int                 @default(0)
   quantidadeMinima       Int?
+  quantidadeReservada    Int                 @default(0)
+  leadTimeDias           Int?
   foto                   String?
   localizacao            String?
   observacoes            String?
@@ -714,6 +732,7 @@ model Stock {
   @@index([serviceStationId])
   @@index([estadoArtigo])
   @@index([validade])
+  @@index([quantidade])
 }
 
 model CustomPackType {
@@ -755,17 +774,27 @@ model MovimentacaoStock {
   id               Int      @id @default(autoincrement())
   stockId          Int
   stock            Stock    @relation(fields: [stockId], references: [id], onDelete: Cascade)
-  tipo             String // "entrada" ou "saida"
+  tipo             String // "entrada" | "saida" | "reserva" | "libertar_reserva" | "ajuste"
   quantidade       Int
   quantidadeAntes  Int
   quantidadeDepois Int
   motivo           String?
   usuario          String?
+  ordemServicoId   Int?
+  inspecaoId       Int?
+  pedidoReposicaoId Int?
   createdAt        DateTime @default(now())
+  ordemServico     OrdemServico? @relation(fields: [ordemServicoId], references: [id], onDelete: SetNull)
+  inspecao         Inspecao?     @relation(fields: [inspecaoId], references: [id], onDelete: SetNull)
+  pedidoReposicao  PedidoReposicao? @relation(fields: [pedidoReposicaoId], references: [id], onDelete: SetNull)
 
   @@index([stockId])
   @@index([createdAt])
   @@index([tipo])
+  @@index([tipo, createdAt])
+  @@index([ordemServicoId])
+  @@index([inspecaoId])
+  @@index([pedidoReposicaoId])
 }
 
 model Inspecao {
@@ -782,10 +811,14 @@ model Inspecao {
   status            String          @default("Concluída")
   sourceFile        String?
   signatureBase64   String?
+  clienteAssinaturaBase64 String?
+  clienteNomeAssinatura String?
+  guiaTransporteUrl     String?
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
   artigos           ArtigoJangada[]
   ordensServico     OrdemServico[]
+  movimentacoesStock MovimentacaoStock[]
   numeroObra                           String?
   testeWP                              String?
   testeNAP                             String?
@@ -808,6 +841,12 @@ model Inspecao {
   testeWPCamaraInferiorQueda           String?
   oficinaTemperatura                   String?
   oficinaHumidade                      String?
+  orcamento                           Json?
+  checklistSnapshot                   Json?
+
+  integrityHash                        String?
+  integrityTimestamp                   DateTime?
+  integrityVersion                     Int?
 
   @@index([numeroObra])
 
@@ -819,6 +858,7 @@ model Inspecao {
   @@index([coleteSerial])
   @@index([dataInspecao])
   @@index([status])
+  @@index([dataInspecao, status])
 }
 
 model OrdemServico {
@@ -870,6 +910,7 @@ model OrdemServico {
   checklistItems       OrdemServicoChecklistItem[]
   logs                 OrdemServicoLog[]
   ordemServicoTempos   OrdemServicoTempo[]
+  movimentacoesStock   MovimentacaoStock[]
 
   @@index([serviceStationId])
   @@index([jangadaId])
@@ -877,6 +918,7 @@ model OrdemServico {
   @@index([clienteId])
   @@index([tecnicoId])
   @@index([inspecaoId])
+  @@index([pedidoAssistenciaId])
   @@index([status])
   @@index([tipo])
   @@index([prioridade])
@@ -884,6 +926,7 @@ model OrdemServico {
   @@index([dataPlaneadaInicio])
   @@index([dataPlaneadaFim])
   @@index([dataPrevista])
+  @@index([orcamentoStatus])
   @@index([serviceStationId, status])
 }
 
@@ -1036,6 +1079,7 @@ model Fatura {
   @@index([clienteId])
   @@index([dataEmissao])
   @@index([pagamentoStatus])
+  @@index([cancelada])
 }
 
 model FaturaOrdemServico {
@@ -1116,6 +1160,7 @@ model ServiceStationQueue {
   serviceStation      ServiceStation? @relation(fields: [serviceStationId], references: [id])
 
   @@index([serviceStationId])
+  @@index([serviceStationId, status])
   @@index([jangadaId])
   @@index([ordemServicoId])
   @@index([status])
@@ -1295,6 +1340,7 @@ model PedidoReposicao {
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt
   linhas           PedidoReposicaoLinha[]
+  movimentacoes    MovimentacaoStock[]
 
   @@index([status])
   @@index([fornecedor])

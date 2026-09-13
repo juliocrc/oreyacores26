@@ -245,22 +245,22 @@ export default function StockManagementDemo() {
           </p>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="max-h-[70vh] overflow-auto">
           <table className="w-full">
             <thead className="bg-slate-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Referência</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Descrição</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Categoria</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Quantidade</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Preço Unitário</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Ações</th>
+                <th className="sticky top-0 z-30 bg-slate-50 left-0 border-r border-slate-200 px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Referência</th>
+                <th className="sticky top-0 z-20 bg-slate-50 px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Descrição</th>
+                <th className="sticky top-0 z-20 bg-slate-50 px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Categoria</th>
+                <th className="sticky top-0 z-20 bg-slate-50 px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Quantidade</th>
+                <th className="sticky top-0 z-20 bg-slate-50 px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Preço Unitário</th>
+                <th className="sticky top-0 z-30 bg-slate-50 right-0 border-l border-slate-200 px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
               {stockItems?.map((item: StockItem) => (
-                <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 text-sm font-mono text-slate-600">{item.referencia || '-'}</td>
+                <tr key={item.id} className="bg-white hover:bg-slate-50 transition-colors">
+                  <td className="sticky left-0 z-10 bg-inherit border-r border-slate-200 px-6 py-4 text-sm font-mono text-slate-600">{item.referencia || '-'}</td>
                   <td className="px-6 py-4 text-sm font-medium text-slate-800">{item.descricao}</td>
                   <td className="px-6 py-4">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full
@@ -277,7 +277,7 @@ export default function StockManagementDemo() {
                     {item.quantidade}
                   </td>
                   <td className="px-6 py-4 text-sm text-slate-600">€{item.precoVenda?.toFixed(2) || '0.00'}</td>
-                  <td className="px-6 py-4">
+                  <td className="sticky right-0 z-10 bg-inherit border-l border-slate-200 px-6 py-4">
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleUpdateStock(item.id, 10)}

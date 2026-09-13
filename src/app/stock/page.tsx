@@ -17,7 +17,7 @@ import WarehouseMapDialog from "@/components/stock/WarehouseMapDialog";
 import BarcodeScanner from "@/components/shared/BarcodeScanner";
 import { MapPin, ScanLine } from "lucide-react";
 import type { ItemStock, ViewMode, MonthlyNeed, StockNeedRow, MonthlyArticleNeed, NeedsSummary, StockPriorityGroupKey, StockScope, StockPrioritySection, StockListColumnKey } from "@/types/stock-page";
-import { STOCK_NEW_ITEM_DRAFT_KEY, STOCK_LIST_COLUMNS_KEY, STOCK_CATEGORY_ACCORDIONS_KEY, STOCK_SCOPE_KEY, STOCK_LIST_COLUMNS, INITIAL_STOCK_FORM, CRITICAL_VALIDITY_CATEGORY_KEYWORDS } from "@/types/stock-page";
+import { STOCK_NEW_ITEM_DRAFT_KEY, STOCK_LIST_COLUMNS_KEY, STOCK_CATEGORY_ACCORDIONS_KEY, STOCK_SCOPE_KEY, STOCK_LIST_COLUMNS, INITIAL_STOCK_FORM, CRITICAL_VALIDITY_CATEGORY_KEYWORDS, STOCK_LIST_DENSITY_KEY } from "@/types/stock-page";
 import { buildDefaultStockListColumns, escapeHtml, parseMonthYearToDate, normalizeStockLabelText } from "@/lib/stock-page-helpers";
 import {
   STOCK_SHELVES,
@@ -47,6 +47,8 @@ function StockPageContent() {
   const [filtroMarca, setFiltroMarca] = useState("");
   const [filtroModelo, setFiltroModelo] = useState("");
   const [filtroTexto, setFiltroTexto] = useState("");
+  const [filtroCampo, setFiltroCampo] = useState<"" | StockListColumnKey>("");
+  const [showFilters, setShowFilters] = useState(true);
   const [filtroPack, setFiltroPack] = useState<string>("");
   const [stockScope, setStockScope] = useState<StockScope>("all");
   const [filtroStockBaixo, setFiltroStockBaixo] = useState(false);
@@ -80,6 +82,13 @@ function StockPageContent() {
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [bulkDeleteConfirmText, setBulkDeleteConfirmText] = useState("");
   const [showColumnSelector, setShowColumnSelector] = useState(false);
+  const [listDensity, setListDensity] = useState<"default" | "compact">(() => {
+    if (typeof window === "undefined") return "default";
+    try {
+      const raw = window.localStorage.getItem(STOCK_LIST_DENSITY_KEY);
+      return raw === "compact" || raw === "default" ? raw : "default";
+    } catch { return "default"; }
+  });
   const [expandedStockCategories, setExpandedStockCategories] = useState<Record<string, boolean>>({});
   const [showScanner, setShowScanner] = useState(false);
   const [scanStep, setScanStep] = useState<"item" | "jangada" | null>(null);
@@ -216,6 +225,13 @@ function StockPageContent() {
       window.localStorage.setItem(STOCK_LIST_COLUMNS_KEY, JSON.stringify(visibleStockColumns));
     } catch (e) { console.warn("[Stock] Failed to persist column config:", e); }
   }, [visibleStockColumns]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(STOCK_LIST_DENSITY_KEY, listDensity);
+    } catch (e) { console.warn("[Stock] Failed to persist density config:", e); }
+  }, [listDensity]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -706,9 +722,9 @@ function StockPageContent() {
       await requestJson(`/api/stock/${id}`, { method: "DELETE" });
       if (viewItem?.id === id) setViewItem(null);
       await fetchItens();
-      setMessage({ type: "success", text: "Item removido com sucesso." });
+      setMessage({ type: "success", text: "Item desativado (histórico preservado)." });
     } catch (error: any) {
-      setMessage({ type: "error", text: error?.message || "Não foi possível remover o item." });
+      setMessage({ type: "error", text: error?.message || "Não foi possível desativar o item." });
     } finally {
       setLoading(false);
     }
@@ -757,9 +773,9 @@ function StockPageContent() {
       closeBulkDeleteModal();
       setSelectedIds([]);
       await fetchItens();
-      setMessage({ type: "success", text: `${count} artigo(s) removido(s) com sucesso.` });
+      setMessage({ type: "success", text: `${count} artigo(s) desativado(s) (histórico preservado).` });
     } catch (error: any) {
-      setMessage({ type: "error", text: error?.message || "Não foi possível remover os artigos selecionados." });
+      setMessage({ type: "error", text: error?.message || "Não foi possível desativar os artigos selecionados." });
     } finally {
       setLoading(false);
     }
@@ -889,6 +905,87 @@ function StockPageContent() {
     }, {} as Record<StockListColumnKey, boolean>);
     allHidden[first] = true;
     setVisibleStockColumns(allHidden);
+  }
+
+  async function exportStockExcel() {
+    if (!itensFiltrados.length) return;
+    try {
+      const XLSX = await import("xlsx");
+      const rows: Array<Record<string, string | number>> = [];
+      const monthlyPlanText = (item: ItemStock): string => {
+        const need = stockNeedsById[item.id];
+        if (!need || !Array.isArray(need.mensal)) return "";
+        return need.mensal
+          .filter((m) => Number(m.quantidade || 0) > 0)
+          .map((m) => `${m.month}: ${Number(m.quantidade || 0)}`)
+          .join("; ");
+      };
+      for (const item of itensFiltrados) {
+        const need = stockNeedsById[item.id];
+        const row: Record<string, string | number> = {
+          Nome: item.nome || item.descricao || "-",
+        };
+        for (const col of STOCK_LIST_COLUMNS) {
+          if (col.key === "foto" || !isColumnVisible(col.key)) continue;
+          switch (col.key) {
+            case "nome":
+              break;
+            case "referencia":
+              row[col.label] = item.referencia || "-";
+              break;
+            case "estado":
+              row[col.label] = item.estadoArtigo || "ATIVO";
+              break;
+            case "referenciaSubstituta":
+              row[col.label] = item.referenciaSubstituta || "-";
+              break;
+            case "codigoFabricante":
+              row[col.label] = item.codigoFabricante || "-";
+              break;
+            case "quantidade":
+              row[col.label] = Number(item.quantidade ?? 0);
+              break;
+            case "quantidadeMinima":
+              row[col.label] = item.quantidadeMinima ?? "-";
+              break;
+            case "precoVenda":
+              row[col.label] = Number(item.precoVenda ?? 0);
+              break;
+            case "marcaModelo":
+              row[col.label] = [item.aplicavelMarcaJangada, item.aplicavelModeloJangada].filter(Boolean).join(" / ") || "-";
+              break;
+            case "categoria":
+              row[col.label] = item.categoria || "DIVERSOS";
+              break;
+            case "prateleira":
+              row[col.label] = resolveShelfCode(item.localizacao) || item.localizacao || "—";
+              break;
+            case "descricao":
+              row[col.label] = item.descricao || "-";
+              break;
+            case "packs":
+              row[col.label] = (item.tiposPackAssociados || []).join(", ") || "-";
+              break;
+            case "necessidade12m":
+              row[col.label] = need?.necessidade12m ?? 0;
+              break;
+            case "saldoProjetado12m":
+              row[col.label] = need?.saldoProjetado12m ?? item.quantidade;
+              break;
+            case "necessidadeMensal":
+              row[col.label] = monthlyPlanText(item);
+              break;
+          }
+        }
+        rows.push(row);
+      }
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Stock");
+      XLSX.writeFile(workbook, `stock_catalogo_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Erro ao exportar Excel");
+    }
   }
 
   function handleFichaFieldChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -1242,6 +1339,31 @@ function StockPageContent() {
         campoCodigoFabricante.includes(textoBusca);
       const okStockBaixo = !filtroStockBaixo || isStockBaixo(item);
       const okSemPreco = !filtroSemPreco || (!item.precoVenda || Number(item.precoVenda) === 0);
+      const okCampo = (() => {
+        if (!filtroCampo || !textoBusca) return true;
+        switch (filtroCampo) {
+          case "nome":
+            return campoNome.includes(textoBusca);
+          case "descricao":
+            return campoDescricao.includes(textoBusca);
+          case "referencia":
+            return campoReferencia.includes(textoBusca);
+          case "codigoFabricante":
+            return campoCodigoFabricante.includes(textoBusca);
+          case "referenciaSubstituta":
+            return String(item.referenciaSubstituta || "").toLowerCase().includes(textoBusca);
+          case "estado":
+            return String(item.estadoArtigo || "").toLowerCase().includes(textoBusca);
+          case "categoria":
+            return String(item.categoria || "").toLowerCase().includes(textoBusca);
+          case "marcaModelo":
+            return `${item.aplicavelMarcaJangada || ""} ${item.aplicavelModeloJangada || ""}`.toLowerCase().includes(textoBusca);
+          case "prateleira":
+            return `${resolveShelfCode(item.localizacao) || ""} ${item.localizacao || ""}`.toLowerCase().includes(textoBusca);
+          default:
+            return true;
+        }
+      })();
       const okValidade = 
         filtroValidade === "todos" ||
         (filtroValidade === "vencidos" && isVencido(item)) ||
@@ -1251,7 +1373,7 @@ function StockPageContent() {
       const okPrateleira =
         !filtroPrateleira ||
         (filtroPrateleira === "__NONE__" ? !shelfCode : shelfMatchesLocation(item.localizacao, filtroPrateleira));
-      return okCategoria && okMarca && okModelo && okPack && okTexto && okStockBaixo && okSemPreco && okValidade && okPrateleira;
+      return okCategoria && okMarca && okModelo && okPack && okTexto && okCampo && okStockBaixo && okSemPreco && okValidade && okPrateleira;
     })
     .sort(compareStockItems);
 
@@ -2324,15 +2446,52 @@ function StockPageContent() {
           </div>
         </div>
 
+        <button
+          type="button"
+          onClick={() => setShowFilters((prev) => !prev)}
+          className="mb-2 flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+        >
+          {showFilters ? "▾" : "▸"} Filtros
+          {(() => {
+            const ativos = [filtroCategoria, filtroMarca, filtroModelo, filtroPack, filtroPrateleira, filtroStockBaixo ? "on" : "", filtroSemPreco ? "on" : "", filtroValidade !== "todos" ? filtroValidade : "", filtroCampo ? "on" : ""].filter(Boolean).length;
+            return ativos > 0 ? <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">{ativos}</span> : null;
+          })()}
+        </button>
+        {showFilters && (<>
         <div className="grid grid-cols-1 md:grid-cols-6 gap-2 mb-3">
           <label className="block text-[11px] font-semibold text-gray-700 md:col-span-2">
-            Pesquisa geral
-            <input
-              value={filtroTexto}
-              onChange={(e) => setFiltroTexto(e.target.value)}
-              placeholder="Nome, descrição, referência ou cód. fabricante"
-              className="mt-1 border border-gray-300 rounded-lg px-3 py-2 text-xs w-full"
-            />
+            <span className="flex items-center justify-between gap-2">
+              Pesquisa
+              {filtroCampo && (
+                <button type="button" onClick={() => { setFiltroCampo(""); }} className="text-[10px] font-semibold text-blue-600 hover:underline">
+                  Limpar campo
+                </button>
+              )}
+            </span>
+            <span className="mt-1 flex gap-2">
+              <select
+                value={filtroCampo}
+                onChange={(e) => setFiltroCampo(e.target.value as "" | StockListColumnKey)}
+                className="border border-gray-300 rounded-lg px-2 py-2 text-xs w-40"
+              >
+                <option value="">Todos os campos</option>
+                <option value="nome">Nome</option>
+                <option value="referencia">Referência</option>
+                <option value="referenciaSubstituta">Ref. substituta</option>
+                <option value="codigoFabricante">Cód. fabricante</option>
+                <option value="estado">Estado</option>
+                <option value="categoria">Categoria</option>
+                <option value="marcaModelo">Marca/Modelo</option>
+                <option value="prateleira">Prateleira</option>
+                <option value="descricao">Descrição</option>
+              </select>
+              <input
+                value={filtroTexto}
+                onChange={(e) => setFiltroTexto(e.target.value)}
+                placeholder={filtroCampo ? "Filtrar apenas neste campo" : "Nome, descrição, referência ou cód. fabricante"}
+                className="border border-gray-300 rounded-lg px-3 py-2 text-xs w-full"
+              />
+            </span>
           </label>
 
           <label className="block text-[11px] font-semibold text-gray-700">
@@ -2432,6 +2591,7 @@ function StockPageContent() {
               type="button"
               onClick={() => {
                 setFiltroTexto("");
+                setFiltroCampo("");
                 setFiltroCategoria("");
                 setFiltroMarca("");
                 setFiltroModelo("");
@@ -2443,10 +2603,11 @@ function StockPageContent() {
               }}
               className="border border-gray-300 bg-gray-100 rounded-lg px-3 py-2 text-xs font-medium w-full"
             >
-              Limpar todos os filtros
+Limpar todos os filtros
             </button>
           </div>
         </div>
+        </>)}
         <div className="flex gap-2 mb-3">
           {([
             { key: "quadros", label: "Quadros" },
@@ -2480,6 +2641,7 @@ function StockPageContent() {
         {viewMode === "lista" && (
           <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 className="rounded border border-gray-300 bg-gray-50 px-3 py-1.5 text-xs font-medium"
@@ -2487,7 +2649,29 @@ function StockPageContent() {
               >
                 {showColumnSelector ? "Ocultar seletor de colunas" : "Mostrar seletor de colunas"}
               </button>
+              {STOCK_LIST_COLUMNS.length - Object.values(visibleStockColumns).filter(Boolean).length > 0 && (
+                <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-1 text-[11px] font-semibold text-amber-800">
+                  {STOCK_LIST_COLUMNS.length - Object.values(visibleStockColumns).filter(Boolean).length} coluna(s) oculta(s)
+                </span>
+              )}
+              <button
+                type="button"
+                className={`rounded border px-3 py-1.5 text-xs font-medium ${listDensity === "compact" ? "border-blue-700 bg-blue-700 text-white" : "border-gray-300 bg-white text-gray-700"}`}
+                onClick={() => setListDensity((prev) => (prev === "compact" ? "default" : "compact"))}
+              >
+                {listDensity === "compact" ? "Densidade: Compacta" : "Densidade: Normal"}
+              </button>
+              </div>
               <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => void exportStockExcel()}
+                  disabled={itensFiltrados.length === 0}
+                  className="inline-flex items-center gap-1.5 rounded border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                  title="Exportar as linhas atualmente visíveis para Excel (.xlsx)"
+                >
+                  ⬇ Exportar Excel
+                </button>
                 <button
                   type="button"
                   className="rounded border border-gray-300 bg-white px-2 py-1 text-xs"
@@ -2554,7 +2738,7 @@ function StockPageContent() {
         ) : viewMode === "lista" ? (
           <div className="space-y-4">
             {stockPrioritySections.map((section) => (
-              <div key={section.key} className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+              <div key={section.key} className="rounded-xl border border-gray-200 bg-white shadow-sm">
                 <div className="app-soft-blue-strip px-4 py-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
@@ -2573,13 +2757,24 @@ function StockPageContent() {
                     </div>
                     <span className="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-[11px] font-semibold text-blue-800">
                       {section.items.length} artigo(s)
+                    {(() => {
+                      const totalQtd = section.items.reduce((acc2, item2) => acc2 + Number(item2.quantidade ?? 0), 0);
+                      const totalValor = section.items.reduce((acc2, item2) => acc2 + Number(item2.quantidade ?? 0) * Number(item2.precoVenda ?? 0), 0);
+                      return (
+                        <div className="mt-1 flex flex-wrap gap-2 text-[11px]">
+                          <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 font-semibold text-emerald-800">{totalQtd} un.</span>
+                          <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-700">{new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(totalValor)}</span>
+                        </div>
+                      );
+                    })()}
                     </span>
                   </div>
                 </div>
-                <table className="min-w-full text-xs sm:text-sm">
+                <div className="max-h-[75vh] overflow-auto">
+                <table className={`min-w-full text-xs sm:text-sm ${listDensity === "compact" ? "[&_td]:!p-1 [&_th]:!p-1 [&_td]:!text-[11px] [&_td]:!leading-tight" : ""}`}>
                   <thead>
                     <tr className="bg-blue-100">
-                      <th className="p-2">
+                      <th className="sticky top-0 z-30 bg-blue-100 left-0 w-10 border-r border-gray-200 p-2">
                         {canEditStock ? (
                           <input
                             type="checkbox"
@@ -2595,24 +2790,24 @@ function StockPageContent() {
                           />
                         ) : null}
                       </th>
-                      {isColumnVisible("foto") && <th className="p-2">Foto</th>}
-                      {isColumnVisible("nome") && <th className="p-2">Nome</th>}
-                      {isColumnVisible("referencia") && <th className="p-2">Referência</th>}
-                      {isColumnVisible("estado") && <th className="p-2">Estado</th>}
-                      {isColumnVisible("referenciaSubstituta") && <th className="p-2">Ref. Substituta</th>}
-                      {isColumnVisible("codigoFabricante") && <th className="p-2">Cód. Fabricante</th>}
-                      {isColumnVisible("quantidade") && <th className="p-2">Quantidade</th>}
-                      {isColumnVisible("quantidadeMinima") && <th className="p-2">Qtd. mínima</th>}
-                      {isColumnVisible("precoVenda") && <th className="p-2">Preço de venda</th>}
-                      {isColumnVisible("marcaModelo") && <th className="p-2">Marca/Modelo Jangada</th>}
-                      {isColumnVisible("categoria") && <th className="p-2">Categoria</th>}
-                      {isColumnVisible("prateleira") && <th className="p-2">Prateleira</th>}
-                      {isColumnVisible("descricao") && <th className="p-2">Descrição</th>}
-                      {isColumnVisible("packs") && <th className="p-2">Packs</th>}
-                      {isColumnVisible("necessidade12m") && <th className="p-2">Necess. 12m</th>}
-                      {isColumnVisible("saldoProjetado12m") && <th className="p-2">Saldo proj. 12m</th>}
-                      {isColumnVisible("necessidadeMensal") && <th className="p-2">Necessidade mensal</th>}
-                      <th className="p-2">Ações</th>
+                      {isColumnVisible("foto") && <th className="sticky top-0 z-20 bg-blue-100 p-2">Foto</th>}
+                      {isColumnVisible("nome") && <th className="sticky top-0 z-30 bg-blue-100 left-10 border-r border-gray-200 p-2">Nome</th>}
+                      {isColumnVisible("referencia") && <th className="sticky top-0 z-20 bg-blue-100 p-2">Referência</th>}
+                      {isColumnVisible("estado") && <th className="sticky top-0 z-20 bg-blue-100 p-2">Estado</th>}
+                      {isColumnVisible("referenciaSubstituta") && <th className="sticky top-0 z-20 bg-blue-100 p-2">Ref. Substituta</th>}
+                      {isColumnVisible("codigoFabricante") && <th className="sticky top-0 z-20 bg-blue-100 p-2">Cód. Fabricante</th>}
+                      {isColumnVisible("quantidade") && <th className="sticky top-0 z-20 bg-blue-100 p-2">Quantidade</th>}
+                      {isColumnVisible("quantidadeMinima") && <th className="sticky top-0 z-20 bg-blue-100 p-2">Qtd. mínima</th>}
+                      {isColumnVisible("precoVenda") && <th className="sticky top-0 z-20 bg-blue-100 p-2">Preço de venda</th>}
+                      {isColumnVisible("marcaModelo") && <th className="sticky top-0 z-20 bg-blue-100 p-2">Marca/Modelo Jangada</th>}
+                      {isColumnVisible("categoria") && <th className="sticky top-0 z-20 bg-blue-100 p-2">Categoria</th>}
+                      {isColumnVisible("prateleira") && <th className="sticky top-0 z-20 bg-blue-100 p-2">Prateleira</th>}
+                      {isColumnVisible("descricao") && <th className="sticky top-0 z-20 bg-blue-100 p-2">Descrição</th>}
+                      {isColumnVisible("packs") && <th className="sticky top-0 z-20 bg-blue-100 p-2">Packs</th>}
+                      {isColumnVisible("necessidade12m") && <th className="sticky top-0 z-20 bg-blue-100 p-2">Necess. 12m</th>}
+                      {isColumnVisible("saldoProjetado12m") && <th className="sticky top-0 z-20 bg-blue-100 p-2">Saldo proj. 12m</th>}
+                      {isColumnVisible("necessidadeMensal") && <th className="sticky top-0 z-20 bg-blue-100 p-2">Necessidade mensal</th>}
+                      <th className="sticky top-0 z-30 bg-blue-100 right-0 border-l border-gray-200 p-2">Ações</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2667,13 +2862,13 @@ function StockPageContent() {
                           </td>
                         </tr>
                         {isCategoryExpanded(section.key, categoryGroup.category) && categoryGroup.items.map(item => (
-                <tr key={item.id} className={`border-t align-top ${(!item.precoVenda || Number(item.precoVenda) === 0) ? "bg-amber-50 hover:bg-amber-100" : "hover:bg-slate-50"}`}>
+                <tr key={item.id} className={`border-t align-top ${(!item.precoVenda || Number(item.precoVenda) === 0) ? "bg-amber-50 hover:bg-amber-100" : "bg-white hover:bg-slate-50"}`}>
                   {(() => {
                     const need = stockNeedsById[item.id];
                     const isSelected = selectedIds.includes(item.id);
                     return (
                       <>
-                  <td className="p-2">
+                  <td className="sticky left-0 z-10 w-10 border-r border-gray-200 bg-inherit p-2">
                     {canEditStock ? (
                       <input
                         type="checkbox"
@@ -2688,7 +2883,7 @@ function StockPageContent() {
                       {renderStockThumb(item)}
                     </div>
                   </td>}
-                  {isColumnVisible("nome") && <td className="p-2">
+                  {isColumnVisible("nome") && <td className="sticky left-10 z-10 border-r border-gray-200 bg-inherit p-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <span>{item.nome || item.descricao || "-"}</span>
                       {getApplicableRaftModelBadge(item) && (
@@ -2771,7 +2966,7 @@ function StockPageContent() {
                   {isColumnVisible("necessidadeMensal") && <td className="p-2 text-[11px] leading-4 max-w-[320px]">
                     {renderMonthlyPlan(need?.mensal || [])}
                   </td>}
-                  <td className="p-2 flex gap-2">
+                  <td className="sticky right-0 z-10 flex gap-2 border-l border-gray-200 bg-inherit p-2">
                     {canEditStock ? (
                       <>
                         <button className="bg-green-600 px-2 py-1 rounded text-xs text-white" onClick={() => handleStockOperation(item.id, "entrada")}>+1</button>
@@ -2802,6 +2997,7 @@ function StockPageContent() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
             ))}
             {itensFiltrados.length === 0 && (
@@ -2838,6 +3034,16 @@ function StockPageContent() {
                   </div>
                   <span className="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-[11px] font-semibold text-blue-800">
                     {section.items.length} artigo(s)
+                    {(() => {
+                      const totalQtd = section.items.reduce((acc2, item2) => acc2 + Number(item2.quantidade ?? 0), 0);
+                      const totalValor = section.items.reduce((acc2, item2) => acc2 + Number(item2.quantidade ?? 0) * Number(item2.precoVenda ?? 0), 0);
+                      return (
+                        <div className="mt-1 flex flex-wrap gap-2 text-[11px]">
+                          <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 font-semibold text-emerald-800">{totalQtd} un.</span>
+                          <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-700">{new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(totalValor)}</span>
+                        </div>
+                      );
+                    })()}
                   </span>
                 </div>
                 {section.categories.map((categoryGroup) => (
@@ -2973,6 +3179,16 @@ function StockPageContent() {
                   </div>
                   <span className="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-[11px] font-semibold text-blue-800">
                     {section.items.length} artigo(s)
+                    {(() => {
+                      const totalQtd = section.items.reduce((acc2, item2) => acc2 + Number(item2.quantidade ?? 0), 0);
+                      const totalValor = section.items.reduce((acc2, item2) => acc2 + Number(item2.quantidade ?? 0) * Number(item2.precoVenda ?? 0), 0);
+                      return (
+                        <div className="mt-1 flex flex-wrap gap-2 text-[11px]">
+                          <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 font-semibold text-emerald-800">{totalQtd} un.</span>
+                          <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-700">{new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(totalValor)}</span>
+                        </div>
+                      );
+                    })()}
                   </span>
                 </div>
                 {section.categories.map((categoryGroup) => (

@@ -958,14 +958,15 @@ export default function PacksPage() {
                 ) : null}
 
                 <div className="mt-3 overflow-hidden rounded-xl border border-slate-200">
-                  <table className="min-w-full text-sm">
+                  <div className="max-h-[70vh] overflow-auto">
+                  <table className="min-w-full text-sm whitespace-nowrap">
                     <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                       <tr>
-                        <th className="px-3 py-3">Referência</th>
-                        <th className="px-3 py-3">Descrição</th>
-                        <th className="px-3 py-3">Categoria</th>
-                        <th className="px-3 py-3 w-28">Qtd.</th>
-                        <th className="px-3 py-3 w-24">Ação</th>
+                        <th className="sticky top-0 z-30 bg-slate-50 left-0 border-r border-slate-200 px-3 py-3">Referência</th>
+                        <th className="sticky top-0 z-20 bg-slate-50 px-3 py-3">Descrição</th>
+                        <th className="sticky top-0 z-20 bg-slate-50 px-3 py-3">Categoria</th>
+                        <th className="sticky top-0 z-20 bg-slate-50 px-3 py-3 w-28">Qtd.</th>
+                        <th className="sticky top-0 z-30 bg-slate-50 right-0 border-l border-slate-200 px-3 py-3 w-24">Ação</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -981,8 +982,8 @@ export default function PacksPage() {
                           const bestSuggestion = suggestions[0] || null;
 
                           return (
-                          <tr key={`${item.stockReference || 'sem-ref'}-${index}`} className="border-t border-slate-200 align-top">
-                            <td className="px-3 py-3">
+                          <tr key={`${item.stockReference || 'sem-ref'}-${index}`} className="border-t border-slate-200 bg-white align-top hover:bg-slate-50">
+                            <td className="sticky left-0 z-10 bg-inherit border-r border-slate-200 px-3 py-3">
                               <input
                                 value={item.stockReference}
                                 disabled={!canEditPacks}
@@ -1034,7 +1035,7 @@ export default function PacksPage() {
                                 className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm disabled:bg-slate-100"
                               />
                             </td>
-                            <td className="px-3 py-3">
+                            <td className="sticky right-0 z-10 bg-inherit border-l border-slate-200 px-3 py-3">
                               <button
                                 type="button"
                                 onClick={() => removeDraftItem(index)}
@@ -1049,6 +1050,7 @@ export default function PacksPage() {
                       )}
                     </tbody>
                   </table>
+                  </div>
                 </div>
               </div>
 

@@ -688,6 +688,9 @@ function parseQuantity(rawQuantity: string | undefined, capacity: number, itemNa
 
 function resolvePackFieldDefinition(itemName: string) {
   const normalized = normalizeText(itemName);
+  if (!normalized) return undefined;
+  const nameTokens = new Set(normalized.split(' ').filter((t) => t.length > 1));
+  const FRAGMENT_SCORE = 1_000; // só usado em último caso (substring parcial)
   let bestMatch: { definition: PackFieldDefinition; score: number } | null = null;
 
   for (const definition of PACK_FIELD_DEFINITIONS) {
@@ -697,11 +700,29 @@ function resolvePackFieldDefinition(itemName: string) {
 
       let score = -1;
       if (normalized === normAlias) {
-        score = 10_000 + normAlias.length;
-      } else if (normalized.includes(normAlias)) {
-        score = 1_000 + normAlias.length;
-      } else if (normAlias.includes(normalized)) {
-        score = 100 + normalized.length;
+        // Correspondência exata (nome = alias)
+        score = 50_000 + normAlias.length;
+      } else {
+        const aliasTokens = normAlias.split(' ').filter((t) => t.length > 1);
+        if (aliasTokens.length === 1) {
+          // Alias de uma palavra: só conta se for uma palavra completa no nome,
+          // nunca um fragmento (ex.: "RACAO" não pode casar dentro de "REPARACAO").
+          if (nameTokens.has(aliasTokens[0])) {
+            score = 20_000 + normAlias.length;
+          } else if (normalized.includes(normAlias)) {
+            score = FRAGMENT_SCORE + normAlias.length;
+          }
+        } else {
+          const present = aliasTokens.filter((t) => nameTokens.has(t)).length;
+          const ratio = aliasTokens.length ? present / aliasTokens.length : 0;
+          if (ratio >= 0.66 && present >= 2) {
+            score = 30_000 + Math.round(ratio * 100) + present * 10 + normAlias.length;
+          } else if (present >= 1) {
+            score = 10_000 + present * 100 + normAlias.length;
+          } else if (normalized.includes(normAlias) || normAlias.includes(normalized)) {
+            score = FRAGMENT_SCORE + normAlias.length;
+          }
+        }
       }
 
       if (score > (bestMatch?.score ?? -1)) {

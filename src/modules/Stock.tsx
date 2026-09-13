@@ -232,7 +232,7 @@ export default function Stock() {
   // Alerta visual para artigos abaixo do mínimo
   const lowStockArticles = articles.filter(a => a.stock < a.minStock);
   return (
-    <div className="max-w-2xl mx-auto px-2 sm:px-4">
+    <div className="max-w-full mx-auto px-2 sm:px-4">
       <h2 className="text-2xl font-bold mb-4">Lista de Itens de Estoque</h2>
       {lowStockArticles.length > 0 && (
         <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
@@ -259,19 +259,20 @@ export default function Stock() {
         <button type="submit" className="bg-blue-700 text-white rounded p-2">Adicionar</button>
       </form>
       <h3 className="text-xl font-semibold mb-2">Itens de Estoque</h3>
-      <div className="overflow-x-auto">
+      <div className="max-h-[70vh] overflow-auto">
         <table className="min-w-full bg-white rounded shadow mb-2 text-xs sm:text-sm">
           <thead>
             <tr className="bg-blue-100">
-              <th className="p-2 whitespace-nowrap">Descrição</th>
-              <th className="p-2 whitespace-nowrap">Tipo</th>
-              <th className="p-2 whitespace-nowrap">Código</th>
-              <th className="p-2 whitespace-nowrap">Referência</th>
-              <th className="p-2 whitespace-nowrap">Preço</th>
-              <th className="p-2 whitespace-nowrap">Quantidade</th>
-              <th className="p-2 whitespace-nowrap">Unidade</th>
-              <th className="p-2 whitespace-nowrap">Estoque</th>
-              <th className="p-2 whitespace-nowrap">Mínimo</th>
+              <th className="sticky top-0 z-30 bg-blue-100 left-0 border-r border-gray-200 p-2 whitespace-nowrap">Descrição</th>
+              <th className="sticky top-0 z-20 bg-blue-100 p-2 whitespace-nowrap">Tipo</th>
+              <th className="sticky top-0 z-20 bg-blue-100 p-2 whitespace-nowrap">Código</th>
+              <th className="sticky top-0 z-20 bg-blue-100 p-2 whitespace-nowrap">Referência</th>
+              <th className="sticky top-0 z-20 bg-blue-100 p-2 whitespace-nowrap">Preço</th>
+              <th className="sticky top-0 z-20 bg-blue-100 p-2 whitespace-nowrap">Quantidade</th>
+              <th className="sticky top-0 z-20 bg-blue-100 p-2 whitespace-nowrap">Unidade</th>
+              <th className="sticky top-0 z-20 bg-blue-100 p-2 whitespace-nowrap">Estoque</th>
+              <th className="sticky top-0 z-20 bg-blue-100 p-2 whitespace-nowrap">Mínimo</th>
+              <th className="sticky top-0 z-30 bg-blue-100 right-0 border-l border-gray-200 p-2 whitespace-nowrap">Ações</th>
             </tr>
           </thead>
           <tbody>
@@ -284,8 +285,8 @@ export default function Stock() {
                 (i.code && i.code.toLowerCase().includes(search.toLowerCase()))
               )
             ).map((i) => (
-              <tr key={i.id} className="border-t align-top">
-                <td className="p-2 whitespace-nowrap">{i.descricao || i.name}</td>
+              <tr key={i.id} className="border-t bg-white align-top hover:bg-slate-50">
+                <td className="sticky left-0 z-10 bg-inherit border-r border-gray-200 p-2 whitespace-nowrap">{i.descricao || i.name}</td>
                 <td className="p-2 whitespace-nowrap">{i.type}</td>
                 <td className="p-2 whitespace-nowrap">{i.code}</td>
                 <td className="p-2 whitespace-nowrap">{i.referencia || ""}</td>
@@ -294,7 +295,7 @@ export default function Stock() {
                 <td className="p-2 whitespace-nowrap">{i.unit}</td>
                 <td className="p-2 whitespace-nowrap">{i.stock}</td>
                 <td className="p-2 whitespace-nowrap">{i.minStock}</td>
-                <td className="p-2 whitespace-nowrap">
+                <td className="sticky right-0 z-10 bg-inherit border-l border-gray-200 p-2 whitespace-nowrap">
                   <div className="flex gap-1">
                     <button className="bg-blue-500 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs" title="Visualizar" onClick={() => setViewModal({open:true, item:i})}>👁️</button>
                     <button className="bg-yellow-500 hover:bg-yellow-600 text-white px-2 py-1 rounded text-xs" title="Editar" onClick={() => setEditModal({open:true, item:i})}>✏️</button>

@@ -1,7 +1,8 @@
 import prisma from "@/lib/prisma";
 import { certificateItemHasManagedValidity } from "@/lib/certificate-validity";
 import { stockItemSupportsValidity } from "@/lib/stock-validity";
-import { getMandatoryPackItemsForRaft, type MandatoryPackItem } from "@/modules/rafts/mandatoryPack";
+import { resolveMandatoryPackItemsForRaftAsync } from "@/lib/custom-pack-types";
+import { type MandatoryPackItem } from "@/modules/rafts/mandatoryPack";
 
 export type StockNeedsScope = "all" | "jangadas-ocean" | "";
 
@@ -44,6 +45,7 @@ export type NeedRow = {
   reorderQty: number;
   safetyBuffer: number;
   orderLimitDate: string;
+  leadTimeDias: number;
   avgPrice: number;
   consumoHistorico90d: number;
   consumoMedioMensal: number;
@@ -104,6 +106,7 @@ export type StockNeedsResult = {
     reorderQty: number;
     safetyBuffer: number;
     orderLimitDate: string;
+    leadTimeDias: number;
     supplier: string;
     avgPrice: number;
     raftCount: number;
@@ -129,7 +132,9 @@ type StockRecord = {
   descricao: string;
   referencia: string;
   quantidade: number;
+  quantidadeReservada?: number | null;
   quantidadeMinima?: number | null;
+  leadTimeDias?: number | null;
   categoria?: string | null;
   testeHidraulico?: string | null;
   estadoCargaCilindro?: string | null;
@@ -151,8 +156,9 @@ type StockRecord = {
   hasValidity?: boolean;
 };
 
-const LEAD_TIME_DAYS = 15;
+const DEFAULT_LEAD_TIME_DAYS = 15;
 const SAFETY_RATIO = 0.15;
+const SAFETY_Z = 1.65; // nível de serviço ~95%
 const HIST_BLEND = 0.35;
 
 function normalizeText(value: string | null | undefined) {
@@ -213,6 +219,33 @@ function resolveSupplierForItem(item: MandatoryPackItem): string {
   return "Armazém Central (Estação de Serviço de Lisboa)";
 }
 
+function resolveLeadTimeDays(matched: StockRecord[]): number {
+  const times = matched
+    .map((s) => Number(s.leadTimeDias) || 0)
+    .filter((d) => d > 0);
+  return times.length ? Math.max(...times) : DEFAULT_LEAD_TIME_DAYS;
+}
+
+function monthlyStdDev(values: number[]): number {
+  const numeric = values.filter((v) => Number.isFinite(v) && v >= 0);
+  if (numeric.length < 2) return 0;
+  const mean = numeric.reduce((a, b) => a + b, 0) / numeric.length;
+  const variance =
+    numeric.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / numeric.length;
+  return Math.sqrt(variance);
+}
+
+function computeSafetyStock(avgMonthlyDemand: number, monthlyConsumption: number[], leadDays: number): number {
+  const leadMonths = Math.max(1, (leadDays || DEFAULT_LEAD_TIME_DAYS) / 30);
+  const stdDev = monthlyStdDev(monthlyConsumption);
+  // Stock de segurança = z × σ × √(lead time em meses), quando há histórico de consumo
+  if (stdDev > 0 && avgMonthlyDemand > 0) {
+    return Math.ceil(SAFETY_Z * stdDev * Math.sqrt(leadMonths));
+  }
+  // Sem histórico, usa razão simples sobre a procura média mensal projetada
+  return Math.ceil(avgMonthlyDemand * leadMonths * SAFETY_RATIO);
+}
+
 function isCylinderLike(record: Pick<StockRecord, "descricao" | "referencia" | "categoria">) {
   const haystack = normalizeText([record.descricao, record.referencia, record.categoria].filter(Boolean).join(" "));
   return /(CILINDR|CO2|N2|BOTTLE|GARRAFA)/.test(haystack);
@@ -234,31 +267,24 @@ function toMonthly(month: string, quantidade: number, jangadas?: MonthlyNeed["ja
 
 async function fetchStockRaw(stockScope: string): Promise<StockRecord[]> {
   try {
-    const where: Record<string, unknown> = {};
-    if (stockScope === "jangadas-ocean") {
-      where.OR = [
-        { associavelJangada: true },
-        {
-          AND: [
-            { aplicavelMarcaJangada: { contains: "ocean safety" } },
-            { codigoFabricante: { not: null } },
-            { codigoFabricante: { not: "" } },
-          ],
-        },
-      ];
-    }
-
+    // O motor de necessidades resolve a procura dos packs contra o inventário
+    // completo: restringir a associavelJangada=true exclui consumíveis que são
+    // repostos nas jangadas (rações 30202084, kits de reparação, água, pilhas...),
+    // deixando as necessidades sem stock correspondente (stock:0 matched:empty).
+    // O scope "jangadas-ocean" continua a aplicar-se ao catálogo visível (fetchItens).
+    void stockScope;
     return (await prisma.stock.findMany({
-      where,
       select: {
         id: true,
         descricao: true,
         referencia: true,
         quantidade: true,
+        quantidadeReservada: true,
         categoria: true,
         testeHidraulico: true,
         estadoCargaCilindro: true,
         quantidadeMinima: true,
+        leadTimeDias: true,
         precoVenda: true,
         estadoArtigo: true,
       },
@@ -293,8 +319,11 @@ async function fetchCertificadosValidades() {
   }
 }
 
-async function fetchConsumoHistorico90d(): Promise<Map<string, number>> {
-  const map = new Map<string, number>();
+type ConsumoItem = { total: number; meses: number[] };
+type ConsumoHistorico = Map<string, ConsumoItem>;
+
+async function fetchConsumoHistorico90d(): Promise<ConsumoHistorico> {
+  const map = new Map<string, Map<string, number>>();
   try {
     const since = new Date();
     since.setDate(since.getDate() - 90);
@@ -302,18 +331,31 @@ async function fetchConsumoHistorico90d(): Promise<Map<string, number>> {
       where: { createdAt: { gte: since }, tipo: "saida" },
       select: {
         quantidade: true,
+        createdAt: true,
         stock: { select: { referencia: true } },
       },
     });
     for (const m of movimentos) {
       const ref = normalizeRef(m.stock?.referencia);
       if (!ref) continue;
-      map.set(ref, (map.get(ref) || 0) + Math.abs(Number(m.quantidade) || 0));
+      const qty = Math.abs(Number(m.quantidade) || 0);
+      const mk = monthKey(m.createdAt);
+      const byMonth = map.get(ref) || new Map<string, number>();
+      byMonth.set(mk, (byMonth.get(mk) || 0) + qty);
+      map.set(ref, byMonth);
     }
   } catch {
     // ignore
   }
-  return map;
+  const result = new Map<string, ConsumoItem>();
+  for (const [ref, byMonth] of map) {
+    const meses = Array.from(byMonth.values());
+    result.set(ref, {
+      total: meses.reduce((a, b) => a + b, 0),
+      meses: meses.sort((a, b) => b - a),
+    });
+  }
+  return result;
 }
 
 function buildStockIndexes(stockItems: StockRecord[]) {
@@ -404,12 +446,13 @@ export async function computeStockNeeds(options?: {
   for (const raft of within12m) {
     let items: MandatoryPackItem[] = [];
     try {
-      items = getMandatoryPackItemsForRaft({
+      const resolved = await resolveMandatoryPackItemsForRaftAsync({
         brand: raft.brand,
         model: raft.model,
         packType: raft.packType,
         capacity: raft.capacity,
       });
+      items = resolved.items || [];
     } catch {
       continue;
     }
@@ -423,15 +466,12 @@ export async function computeStockNeeds(options?: {
       if (item.optional) continue;
       const primaryRef = item.reference || item.stockReferences[0] || "";
       const key = primaryRef ? `ref:${normalizeRef(primaryRef)}` : `name:${item.checklistName}`;
-      const itemHasValidity =
-        certificateItemHasManagedValidity(item.label) ||
-        certificateItemHasManagedValidity(item.checklistName) ||
-        stockItemSupportsValidity({
-          nome: item.label,
-          descricao: item.label,
-          categoria: item.category,
-          referencia: primaryRef,
-        });
+      const itemHasValidity = stockItemSupportsValidity({
+        nome: item.label,
+        descricao: item.label,
+        categoria: item.category,
+        referencia: primaryRef,
+      });
 
       let entry = demandMap.get(key);
       if (!entry) {
@@ -480,7 +520,10 @@ export async function computeStockNeeds(options?: {
 
   const needs: NeedRow[] = Array.from(demandMap.values()).map((demand) => {
     const { matched, matchedBy } = findStockForDemand(stockItems, byRef, demand);
-    const stockAvailable = matched.reduce((acc, s) => acc + (Number(s.quantidade) || 0), 0);
+    const stockAvailable = matched.reduce(
+      (acc, s) => acc + Math.max(0, (Number(s.quantidade) || 0) - (Number(s.quantidadeReservada) || 0)),
+      0
+    );
     const minQty = Math.max(...matched.map((s) => Number(s.quantidadeMinima) || 0), 0);
     const avgPrice = matched.length
       ? matched.reduce((acc, s) => acc + (Number(s.precoVenda) || 0), 0) / matched.length
@@ -492,7 +535,9 @@ export async function computeStockNeeds(options?: {
     const demand12m = demand.byWindow["12m"] || 0;
 
     const refKey = normalizeRef(matched[0]?.referencia || demand.reference);
-    const consumoHistorico90d = consumoMap.get(refKey) || 0;
+    const consumo = consumoMap.get(refKey);
+    const consumoHistorico90d = consumo?.total || 0;
+    const consumoMeses = consumo?.meses || [];
     const consumoMedioMensal = consumoHistorico90d / 3;
     const demandaAjustada90d = Math.ceil(
       demand90d * (1 - HIST_BLEND) + Math.max(consumoHistorico90d, demand90d * 0.25) * HIST_BLEND
@@ -500,18 +545,19 @@ export async function computeStockNeeds(options?: {
 
     const planningDemand = Math.max(demandaAjustada90d, minQty > 0 && stockAvailable <= minQty ? minQty : 0);
     const isLow = stockAvailable < planningDemand || (minQty > 0 && stockAvailable <= minQty);
-    const safetyBuffer = Math.ceil(planningDemand * SAFETY_RATIO);
+    const leadTimeDias = resolveLeadTimeDays(matched);
+    const safetyBuffer = computeSafetyStock(planningDemand / 3, consumoMeses, leadTimeDias);
     const reorderQty = isLow ? Math.max(0, planningDemand - stockAvailable + safetyBuffer) : 0;
 
     let orderLimitDate = "";
     if (reorderQty > 0) {
       if (earliest90?.dataProxInspecao) {
         const inspDate = parseDate(earliest90.dataProxInspecao)!;
-        inspDate.setDate(inspDate.getDate() - LEAD_TIME_DAYS);
+        inspDate.setDate(inspDate.getDate() - leadTimeDias);
         orderLimitDate = inspDate.toISOString().slice(0, 10);
       } else {
         const limit = new Date(now);
-        limit.setDate(limit.getDate() + 30);
+        limit.setDate(limit.getDate() + leadTimeDias);
         orderLimitDate = limit.toISOString().slice(0, 10);
       }
     }
@@ -547,6 +593,7 @@ export async function computeStockNeeds(options?: {
       reorderQty,
       safetyBuffer,
       orderLimitDate,
+      leadTimeDias,
       avgPrice,
       consumoHistorico90d,
       consumoMedioMensal: Math.round(consumoMedioMensal * 10) / 10,
@@ -561,14 +608,7 @@ export async function computeStockNeeds(options?: {
         qty: s.quantidade,
       })),
       stockId: matched[0]?.id ?? null,
-      hasValidity: Boolean(demand.hasValidity) || matched.some((s) =>
-        stockItemSupportsValidity({
-          nome: s.descricao,
-          descricao: s.descricao,
-          categoria: s.categoria,
-          referencia: s.referencia,
-        })
-      ),
+      hasValidity: Boolean(demand.hasValidity),
       // internal for stockNeeds mapping
       ...({ _matchedBy: matchedBy } as any),
     };
@@ -580,9 +620,12 @@ export async function computeStockNeeds(options?: {
     return b.necessidade90d - a.necessidade90d;
   });
 
+  // Previsões e necessidades são calculadas apenas para artigos com validade gerida
+  const validityNeeds = needs.filter((n) => n.hasValidity);
+
   // Per-stock-id rows for catalogue / home
   const stockNeedsMap = new Map<number, StockNeedById>();
-  for (const need of needs as Array<NeedRow & { _matchedBy?: "referencia" | "nome" | null }>) {
+  for (const need of validityNeeds as Array<NeedRow & { _matchedBy?: "referencia" | "nome" | null }>) {
     const targets = need.stockMatched.length
       ? need.stockMatched
       : need.stockId
@@ -631,8 +674,7 @@ export async function computeStockNeeds(options?: {
   });
 
   const monthlyTotalsMap = new Map<string, number>();
-  for (const need of needs) {
-    if (!need.hasValidity) continue;
+  for (const need of validityNeeds) {
     for (const m of need.mensal) {
       monthlyTotalsMap.set(m.month, (monthlyTotalsMap.get(m.month) || 0) + m.quantidade);
     }
@@ -653,15 +695,15 @@ export async function computeStockNeeds(options?: {
     .filter((s) => isHydraulicTestValidForWindow(s.testeHidraulico, 30, now))
     .reduce((acc, s) => acc + Number(s.quantidade || 0), 0);
 
-  const totalCost = needs.reduce((acc, n) => acc + n.reorderQty * n.avgPrice, 0);
-  const alertCount = needs.filter((n) => !n.suficiente).length;
-  const quantidadeTotalNecessaria12m = needs.reduce((acc, n) => acc + n.necessidade12m, 0);
-  const jangadasAfetadas = new Set(needs.flatMap((n) => n.jangadasAfetadas)).size;
-  const coveragePercent = needs.length
-    ? Math.round(((needs.length - alertCount) / needs.length) * 100)
+  const totalCost = validityNeeds.reduce((acc, n) => acc + n.reorderQty * n.avgPrice, 0);
+  const alertCount = validityNeeds.filter((n) => !n.suficiente).length;
+  const quantidadeTotalNecessaria12m = validityNeeds.reduce((acc, n) => acc + n.necessidade12m, 0);
+  const jangadasAfetadas = new Set(validityNeeds.flatMap((n) => n.jangadasAfetadas)).size;
+  const coveragePercent = validityNeeds.length
+    ? Math.round(((validityNeeds.length - alertCount) / validityNeeds.length) * 100)
     : 100;
 
-  const suggestions = needs.map((n) => ({
+  const suggestions = validityNeeds.map((n) => ({
     reference: n.referencia,
     label: n.nome,
     category: n.categoria,
@@ -679,6 +721,7 @@ export async function computeStockNeeds(options?: {
     reorderQty: n.reorderQty,
     safetyBuffer: n.safetyBuffer,
     orderLimitDate: n.orderLimitDate,
+    leadTimeDias: n.leadTimeDias,
     supplier: n.fornecedor,
     avgPrice: n.avgPrice,
     raftCount: n.jangadasCount,
@@ -689,13 +732,11 @@ export async function computeStockNeeds(options?: {
   }));
 
   // strip internal fields
-  const cleanNeeds: NeedRow[] = needs
-    .filter((n) => n.hasValidity)
-    .map((n) => {
-      const { _matchedBy, ...rest } = n as NeedRow & { _matchedBy?: unknown };
-      void _matchedBy;
-      return rest;
-    });
+  const cleanNeeds: NeedRow[] = validityNeeds.map((n) => {
+    const { _matchedBy, ...rest } = n as NeedRow & { _matchedBy?: unknown };
+    void _matchedBy;
+    return rest;
+  });
 
   return {
     generatedAt: new Date().toISOString(),
