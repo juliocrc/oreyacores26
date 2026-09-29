@@ -7,6 +7,7 @@ import { useFatoImersaoWizardStore } from "./store/useFatoImersaoWizardStore";
 import { evaluateOverallResult, BER_CODES } from "@/lib/fatos-imersao-checklist";
 import { toDisplayDate } from "@/lib/fato-date-utils";
 import { appToast } from "@/lib/app-toast";
+import { performOfflineAwareJsonRequest } from "@/lib/offline-sync/client";
 
 type Props = { onPrev: () => void };
 
@@ -38,10 +39,10 @@ export default function Step5_Finalizar({ onPrev }: Props) {
             ? "Manutenção"
             : "Ativo";
 
-      await fetch(`/api/fatos-imersao/${fatoId}`, {
+      await performOfflineAwareJsonRequest({
+        path: `/api/fatos-imersao/${fatoId}`,
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: {
           serial: inspectionData.serial,
           marca: inspectionData.brand || undefined,
           modelo: inspectionData.model || undefined,
@@ -73,13 +74,18 @@ export default function Step5_Finalizar({ onPrev }: Props) {
           leakPressaoKpa: inspectionData.leakPressaoInicial || undefined,
           leakResultado: inspectionData.leakResultado || undefined,
           codigoBER: inspectionData.codigoBER || null,
-        }),
+        },
+        queueEntry: {
+          entityType: "fato-imersao",
+          entityId: String(fatoId),
+          summary: `Fato ${inspectionData.serial || fatoId}: inspeção`,
+        },
       });
 
-      const verRes = await fetch(`/api/fatos-imersao/${fatoId}/verificacoes`, {
+      const ver = await performOfflineAwareJsonRequest({
+        path: `/api/fatos-imersao/${fatoId}/verificacoes`,
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: {
           checklist: inspectionData.checklist,
           leakMetodo: inspectionData.leakMetodo,
           leakPressaoInicial: inspectionData.leakPressaoInicial,
@@ -97,35 +103,50 @@ export default function Step5_Finalizar({ onPrev }: Props) {
           observacoes: inspectionData.observacoes,
           dataProxInspecao: inspectionData.dataProxInspecao,
           intervaloServicoMeses: inspectionData.intervaloServicoMeses,
-        }),
+        },
+        queueEntry: {
+          entityType: "fato-imersao",
+          entityId: String(fatoId),
+          summary: `Fato ${inspectionData.serial || fatoId}: verificação`,
+        },
       });
-      if (!verRes.ok) {
-        const err = await verRes.json().catch(() => ({}));
-        throw new Error(err.message || "Erro ao gravar verificação");
+      if (!ver.queued) {
+        const err = ver.data as { message?: string } | null;
+        if (err?.message) throw new Error(err.message);
       }
 
       if (resultado === "OK") {
-        await fetch(`/api/fatos-imersao/${fatoId}/certificado`, {
+        await performOfflineAwareJsonRequest({
+          path: `/api/fatos-imersao/${fatoId}/certificado`,
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+          body: {
             resultado: "Aprovado",
             emitidoPor: inspectionData.inspectorNome || undefined,
             dataCertificado: inspectionData.dataInspecao,
             dataValidade: inspectionData.dataProxInspecao || undefined,
             observacoes: inspectionData.observacoes || undefined,
-          }),
+          },
+          queueEntry: {
+            entityType: "fato-imersao",
+            entityId: String(fatoId),
+            summary: `Fato ${inspectionData.serial || fatoId}: certificado aprovado`,
+          },
         });
       } else if (resultado === "BER") {
-        await fetch(`/api/fatos-imersao/${fatoId}/certificado`, {
+        await performOfflineAwareJsonRequest({
+          path: `/api/fatos-imersao/${fatoId}/certificado`,
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+          body: {
             resultado: "Reprovado",
             emitidoPor: inspectionData.inspectorNome || undefined,
             dataCertificado: inspectionData.dataInspecao,
             observacoes: `BER ${inspectionData.codigoBER}: ${inspectionData.motivoBER || ""}`.trim(),
-          }),
+          },
+          queueEntry: {
+            entityType: "fato-imersao",
+            entityId: String(fatoId),
+            summary: `Fato ${inspectionData.serial || fatoId}: certificado reprovado`,
+          },
         });
       }
 
@@ -134,8 +155,8 @@ export default function Step5_Finalizar({ onPrev }: Props) {
       appToast.success(resultado === "OK" ? "Inspeção concluída e certificado emitido" : "Inspeção gravada");
       router.push(`/fatos-imersao/${fatoId}`);
       router.refresh();
-    } catch (e: any) {
-      appToast.error(e.message || "Erro ao finalizar");
+    } catch (e: unknown) {
+      appToast.error(e instanceof Error ? e.message : "Erro ao finalizar");
     } finally {
       setSaving(false);
     }

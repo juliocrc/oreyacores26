@@ -687,6 +687,7 @@ export default function UtilizadoresPage() {
                   Password
                   <input
                     type="password"
+                    autoComplete="new-password"
                     value={form.password}
                     onChange={(e) => setForm((prev) => ({ ...prev, password: e.target.value }))}
                     className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2"
@@ -922,6 +923,7 @@ export default function UtilizadoresPage() {
                     Nova password
                     <input
                       type="password"
+                      autoComplete="new-password"
                       value={selectedUserForm.password}
                       onChange={(e) => setSelectedUserForm((prev) => ({ ...prev, password: e.target.value }))}
                       className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2"

@@ -3,9 +3,11 @@ import React from 'react';
 import { useJangadaWizardStore } from './store/useJangadaWizardStore';
 import { Container, Scale, Calendar, Beaker, AlertTriangle, CheckCircle2, XCircle, Gauge } from 'lucide-react';
 import { resolveNominalCharge } from '@/modules/rafts/nominalCharge';
+import { getStepNumberByKey } from './steps';
 
 export default function Step5_Cilindros() {
-  const { inspectionData, setInspectionData } = useJangadaWizardStore();
+  const { inspectionData, setInspectionData, hideOrcamento } = useJangadaWizardStore();
+  const stepNo = getStepNumberByKey(inspectionData, 'cilindros', { hideOrcamento });
 
   const cylinder = inspectionData.cylinder || {};
 
@@ -97,7 +99,7 @@ export default function Step5_Cilindros() {
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
       <div>
-        <h2 className="text-2xl font-bold text-slate-800">5. Cilindro e Teste Hidrostático</h2>
+        <h2 className="text-2xl font-bold text-slate-800">{stepNo > 0 ? `${stepNo}. ` : ''}Cilindro e Teste Hidráulico</h2>
         <p className="text-slate-600 mt-1">Registe os dados do cilindro de insuflação, pesagens de gás e as datas das provas.</p>
       </div>
 
@@ -144,7 +146,7 @@ export default function Step5_Cilindros() {
                 <Gauge className="w-4 h-4" />
                 {hydroStatus === 'expired' ? 'Expirado' : hydroStatus === 'warn' ? 'Atenção' : 'OK'}
               </p>
-              <p className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold mt-0.5">{hydroDays || 'Hidrostático'}</p>
+              <p className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold mt-0.5">{hydroDays || 'Hidráulico'}</p>
             </div>
           </div>
         );
@@ -390,13 +392,13 @@ export default function Step5_Cilindros() {
           )}
         </div>
 
-        {/* Testes Hidrostáticos */}
+        {/* Testes Hidráulicos */}
         <div className="border border-slate-200 bg-white rounded-2xl p-6 shadow-sm xl:col-span-2">
           <div className="flex items-center gap-3 mb-6">
             <div className="bg-emerald-50 p-2 rounded-lg text-emerald-600">
               <Calendar size={20} />
             </div>
-            <h3 className="text-lg font-bold text-slate-800">Testes Hidrostáticos</h3>
+            <h3 className="text-lg font-bold text-slate-800">Testes Hidráulicos</h3>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -410,7 +412,7 @@ export default function Step5_Cilindros() {
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Próximo Teste Hidrostático</label>
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Próximo Teste Hidráulico</label>
               <input 
                 type="month" 
                 value={cylinder.dataProxTeste || ''}
@@ -428,14 +430,14 @@ export default function Step5_Cilindros() {
                       return (
                         <div className="text-xs font-semibold text-red-700 flex items-center gap-1.5 mt-2 bg-red-50 p-2 rounded-xl border border-red-200 animate-pulse">
                           <AlertTriangle size={16} className="shrink-0 text-red-500" />
-                          <span>O teste hidrostático do cilindro está EXPIRADO!</span>
+                          <span>O teste hidráulico do cilindro está EXPIRADO!</span>
                         </div>
                       );
                     } else if (diffDays <= 90) {
                       return (
                         <div className="text-xs font-semibold text-amber-700 flex items-center gap-1.5 mt-2 bg-amber-50 p-2 rounded-xl border border-amber-200">
                           <AlertTriangle size={16} className="shrink-0 text-amber-500" />
-                          <span>O teste hidrostático expira em {diffDays} dias.</span>
+                          <span>O teste hidráulico expira em {diffDays} dias.</span>
                         </div>
                       );
                     }

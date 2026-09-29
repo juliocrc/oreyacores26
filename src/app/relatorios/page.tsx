@@ -14,6 +14,7 @@ import { SERVICE_STOCK_ITEMS, FIXED_ARTICLE_PRICES, RAFT_RELATED_STOCK_KEYWORDS 
 import { normalizeList, safeReadJson, formatDate, normalizeText, splitApplicability, getApplicabilityBadge, getRaftKeywordScore, getShipDisplayName, getShipOptionLabel, buildSuggestedObraNumber, toNumber, formatCurrency, isOrderClosed, isOrderLate, getPriorityWeight, resolveArticleUnitPrice, formatDateLongPt } from "@/lib/relatorios-page-helpers";
 import { IVA_ISENCAO_CODES } from "@/lib/iva-isencao-codes";
 import { buildAddressLine } from "@/lib/client-address";
+import { saveShipDocument, toastSavedPathIfPresent } from "@/lib/ship-downloads";
 
 export default function RelatoriosPage() {
   return (
@@ -709,7 +710,7 @@ function RelatoriosContent() {
     };
   }, [selectedObraPreviewLines, isIvaExempt, hasIvaDeclaration]);
 
-  const handleGenerateIvaDeclaration = () => {
+  const handleGenerateIvaDeclaration = async () => {
     if (!selectedNavio) {
       alert("Selecione primeiro o navio para gerar a declaração.");
       return;
@@ -786,14 +787,12 @@ function RelatoriosContent() {
     `;
 
     const blob = new Blob(['\ufeff' + htmlString], { type: 'application/msword' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `declaracao_isencao_iva_\${String(selectedNavio.nome || "embarcacao").replace(/\\s+/g, "_")}.doc`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    await saveShipDocument({
+      shipName: selectedNavio.nome || "embarcacao",
+      category: 'Declarações IVA',
+      filename: `declaracao_isencao_iva_${String(selectedNavio.nome || "embarcacao").replace(/\s+/g, "_")}.doc`,
+      blob,
+    });
   };
 
   const handleCreateObra = async () => {
@@ -921,6 +920,8 @@ function RelatoriosContent() {
       alert("Erro ao gerar quadro de inspeção.");
       return;
     }
+
+    if (toastSavedPathIfPresent(response, "Quadro")) return;
 
     const blob = await response.blob();
     const inspectionMonthYear = (() => {

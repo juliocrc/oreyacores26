@@ -56,16 +56,22 @@ function step1Percent(d: InspectionData) {
   return { percent: Math.round((filled / fields) * 100), missing };
 }
 
+const ALL_CHECKLIST_IDS = [
+  'cobertura_exterior', 'saida_antena', 'refletores', 'tubo_identificacao', 'costuras_juntas', 'camara_fundos', 'sistema_endireitar', 'bolsas_estabilizacao', 'luz_exterior_bateria', 'escada_borda', 'grinalda_espelhos', 'weak_link_painter',
+  'escada_entrada', 'grinalda_interior', 'anel_linha', 'faca_seguranca', 'cobertura_interior', 'fecho_cobertura', 'colectores_agua', 'manual_instrucoes', 'tecido_camara_fundo', 'luz_interior_bateria',
+  'container_estado', 'fitas_fecho', 'selo_hermetico', 'humidade_interior', 'etiqueta_servico', 'painter_reserva'
+];
+
 function step2Percent(d: InspectionData) {
   const checklist = d.checklist || {};
-  const ids = Object.keys(checklist);
-  if (ids.length === 0) return { percent: 0, missing: ['Checklist por preencher'] };
-  const answered = ids.filter((id) => has(checklist[id]?.status)).length;
-  const reprovados = ids.filter((id) => checklist[id]?.status === 'REPROVADO');
+  const total = ALL_CHECKLIST_IDS.length;
+  const answered = ALL_CHECKLIST_IDS.filter((id) => has(checklist[id]?.status)).length;
+  const reprovados = ALL_CHECKLIST_IDS.filter((id) => checklist[id]?.status === 'REPROVADO').length;
   const missing: string[] = [];
-  if (answered < ids.length) missing.push(`${ids.length - answered} item(s) sem estado`);
-  if (reprovados.length > 0) missing.push(`${reprovados.length} reprovado(s) — usar Passo Resumo`);
-  return { percent: Math.round((answered / ids.length) * 100), missing };
+  const unverified = total - answered;
+  if (unverified > 0) missing.push(`${unverified} item(s) sem estado`);
+  if (reprovados > 0) missing.push(`${reprovados} reprovado(s) — usar Passo Resumo`);
+  return { percent: Math.round((answered / total) * 100), missing };
 }
 
 function step3Percent(d: InspectionData) {

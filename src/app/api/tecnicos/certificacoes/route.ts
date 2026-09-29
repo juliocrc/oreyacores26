@@ -13,7 +13,7 @@ export async function GET(request: Request) {
       where.tecnicoId = parseInt(tecnicoId, 10);
     }
     if (fabricante) {
-      where.fabricante = { equals: fabricante, mode: 'insensitive' };
+      where.fabricante = { equals: fabricante };
     }
 
     const certs = await prisma.certificacaoFabricanteTecnico.findMany({

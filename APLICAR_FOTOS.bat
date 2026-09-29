@@ -1,6 +1,6 @@
 @echo off
 title Aplicar Mapeamento de Fotos
-cd /d "D:\Acores"
+cd /d "%~dp0"
 echo A aplicar mapeamento de fotos do photo_mapping.json...
 powershell -Command "
 $map = Get-Content 'photo_mapping.json' -Raw | ConvertFrom-Json;

@@ -247,7 +247,10 @@ export async function syncRaftArticlesWithPackType(
           if (matchedStock.validade) {
             const validity = normalizeArtigoValidade(matchedStock.validade);
             const current = normalizeArtigoValidade(existing.validade);
-            if (validity && (!current || current.getTime() !== validity.getTime())) {
+            // Só preenche validade vazia a partir do stock — nunca sobrescreve
+            // uma validade existente (manual, definida no formulário de criação
+            // ou editada na ficha).
+            if (validity && !current) {
               updateData.validade = validity;
               summary.validadeAtualizada++;
             }

@@ -4,6 +4,8 @@ import { useJangadaWizardStore } from './store/useJangadaWizardStore';
 import { Plus, Trash2, Tag, Calendar, Hash, Info, Search, AlertTriangle, ShieldCheck, BatteryFull } from 'lucide-react';
 import { raftModelData } from '../rafts/raftModelData';
 import { getInspectionIntervalYears, getInspectionIntervalLabel, getSubstitutionMaxValidityDays } from '../rafts/inspectionInterval';
+import { parseMonthYearValue, toMonthYearString, maskMonthYearInput } from '@/lib/date-utils';
+import { getStepNumberByKey } from './steps';
 
 const checkValidityWarning = (validadeStr: string, dataProxInspecao: string, dataInspecao: string, brand: string, shipDetails: any) => {
   if (!validadeStr) return null;
@@ -22,8 +24,8 @@ const checkValidityWarning = (validadeStr: string, dataProxInspecao: string, dat
   
   if (!refDateStr) return null;
   
-  const [vYear, vMonth] = validadeStr.split('-').map(Number);
-  const valDate = new Date(vYear, (vMonth || 1) - 1, 1);
+  const vParsed = parseMonthYearValue(validadeStr);
+  const valDate = vParsed ? new Date(vParsed.year, vParsed.month, 0) : new Date(NaN);
   
   const [pYear, pMonth] = refDateStr.split('-').map(Number);
   const proxDate = new Date(pYear, (pMonth || 1) - 1, 1);
@@ -48,7 +50,8 @@ const COMPONENT_TYPES = [
 ];
 
 export default function Step3_Componentes() {
-  const { inspectionData, setInspectionData } = useJangadaWizardStore();
+  const { inspectionData, setInspectionData, hideOrcamento } = useJangadaWizardStore();
+  const stepNo = getStepNumberByKey(inspectionData, 'componentes', { hideOrcamento });
 
   const componentes = inspectionData.componentes || [];
 
@@ -143,8 +146,8 @@ export default function Step3_Componentes() {
       }
     }
     if (!refDateStr) return null;
-    const [vYear, vMonth] = String(comp.validade ?? "").split('-').map(Number);
-    const valDate = new Date(vYear, (vMonth || 1) - 1, 1);
+    const vParsed = parseMonthYearValue(comp.validade);
+    const valDate = vParsed ? new Date(vParsed.year, vParsed.month - 1, 1) : new Date(NaN);
     const [rYear, rMonth] = String(refDateStr ?? "").split('-').map(Number);
     const refDate = new Date(rYear, (rMonth || 1) - 1, 1);
     if (isNaN(valDate.getTime()) || isNaN(refDate.getTime())) return null;
@@ -164,7 +167,7 @@ export default function Step3_Componentes() {
             ...c, 
             reference: stockItem.referencia, 
             stockId: stockItem.id,
-            validade: stockItem.validade || c.validade,
+            validade: toMonthYearString(stockItem.validade) || c.validade,
             serialLote: stockItem.lote || c.serialLote
           } : c
         )
@@ -188,6 +191,32 @@ export default function Step3_Componentes() {
       desc.includes('tubo');
   });
 
+  const rawStock = inspectionData.globalStock || [];
+  // Filter stock for HRU (libertador hidrostático)
+  const filteredHruStock = rawStock.filter((s: any) => {
+    const cat = (s.categoria || '').toUpperCase();
+    const desc = (s.descricao || '').toLowerCase();
+    const ref = (s.referencia || '').toLowerCase();
+    const combined = `${cat} ${desc} ${ref}`;
+    return combined.includes('HRU') || combined.includes('LIBERTADOR') ||
+      combined.includes('HYDROSTATIC') || combined.includes('HIDROSTAT') ||
+      combined.includes('HAMMAR');
+  });
+  const hruStock = filteredHruStock.length > 0 ? filteredHruStock : rawStock;
+
+  // Filter stock for luzes / baterias do coberto
+  const filteredLightStock = rawStock.filter((s: any) => {
+    const cat = (s.categoria || '').toUpperCase();
+    const desc = (s.descricao || '').toLowerCase();
+    const ref = (s.referencia || '').toLowerCase();
+    const combined = `${cat} ${desc} ${ref}`;
+    return combined.includes('LUZ') || combined.includes('LIGHT') ||
+      combined.includes('BATERIA') || combined.includes('BATERY') ||
+      combined.includes('BATTERY') || combined.includes('LITHIUM') ||
+      combined.includes('LITIO') || combined.includes('PILHA');
+  });
+  const lightStock = filteredLightStock.length > 0 ? filteredLightStock : rawStock;
+
   const [stockSearch, setStockSearch] = React.useState<Record<string, string>>({});
 
   const HRU_TYPE_OPTIONS = [
@@ -204,7 +233,56 @@ export default function Step3_Componentes() {
   ];
 
   const updateHruField = (field: string, value: string) => {
+    if (field === 'hruExpiry') {
+      setInspectionData({ hruExpiry: value, hruValidade: value });
+      return;
+    }
+    if (field === 'hruDataInstalacao') {
+      let calculatedExpiry = inspectionData.hruExpiry;
+      const parsed = parseMonthYearValue(value);
+      if (parsed) {
+        const newYear = parsed.year + 2;
+        calculatedExpiry = `${String(parsed.month).padStart(2, '0')}/${newYear}`;
+      }
+      setInspectionData({ hruDataInstalacao: value, hruExpiry: calculatedExpiry, hruValidade: calculatedExpiry });
+      return;
+    }
     setInspectionData({ [field]: value } as any);
+  };
+
+  const handleHruStockSelect = (stockIdStr: string) => {
+    const stockId = parseInt(stockIdStr, 10);
+    const stockItem = inspectionData.globalStock?.find((s: any) => s.id === stockId);
+    if (stockItem) {
+      setInspectionData({
+        hruReference: stockItem.referencia,
+        hruStockId: stockItem.id,
+        hruSerial: stockItem.lote || (inspectionData.hruSerial || ''),
+        hruTipo: (inspectionData.hruTipo || '').trim() || 'DESCONHECIDO',
+        hruExpiry: toMonthYearString(stockItem.validade) || inspectionData.hruExpiry,
+        hruValidade: toMonthYearString(stockItem.validade) || inspectionData.hruExpiry,
+      });
+    }
+  };
+
+  const handleLightStockSelect = (itemId: string, stockIdStr: string) => {
+    const stockId = parseInt(stockIdStr, 10);
+    const stockItem = inspectionData.globalStock?.find((s: any) => s.id === stockId);
+    if (stockItem) {
+      const current = inspectionData.checklist?.[itemId] || {};
+      setInspectionData({
+        checklist: {
+          ...(inspectionData.checklist || {}),
+          [itemId]: {
+            ...current,
+            stockId: stockItem.id,
+            referencia: stockItem.referencia,
+            validade: toMonthYearString(stockItem.validade) || current.validade || '',
+            voltagem: current.voltagem || '',
+          },
+        },
+      });
+    }
   };
 
   const updateLightItem = (itemId: string, field: string, value: string) => {
@@ -219,10 +297,10 @@ export default function Step3_Componentes() {
 
   const checkExpiry = (validade: string, referenceDate: string) => {
     if (!validade || !referenceDate) return null;
-    const [vYear, vMonth] = validade.split('-').map(Number);
-    const valDate = new Date(vYear, (vMonth || 1) - 1, 1);
-    const [rYear, rMonth] = referenceDate.split('-').map(Number);
-    const refDate = new Date(rYear, (rMonth || 1) - 1, 1);
+    const vParsed = parseMonthYearValue(validade);
+    const valDate = vParsed ? new Date(vParsed.year, vParsed.month, 0) : new Date(NaN);
+    const rParsed = parseMonthYearValue(referenceDate);
+    const refDate = rParsed ? new Date(rParsed.year, rParsed.month - 1, 1) : new Date(NaN);
     if (isNaN(valDate.getTime()) || isNaN(refDate.getTime())) return null;
     return valDate < refDate ? 'expired' : 'ok';
   };
@@ -248,7 +326,7 @@ export default function Step3_Componentes() {
     <div className="space-y-8 animate-in fade-in duration-300">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">3. Componentes Críticos & Válvulas</h2>
+          <h2 className="text-2xl font-bold text-slate-800">{stepNo > 0 ? `${stepNo}. ` : ''}Componentes Críticos & Válvulas</h2>
           <p className="text-slate-600 mt-1">Registe as válvulas e cabeças substituídas ou inspecionadas.</p>
         </div>
         <button 
@@ -303,7 +381,7 @@ export default function Step3_Componentes() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div className="space-y-1.5">
             <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Tipo de HRU</label>
             <select
@@ -328,11 +406,36 @@ export default function Step3_Componentes() {
             />
           </div>
           <div className="space-y-1.5">
-            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Validade</label>
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">N.º de Série</label>
             <input
-              type="month"
+              type="text"
+              placeholder="N.º de série"
+              value={inspectionData.hruSerial || ''}
+              onChange={(e) => updateHruField('hruSerial', e.target.value)}
+              className="w-full border rounded-xl px-3 py-2.5 bg-slate-50 focus:bg-white text-sm transition-colors"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Data de Instalação</label>
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="MM/AAAA"
+              maxLength={7}
+              value={String(inspectionData.hruDataInstalacao || '')}
+              onChange={(e) => updateHruField('hruDataInstalacao', maskMonthYearInput(e.target.value))}
+              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50 focus:bg-white text-sm transition-colors"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Validade (+2 anos)</label>
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="MM/AAAA"
+              maxLength={7}
               value={inspectionData.hruExpiry || ''}
-              onChange={(e) => updateHruField('hruExpiry', e.target.value)}
+              onChange={(e) => updateHruField('hruExpiry', maskMonthYearInput(e.target.value))}
               className={`w-full border rounded-xl px-3 py-2.5 bg-slate-50 focus:bg-white text-sm transition-colors ${
                 hruExpiryStatus === 'expired'
                   ? 'border-red-300 ring-2 ring-red-100 bg-red-50 text-red-900'
@@ -340,6 +443,47 @@ export default function Step3_Componentes() {
               }`}
             />
           </div>
+        </div>
+
+        <div className="mt-4 space-y-1.5">
+          <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Artigo de Stock (HRU)</label>
+          {hruStock.length > 0 ? (
+            <>
+              <div className="relative mb-1.5">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Search size={14} className="text-slate-400" />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Procurar por referência, descrição ou stock..."
+                  value={stockSearch['hru'] || ''}
+                  onChange={(e) => setStockSearch((prev) => ({ ...prev, hru: e.target.value }))}
+                  className="w-full border-slate-200 rounded-xl pl-9 pr-3 py-2.5 bg-slate-50 focus:bg-white text-sm transition-colors"
+                />
+              </div>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Tag size={14} className="text-slate-400" />
+                </div>
+                <select
+                  value={inspectionData.hruStockId || ""}
+                  onChange={(e) => { handleHruStockSelect(e.target.value); setStockSearch((prev) => ({ ...prev, hru: '' })); }}
+                  className="w-full border-slate-200 rounded-xl pl-9 pr-3 py-2.5 bg-slate-50 focus:bg-white text-sm transition-colors"
+                >
+                  <option value="">Selecionar HRU do armazém...</option>
+                  {searchFilteredStock('hru', hruStock).map((s: any) => (
+                    <option key={s.id} value={s.id}>
+                      {s.referencia} - {s.descricao} {s.validade ? `(Val: ${toMonthYearString(s.validade)})` : ''} {s.quantidade > 0 ? `(Qtd: ${s.quantidade})` : '(Sem Stock)'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
+          ) : (
+            <div className="w-full border border-dashed border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50 text-xs text-slate-400 italic">
+              Nenhum artigo HRU disponível no stock para esta categoria
+            </div>
+          )}
         </div>
 
         {hruExpiryStatus === 'expired' && (
@@ -374,7 +518,7 @@ export default function Step3_Componentes() {
 
       {/* Luzes do Coberto & Baterias */}
       <div className="border border-slate-200 rounded-2xl bg-white p-6 shadow-sm">
-        <div className="flex items-center gap-3 mb-5">
+        <div className="flex items-center gap-3 mb-2">
           <div className="bg-amber-50 p-2 rounded-lg text-amber-600">
             <BatteryFull size={20} />
           </div>
@@ -384,13 +528,91 @@ export default function Step3_Componentes() {
           </div>
         </div>
 
+        <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Indique, por luz, se está instalada na jangada</p>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[
             { itemId: 'luz_exterior_bateria', label: 'Coberto Exterior', item: luzExteriorItem, statusCheck: luzExteriorStatus },
             { itemId: 'luz_interior_bateria', label: 'Coberto Interior', item: luzInteriorItem, statusCheck: luzInteriorStatus },
-          ].map(({ itemId, label, item, statusCheck }) => (
-            <div key={itemId} className="rounded-xl border border-slate-200 p-4 space-y-3">
-              <p className="text-sm font-bold text-slate-800">Luz — {label}</p>
+          ].map(({ itemId, label, item, statusCheck }) => {
+            const installed = !['NA', 'N/A'].includes(String(item.status || '').toUpperCase());
+            const setLightInstalled = (v: boolean) => {
+              const current = inspectionData.checklist?.[itemId] || {};
+              setInspectionData({
+                checklist: {
+                  ...(inspectionData.checklist || {}),
+                  [itemId]: { ...current, status: v ? 'OK' : 'NA' },
+                },
+              });
+            };
+            return (
+            <div key={itemId} className={`rounded-xl border p-4 space-y-3 ${installed ? 'border-slate-200' : 'border-slate-200 bg-slate-50 opacity-75'}`}>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-bold text-slate-800">Luz — {label}</p>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setLightInstalled(true)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all ${installed ? 'bg-emerald-50 border-emerald-300 text-emerald-700' : 'bg-white border-slate-200 text-slate-500 hover:border-emerald-300'}`}>
+                    👍 Sim
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLightInstalled(false)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all ${!installed ? 'bg-slate-200 border-slate-300 text-slate-700' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'}`}>
+                    🚫 Não
+                  </button>
+                </div>
+              </div>
+              {!installed ? (
+                <p className="text-xs text-slate-400 italic">Jangada sem esta luz instalada — não aplicável.</p>
+              ) : (<>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Artigo de Stock (luz/bateria)</label>
+                {lightStock.length > 0 ? (
+                  <>
+                    <div className="relative mb-1.5">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Search size={14} className="text-slate-400" />
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Procurar por referência, descrição ou stock..."
+                        value={stockSearch[itemId] || ''}
+                        onChange={(e) => setStockSearch((prev) => ({ ...prev, [itemId]: e.target.value }))}
+                        className="w-full border-slate-200 rounded-xl pl-9 pr-3 py-2.5 bg-slate-50 focus:bg-white text-sm transition-colors"
+                      />
+                    </div>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Tag size={14} className="text-slate-400" />
+                      </div>
+                      <select
+                        value={item.stockId || ""}
+                        onChange={(e) => { handleLightStockSelect(itemId, e.target.value); setStockSearch((prev) => ({ ...prev, [itemId]: '' })); }}
+                        className="w-full border-slate-200 rounded-xl pl-9 pr-3 py-2.5 bg-slate-50 focus:bg-white text-sm transition-colors"
+                      >
+                        <option value="">Selecionar luz/bateria do armazém...</option>
+                        {searchFilteredStock(itemId, lightStock).map((s: any) => (
+                          <option key={s.id} value={s.id}>
+                            {s.referencia} - {s.descricao} {s.validade ? `(Val: ${toMonthYearString(s.validade)})` : ''} {s.quantidade > 0 ? `(Qtd: ${s.quantidade})` : '(Sem Stock)'}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                ) : (
+                  <div className="w-full border border-dashed border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50 text-xs text-slate-400 italic">
+                    Nenhuma luz/bateria disponível no stock
+                  </div>
+                )}
+              </div>
+              {item.referencia && (
+                <p className="text-[11px] font-semibold text-slate-500 flex items-center gap-1.5">
+                  <Tag size={12} className="shrink-0 text-slate-400" />
+                  {item.referencia}
+                </p>
+              )}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Estado da luz/bateria</label>
                 <select
@@ -404,30 +626,21 @@ export default function Step3_Componentes() {
                   ))}
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Validade da bateria</label>
-                  <input
-                    type="month"
-                    value={item.validade || ''}
-                    onChange={(e) => updateLightItem(itemId, 'validade', e.target.value)}
-                    className={`w-full border rounded-xl px-3 py-2.5 bg-slate-50 focus:bg-white text-sm transition-colors ${
-                      statusCheck === 'expired'
-                        ? 'border-red-300 ring-2 ring-red-100 bg-red-50 text-red-900'
-                        : 'border-slate-200'
-                    }`}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Voltagem (V)</label>
-                  <input
-                    type="text"
-                    placeholder="Ex: 4.1"
-                    value={item.voltagem || ''}
-                    onChange={(e) => updateLightItem(itemId, 'voltagem', e.target.value)}
-                    className="w-full border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50 focus:bg-white text-sm transition-colors"
-                  />
-                </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Validade da bateria / luz</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="MM/AAAA"
+                  maxLength={7}
+                  value={item.validade || ''}
+                  onChange={(e) => updateLightItem(itemId, 'validade', maskMonthYearInput(e.target.value))}
+                  className={`w-full border rounded-xl px-3 py-2.5 bg-slate-50 focus:bg-white text-sm transition-colors ${
+                    statusCheck === 'expired'
+                      ? 'border-red-300 ring-2 ring-red-100 bg-red-50 text-red-900'
+                      : 'border-slate-200'
+                  }`}
+                />
               </div>
               {statusCheck === 'expired' && (
                 <p className="text-[11px] font-semibold text-red-700 flex items-center gap-1.5 bg-red-50 border border-red-200 rounded-lg px-2 py-1.5">
@@ -435,8 +648,10 @@ export default function Step3_Componentes() {
                   Bateria expirada ({item.validade}) — substituir.
                 </p>
               )}
+              </>)}
             </div>
-          ))}
+            );
+          })}
         </div>
 
         <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600 leading-relaxed">
@@ -556,9 +771,12 @@ export default function Step3_Componentes() {
                       <Calendar size={14} className="text-slate-400" />
                     </div>
                     <input 
-                      type="month" 
-                      value={comp.validade}
-                      onChange={(e) => updateComponent(comp.id, 'validade', e.target.value)}
+                      type="text" 
+                      inputMode="numeric"
+                      placeholder="MM/AAAA"
+                      maxLength={7}
+                      value={toMonthYearString(comp.validade)}
+                      onChange={(e) => updateComponent(comp.id, 'validade', maskMonthYearInput(e.target.value))}
                       className={`w-full border rounded-xl pl-9 pr-3 py-2.5 bg-slate-50 focus:bg-white text-sm transition-colors ${
                         isWarning
                           ? 'border-amber-300 ring-2 ring-amber-100 bg-amber-50 focus:ring-amber-200 text-amber-900'

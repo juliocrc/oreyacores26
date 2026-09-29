@@ -7,6 +7,7 @@ import { formatDate, calculateQueda, formatMonthYear } from '@/lib/inspecao-deta
 import { formatValidityDisplay } from '@/lib/date-display';
 import { fmtPeso } from '@/lib/liferaft-diagram-helpers';
 import { buildWpDerivedValues, buildQuadroChecklistPayload } from '@/lib/quadro-payload';
+import { saveShipDocument, saveCertificateDocument, yearFromDate, toastSavedPathIfPresent } from '@/lib/ship-downloads';
 import type { Inspecao, InspecaoDetalhesDialogProps } from '@/types/inspecao-detalhes-dialog';
 
 export function InspecaoDetalhesDialog({
@@ -354,15 +355,14 @@ export function InspecaoDetalhesDialog({
 
       if (!res.ok) throw new Error('Falha ao gerar o certificado');
 
+      if (toastSavedPathIfPresent(res, 'Certificado')) return;
+
       const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${payload.certNumber} ${payload.shipName}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+      await saveCertificateDocument({
+        year: yearFromDate(payload.inspectionDate),
+        filename: `${payload.certNumber} ${payload.shipName}.xlsx`,
+        blob,
+      });
     } catch (error: any) {
       alert('Erro ao exportar certificado histórico: ' + error.message);
     }
@@ -442,20 +442,19 @@ export function InspecaoDetalhesDialog({
 
       if (!res.ok) throw new Error('Falha ao gerar o quadro');
 
+      if (toastSavedPathIfPresent(res, 'Quadro')) return;
+
       const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      
       const inspectionDate = new Date(payload.inspectionDate);
       const month = String(inspectionDate.getMonth() + 1).padStart(2, '0');
       const year = inspectionDate.getFullYear();
       const monthYear = `${month} ${year}`;
-      a.download = `${payload.raftSerial} ${payload.raftModel} ${payload.raftCapacity}P (${monthYear}).xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+      await saveShipDocument({
+        shipName: payload.shipName || inspecao.navioNome || '',
+        category: 'Quadros',
+        filename: `${payload.raftSerial} ${payload.raftModel} ${payload.raftCapacity}P (${monthYear}).xlsx`,
+        blob,
+      });
     } catch (error: any) {
       alert('Erro ao exportar quadro histórico: ' + error.message);
     }
@@ -535,20 +534,19 @@ export function InspecaoDetalhesDialog({
 
       if (!res.ok) throw new Error('Falha ao gerar o PDF');
 
+      if (toastSavedPathIfPresent(res, 'Quadro PDF')) return;
+
       const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      
       const inspectionDate = new Date(payload.inspectionDate);
       const month = String(inspectionDate.getMonth() + 1).padStart(2, '0');
       const year = inspectionDate.getFullYear();
       const monthYear = `${month} ${year}`;
-      a.download = `${payload.raftSerial} ${payload.raftModel} ${payload.raftCapacity}P (${monthYear}).pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+      await saveShipDocument({
+        shipName: payload.shipName || inspecao.navioNome || '',
+        category: 'Quadros',
+        filename: `${payload.raftSerial} ${payload.raftModel} ${payload.raftCapacity}P (${monthYear}).pdf`,
+        blob,
+      });
     } catch (error: any) {
       alert('Erro ao exportar quadro histórico PDF: ' + error.message);
     }

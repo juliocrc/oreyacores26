@@ -287,6 +287,33 @@ export function normalizeStockReferenceByRule(
     return HRU_STOCK_REFERENCE;
   }
 
+  if (
+    PYRO_PARACHUTE_CANDIDATES.some(
+      (candidate) => normalizeReferenceRuleText(candidate) === normalizedReferenceText
+    ) ||
+    includesAnyNormalizedToken(normalizedContext, PYRO_PARACHUTE_TOKENS)
+  ) {
+    return PYRO_PARACHUTE_STOCK_REFERENCE;
+  }
+
+  if (
+    PYRO_HANDFLARE_CANDIDATES.some(
+      (candidate) => normalizeReferenceRuleText(candidate) === normalizedReferenceText
+    ) ||
+    includesAnyNormalizedToken(normalizedContext, PYRO_HANDFLARE_TOKENS)
+  ) {
+    return PYRO_HANDFLARE_STOCK_REFERENCE;
+  }
+
+  if (
+    PYRO_SMOKE_CANDIDATES.some(
+      (candidate) => normalizeReferenceRuleText(candidate) === normalizedReferenceText
+    ) ||
+    includesAnyNormalizedToken(normalizedContext, PYRO_SMOKE_TOKENS)
+  ) {
+    return PYRO_SMOKE_STOCK_REFERENCE;
+  }
+
   for (const rule of SB12_24_REFERENCE_RULES) {
     const matchesAlias = [rule.canonical, ...rule.aliases].some(
       (candidate) => normalizeReferenceRuleText(candidate) === normalizedReferenceText

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { Loader2, Search, X, ClipboardCheck, History, FileText, ExternalLink, ArrowRightCircle } from "lucide-react";
 import { formatDateTimeShort } from "@/lib/date-utils";
 
@@ -96,6 +97,8 @@ function getPrioridadeLabel(prioridade?: string | null) {
 
 export default function OrcamentosPage() {
   const router = useRouter();
+  const { data: session, status: sessionStatus } = useSession();
+  const isAdmin = session?.user?.role === "ADMIN";
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<OrcamentoRow[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>("");
@@ -176,9 +179,16 @@ export default function OrcamentosPage() {
   }, [statusFilter, q]);
 
   useEffect(() => {
+    if (sessionStatus !== "authenticated") return;
+    if (!isAdmin) {
+      setError("Apenas administradores podem aceder à área de orçamentos.");
+      setLoading(false);
+      setRows([]);
+      return;
+    }
     // eslint-disable-next-line react-hooks/set-state-in-effect -- setLoading(true) no início do fetch assíncrono controla o estado de carregamento.
     load();
-  }, [load]);
+  }, [load, sessionStatus, isAdmin]);
 
   const toggleSelect = (id: number) => {
     setSelectedIds((prev) => {

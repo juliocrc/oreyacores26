@@ -2,7 +2,9 @@ import prisma from "@/lib/prisma";
 
 type LogAuditoriaInput = {
   tabela: string;
-  tipoOperacao: "CREATE" | "UPDATE" | "DELETE";
+  // "REABRIR" cobre a quebra controlada do carimbo de integridade de um
+  // documento finalizado, para que essa quebra fique visível na auditoria.
+  tipoOperacao: "CREATE" | "UPDATE" | "DELETE" | "REABRIR";
   idRegisto: number;
   descricao?: string;
   usuario?: string;

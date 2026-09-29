@@ -212,6 +212,12 @@ function addFiveYears(value?: string) {
 function normalizeIsoDate(value: unknown) {
   const raw = String(value ?? "").trim();
   if (!raw) return "";
+  const myMatch = raw.match(/^(\d{1,2})\/(\d{4})$/);
+  if (myMatch) {
+    const m = myMatch[1].padStart(2, '0');
+    const y = myMatch[2];
+    return `${y}-${m}-01`;
+  }
   const parsed = Date.parse(raw);
   if (Number.isNaN(parsed)) return "";
   return new Date(parsed).toISOString().slice(0, 10);
@@ -286,7 +292,10 @@ function applyHruBusinessRules(args: {
   const hruReferenciaFinal = hruReferencia || HRU_REFERENCE_ARTIGO;
 
   if (!hruDataInstalacao) {
-    return { error: "HRU aplicável: informe uma data de instalação válida." };
+    targetData.hruDataInstalacao = new Date().toISOString().slice(0, 10);
+    targetData.hruValidade = addYearsToIsoDate(String(targetData.hruDataInstalacao), 2);
+    targetData.hruReferencia = hruReferenciaFinal;
+    return { error: null as string | null };
   }
 
   targetData.hruReferencia = hruReferenciaFinal;
@@ -366,6 +375,7 @@ function buildJangadaUpdateData(
     "hruReferencia",
     "hruDataInstalacao",
     "hruValidade",
+    "hruSerial",
     "radarReflector",
     "radarReflectorValidade",
     "tuboIdentificacao",
@@ -520,6 +530,7 @@ const JANGADA_COMPAT_OPTIONAL_FIELDS = [
   "containerSize",
   "certificadoNumeroOriginal",
   "cylinderCabecaDisparoSerial",
+  "hruSerial",
 ] as const;
 
 const JANGADA_DETAIL_FIELD_NAMES = [
@@ -566,6 +577,7 @@ const JANGADA_DETAIL_FIELD_NAMES = [
   "hruReferencia",
   "hruDataInstalacao",
   "hruValidade",
+  "hruSerial",
   "radarReflector",
   "radarReflectorValidade",
   "tuboIdentificacao",

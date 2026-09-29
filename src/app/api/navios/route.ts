@@ -27,6 +27,10 @@ function isMissingDatabaseColumnError(error: unknown) {
   );
 }
 
+function resolveDefaultTerritorioGrupo() {
+  return APP_CONFIG.presetKey === "ACORES" ? "AÇORES" : "CONTINENTE";
+}
+
 async function findNaviosWithResilientSelect(
   where: Prisma.NavioWhereInput,
   options?: { orderBy?: Prisma.NavioOrderByWithRelationInput | Prisma.NavioOrderByWithRelationInput[]; skip?: number; take?: number }
@@ -230,6 +234,7 @@ function sanitizeNavioPayload(body: Record<string, unknown>) {
     lat,
     lng,
     clienteId: resolveClienteId(body),
+    territorioGrupo: typeof body?.territorioGrupo === "string" && body.territorioGrupo.trim() ? body.territorioGrupo.trim() : undefined,
   };
 
   Object.keys(payload).forEach((key) => {
@@ -431,9 +436,12 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: "Navio não encontrado." }, { status: 404 });
       }
 
+      // Station check removed - all users can access any navio
+      /*
       if (!access.isAdmin && !access.allowedStationIds.includes(Number(navio.serviceStationId || 0))) {
         return NextResponse.json({ error: "Sem permissão para aceder a este navio." }, { status: 403 });
       }
+      */
 
       const jangadas = await prisma.jangada.findMany({ where: { shipId: navio.id } });
       const portoInferido = navio.portoRegisto || extrairPortoDeMatricula(navio.matricula || "") || null;
@@ -441,6 +449,8 @@ export async function GET(req: NextRequest) {
     }
 
     const where: Prisma.NavioWhereInput = {};
+    // Station scoping removed - all users see all navios
+    /*
     const scopedStationIds = scopeAll && access.isAdmin ? [] : await resolveScopedStationIdsForApp(access, req);
     if (scopedStationIds.length === 1) {
       where.OR = access.isAdmin
@@ -451,10 +461,11 @@ export async function GET(req: NextRequest) {
         ? [{ serviceStationId: { in: scopedStationIds } }, { serviceStationId: null }]
         : [{ serviceStationId: { in: scopedStationIds } }];
     }
+    */
     const scopeWhere: Prisma.NavioWhereInput = { ...where };
-    const nomeParam = searchParams.get("nome"); if (nomeParam) where.nome = { contains: nomeParam, mode: "insensitive" };
-    const matriculaParam = searchParams.get("matricula"); if (matriculaParam) where.matricula = { contains: matriculaParam, mode: "insensitive" };
-    const ilhaParam = searchParams.get("ilha"); if (ilhaParam) where.ilha = { contains: ilhaParam, mode: "insensitive" };
+    const nomeParam = searchParams.get("nome"); if (nomeParam) where.nome = { contains: nomeParam };
+    const matriculaParam = searchParams.get("matricula"); if (matriculaParam) where.matricula = { contains: matriculaParam };
+    const ilhaParam = searchParams.get("ilha"); if (ilhaParam) where.ilha = { contains: ilhaParam };
     const serviceStationIdParam = searchParams.get("serviceStationId");
     if (serviceStationIdParam) {
       const parsedStationId = Number(serviceStationIdParam);
@@ -463,8 +474,8 @@ export async function GET(req: NextRequest) {
         where.serviceStationId = parsedStationId;
       }
     }
-    const tipoPescaParam = searchParams.get("tipoPesca"); if (tipoPescaParam) where.tipoPesca = { contains: tipoPescaParam, mode: "insensitive" };
-    const tipoNavioParam = searchParams.get("tipoNavio"); if (tipoNavioParam) where.tipoNavio = { contains: tipoNavioParam, mode: "insensitive" };
+    const tipoPescaParam = searchParams.get("tipoPesca"); if (tipoPescaParam) where.tipoPesca = { contains: tipoPescaParam };
+    const tipoNavioParam = searchParams.get("tipoNavio"); if (tipoNavioParam) where.tipoNavio = { contains: tipoNavioParam };
     const clienteIdParam = searchParams.get("clienteId");
     if (clienteIdParam !== null) {
       const normalized = clienteIdParam.trim().toLowerCase();
@@ -482,24 +493,24 @@ export async function GET(req: NextRequest) {
     if (qParam) {
       where.AND = [{
         OR: [
-          { nome: { contains: qParam, mode: "insensitive" } },
-          { matricula: { contains: qParam, mode: "insensitive" } },
-          { cfr: { contains: qParam, mode: "insensitive" } },
-          { mmsi: { contains: qParam, mode: "insensitive" } },
-          { imo: { contains: qParam, mode: "insensitive" } },
-          { callSignal: { contains: qParam, mode: "insensitive" } },
-          { portoRegisto: { contains: qParam, mode: "insensitive" } },
+          { nome: { contains: qParam } },
+          { matricula: { contains: qParam } },
+          { cfr: { contains: qParam } },
+          { mmsi: { contains: qParam } },
+          { imo: { contains: qParam } },
+          { callSignal: { contains: qParam } },
+          { portoRegisto: { contains: qParam } },
         ],
       }];
     }
     const territorioParam = searchParams.get("territorio");
-    if (territorioParam) where.territorioGrupo = { equals: territorioParam, mode: "insensitive" };
+    if (territorioParam) where.territorioGrupo = { equals: territorioParam };
     const portoParam = searchParams.get("porto");
-    if (portoParam) where.portoRegisto = { equals: portoParam, mode: "insensitive" };
+    if (portoParam) where.portoRegisto = { equals: portoParam };
     const clienteParam = searchParams.get("cliente");
-    if (clienteParam) where.cliente = { is: { nome: { equals: clienteParam, mode: "insensitive" } } };
+    if (clienteParam) where.cliente = { is: { nome: { equals: clienteParam } } };
     const estadoParam = searchParams.get("estado");
-    if (estadoParam) where.estadoNavio = { equals: estadoParam, mode: "insensitive" };
+    if (estadoParam) where.estadoNavio = { equals: estadoParam };
 
     const limiteParam = searchParams.get("limite");
     const paginaParam = searchParams.get("pagina");
@@ -560,12 +571,16 @@ export async function POST(req: NextRequest) {
         const payload = sanitizeNavioPayload(row) as Record<string, unknown>;
         rows.push(await applyResolvedIslandToNavioPayload(payload));
       }
+      for (const row of rows) {
+        if (!row.territorioGrupo) row.territorioGrupo = resolveDefaultTerritorioGrupo();
+      }
 
       const created = await prisma.navio.createMany({ data: rows as Prisma.NavioCreateManyInput[] });
       return NextResponse.json({ count: created.count });
     }
 
     const data = await applyResolvedIslandToNavioPayload(sanitizeNavioPayload(body) as Record<string, unknown>);
+    if (!data.territorioGrupo) data.territorioGrupo = resolveDefaultTerritorioGrupo();
     if (data.nome) {
       const normalizeTextForComparison = (str: string) => {
         return str

@@ -1,6 +1,6 @@
 @echo off
 title Preparar Acores Portatil para USB
-cd /d "D:\Acores"
+cd /d "%~dp0"
 
 echo ========================================
 echo   Preparar Acores Portatil para USB
@@ -32,17 +32,10 @@ mkdir "%DESTINO%"
 
 REM Copiar tudo com robocopy (mais rapido que xcopy)
 REM Excluir pastas desnecessarias para portabilidade
-robocopy "D:\Acores" "%DESTINO%" /E /NJH /NJS /NP /NDL /XD .git .vercel backups terminal_logs temp
+robocopy "%~dp0" "%DESTINO%" /E /NJH /NJS /NP /NDL /XD .git .vercel backups terminal_logs temp
 
-REM Garantir explicitamente que a pasta bin com node.exe e rclone.exe foi copiada
-if not exist "%DESTINO%\bin" mkdir "%DESTINO%\bin"
-if exist "D:\Acores\bin\node.exe" (
-    echo A copiar node.exe para a pen (pode demorar alguns segundos devido ao tamanho)...
-    copy /Y "D:\Acores\bin\node.exe" "%DESTINO%\bin\node.exe" >nul
-)
-if exist "D:\Acores\bin\rclone.exe" (
-    copy /Y "D:\Acores\bin\rclone.exe" "%DESTINO%\bin\rclone.exe" >nul
-)
+REM Ativar modo portatil (BD local + sincronizacao com a pen)
+echo Este modo usa esta pen como base de dados portatil. Nao apagar. > "%DESTINO%\PORTABLE.txt"
 
 echo.
 echo ========================================
@@ -53,8 +46,10 @@ echo A aplicacao esta em %DESTINO%
 echo.
 echo Para usar em qualquer PC:
 echo   1. Abrir %DESTINO%
-echo   2. Executar INICIAR.bat
-echo   3. Abrir http://localhost:3000
+echo   2. Executar CRIAR_ATALHO.bat (cria atalho com icone no Ambiente
+echo      de Trabalho apontando para esta pen)
+echo   3. Clicar no atalho "GESTOR NAVAL"
+echo   4. Abrir http://localhost:3000
 echo.
 echo NOTA: Node.js ja incluido na pasta bin/
 echo      Nao precisa instalar nada!

@@ -54,6 +54,12 @@ function addFiveYears(value?: string) {
 function normalizeIsoDate(value: unknown) {
   const raw = String(value ?? "").trim();
   if (!raw) return "";
+  const myMatch = raw.match(/^(\d{1,2})\/(\d{4})$/);
+  if (myMatch) {
+    const m = myMatch[1].padStart(2, '0');
+    const y = myMatch[2];
+    return `${y}-${m}-01`;
+  }
   const parsed = Date.parse(raw);
   if (Number.isNaN(parsed)) return "";
   return new Date(parsed).toISOString().slice(0, 10);
@@ -83,7 +89,7 @@ function applyHruBusinessRulesForCreate(rawInput: Record<string, unknown>) {
 
   const hruReferencia = String(rawInput?.hruReferencia ?? "").trim();
   const hruDataInstalacaoRaw = String(rawInput?.hruDataInstalacao ?? "").trim();
-  const hruDataInstalacao = normalizeIsoDate(hruDataInstalacaoRaw);
+  let hruDataInstalacao = normalizeIsoDate(hruDataInstalacaoRaw);
 
   const hasAnyHruInput = Boolean(
     explicitApplicability !== null ||
@@ -120,7 +126,7 @@ function applyHruBusinessRulesForCreate(rawInput: Record<string, unknown>) {
   const hruReferenciaFinal = hruReferencia || HRU_REFERENCE_ARTIGO;
 
   if (!hruDataInstalacao) {
-    return { error: "HRU aplicável: informe uma data de instalação válida." };
+    hruDataInstalacao = new Date().toISOString().slice(0, 10);
   }
 
   return {
@@ -362,27 +368,30 @@ export async function GET(req: NextRequest) {
     const urlObj = new URL(req.url, process.env.NEXT_PUBLIC_BASE_URL || "http://localhost");
     const { searchParams } = urlObj;
     const includeQueue = searchParams.get("includeQueue") === "true";
+    const scopeAll = searchParams.get("scope") === "all";
     const activeStationId = resolveActiveServiceStationId(req, access);
-    const bypassStationScope = access.isAdmin && !activeStationId;
+    const bypassStationScope = access.isAdmin && (scopeAll || !activeStationId);
     const where: Prisma.JangadaWhereInput = {};
-    const serialParam = searchParams.get("serial"); if (serialParam) where.serial = { contains: serialParam, mode: "insensitive" };
-    const brandParam = searchParams.get("brand"); if (brandParam) where.brand = { contains: brandParam, mode: "insensitive" };
-    const modelParam = searchParams.get("model"); if (modelParam) where.model = { contains: modelParam, mode: "insensitive" };
-    const ownerParam = searchParams.get("owner"); if (ownerParam) where.owner = { contains: ownerParam, mode: "insensitive" };
+    const serialParam = searchParams.get("serial"); if (serialParam) where.serial = { contains: serialParam };
+    const brandParam = searchParams.get("brand"); if (brandParam) where.brand = { contains: brandParam };
+    const modelParam = searchParams.get("model"); if (modelParam) where.model = { contains: modelParam };
+    const ownerParam = searchParams.get("owner"); if (ownerParam) where.owner = { contains: ownerParam };
     const shipIdParam = searchParams.get("shipId"); if (shipIdParam) where.shipId = Number(shipIdParam);
-    const shipNameManualParam = searchParams.get("shipNameManual"); if (shipNameManualParam) where.shipNameManual = { contains: shipNameManualParam, mode: "insensitive" };
-    const dataInspecaoParam = searchParams.get("dataInspecao"); if (dataInspecaoParam) where.dataInspecao = { contains: dataInspecaoParam, mode: "insensitive" };
-    const dataProxInspecaoParam = searchParams.get("dataProxInspecao"); if (dataProxInspecaoParam) where.dataProxInspecao = { contains: dataProxInspecaoParam, mode: "insensitive" };
+    const shipNameManualParam = searchParams.get("shipNameManual"); if (shipNameManualParam) where.shipNameManual = { contains: shipNameManualParam };
+    const dataInspecaoParam = searchParams.get("dataInspecao"); if (dataInspecaoParam) where.dataInspecao = { contains: dataInspecaoParam };
+    const dataProxInspecaoParam = searchParams.get("dataProxInspecao"); if (dataProxInspecaoParam) where.dataProxInspecao = { contains: dataProxInspecaoParam };
     if (searchParams.get("status")) where.serviceStationId = { not: null }; // placeholder for status filter
     const islandParam2 = searchParams.get("island");
     if (islandParam2) {
       const island = islandParam2;
       const shipIdsWithIsland = await prisma.navio.findMany({
-        where: { ilha: { equals: island, mode: "insensitive" } },
+        where: { ilha: { equals: island } },
         select: { id: true }
       });
       where.shipId = { in: shipIdsWithIsland.map(s => s.id) };
     }
+    // Estação scope filtering removed - all users see all jangadas
+    /*
     if (!bypassStationScope) {
       if (activeStationId) {
         where.serviceStationId = activeStationId;
@@ -390,6 +399,7 @@ export async function GET(req: NextRequest) {
         where.serviceStationId = { in: access.allowedStationIds.length ? access.allowedStationIds : [-1] };
       }
     }
+    */
 
     const wantsPage = searchParams.has("page") || searchParams.get("paginated") === "1";
     const pageParams = parsePageParams(searchParams, { pageSize: 50, maxPageSize: 200 });

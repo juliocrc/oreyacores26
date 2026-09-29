@@ -42,8 +42,8 @@ export async function GET(req: NextRequest) {
     const tecnicoSearchWhere: Prisma.TecnicoWhereInput | undefined = search
       ? {
           OR: [
-            { nome: { contains: search, mode: Prisma.QueryMode.insensitive } },
-            { email: { contains: search, mode: Prisma.QueryMode.insensitive } },
+            { nome: { contains: search } },
+            { email: { contains: search } },
           ],
         }
       : undefined;

@@ -250,7 +250,7 @@ export default function ColeteDetailPageClient({ coleteId }: { coleteId: number 
       ${data.temLuz !== false ? `<tr><td>Luz Emergência</td><td>${data.luzRef || '—'}</td><td>${data.luzLote || '—'}</td><td>${data.luzValidade ? formatValidityDisplay(data.luzValidade) : '—'}</td></tr>` : ''}
       <tr><td>Apito</td><td>${data.apitoRef || '—'}</td><td>${data.apitoLote || '—'}</td><td>—</td></tr></table>
       <p style="font-size:10px;color:#999;margin-top:20px">Gerado em ${new Date().toLocaleString('pt-PT')}</p>
-      <script>window.print();window.close();<' + '/script>
+       ${['<scr', 'ipt>window.print();window.close();</scr', 'ipt>'].join('')}
       </body></html>
     `);
     win.document.close();

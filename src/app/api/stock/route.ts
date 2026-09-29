@@ -218,18 +218,18 @@ export async function GET(req: NextRequest) {
 
     if (busca) {
       where.OR = [
-        { referencia: { contains: busca, mode: "insensitive" } },
-        { descricao: { contains: busca, mode: "insensitive" } },
-        { codigoFabricante: { contains: busca, mode: "insensitive" } },
-        { codigoBarras: { contains: busca, mode: "insensitive" } },
+        { referencia: { contains: busca } },
+        { descricao: { contains: busca } },
+        { codigoFabricante: { contains: busca } },
+        { codigoBarras: { contains: busca } },
       ];
     }
 
-    const referenciaParam = searchParams.get("referencia"); if (referenciaParam) where.referencia = { contains: referenciaParam, mode: "insensitive" };
-    const descricaoParam = searchParams.get("descricao"); if (descricaoParam) where.descricao = { contains: descricaoParam, mode: "insensitive" };
-    const nomeParam = searchParams.get("nome"); if (nomeParam) where.descricao = { contains: nomeParam, mode: "insensitive" };
-    const categoriaParam = searchParams.get("categoria"); if (categoriaParam) where.categoria = { contains: categoriaParam, mode: "insensitive" };
-    const validadeParam = searchParams.get("validade"); if (validadeParam) where.validade = { contains: validadeParam, mode: "insensitive" };
+    const referenciaParam = searchParams.get("referencia"); if (referenciaParam) where.referencia = { contains: referenciaParam };
+    const descricaoParam = searchParams.get("descricao"); if (descricaoParam) where.descricao = { contains: descricaoParam };
+    const nomeParam = searchParams.get("nome"); if (nomeParam) where.descricao = { contains: nomeParam };
+    const categoriaParam = searchParams.get("categoria"); if (categoriaParam) where.categoria = { contains: categoriaParam };
+    const validadeParam = searchParams.get("validade"); if (validadeParam) where.validade = { contains: validadeParam };
     if (searchParams.get("associavelJangada")) where.associavelJangada = searchParams.get("associavelJangada") === "true";
     if (searchParams.get("estadoArtigo")) {
       where.estadoArtigo = String(searchParams.get("estadoArtigo"));
@@ -244,7 +244,7 @@ export async function GET(req: NextRequest) {
             { associavelJangada: true },
             {
               AND: [
-                { aplicavelMarcaJangada: { contains: "ocean safety", mode: "insensitive" } },
+                { aplicavelMarcaJangada: { contains: "ocean safety" } },
                 { codigoFabricante: { not: null } },
                 { codigoFabricante: { not: "" } },
               ],
@@ -484,13 +484,16 @@ export async function DELETE(req: NextRequest) {
       return respond({ error: "Forneça uma lista válida de IDs para eliminar." }, { status: 400 });
     }
 
-    const result = await prisma.stock.deleteMany({
+    const result = await prisma.stock.updateMany({
       where: {
         id: { in: ids },
       },
+      data: {
+        estadoArtigo: "INATIVO",
+      },
     });
 
-    return respond({ success: true, count: result.count }, undefined, { deletedIds: ids.length });
+    return respond({ success: true, count: result.count, soft: true }, undefined, { deletedIds: ids.length });
   } catch (error) {
     captureApiError(context, error);
     const response = buildDatabaseErrorResponse(error, "Erro ao eliminar stock em lote");

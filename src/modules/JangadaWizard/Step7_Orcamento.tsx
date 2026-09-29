@@ -2,7 +2,6 @@
 import React, { useMemo, useEffect, useRef } from 'react';
 import { useJangadaWizardStore } from './store/useJangadaWizardStore';
 import { Receipt, RefreshCw, Search, X, PackageSearch, Info, Download, MessageCircle, Send, ThumbsUp, ThumbsDown, Phone, FileText } from 'lucide-react';
-import { PDFDocument, PDFFont, StandardFonts, rgb } from 'pdf-lib';
 import type { OrcamentoLinha, OrcamentoAprovacao, GlobalStockItem } from './types';
 import { calcTotal, getIvaRate } from '@/lib/iva';
 import { appToast } from '@/lib/app-toast';
@@ -11,6 +10,11 @@ import { ContainerClosureSection } from './ContainerClosureSection';
 import { buildClosureOrcamentoLinha } from './containerClosure';
 import type { ClosureItemState } from './containerClosure';
 import { useWhatsAppAllowed, WHATSAPP_ALLOWED_USER_EMAIL } from '@/lib/use-whatsapp-allowed';
+import { normalizeStockReferenceByRule } from '@/lib/stock-reference-rules';
+import { isArticleNonExpiring } from '@/modules/rafts/mandatoryPack';
+import { isComponenteSubstituido, isPackItemSubstituido } from '@/lib/substituicoes-inspecao';
+import { useRouter } from 'next/navigation';
+import { getStepNumberByKey } from './steps';
 
 const formatPrice = (value: number) => {
   return new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(value || 0);
@@ -25,17 +29,29 @@ const normalizePhone = (raw: string): string => {
 
 const round = (value: number) => Math.round((value || 0) * 100) / 100;
 
-// Embalagem comercial de comprimidos — o orçamento deve faturar embalagens inteiras de 60.
+// Chave de deduplicacao: linhas automaticas de pack/componente sao agrupadas
+// pela referencia; linhas manuais/servico/reparação mantêm-se individuais.
+const dedupeKeyOf = (linha: { id: string; referencia?: string | null; source?: string | null }) =>
+  linha.source === "pack" || linha.source === "componente"
+    ? `${linha.referencia || ""}::${linha.source}`
+    : linha.id;
+
+// Embalagem comercial de comprimidos — o orçamento fatura por embalagem de 60 comprimidos a 19 euros.
 const TABLET_PATTERN = /comprimid|pastilh|enjoo\b|seasick|seasickness/i;
 const TABLET_PACK_SIZE = 60;
+
+const isTabletItem = (item: any) => {
+  const label = String(item?.descricao || item?.name || item?.checklistName || "");
+  const ref = String(item?.referencia || "");
+  return TABLET_PATTERN.test(label) || TABLET_PATTERN.test(ref);
+};
 
 const roundQtyToCommercialPack = (item: any, quantidade: number) => {
   const qty = Math.max(0, Number(quantidade) || 0);
   if (qty <= 0) return 0;
-  const label = String(item?.descricao || item?.name || item?.checklistName || "");
-  const ref = String(item?.referencia || "");
-  if (!TABLET_PATTERN.test(label) && !TABLET_PATTERN.test(ref)) return qty;
-  return Math.ceil(qty / TABLET_PACK_SIZE) * TABLET_PACK_SIZE;
+  if (!isTabletItem(item)) return qty;
+  // Retorna o número de embalagens de 60 comprimidos
+  return Math.ceil(qty / TABLET_PACK_SIZE);
 };
 
 const SERVICE_DESCRIPTIONS: Record<string, string> = {
@@ -46,7 +62,7 @@ const SERVICE_DESCRIPTIONS: Record<string, string> = {
   "L-FS": "Teste FS",
   "L-NAP": "Teste NAP",
   "L-GI": "Teste GI",
-  "L-TH": "Teste Hidrostático",
+  "L-TH": "Teste Hidráulico",
   "L-CO2": "Carga de CO2",
 };
 
@@ -55,8 +71,10 @@ const SERVICE_FIXED_PRICES: Record<string, number> = {
 };
 
 export default function Step7_Orcamento() {
-  const { inspectionData, setInspectionData, jangadaId } = useJangadaWizardStore();
+  const { inspectionData, setInspectionData, jangadaId, hideOrcamento } = useJangadaWizardStore();
+  const stepNo = getStepNumberByKey(inspectionData, 'orcamento', { hideOrcamento });
   const { allowed: whatsappAllowed } = useWhatsAppAllowed();
+  const router = useRouter();
 
   const orcamento = {
     ...(inspectionData.orcamento || { linhas: [], valorMaoObra: 0, valorDesconto: 0, isIsentoIva: false }),
@@ -106,36 +124,50 @@ export default function Step7_Orcamento() {
   const buildPackLines = (): OrcamentoLinha[] =>
     Object.values(inspectionData.packItems || {})
       .filter((item: any) => Number(item.quantidade) > 0)
-      .map((item: any) => {
-        const unitPrice = getStockPrice(item.referencia, item.stockId);
+      .filter((item: any) => !isArticleNonExpiring({ name: item.name, referencia: item.referencia }))
+      .flatMap((item: any) => {
+        const referencia = normalizeStockReferenceByRule(
+          item.referencia,
+          item.descricao,
+          item.name,
+          item.checklistName,
+        );
+        if (!referencia) return [];
+        const isTablet = isTabletItem(item);
+        const stockPrice = getStockPrice(referencia, item.stockId);
+        const unitPrice = isTablet ? 19 : stockPrice;
         const quantidade = roundQtyToCommercialPack(item, item.quantidade);
-        return {
-          id: `pack-${item.referencia || item.checklistName}`,
+        return [{
+          id: `pack-${referencia}`,
           stockId: item.stockId ?? null,
-          referencia: item.referencia || "SEM-REF",
+          referencia,
           descricao: item.descricao || item.name || "Consumível",
           quantidade,
           unitPrice,
           total: round(quantidade * unitPrice),
           source: "pack" as const,
-        };
+        }];
       });
 
   const buildComponenteLines = (): OrcamentoLinha[] =>
     (inspectionData.componentes || [])
-      .filter((comp: any) => (comp.stockId && String(comp.stockId) !== '') || comp.validade || comp.serialLote)
-      .map((comp: any) => {
-        const unitPrice = getStockPrice(comp.reference, comp.stockId);
-        return {
+      // Só entra o que foi efetivamente substituído. Um componente apenas
+      // inspecionado e deemed bom não é vendido ao cliente.
+      .filter((comp: any) => isComponenteSubstituido(comp))
+      .flatMap((comp: any) => {
+        const referencia = normalizeStockReferenceByRule(comp.reference, comp.type, comp.name);
+        if (!referencia) return [];
+        const unitPrice = getStockPrice(referencia, comp.stockId);
+        return [{
           id: `comp-${comp.id}`,
           stockId: comp.stockId ?? null,
-          referencia: comp.reference || "SEM-REF",
+          referencia,
           descricao: comp.type || comp.name || "Componente",
           quantidade: 1,
           unitPrice,
           total: unitPrice,
           source: "componente" as const,
-        };
+        }];
       });
 
   const buildClosureLines = (): OrcamentoLinha[] =>
@@ -205,29 +237,43 @@ export default function Step7_Orcamento() {
     const removed = new Set(removedIdsOverride || orcamento.removedIds || []);
     const built = [...buildServiceLines(), ...buildPackLines(), ...buildComponenteLines(), ...buildClosureLines(), ...buildRepairLines(), ...buildBulletinLines()];
 
+    const keyOf = (l: OrcamentoLinha) => dedupeKeyOf(l);
     const result: OrcamentoLinha[] = [];
+    const indexByKey = new Map<string, number>();
+
+    const pushLine = (line: OrcamentoLinha) => {
+      const key = keyOf(line);
+      const existingIdx = indexByKey.get(key);
+      if (existingIdx === undefined) {
+        indexByKey.set(key, result.length);
+        result.push(line);
+        return;
+      }
+      const prev = result[existingIdx];
+      const unitPrice = Number(line.unitPrice) > 0 ? Number(line.unitPrice) : Number(prev.unitPrice) || 0;
+      const quantidade = (Number(prev.quantidade) || 0) + (Number(line.quantidade) || 0);
+      result[existingIdx] = { ...prev, unitPrice, quantidade, total: round(quantidade * unitPrice) };
+    };
+
     for (const b of built) {
-      if (removed.has(b.id)) continue;
+      if (removed.has(b.id) || removed.has(keyOf(b))) continue;
       const existing = current.find(
         (l) => l.id === b.id || (l.referencia === b.referencia && l.source === b.source)
       );
       if (existing) {
-        result.push({
-          ...existing,
-          quantidade: b.source === "service" ? existing.quantidade || 1 : b.quantidade,
-          unitPrice: Number(existing.unitPrice) > 0 ? Number(existing.unitPrice) : b.unitPrice,
-          total: round((b.source === "service" ? existing.quantidade || 1 : b.quantidade) * (Number(existing.unitPrice) > 0 ? Number(existing.unitPrice) : b.unitPrice)),
-        });
+        const quantidade = b.source === "service" ? existing.quantidade || 1 : b.quantidade;
+        const unitPrice = Number(existing.unitPrice) > 0 ? Number(existing.unitPrice) : b.unitPrice;
+        pushLine({ ...existing, quantidade, unitPrice, total: round(quantidade * unitPrice) });
       } else {
-        result.push({ ...b });
+        pushLine({ ...b });
       }
     }
 
     const builtIds = new Set(built.map((b) => b.id));
-    const builtRefs = new Set(built.map((b) => `${b.referencia}::${b.source}`));
     for (const l of current) {
-      if (!builtIds.has(l.id) && !builtRefs.has(`${l.referencia}::${l.source}`)) {
-        result.push(l);
+      if (removed.has(l.id) || removed.has(keyOf(l))) continue;
+      if (!builtIds.has(l.id) && !indexByKey.has(keyOf(l))) {
+        pushLine(l);
       }
     }
 
@@ -279,11 +325,14 @@ export default function Step7_Orcamento() {
   };
 
   const removeLinha = (id: string) => {
+    const linha = linhas.find((l) => l.id === id);
+    const keys = new Set<string>([id]);
+    if (linha) keys.add(dedupeKeyOf(linha));
     setInspectionData({
       orcamento: {
         ...orcamento,
         linhas: linhas.filter((l) => l.id !== id),
-        removedIds: [...(orcamento.removedIds || []), id],
+        removedIds: Array.from(new Set([...(orcamento.removedIds || []), ...keys])),
       },
     });
   };
@@ -404,9 +453,11 @@ export default function Step7_Orcamento() {
     return false;
   };
 
+  // Conta com a mesma regra das linhas do orçamento, para o número mostrado
+  // e as linhas nunca discordarem.
   const substituicoesAtivas =
-    Object.values(inspectionData.packItems || {}).filter((i: any) => Number(i.quantidade) > 0).length +
-    (inspectionData.componentes || []).filter((c: any) => (c.stockId && String(c.stockId) !== '') || c.validade || c.serialLote).length;
+    Object.values(inspectionData.packItems || {}).filter((i: any) => isPackItemSubstituido(i)).length +
+    (inspectionData.componentes || []).filter((c: any) => isComponenteSubstituido(c)).length;
 
   const aprovacao = orcamento.aprovacaoWhatsApp || { status: 'rascunho' as const };
   const ivaRate = getIvaRate();
@@ -581,107 +632,34 @@ export default function Step7_Orcamento() {
       return;
     }
     try {
-      const TEAL: [number, number, number] = [0.06, 0.46, 0.43];
-      const DARK: [number, number, number] = [0.13, 0.16, 0.2];
-      const GRAY: [number, number, number] = [0.45, 0.49, 0.53];
-      const LIGHT: [number, number, number] = [0.91, 0.96, 0.95];
-
-      const doc = await PDFDocument.create();
-      const page = doc.addPage([595.28, 841.89]);
-      const font = await doc.embedFont(StandardFonts.Helvetica);
-      const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
-
-      const MARGIN = 50;
-      const PAGE_WIDTH = 595.28;
-      const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
-      let y = 841.89 - 40;
-
-      const fitText = (text: string, maxWidth: number, f: PDFFont, size: number) => {
-        if (f.widthOfTextAtSize(text, size) <= maxWidth) return text;
-        let trimmed = text;
-        while (trimmed.length > 1 && f.widthOfTextAtSize(`${trimmed}…`, size) > maxWidth) {
-          trimmed = trimmed.slice(0, -1);
+      const res = await fetch('/api/jangadas/orcamento-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          linhas,
+          subtotal,
+          ivaRate,
+          isIsentoIva: Boolean(orcamento.isIsentoIva),
+          validadeDias,
+          dataValidade,
+          clienteNome: inspectionData.shipDetails?.cliente?.nome || inspectionData.owner || '—',
+          embarcacao: inspectionData.shipNameManual || inspectionData.shipName || '—',
+          jangada: `${inspectionData.brand || ''} ${inspectionData.model || ''}`.trim() || '—',
+          serial: inspectionData.serial || '',
+          certificadoNumero: inspectionData.certificadoNumero || '',
+        }),
+      });
+      if (!res.ok) {
+        let message = "Erro ao gerar o orçamento PDF.";
+        try {
+          const json = await res.json();
+          if (json?.error) message = json.error;
+        } catch {
+          // corpo não é JSON
         }
-        return `${trimmed}…`;
-      };
-
-      const drawText = (text: string, x: number, yy: number, size = 10, opts: { font?: PDFFont; color?: [number, number, number]; align?: "left" | "right"; maxWidth?: number } = {}) => {
-        const f = opts.font || font;
-        const color = opts.color || DARK;
-        let tx = x;
-        if (opts.align === "right") {
-          tx = x - f.widthOfTextAtSize(text, size);
-        }
-        if (opts.maxWidth) {
-          text = fitText(text, opts.maxWidth, f, size);
-        }
-        page.drawText(text, { x: tx, y: yy, size, font: f, color: rgb(color[0], color[1], color[2]) });
-      };
-
-      page.drawRectangle({ x: 0, y: 841.89 - 110, width: PAGE_WIDTH, height: 110, color: rgb(TEAL[0], TEAL[1], TEAL[2]) });
-      drawText("ORÇAMENTO", MARGIN, 841.89 - 75, 26, { font: fontBold, color: [1, 1, 1] });
-      drawText("Orey Azores — Serviços de vistoria e certificação", MARGIN, 841.89 - 48, 11, { color: [1, 1, 1] });
-
-      const referenciaOrcamento = inspectionData.certificadoNumero
-        ? `INS-${inspectionData.certificadoNumero}`
-        : `SÉRIE ${inspectionData.serial || ''}`;
-      drawText(referenciaOrcamento, PAGE_WIDTH - MARGIN, 841.89 - 75, 20, { font: fontBold, color: [1, 1, 1], align: "right" });
-
-      y = 841.89 - 130;
-      const label = (lbl: string, val: string, size = 10) => {
-        drawText(lbl, MARGIN, y, size, { font: fontBold, color: GRAY });
-        drawText(val, MARGIN + 130, y, size, { color: DARK });
-        y -= 18;
-      };
-
-      label("Cliente", inspectionData.shipDetails?.cliente?.nome || inspectionData.owner || '—');
-      label("Embarcação", inspectionData.shipNameManual || inspectionData.shipName || '—');
-      label("Jangada", `${inspectionData.brand || ''} ${inspectionData.model || ''}`.trim() || '—', 10);
-      if (inspectionData.serial) label("Nº Série Jangada", inspectionData.serial);
-      label("Data de emissão", new Date().toLocaleDateString('pt-PT'));
-      label("Validade", `até ${dataValidade} (${validadeDias} dias)`);
-
-      y -= 10;
-      page.drawRectangle({ x: MARGIN, y: y - 18, width: CONTENT_WIDTH, height: 24, color: rgb(LIGHT[0], LIGHT[1], LIGHT[2]) });
-      drawText("Referência", MARGIN + 6, y - 2, 10, { font: fontBold });
-      drawText("Descrição", MARGIN + 130, y - 2, 10, { font: fontBold });
-      drawText("Qtd", PAGE_WIDTH - MARGIN - 150, y - 2, 10, { font: fontBold, align: "right" });
-      drawText("Valor", PAGE_WIDTH - MARGIN, y - 2, 10, { font: fontBold, align: "right" });
-      y -= 32;
-
-      for (const linha of linhas) {
-        if (y < 100) break;
-        drawText(linha.referencia || '—', MARGIN + 6, y, 10, { maxWidth: 110 });
-        drawText(linha.descricao || '', MARGIN + 130, y, 10, { maxWidth: 240 });
-        drawText(String(linha.quantidade ?? 1), PAGE_WIDTH - MARGIN - 150, y, 10, { align: "right" });
-        drawText(formatPrice(linha.total || 0), PAGE_WIDTH - MARGIN, y, 10, { align: "right" });
-        y -= 20;
+        throw new Error(message);
       }
-
-      y -= 6;
-      const totalRows: Array<{ label: string; value: string; bold?: boolean }> = [
-        { label: "Subtotal", value: formatPrice(subtotal) },
-        { label: "IVA", value: orcamento.isIsentoIva ? "Isento" : `16%  ${formatPrice(ivaValor)}` },
-        { label: "TOTAL", value: formatPrice(totalIva), bold: true },
-      ];
-      for (const entry of totalRows) {
-        drawText(entry.label, PAGE_WIDTH - MARGIN - 220, y, entry.bold ? 12 : 10, { font: entry.bold ? fontBold : font, align: "right", color: GRAY });
-        drawText(entry.value, PAGE_WIDTH - MARGIN, y, entry.bold ? 13 : 10, { font: entry.bold ? fontBold : font, align: "right" });
-        if (entry.bold) {
-          page.drawRectangle({ x: PAGE_WIDTH - MARGIN - 220, y: y - 4, width: 220, height: 22, color: rgb(TEAL[0], TEAL[1], TEAL[2]) });
-          drawText(entry.label, PAGE_WIDTH - MARGIN - 214, y, 12, { font: fontBold, color: [1, 1, 1], align: "right" });
-          drawText(entry.value, PAGE_WIDTH - MARGIN - 6, y, 13, { font: fontBold, color: [1, 1, 1], align: "right" });
-        }
-        y -= entry.bold ? 30 : 20;
-      }
-
-      drawText(`Orçamento válido até ${dataValidade}. Aguardamos a sua resposta (SIM para aprovar ou NÃO para solicitar alterações).`, MARGIN, Math.max(y - 10, 60), 9, { color: GRAY });
-      drawText("Documento gerado eletronicamente. Obrigado pela preferência.", MARGIN, 60, 9, { color: GRAY });
-
-      const pdfBytes = await doc.save();
-      const copy = new Uint8Array(pdfBytes.byteLength);
-      copy.set(pdfBytes);
-      const blob = new Blob([copy], { type: 'application/pdf' });
+      const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -693,7 +671,7 @@ export default function Step7_Orcamento() {
       appToast.success("Orçamento PDF gerado e descarregado.");
     } catch (error) {
       console.error("Erro ao gerar orçamento PDF:", error);
-      appToast.error("Erro ao gerar o orçamento PDF.");
+      appToast.error(error instanceof Error ? error.message : "Erro ao gerar o orçamento PDF.");
     }
   };
 
@@ -707,7 +685,7 @@ export default function Step7_Orcamento() {
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
       <div>
-        <h2 className="text-2xl font-bold text-slate-800">7. Orçamento</h2>
+        <h2 className="text-2xl font-bold text-slate-800">{stepNo > 0 ? `${stepNo}. ` : ''}Orçamento</h2>
         <p className="text-slate-600 mt-1">
           Orçamento sincronizado com as substituições registadas (pack e componentes) e os testes realizados. A mão de obra está incluída nos serviços (L-JD / L-RFD / L-DSB); edite preços, quantidades e desconto conforme necessário.
         </p>
@@ -747,6 +725,15 @@ export default function Step7_Orcamento() {
               {substituicoesAtivas} artigo{substituicoesAtivas === 1 ? "" : "s"} substituído{substituicoesAtivas === 1 ? "" : "s"}
             </span>
           )}
+          <button
+            type="button"
+            onClick={() => router.push('/orcamentos')}
+            className="flex items-center gap-2 px-4 py-2 bg-white text-emerald-700 rounded-xl font-semibold text-sm border border-emerald-200 hover:bg-emerald-50 transition-colors"
+            title="Abrir o módulo de Orçamentos (Ordens de Serviço)"
+          >
+            <FileText size={16} />
+            Módulo de Orçamentos
+          </button>
         </div>
       </div>
 

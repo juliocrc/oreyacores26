@@ -23,11 +23,11 @@ export async function GET(request: NextRequest) {
       prisma.jangada.findMany({
         where: {
           OR: [
-            { serial: { contains: q, mode: 'insensitive' } },
-            { brand: { contains: q, mode: 'insensitive' } },
-            { model: { contains: q, mode: 'insensitive' } },
-            { shipNameManual: { contains: q, mode: 'insensitive' } },
-            { owner: { contains: q, mode: 'insensitive' } },
+            { serial: { contains: q } },
+            { brand: { contains: q } },
+            { model: { contains: q } },
+            { shipNameManual: { contains: q } },
+            { owner: { contains: q } },
           ]
         },
         take: 4,
@@ -36,11 +36,11 @@ export async function GET(request: NextRequest) {
       prisma.navio.findMany({
         where: {
           OR: [
-            { nome: { contains: q, mode: 'insensitive' } },
-            { matricula: { contains: q, mode: 'insensitive' } },
-            { mmsi: { contains: q, mode: 'insensitive' } },
-            { imo: { contains: q, mode: 'insensitive' } },
-            { callSignal: { contains: q, mode: 'insensitive' } },
+            { nome: { contains: q } },
+            { matricula: { contains: q } },
+            { mmsi: { contains: q } },
+            { imo: { contains: q } },
+            { callSignal: { contains: q } },
           ],
         },
         take: 4,
@@ -49,10 +49,10 @@ export async function GET(request: NextRequest) {
       prisma.cliente.findMany({
         where: {
           OR: [
-            { nome: { contains: q, mode: 'insensitive' } },
-            { numeroCliente: { contains: q, mode: 'insensitive' } },
-            { nif: { contains: q, mode: 'insensitive' } },
-            { email: { contains: q, mode: 'insensitive' } },
+            { nome: { contains: q } },
+            { numeroCliente: { contains: q } },
+            { nif: { contains: q } },
+            { email: { contains: q } },
           ],
         },
         take: 4,
@@ -61,10 +61,10 @@ export async function GET(request: NextRequest) {
       prisma.colete.findMany({
         where: {
           OR: [
-            { serial: { contains: q, mode: 'insensitive' } },
-            { marca: { contains: q, mode: 'insensitive' } },
-            { modelo: { contains: q, mode: 'insensitive' } },
-            { estado: { contains: q, mode: 'insensitive' } },
+            { serial: { contains: q } },
+            { marca: { contains: q } },
+            { modelo: { contains: q } },
+            { estado: { contains: q } },
           ],
         },
         take: 4,
@@ -73,11 +73,11 @@ export async function GET(request: NextRequest) {
       prisma.epirb.findMany({
         where: {
           OR: [
-            { serial: { contains: q, mode: 'insensitive' } },
-            { marca: { contains: q, mode: 'insensitive' } },
-            { modelo: { contains: q, mode: 'insensitive' } },
-            { hexId: { contains: q, mode: 'insensitive' } },
-            { estado: { contains: q, mode: 'insensitive' } },
+            { serial: { contains: q } },
+            { marca: { contains: q } },
+            { modelo: { contains: q } },
+            { hexId: { contains: q } },
+            { estado: { contains: q } },
           ],
         },
         take: 4,
@@ -86,10 +86,10 @@ export async function GET(request: NextRequest) {
       prisma.ordemServico.findMany({
         where: {
           OR: [
-            { numeroOrdem: { contains: q, mode: 'insensitive' } },
-            { tecnicoResponsavel: { contains: q, mode: 'insensitive' } },
-            { descricao: { contains: q, mode: 'insensitive' } },
-            { status: { contains: q, mode: 'insensitive' } },
+            { numeroOrdem: { contains: q } },
+            { tecnicoResponsavel: { contains: q } },
+            { descricao: { contains: q } },
+            { status: { contains: q } },
           ],
         },
         select: {

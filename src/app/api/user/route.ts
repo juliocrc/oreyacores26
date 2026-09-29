@@ -81,8 +81,8 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const where: Prisma.UserWhereInput = {};
-  const emailParam = searchParams.get("email"); if (emailParam) where.email = { contains: emailParam, mode: "insensitive" };
-  const nameParam = searchParams.get("name"); if (nameParam) where.name = { contains: nameParam, mode: "insensitive" };
+  const emailParam = searchParams.get("email"); if (emailParam) where.email = { contains: emailParam };
+  const nameParam = searchParams.get("name"); if (nameParam) where.name = { contains: nameParam };
   const roleParam = searchParams.get("role");
   if (roleParam === "ADMIN" || roleParam === "USER" || roleParam === "CLIENTE") {
     where.role = roleParam;

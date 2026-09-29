@@ -15,15 +15,15 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const where: Prisma.ExtintorWhereInput = {};
     const serial = searchParams.get("serial");
-    if (serial) where.serial = { contains: serial, mode: "insensitive" };
+    if (serial) where.serial = { contains: serial };
     const marca = searchParams.get("marca");
-    if (marca) where.marca = { contains: marca, mode: "insensitive" };
+    if (marca) where.marca = { contains: marca };
     const modelo = searchParams.get("modelo");
-    if (modelo) where.modelo = { contains: modelo, mode: "insensitive" };
+    if (modelo) where.modelo = { contains: modelo };
     const tipoAgente = searchParams.get("tipoAgente");
-    if (tipoAgente) where.tipoAgente = { contains: tipoAgente, mode: "insensitive" };
+    if (tipoAgente) where.tipoAgente = { contains: tipoAgente };
     const estado = searchParams.get("estado");
-    if (estado) where.estado = { contains: estado, mode: "insensitive" };
+    if (estado) where.estado = { contains: estado };
     if (searchParams.get("shipId")) where.shipId = Number(searchParams.get("shipId"));
 
     const items = await prisma.extintor.findMany({

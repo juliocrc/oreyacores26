@@ -11,8 +11,12 @@ if "%ESTACAO%"=="" (
 echo.
 echo === A empacotar %ESTACAO% ===
 
-set ORIGEM=D:\%ESTACAO%
-if "%ESTACAO%"=="ACORES" set ORIGEM=D:\Acores
+if "%ESTACAO%"=="ACORES" (
+    set "ORIGEM=%~dp0"
+    if "!ORIGEM:~-1!"=="\" set "ORIGEM=!ORIGEM:~0,-1!"
+) else (
+    set "ORIGEM=D:\%ESTACAO%"
+)
 
 if not exist "%ORIGEM%" (
     echo ERRO: %ORIGEM% nao encontrada

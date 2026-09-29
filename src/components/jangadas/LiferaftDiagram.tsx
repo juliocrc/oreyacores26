@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   XCircle,
   HelpCircle,
+  MinusCircle,
   ChevronRight,
   Maximize2,
   X,
@@ -18,14 +19,39 @@ import type { ComponentKey, ComponentStatus, LightType, LiferaftDiagramProps } f
 import { LIGHT_TYPE_OPTIONS } from "@/types/liferaft-diagram";
 import { isNonExpiring, fmt, fmtPeso, fmtDate, getDateStatus, parseApproval } from "@/lib/liferaft-diagram-helpers";
 
-export default function LiferaftDiagram({ jangada, artigos }: LiferaftDiagramProps) {
+export default function LiferaftDiagram({ jangada, artigos, checklist = {} }: LiferaftDiagramProps) {
   const [hoveredKey, setHoveredKey]   = useState<ComponentKey | null>(null);
   const [selectedKey, setSelectedKey] = useState<ComponentKey | null>(null);
   const [modalOpen, setModalOpen]     = useState(false);
-  // Light type: persisted in jangada.lightType if available, else local state
-  const [lightType, setLightType] = useState<LightType>(
-    (jangada.lightType as LightType) ?? "automatic"
-  );
+
+  /* ── Checklist (registo da inspeção) — itens com {status, validade, voltagem, referencia} ── */
+  const checkRecord = checklist as Record<string, unknown>;
+  const chkItem = (key: string): Record<string, unknown> =>
+    checkRecord[key] && typeof checkRecord[key] === "object"
+      ? (checkRecord[key] as Record<string, unknown>)
+      : typeof checkRecord[key] === "string"
+      ? { status: checkRecord[key] }
+      : {};
+  const chkVal = (key: string, field: string): string =>
+    String(checkRecord[`${key}_${field}`] ?? chkItem(key)[field] ?? "");
+
+  /** Mapeia estados do wizard (OK/SUBSTITUIDO/REPROVADO/NA) para o diagrama */
+  const mapChkStatus = (raw: unknown): "OK" | "WARNING" | "CRITICAL" | "NONE" | null =>
+    raw == null || String(raw).trim() === "" ? null
+    : String(raw).trim().toUpperCase() === "OK" || String(raw).trim().toUpperCase() === "SUBSTITUIDO" ? "OK"
+    : String(raw).trim().toUpperCase() === "REPROVADO" ? "CRITICAL"
+    : String(raw).trim().toUpperCase() === "NA" || String(raw).trim().toUpperCase() === "N/A" ? "NONE"
+    : null;
+
+  const luzExtChk = chkItem("luz_exterior_bateria");
+  const luzIntChk = chkItem("luz_interior_bateria");
+
+  // Light type: prefer checklist/registo (NA → sem luz), senão jangada.lightType, senão "automatic"
+  const [lightType, setLightType] = useState<LightType>(() => {
+    const st = String(luzExtChk.status || "").toUpperCase();
+    if (st === "NA" || st === "N/A") return "none";
+    return (jangada.lightType as LightType) ?? "automatic";
+  });
   const [nowMs] = useState(() => Date.now());
 
   /* ── Compute statuses from real checklist fields ── */
@@ -36,9 +62,43 @@ export default function LiferaftDiagram({ jangada, artigos }: LiferaftDiagramPro
   const cylSt     = getDateStatus(jangada.cylinderDataProxTeste);
   const hruSt     = getDateStatus(jangada.hruValidade);
 
+  // Aplicabilidade da HRU (SIM/NAO) vem do wizard/checklist — se NAO, não é N/D nem crítico
+  const _chk = checklist as Record<string, unknown>;
+  const hruNaoAplicavel =
+    (typeof _chk._hruAplicavel === "string" && _chk._hruAplicavel.trim() !== ""
+      ? _chk._hruAplicavel
+      : typeof _chk.hru_aplicavel === "string" && _chk.hru_aplicavel.trim() !== ""
+      ? _chk.hru_aplicavel
+      : (jangada as Record<string, unknown>).hruAplicavel ?? "") === "NAO";
+
+  // Estado das luzes exterior/interior sincronizado com o wizard (status + validade + voltagem)
+  const luzExtStatus = mapChkStatus(luzExtChk.status);
+  const luzExtValidade = chkVal("luz_exterior_bateria", "validade");
+  const luzExtValSt = luzExtValidade ? getDateStatus(luzExtValidade) : null;
+  const luzExtNaoAplicavel = String(luzExtChk.status || "").toUpperCase() === "NA" || String(luzExtChk.status || "").toUpperCase() === "N/A";
+
+  const luzIntStatus = mapChkStatus(luzIntChk.status);
+  const luzIntValidade = chkVal("luz_interior_bateria", "validade");
+  const luzIntValSt = luzIntValidade ? getDateStatus(luzIntValidade) : null;
+
+  // Restantes itens do checklist (estado físico registado pelo inspetor)
+  const chkCompStatus = (key: string): "OK" | "WARNING" | "CRITICAL" | "NONE" | null =>
+    mapChkStatus(chkItem(key).status);
+  const chkCompNaoAplicavel = (key: string): boolean =>
+    ["NA", "N/A"].includes(String(chkItem(key).status || "").toUpperCase());
+
+  const rightingSt = chkCompStatus("sistema_endireitar");
+  const ballastSt = chkCompStatus("bolsas_estabilizacao");
+  const rampSt = chkCompStatus("escada_borda") ?? chkCompStatus("escada_entrada");
+  const painterSt = chkCompStatus("weak_link_painter") ?? chkCompStatus("painter_reserva");
+  const reflectorSt = chkCompStatus("refletores") ?? chkCompStatus("tubo_identificacao");
+
   const lightSt: "OK" | "WARNING" | "CRITICAL" | "NONE" =
-    lightType === "none" ? "CRITICAL" :
-    lightType === "battery" ? "WARNING" : "OK";
+    luzExtNaoAplicavel || luzExtStatus === "NONE" ? "NONE"
+    : lightType === "none" ? "NONE"
+    : luzExtStatus === "CRITICAL" || luzExtValSt === "CRITICAL" ? "CRITICAL"
+    : luzExtStatus === "OK" && luzExtValSt !== "WARNING" ? "OK"
+    : "WARNING";
 
   // Pressure test — upper chamber
   const calcQuedaVal = (inicio: unknown, fim: unknown, origQueda: unknown) => {
@@ -137,7 +197,10 @@ export default function LiferaftDiagram({ jangada, artigos }: LiferaftDiagramPro
       key:   "exteriorLight",
       label: "Luz Exterior (Canopy Light)",
       status: lightSt,
-      desc: lightType === "automatic"
+      naAplicavel: luzExtNaoAplicavel || (lightType === "none" && luzExtStatus !== "OK"),
+      desc: luzExtNaoAplicavel
+        ? "Sem luz exterior instalada (não aplicável) — jangada sem iluminação no coberto."
+        : lightType === "automatic"
         ? "Luz automática SOLAS — activa com a inflagem, mínimo 4,3 cd / 50-70 flashes/min / 12h."
         : lightType === "battery"
         ? "Bateria de luz manual — verificar carga e validade conforme manual do fabricante."
@@ -145,11 +208,13 @@ export default function LiferaftDiagram({ jangada, artigos }: LiferaftDiagramPro
       icon: "💡",
       specs: [
         { name: "Tipo de Luz",        value: LIGHT_TYPE_OPTIONS.find(o => o.value === lightType)?.label ?? "—" },
+        { name: "Referência",         value: chkVal("luz_exterior_bateria", "referencia") || fmt(chkItem("luz_exterior_bateria").stockId) || "—" },
+        { name: "Estado (Checklist)", value: fmt(luzExtChk.status) || "—" },
+        { name: "Validade Bateria",   value: luzExtValidade || "—" },
+        { name: "Voltagem Medida",    value: chkVal("luz_exterior_bateria", "voltagem") || "—" },
         { name: "Intensidade Mínima", value: "4,3 cd (SOLAS)" },
         { name: "Cadência",           value: "50–70 flashes/min" },
         { name: "Autonomia Mínima",   value: "12 horas" },
-        { name: "Tipo Bateria",       value: "Lítio (recomendada)" },
-        { name: "Validade",           value: "≥ 5 anos (IMO LSA)" },
       ],
       pos: [50, 7],   // top of canopy apex — where "light" label is in the photo
     },
@@ -215,9 +280,9 @@ export default function LiferaftDiagram({ jangada, artigos }: LiferaftDiagramPro
       key:   "cylinder",
       label: "Cilindro de Inflação CO₂ / N₂",
       status: cylSt,
-      desc: cylSt === "OK"       ? "Cilindro dentro da validade do teste hidrostático e peso conforme."
-          : cylSt === "WARNING"  ? "Teste hidrostático do cilindro expira em menos de 90 dias."
-          : cylSt === "CRITICAL" ? "Cilindro com teste hidrostático expirado — substituição urgente!"
+      desc: cylSt === "OK"       ? "Cilindro dentro da validade do teste hidráulico e peso conforme."
+          : cylSt === "WARNING"  ? "Teste hidráulico do cilindro expira em menos de 90 dias."
+          : cylSt === "CRITICAL" ? "Cilindro com teste hidráulico expirado — substituição urgente!"
           : "Sem data de próximo teste registada.",
       icon: "🧪",
       specs: [
@@ -239,8 +304,11 @@ export default function LiferaftDiagram({ jangada, artigos }: LiferaftDiagramPro
     hru: {
       key:   "hru",
       label: "HRU (Válvula Hidrostática)",
-      status: hruSt,
-      desc: hruSt === "OK"
+      status: hruNaoAplicavel ? "NONE" : hruSt,
+      naAplicavel: hruNaoAplicavel,
+      desc: hruNaoAplicavel
+        ? "HRU não instalada — jangada sem válvula hidrostática (não aplicável)."
+        : hruSt === "OK"
         ? "HRU dentro da validade — actua automaticamente até 4m de profundidade."
         : hruSt === "WARNING"
         ? "HRU expira em menos de 90 dias — agendar substituição."
@@ -251,6 +319,7 @@ export default function LiferaftDiagram({ jangada, artigos }: LiferaftDiagramPro
       external: true,
       externalNote: "Exterior ao contentor — fixo ao berço do navio (cradle)",
       specs: [
+        { name: "Aplicabilidade",     value: hruNaoAplicavel ? "NÃO APLICÁVEL" : "Instalada" },
         { name: "Modelo / Ref.",      value: fmt(jangada.hruReferencia) },
         { name: "Nº de Série",        value: fmt(jangada.hruSerial ?? jangada.hruDataInstalacao) },
         { name: "Data Instalação",    value: fmtDate(jangada.hruDataInstalacao) },
@@ -288,11 +357,30 @@ export default function LiferaftDiagram({ jangada, artigos }: LiferaftDiagramPro
     interiorLight: {
       key:   "interiorLight",
       label: "Luz Interior (Courtesy Light)",
-      status: lightSt === "OK" ? "OK" : "NONE",
-      desc: "Luz interior SOLAS — ativação automática na inflagem, mínimo 0,5 cd por 12 horas para leitura de instruções de sobrevivência.",
+      status:
+        String(luzIntChk.status || "").toUpperCase() === "NA" || String(luzIntChk.status || "").toUpperCase() === "N/A"
+          ? "NONE"
+          : lightType === "none" && String(luzIntChk.status || "").toUpperCase() === ""
+          ? "NONE"
+          : luzIntValSt === "CRITICAL" || luzIntStatus === "CRITICAL"
+          ? "CRITICAL"
+          : luzIntStatus === "OK" && luzIntValSt !== "WARNING"
+          ? "OK"
+          : luzIntValSt === "WARNING" || luzIntStatus === "OK"
+          ? "WARNING"
+          : "NONE",
+      naAplicavel: String(luzIntChk.status || "").toUpperCase() === "NA" || String(luzIntChk.status || "").toUpperCase() === "N/A",
+      desc: String(luzIntChk.status || "").toUpperCase() === "NA" || String(luzIntChk.status || "").toUpperCase() === "N/A"
+        ? "Sem luz interior instalada (não aplicável)."
+        : luzIntValSt === "CRITICAL"
+        ? "Bateria da luz interior expirada — substituir."
+        : "Luz interior SOLAS — ativação automática na inflagem, mínimo 0,5 cd por 12 horas para leitura de instruções de sobrevivência.",
       icon: "🏮",
       specs: [
-        { name: "Tipo de Luz",      value: "LED Interior SOLAS" },
+        { name: "Referência",      value: chkVal("luz_interior_bateria", "referencia") || fmt(chkItem("luz_interior_bateria").stockId) || "—" },
+        { name: "Estado (Checklist)", value: fmt(luzIntChk.status) || "—" },
+        { name: "Validade Bateria", value: luzIntValidade || "—" },
+        { name: "Voltagem Medida",  value: chkVal("luz_interior_bateria", "voltagem") || "—" },
         { name: "Intensidade Mín.", value: "0,5 cd (SOLAS)" },
         { name: "Autonomia Mín.",   value: "12 horas" },
         { name: "Ativação",         value: "Automática" }
@@ -304,10 +392,16 @@ export default function LiferaftDiagram({ jangada, artigos }: LiferaftDiagramPro
     ballastPockets: {
       key:   "ballastPockets",
       label: "Bolsas de Estabilização (Lastro)",
-      status: "OK",
-      desc: "Bolsas de estabilização de água na base inferior da jangada. Enchem automaticamente para oferecer lastro contra capotamentos por rajadas de vento.",
+      status: ballastSt ?? "OK",
+      naAplicavel: chkCompNaoAplicavel("bolsas_estabilizacao"),
+      desc: ballastSt === "CRITICAL"
+        ? "Bolsas de estabilização reprovadas na inspeção — verificar reforço e fixações."
+        : ballastSt === "NONE"
+        ? "Bolsas de estabilização sem estado registado (não aplicável / não verificadas)."
+        : "Bolsas de estabilização de água na base inferior da jangada. Enchem automaticamente para oferecer lastro contra capotamentos por rajadas de vento.",
       icon: "🪣",
       specs: [
+        { name: "Estado (Checklist)", value: fmt(chkItem("bolsas_estabilizacao").status) || "OK" },
         { name: "Qtd. Mínima", value: "4 bolsas (SOLAS)" },
         { name: "Volume Mín.", value: "25 Litros cada (SOLAS)" },
         { name: "Material",    value: "Tecido impermeável pesado" }
@@ -374,12 +468,18 @@ export default function LiferaftDiagram({ jangada, artigos }: LiferaftDiagramPro
     painterLine: {
       key:   "painterLine",
       label: "Cabo de Retenida (Painter Line)",
-      status: "OK",
-      desc: "Cabo de retenida que liga a jangada ao navio. Triggers the inflation mechanism when pulled. Deve ter comprimento suficiente para permitir a inflagem antes de se soltar.",
+      status: painterSt ?? "OK",
+      naAplicavel: chkCompNaoAplicavel("weak_link_painter") || chkCompNaoAplicavel("painter_reserva"),
+      desc: painterSt === "CRITICAL"
+        ? "Ponta fracável (weak link) ou painter reprovado na inspeção — substituição obrigatória."
+        : painterSt === "NONE"
+        ? "Painter/ponta fracável sem estado registado (não verificados)."
+        : "Cabo de retenida que liga a jangada ao navio. Triggers the inflation mechanism when pulled. Deve ter comprimento suficiente para permitir a inflagem antes de se soltar.",
       icon: "🪢",
       specs: [
+        { name: "Estado (Checklist)", value: fmt(chkItem("weak_link_painter").status) || fmt(chkItem("painter_reserva").status) || "OK" },
         { name: "Comprimento", value: fmt(jangada.painterLength, " m") },
-        { name: "Função",      value: "Activar inflagem + retenção ao navio" },
+        { name: "Ponta Fracável", value: "2,2 ± 0,4 kN (LSA 4.1.6.2)" },
         { name: "SOLAS",       value: "≥ comprimento necessário para davit" },
       ],
       pos: [13, 36],
@@ -389,14 +489,24 @@ export default function LiferaftDiagram({ jangada, artigos }: LiferaftDiagramPro
     radarReflector: {
       key:   "radarReflector",
       label: "Refletor de Radar",
-      status: jangada.radarReflectorValidade
+      status: reflectorSt === "CRITICAL"
+        ? "CRITICAL"
+        : reflectorSt === "NONE" && jangada.radarReflectorValidade
+        ? "NONE"
+        : jangada.radarReflectorValidade
         ? getDateStatus(jangada.radarReflectorValidade)
-        : "NONE",
-      desc: jangada.radarReflectorValidade
+        : reflectorSt ?? "NONE",
+      naAplicavel: chkCompNaoAplicavel("refletores"),
+      desc: reflectorSt === "CRITICAL"
+        ? "Refletores reprovados na inspeção — não conformes."
+        : jangada.radarReflectorValidade
         ? `Refletor de radar SOLAS — validade: ${fmtDate(jangada.radarReflectorValidade)}. Melhora a visibilidade em radar para resgate.`
+        : chkCompNaoAplicavel("refletores")
+        ? "Refletores não aplicáveis / não registados."
         : "Sem refletor de radar registado.",
       icon: "📡",
       specs: [
+        { name: "Estado (Checklist)", value: fmt(chkItem("refletores").status) || "—" },
         { name: "Modelo",    value: fmt(jangada.radarReflector) },
         { name: "Validade",  value: fmtDate(jangada.radarReflectorValidade) },
         { name: "Função",    value: "Reflexão de sinal de radar" },
@@ -409,10 +519,16 @@ export default function LiferaftDiagram({ jangada, artigos }: LiferaftDiagramPro
     boardingRamp: {
       key:   "boardingRamp",
       label: "Rampa / Escada de Embarque",
-      status: "OK",
-      desc: "Rampa de embarque com degraus e cordas de agarre. Permite o acesso seguro à jangada a partir da água. Inclui escada de entrada e pegas de mão.",
+      status: rampSt ?? "OK",
+      naAplicavel: chkCompNaoAplicavel("escada_borda") || chkCompNaoAplicavel("escada_entrada"),
+      desc: rampSt === "CRITICAL"
+        ? "Rampa/escada de embarque reprovada na inspeção — insegura para entrada a partir da água."
+        : rampSt === "NONE"
+        ? "Rampa/escada sem estado registado (não aplicável / não verificada)."
+        : "Rampa de embarque com degraus e cordas de agarre. Permite o acesso seguro à jangada a partir da água. Inclui escada de entrada e pegas de mão.",
       icon: "🪜",
       specs: [
+        { name: "Estado (Checklist)", value: fmt(chkItem("escada_borda").status) || fmt(chkItem("escada_entrada").status) || "OK" },
         { name: "Tipo",          value: "Rampa + Escada" },
         { name: "Degraus",       value: "3–5 degraus (SOLAS)" },
         { name: "Pegas de Mão",  value: "Cordas laterais" },
@@ -425,10 +541,16 @@ export default function LiferaftDiagram({ jangada, artigos }: LiferaftDiagramPro
     rightingSystem: {
       key:   "rightingSystem",
       label: "Sistema de Endireitar",
-      status: artigos.some((a: { name?: string }) => /endireitar|righting/i.test(a.name || "")) ? "OK" : "NONE",
-      desc: "Sistema de endireitar (righting strap) — faixa sob a jangada que permite ao pessoal virá-la caso fique invertida na água.",
+      status: rightingSt ?? (artigos.some((a: { name?: string }) => /endireitar|righting/i.test(a.name || "")) ? "OK" : "NONE"),
+      naAplicavel: chkCompNaoAplicavel("sistema_endireitar"),
+      desc: rightingSt === "CRITICAL"
+        ? "Sistema de endireitar reprovado na inspeção."
+        : rightingSt === "NONE"
+        ? "Sistema de endireitar sem estado registado."
+        : "Sistema de endireitar (righting strap) — faixa sob a jangada que permite ao pessoal virá-la caso fique invertida na água.",
       icon: "🔄",
       specs: [
+        { name: "Estado (Checklist)", value: fmt(chkItem("sistema_endireitar").status) || (artigos.some((a: { name?: string }) => /endireitar|righting/i.test(a.name || "")) ? "OK" : "—") },
         { name: "Função",     value: "Endireitar jangada invertida" },
         { name: "Posição",    value: "Inferior — sob a plataforma" },
         { name: "SOLAS",      value: "Obrigatório para todas as jangadas" },
@@ -438,7 +560,9 @@ export default function LiferaftDiagram({ jangada, artigos }: LiferaftDiagramPro
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [jangada, artigos, lightType, expiredCnt, warnCnt,
-       isNAPOk, isWPOk, isFSOk, isDLOk, cylSt, hruSt, lightSt]);
+       isNAPOk, isWPOk, isFSOk, isDLOk, cylSt, hruSt, lightSt,
+       checklist, hruNaoAplicavel, luzExtStatus, luzExtValSt, luzExtNaoAplicavel,
+       luzIntStatus, luzIntValSt, lightSt, rightingSt, ballastSt, rampSt, painterSt, reflectorSt]);
 
   const activeKey  = hoveredKey || selectedKey;
   const activeComp = activeKey ? components[activeKey] : null;
@@ -448,6 +572,7 @@ export default function LiferaftDiagram({ jangada, artigos }: LiferaftDiagramPro
   const score = useMemo(() => {
     let s = 100;
     Object.values(components).forEach((c) => {
+      if (c.naAplicavel) return; // não aplicável não penaliza
       if (c.status === "CRITICAL") s -= 22;
       else if (c.status === "WARNING") s -= 8;
       else if (c.status === "NONE")    s -= 4;
@@ -475,7 +600,14 @@ export default function LiferaftDiagram({ jangada, artigos }: LiferaftDiagramPro
     };
   };
 
-  const statusBadge = (status: ComponentStatus["status"]) => {
+  const statusBadge = (status: ComponentStatus["status"], naAplicavel?: boolean) => {
+    if (naAplicavel) {
+      return (
+        <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border bg-slate-50 text-slate-400 border-slate-200">
+          <MinusCircle size={11} /> N/A
+        </span>
+      );
+    }
     const map = {
       OK:       { cls: "bg-emerald-50 text-emerald-700 border-emerald-200", Icon: CheckCircle2, label: "CONFORME" },
       WARNING:  { cls: "bg-amber-50 text-amber-700 border-amber-200 animate-pulse",  Icon: AlertTriangle, label: "ATENÇÃO" },
@@ -504,7 +636,7 @@ export default function LiferaftDiagram({ jangada, artigos }: LiferaftDiagramPro
               )}
             </div>
           </div>
-          {statusBadge(activeComp.status)}
+          {statusBadge(activeComp.status, activeComp.naAplicavel)}
         </div>
 
         <p className="text-xs text-slate-600 leading-relaxed bg-white border border-slate-200/50 p-3 rounded-xl">
@@ -588,10 +720,13 @@ export default function LiferaftDiagram({ jangada, artigos }: LiferaftDiagramPro
                 className="w-full flex items-center justify-between p-2 rounded-xl bg-white border border-slate-200/40 hover:border-blue-400 hover:bg-blue-50/30 transition-all text-left"
               >
                 <div className="flex items-center gap-2">
-                  <span className={`w-2.5 h-2.5 rounded-full ${dotCls}`} />
+                  <span className={`w-2.5 h-2.5 rounded-full ${comp.naAplicavel ? "bg-slate-200" : dotCls}`} />
                   <span className="text-xs font-bold text-slate-700">{comp.label}</span>
                   {comp.external && (
                     <span className="text-[9px] text-orange-500 font-bold border border-orange-200 bg-orange-50 px-1 rounded">EXT.</span>
+                  )}
+                  {comp.naAplicavel && (
+                    <span className="text-[9px] text-slate-400 font-bold border border-slate-200 bg-slate-50 px-1 rounded">N/A</span>
                   )}
                 </div>
                 <ChevronRight size={12} className="text-slate-400" />
@@ -699,7 +834,7 @@ export default function LiferaftDiagram({ jangada, artigos }: LiferaftDiagramPro
                               <Link2 size={10} /> {activeComp.externalNote}
                             </span>
                           )}
-                          {statusBadge(activeComp.status)}
+                          {statusBadge(activeComp.status, activeComp.naAplicavel)}
                         </div>
                       </div>
                     </div>
@@ -779,14 +914,14 @@ export default function LiferaftDiagram({ jangada, artigos }: LiferaftDiagramPro
                           OK: "bg-emerald-500", WARNING: "bg-amber-500 animate-pulse",
                           CRITICAL: "bg-rose-500 animate-bounce", NONE: "bg-slate-300",
                         }[comp.status];
-                        const statusLabel = { OK: "Conforme", WARNING: "Atenção", CRITICAL: "Crítico", NONE: "N/D" }[comp.status];
-                        const statusTxt = { OK: "text-emerald-600", WARNING: "text-amber-600", CRITICAL: "text-rose-600", NONE: "text-slate-400" }[comp.status];
-                        return (
+                        const statusLabel = comp.naAplicavel ? "N/A" : { OK: "Conforme", WARNING: "Atenção", CRITICAL: "Crítico", NONE: "N/D" }[comp.status];
+                            const statusTxt = comp.naAplicavel ? "text-slate-400" : { OK: "text-emerald-600", WARNING: "text-amber-600", CRITICAL: "text-rose-600", NONE: "text-slate-400" }[comp.status];
+                            return (
                           <button key={comp.key} onClick={() => setSelectedKey(comp.key)}
                             className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 hover:border-blue-400 hover:bg-blue-50/30 transition-all text-left"
                           >
                             <div className="flex items-center gap-3">
-                              <span className={`w-3 h-3 rounded-full ${dotCls}`} />
+                              <span className={`w-3 h-3 rounded-full ${comp.naAplicavel ? "bg-slate-200" : dotCls}`} />
                               <div>
                                 <span className="text-sm font-bold text-slate-800">{comp.label}</span>
                                 {comp.external && (

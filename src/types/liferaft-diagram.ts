@@ -9,6 +9,8 @@ export type LiferaftArtigo = {
 export type LiferaftDiagramProps = {
   jangada: JangadaFormData;
   artigos: LiferaftArtigo[];
+  /** Checklist (régua) recolhida no wizard/inspeção — itens com {status, validade, voltagem, referencia} */
+  checklist?: Record<string, unknown>;
 };
 
 export type ComponentKey =
@@ -41,6 +43,8 @@ export type ComponentStatus = {
   pos: [number, number];
   external?: boolean;
   externalNote?: string;
+  /** Marca o componente como "sem luz/bateria/HRU" (não aplicável) — não conta como N/D para o score */
+  naAplicavel?: boolean;
 };
 
 export const LIGHT_TYPE_OPTIONS = [

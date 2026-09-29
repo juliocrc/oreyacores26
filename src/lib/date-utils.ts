@@ -387,6 +387,76 @@ export function toMonthInput(value: string | Date | null | undefined): string {
 }
 
 /**
+ * Parse any month/validade value ("MM/AAAA", "AAAA-MM", "AAAA-MM-DD", ISO,
+ * "DD/MM/AAAA") into `{ year, month }`. Returns null for empty/unparseable.
+ */
+export function parseMonthYearValue(value: string | Date | null | undefined): { year: number; month: number } | null {
+  if (!value) return null;
+  const str = String(value).trim();
+  if (!str || str === 'undefined' || str === 'null' || str.startsWith('0000')) return null;
+
+  const mmYyyy = str.match(/^(\d{1,2})\/(\d{4})$/);
+  if (mmYyyy) {
+    const month = Number(mmYyyy[1]);
+    const year = Number(mmYyyy[2]);
+    if (month >= 1 && month <= 12 && year > 1950 && year < 2100) return { year, month };
+    return null;
+  }
+
+  const yyyyMm = str.match(/^(\d{4})-(\d{1,2})/);
+  if (yyyyMm) {
+    const year = Number(yyyyMm[1]);
+    const month = Number(yyyyMm[2]);
+    if (month >= 1 && month <= 12 && year > 1950 && year < 2100) return { year, month };
+    return null;
+  }
+
+  const dmY = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (dmY) {
+    const month = Number(dmY[2]);
+    const year = Number(dmY[3]);
+    if (month >= 1 && month <= 12 && year > 1950 && year < 2100) return { year, month };
+    return null;
+  }
+
+  return null;
+}
+
+/**
+ * Normalize any date-ish value to a "MM/AAAA" string (Portuguese validity format).
+ * Returns '' for empty/unparseable input.
+ */
+export function toMonthYearString(value: string | Date | null | undefined): string {
+  const parsed = parseMonthYearValue(value);
+  if (!parsed) return '';
+  return `${String(parsed.month).padStart(2, '0')}/${parsed.year}`;
+}
+
+/**
+ * Mask raw keystrokes for a text input into "MM/AAAA" (max 6 digits).
+ */
+export function maskMonthYearInput(raw: string): string {
+  const digits = String(raw || '').replace(/\D/g, '').slice(0, 6);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+}
+
+/**
+ * Display value for a "MM/AAAA" text input.
+ * Unlike `toMonthYearString`, partial in-progress masks ("0", "04", "04/2",
+ * "04/202", "9999") are passed through as-is so the user can keep typing;
+ * complete values stored elsewhere (ISO "2028-01-01T00:00:00.000Z",
+ * "YYYY-MM", "MM/YYYY") are normalized to "MM/AAAA".
+ */
+export function maskMonthYearDisplay(value: string | Date | null | undefined): string {
+  if (!value) return '';
+  const str = String(value).trim();
+  if (!str) return '';
+  if (/^(\d{0,2})(\/\d{0,4})?$/.test(str)) return str;
+  return toMonthYearString(str);
+}
+
+/**
  * Format any date-ish value as "MM/YYYY" (Portuguese month display).
  * Timezone-safe: always extracts year/month from the raw string via regex,
  * falling back to UTC components (never local getMonth).

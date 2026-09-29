@@ -31,12 +31,14 @@ export async function POST(request: Request) {
 
     const { buffer, fileName } = await buildQuadroInspectionArtifacts(payload);
 
-    // Guardar no folder organizado por navio (NAVIOS/{navio}/)
+    // Guardar no folder organizado por navio (public/navios/{navio}/)
+    let savedPath: string | undefined;
     if (payload.shipName && buffer) {
-      await saveQuadroToNavioFolder(payload.shipName, fileName, buffer, {
+      const saved = await saveQuadroToNavioFolder(payload.shipName, fileName, buffer, {
         serial: payload.raftSerial || undefined,
         date: payload.inspectionDate ? new Date(payload.inspectionDate) : undefined,
       });
+      savedPath = saved.relativePath;
     }
 
     return new NextResponse(new Uint8Array(buffer), {
@@ -44,6 +46,7 @@ export async function POST(request: Request) {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'Content-Disposition': `attachment; filename="${fileName}"`,
         'Cache-Control': 'no-store',
+        ...(savedPath ? { 'X-Orey-Saved-Path': savedPath } : {}),
       },
     });
   } catch (error) {

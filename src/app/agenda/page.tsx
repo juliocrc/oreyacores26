@@ -76,8 +76,6 @@ function AgendaPage() {
   const [conflicts, setConflicts] = useState<any[]>([]);
   const [showTimeline, setShowTimeline] = useState(false);
   const [timelineStartDate, setTimelineStartDate] = useState<Date>(new Date());
-  const [syncingGoogleCalendar, setSyncingGoogleCalendar] = useState(false);
-  const [lastGoogleSync, setLastGoogleSync] = useState<string>("");
   const { 
     viewMode, setViewMode, 
     showAdvancedPanels, setShowAdvancedPanels, 
@@ -172,25 +170,6 @@ function AgendaPage() {
   const triggerAgendaReload = () => {
     void reloadAgendaDataRef.current?.();
     refreshOperationalPanels();
-  };
-
-  const handleSyncGoogleCalendar = async () => {
-    if (syncingGoogleCalendar) return;
-    setSyncingGoogleCalendar(true);
-    try {
-      const res = await fetch("/api/google-calendar/sync", { method: "POST" });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        alert(data?.error || "Google Calendar não está configurado neste ambiente.");
-        return;
-      }
-      setLastGoogleSync(data?.summary || "Sincronizado.");
-      alert(data?.summary || "Sincronizado com o Google Calendar com sucesso!");
-    } catch {
-      alert("Google Calendar não está configurado neste ambiente.");
-    } finally {
-      setSyncingGoogleCalendar(false);
-    }
   };
 
   // ...existing code...
@@ -1147,26 +1126,23 @@ const formatDate = (value?: string | null) => {
   }
 
   return (
-    <div className="p-6">
+    <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
       <AgendaHeader 
         handleExportCSV={handleExportCSV}
         handleExportExcel={handleExportExcel}
         handleExportPDF={handleExportPDF}
         handleDesmarcarTodos={handleDesmarcarTodos}
-        handleSyncGoogleCalendar={handleSyncGoogleCalendar}
-        syncingGoogleCalendar={syncingGoogleCalendar}
-        lastGoogleSync={lastGoogleSync}
       />
 
       {/* Alert: rafts expiring in 30 days without a schedule */}
       {unscheduledExpiring.length > 0 && (
-        <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
-          <span className="text-amber-500 text-xl mt-0.5">⚠</span>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-amber-900">
+        <div className="ds-animate-in mb-4 flex items-start gap-3 rounded-2xl border border-warn-line bg-warn-soft px-4 py-3">
+          <span aria-hidden className="mt-0.5 text-base text-warn">⚠</span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-warn">
               {unscheduledExpiring.length} jangada{unscheduledExpiring.length !== 1 ? 's' : ''} com validade a expirar nos próximos 30 dias sem agendamento
             </p>
-            <p className="text-xs text-amber-700 mt-0.5 truncate">
+            <p className="mt-0.5 truncate text-xs text-ink-muted">
               {unscheduledExpiring.slice(0, 6).map(r => r.label).join(' · ')}
               {unscheduledExpiring.length > 6 ? ` · +${unscheduledExpiring.length - 6} mais` : ''}
             </p>
@@ -1176,42 +1152,50 @@ const formatDate = (value?: string | null) => {
 
       {/* KPI cards */}
       {metrics && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
-          <div className="bg-white rounded-xl border border-gray-200 p-3 flex flex-col gap-1">
-            <p className="text-xs text-gray-500 font-medium">Total agendamentos</p>
-            <p className="text-2xl font-bold text-gray-900">{metrics.total}</p>
+        <div className="ds-animate-in mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="ds-card-interactive flex flex-col gap-1 p-3">
+            <p className="text-xs font-medium text-ink-muted">Total agendamentos</p>
+            <p className="text-2xl font-bold text-ink">{metrics.total}</p>
           </div>
-          <div className="bg-white rounded-xl border border-sky-200 p-3 flex flex-col gap-1">
-            <p className="text-xs text-sky-600 font-medium">Próximos 7 dias</p>
-            <p className="text-2xl font-bold text-sky-700">{metrics.upcomingNext7Days}</p>
+          <div className="ds-card-interactive flex flex-col gap-1 border-sea-line p-3">
+            <p className="text-xs font-medium text-sea">Próximos 7 dias</p>
+            <p className="text-2xl font-bold text-sea">{metrics.upcomingNext7Days}</p>
           </div>
-          <div className="bg-white rounded-xl border border-red-200 p-3 flex flex-col gap-1">
-            <p className="text-xs text-red-600 font-medium">Em atraso</p>
-            <p className="text-2xl font-bold text-red-700">{metrics.overdueCount}</p>
+          <div className="ds-card-interactive flex flex-col gap-1 border-danger-line p-3">
+            <p className="text-xs font-medium text-danger">Em atraso</p>
+            <p className="text-2xl font-bold text-danger">{metrics.overdueCount}</p>
           </div>
-          <div className="bg-white rounded-xl border border-green-200 p-3 flex flex-col gap-1">
-            <p className="text-xs text-green-700 font-medium">Taxa de conclusão</p>
-            <p className="text-2xl font-bold text-green-700">{metrics.completionRate}%</p>
+          <div className="ds-card-interactive flex flex-col gap-1 border-ok-line p-3">
+            <p className="text-xs font-medium text-ok">Taxa de conclusão</p>
+            <p className="text-2xl font-bold text-ok">{metrics.completionRate}%</p>
           </div>
-          <div className="bg-white rounded-xl border border-violet-200 p-3 flex flex-col gap-1">
-            <p className="text-xs text-violet-600 font-medium">Duração média</p>
-            <p className="text-2xl font-bold text-violet-700">{metrics.averageDuration}&thinsp;min</p>
+          <div className="ds-card-interactive flex flex-col gap-1 border-brand-line p-3">
+            <p className="text-xs font-medium text-brand">Duração média</p>
+            <p className="text-2xl font-bold text-brand">{metrics.averageDuration}&thinsp;min</p>
           </div>
-          <div className={`bg-white rounded-xl border p-3 flex flex-col gap-1 ${conflictCount > 0 ? 'border-orange-300' : 'border-gray-200'}`}>
-            <p className={`text-xs font-medium ${conflictCount > 0 ? 'text-orange-600' : 'text-gray-500'}`}>Conflitos</p>
-            <p className={`text-2xl font-bold ${conflictCount > 0 ? 'text-orange-600' : 'text-gray-400'}`}>{conflictCount}</p>
+          <div
+            className={`ds-card-interactive flex flex-col gap-1 p-3 ${
+              conflictCount > 0 ? 'border-warn-line' : ''
+            }`}
+          >
+            <p className={`text-xs font-medium ${conflictCount > 0 ? 'text-warn' : 'text-ink-muted'}`}>
+              Conflitos
+            </p>
+            <p className={`text-2xl font-bold ${conflictCount > 0 ? 'text-warn' : 'text-ink-subtle'}`}>
+              {conflictCount}
+            </p>
           </div>
         </div>
       )}
 
       {/* Status distribution pills */}
       {metrics && Object.keys(metrics.byStatus).length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-5">
+        <div className="mb-5 flex flex-wrap gap-2">
           {(Object.entries(metrics.byStatus) as [string, number][]).map(([st, count]) => {
             const key = normalizeEventStatus(st);
             const c = EVENT_STATUS_COLORS[key];
             return (
-              <span key={st} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold" style={{ backgroundColor: c.bg, color: c.text, border: `1px solid ${c.border}` }}>
+              <span key={st} className="ds-badge" style={{ backgroundColor: c.bg, color: c.text, borderColor: c.border }}>
                 {EVENT_STATUS_LABELS[key]} · {count}
               </span>
             );
@@ -1220,12 +1204,12 @@ const formatDate = (value?: string | null) => {
       )}
 
       {conflictCount > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-5">
-          <h3 className="text-sm font-bold text-amber-900 flex items-center gap-2 mb-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+        <div className="ds-card mb-5 border-warn-line bg-warn-soft p-4">
+          <h3 className="ds-section-title mb-2 text-warn">
+            <span aria-hidden className="h-2.5 w-2.5 animate-pulse rounded-full bg-warn" />
             <span>Alerta de Conflitos na Agenda ({conflictCount})</span>
           </h3>
-          <ul className="space-y-1.5 text-xs text-amber-800 list-disc list-inside">
+          <ul className="list-inside list-disc space-y-1.5 text-xs text-ink-muted">
             {conflicts.map((c, i) => (
               <li key={i}>{c.description}</li>
             ))}
@@ -1233,26 +1217,27 @@ const formatDate = (value?: string | null) => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
         <div className="xl:col-span-8">
           {viewMode === 'calendar' ? (
             <div className="space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-xl border border-gray-200">
-                <div className="text-sm text-gray-700">
-                  <span className="font-semibold text-indigo-700">Modo de visualização:</span> {showTimeline ? "Linha de Tempo / Planeamento Gantt" : "Calendário Operacional"}
-                </div>
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface p-3 shadow-card">
+                <p className="text-sm text-ink-muted">
+                  <span className="font-semibold text-brand">Modo de visualização:</span>{" "}
+                  {showTimeline ? "Linha de Tempo / Planeamento Gantt" : "Calendário Operacional"}
+                </p>
                 <button
                   type="button"
                   onClick={() => setShowTimeline(prev => !prev)}
-                  className="rounded-lg border border-indigo-200 bg-indigo-50 px-3.5 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition-colors"
+                  className="ds-btn ds-btn-sm ds-btn-secondary"
                 >
                   {showTimeline ? "🔍 Ver Calendário" : "📅 Ver Linha de Tempo / Gantt"}
                 </button>
               </div>
 
               {showTimeline ? (
-                <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-6">
-                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-150 pb-4">
+                <div className="ds-card space-y-6 p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4">
                     <div>
                       <h3 className="text-sm font-bold text-slate-800">Linha de Tempo dos Técnicos (Vista Gantt)</h3>
                       <p className="text-xs text-slate-500">Distribuição semanal de carga horária, agendamentos e férias/ausências.</p>

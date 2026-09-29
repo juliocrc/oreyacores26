@@ -8,14 +8,32 @@ echo   REBUILD - Orey Tecnica Acores
 echo ========================================
 echo.
 
-set "NODE_CMD=node"
-if exist "bin\node.exe" set "NODE_CMD=bin\node.exe"
+REM --- Detetar Node.js ---
+set "NODE_CMD="
+if exist "%~dp0bin\node.exe" (
+    set "NODE_CMD=%~dp0bin\node.exe"
+) else (
+    where node >nul 2>&1
+    if %errorlevel%==0 (
+        set "NODE_CMD=node"
+    ) else (
+        echo [ERRO] Node.js nao encontrado!
+        echo   Copie a pasta bin/ ou instale Node.js.
+        pause
+        exit /b 1
+    )
+)
+
+echo Node.js: %NODE_CMD%
+echo.
 
 if not exist "node_modules\next\dist\bin\next" (
-    echo [ERRO] node_modules incompleto!
-    echo Execute PREPARAR_COMPLETO.bat primeiro.
-    pause
-    exit /b 1
+    if not exist "node_modules\next\dist\next" (
+        echo [ERRO] node_modules incompleto!
+        echo Execute npm install primeiro.
+        pause
+        exit /b 1
+    )
 )
 
 echo [INFO] A eliminar build anterior...
@@ -74,6 +92,12 @@ if exist ".next\standalone" (
             xcopy /s /e /i /y "bin" ".next\standalone\bin" >nul 2>&1
             echo [OK] bin copiado
         )
+    )
+
+    REM Copiar server.js para raiz para compatibilidade com launcher.js
+    if not exist "server.js" (
+        copy /Y ".next\standalone\server.js" "server.js" >nul 2>&1
+        echo [OK] server.js copiado para raiz
     )
 )
 

@@ -73,7 +73,7 @@ export async function findDuplicateCylinderStock(payload: ReturnType<typeof norm
 
   const candidates = await prisma.stock.findMany({
     where: {
-      categoria: { equals: "CILINDROS", mode: "insensitive" },
+      categoria: { equals: "CILINDROS" },
     },
     select: {
       id: true,
@@ -111,7 +111,7 @@ export async function findConflictingValidityStock(payload: ConflictingValidityP
   if (!key) return null;
 
   const candidates = await prisma.stock.findMany({
-    where: { referencia: { equals: String(payload.referencia || ""), mode: "insensitive" } },
+    where: { referencia: { equals: String(payload.referencia || "") } },
     select: {
       id: true,
       referencia: true,

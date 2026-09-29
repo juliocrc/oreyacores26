@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { normalizeStockValidityValue, stockItemSupportsValidity } from "@/lib/stock-validity";
 import { findConflictingValidityStock } from "@/lib/stock-utils";
 import { isFoodRationsLike, normalizeStockReferenceByRule } from "@/lib/stock-reference-rules";
@@ -118,6 +119,10 @@ function normalizePartialStockPayload(input: Record<string, unknown>, currentObs
   if (hasOwn(input, "precoVenda")) data.precoVenda = Number(input?.precoVenda ?? 0);
   if (hasOwn(input, "quantidade")) data.quantidade = Number(input?.quantidade ?? 0);
   if (hasOwn(input, "quantidadeMinima")) data.quantidadeMinima = input?.quantidadeMinima != null ? Number(input.quantidadeMinima) : null;
+  if (hasOwn(input, "leadTimeDias")) {
+    const rawLeadTime = input?.leadTimeDias == null || input?.leadTimeDias === "" ? null : Number(input.leadTimeDias);
+    data.leadTimeDias = rawLeadTime == null || !Number.isFinite(rawLeadTime) ? null : Math.max(0, Math.floor(rawLeadTime));
+  }
   if (hasOwn(input, "localizacao")) data.localizacao = input?.localizacao ? String(input.localizacao) : null;
   if (hasOwn(input, "observacoes") || hasOwn(input, "validadeAplicavelManual") || hasOwn(input, "validadeAplicavel") || hasOwn(input, "aplicavelTipos")) {
     data.observacoes = observacoesComMeta;
@@ -181,7 +186,9 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
         estadoCargaCilindro: true,
         precoVenda: true,
         quantidade: true,
+        quantidadeReservada: true,
         quantidadeMinima: true,
+        leadTimeDias: true,
         localizacao: true,
         observacoes: true,
         foto: true,
@@ -221,10 +228,19 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
       return NextResponse.json({ error: 'ID inválido para atualizar stock' }, { status: 400 });
     }
 
+    const clientIp = String(req.headers.get("x-forwarded-for") || "").split(",")[0]?.trim() || "unknown";
+    const rate = checkRateLimit(`stock-put:${id}:${clientIp}`, 90, 60_000);
+    if (!rate.allowed) {
+      return NextResponse.json(
+        { error: "Demasiados pedidos para este artigo. Aguarde alguns segundos e tente novamente.", retryAfterMs: rate.retryAfterMs },
+        { status: 429 }
+      );
+    }
+
     // Buscar record atual para validar estacao
     const current = await prisma.stock.findUnique({
       where: { id },
-      select: { observacoes: true, serviceStationId: true, quantidade: true, referencia: true, validade: true, estadoCargaCilindro: true },
+      select: { observacoes: true, serviceStationId: true, quantidade: true, quantidadeReservada: true, referencia: true, validade: true, estadoCargaCilindro: true },
     });
 
     if (!current) {
@@ -239,7 +255,11 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
     const body = await req.json();
 
     if (body?.operacao === "entrada" || body?.operacao === "saida") {
-      const valor = Math.max(1, Number(body?.valor ?? 1));
+      const valorRaw = Number(body?.valor ?? 1);
+      if (!Number.isFinite(valorRaw) || valorRaw <= 0) {
+        return NextResponse.json({ error: 'A quantidade tem de ser maior que zero.' }, { status: 400 });
+      }
+      const valor = Math.floor(valorRaw);
       const idemHeader = String(req.headers.get("idempotency-key") || "").trim();
       const idemBody = String(body?.idempotencyKey || body?.requestId || "").trim();
       const idempotencyKey = (idemHeader || idemBody).slice(0, 120);
@@ -260,11 +280,34 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
       if (cachedEntry && cachedEntry.expiresAt > now) {
         return NextResponse.json(cachedEntry.response);
       }
-      
+
       const quantidadeAntes = current.quantidade;
+      const reservado = Math.max(0, Number(current.quantidadeReservada) || 0);
+      const disponivel = Math.max(0, quantidadeAntes - reservado);
+
+      // Proteção contra stock negativo e contra consumo de quantidades reservadas
+      if (body.operacao === "saida") {
+        if (valor > quantidadeAntes) {
+          return NextResponse.json(
+            { error: `Stock insuficiente: existem ${quantidadeAntes} unidade(s) e pediu saída de ${valor}.` },
+            { status: 409 }
+          );
+        }
+        if (reservado > 0 && valor > disponivel) {
+          return NextResponse.json(
+            {
+              error: `Stock indisponível: ${reservado} unidade(s) estão reservadas para inspeções/ordens; disponível para saída é ${disponivel}.`,
+              reservado,
+              disponivel,
+            },
+            { status: 409 }
+          );
+        }
+      }
+
       const quantidadeDepois = body.operacao === "entrada"
         ? quantidadeAntes + valor
-        : Math.max(0, quantidadeAntes - valor);
+        : quantidadeAntes - valor;
 
       // Atualizar stock e criar movimentação em transação
       const [updatedByOperation] = await prisma.$transaction([
@@ -305,6 +348,10 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
       return NextResponse.json({ error: 'Nenhum campo válido para atualizar stock' }, { status: 400 });
     }
 
+    if (typeof data.quantidade === 'number' && data.quantidade < 0) {
+      return NextResponse.json({ error: 'A quantidade não pode ser negativa.' }, { status: 400 });
+    }
+
     if (data.referencia || data.validade) {
       const validadeNovo = typeof data.validade === 'string' && data.validade ? data.validade : (current.validade || null);
       const referenciaFinal = typeof data.referencia === 'string' && data.referencia ? data.referencia : current.referencia;
@@ -326,9 +373,31 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
       }
     }
 
-    const updated = await prisma.stock.update({
-      where: { id },
-      data: data as Prisma.StockUpdateInput,
+    const quantidadeAntes = current.quantidade;
+    const novaQuantidade = typeof data.quantidade === "number" ? data.quantidade : undefined;
+    const quantidadeMudou = novaQuantidade !== undefined && novaQuantidade !== quantidadeAntes;
+
+    // Trilho de auditoria: qualquer alteração direta de quantidade gera uma
+    // movimentação de "ajuste" com o motivo (default transparente), em transação.
+    const updated = await prisma.$transaction(async (tx) => {
+      const updatedRecord = await tx.stock.update({
+        where: { id },
+        data: data as Prisma.StockUpdateInput,
+      });
+      if (quantidadeMudou) {
+        await tx.movimentacaoStock.create({
+          data: {
+            stockId: id,
+            tipo: "ajuste",
+            quantidade: Math.abs(novaQuantidade - quantidadeAntes),
+            quantidadeAntes,
+            quantidadeDepois: novaQuantidade,
+            motivo: String(body?.motivo || "Correção de quantidade (ajuste manual)").slice(0, 300),
+            usuario: body?.usuario ? String(body.usuario).slice(0, 120) : null,
+          },
+        });
+      }
+      return updatedRecord;
     });
     return NextResponse.json(mapStockItemResponse(updated));
   } catch {
@@ -345,6 +414,15 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
     }
     if (!canEditStock(access)) {
       return NextResponse.json({ error: 'Sem permissão para editar stock.' }, { status: 403 });
+    }
+
+    const clientIp = String(req.headers.get("x-forwarded-for") || "").split(",")[0]?.trim() || "unknown";
+    const rate = checkRateLimit(`stock-del:${clientIp}`, 30, 60_000);
+    if (!rate.allowed) {
+      return NextResponse.json(
+        { error: "Demasiados pedidos de remoção. Aguarde alguns segundos e tente novamente.", retryAfterMs: rate.retryAfterMs },
+        { status: 429 }
+      );
     }
 
     const { id: rawId } = await context.params;
@@ -367,9 +445,14 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
       return NextResponse.json({ error: 'Artigo pertence a outra estação.' }, { status: 403 });
     }
 
-    await prisma.stock.delete({ where: { id } });
+    await prisma.stock.update({
+      where: { id },
+      data: {
+        estadoArtigo: "INATIVO",
+      },
+    });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, soft: true });
   } catch (error) {
     if (typeof error === "object" && error !== null && "code" in error && error.code === "P2025") {
       return NextResponse.json({ error: "Item de stock não encontrado" }, { status: 404 });

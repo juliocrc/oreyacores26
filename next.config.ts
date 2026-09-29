@@ -10,6 +10,10 @@ process.env.PRISMA_DISABLE_WARNINGS ??= "1";
 const nextConfig: NextConfig = {
   reactCompiler: false,
   output: "standalone",
+  // Sem isto o Next sobe para procurar a raiz do workspace e, como a pasta-pai
+  // (E:\Acores) tem package-lock.json, o standalone sai aninhado em
+  // .next/standalone/OREYACORESDELUXE/ e o launcher nao o encontra.
+  outputFileTracingRoot: __dirname,
   compress: true,
   turbopack: {},
   serverExternalPackages: ["pdf-parse", "pdfjs-dist", "pdf-lib", "@prisma/client"],
@@ -43,12 +47,6 @@ const nextConfig: NextConfig = {
           { key: "X-Frame-Options", value: "SAMEORIGIN" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
-        ],
-      },
-      {
-        source: "/_next/static/(.*)",
-        headers: [
-          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
         ],
       },
       {

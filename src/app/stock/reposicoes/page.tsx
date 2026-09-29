@@ -50,6 +50,11 @@ type NeedRow = {
   avgPrice: number;
   consumoHistorico90d?: number;
   consumoMedioMensal?: number;
+  consumoMedioDiario?: number;
+  coberturaDias?: number | null;
+  dataPrevistaRutura?: string | null;
+  fatorSazonal?: number;
+  demandaSazonal90d?: number;
   demandaAjustada90d?: number;
   mensal: MonthlyNeed[];
   jangadasCount: number;
@@ -94,6 +99,11 @@ type ApiPayload = {
     avgPrice: number;
     raftCount: number;
     consumoHistorico90d?: number;
+    consumoMedioDiario?: number;
+    coberturaDias?: number | null;
+    dataPrevistaRutura?: string | null;
+    fatorSazonal?: number;
+    demandaSazonal90d?: number;
     demandaAjustada90d?: number;
     stockMatched?: Array<{ id: number; ref: string; desc: string; qty: number }>;
   }>;
@@ -724,6 +734,8 @@ function StockReposicoesPageInner() {
                       <th className="sticky top-0 z-20 bg-white px-4 py-3 text-right">Média / mês</th>
                       <th className="sticky top-0 z-20 bg-white px-4 py-3 text-right">Procura pack 90d</th>
                       <th className="sticky top-0 z-20 bg-white px-4 py-3 text-right">Demanda ajustada</th>
+                      <th className="sticky top-0 z-20 bg-white px-4 py-3 text-right" title="Índice sazonal dos próximos 3 meses (1.00 = normal)">Sazonal</th>
+                      <th className="sticky top-0 z-20 bg-white px-4 py-3 text-right" title="Data estimada em que o stock atual esgota ao ritmo de consumo real">Rutura prevista</th>
                       <th className="sticky top-0 z-20 bg-white px-4 py-3 text-right">Stock</th>
                       <th className="sticky top-0 z-20 bg-white px-4 py-3 text-right">Comprar</th>
                     </tr>
@@ -737,6 +749,22 @@ function StockReposicoesPageInner() {
                         <td className="px-4 py-3 text-right text-slate-600">{row.consumoMedioMensal ?? "—"}</td>
                         <td className="px-4 py-3 text-right text-slate-700">{row.necessidade90d}</td>
                         <td className="px-4 py-3 text-right font-semibold text-indigo-700">{row.demandaAjustada90d ?? row.necessidade90d}</td>
+                        <td className="px-4 py-3 text-right">
+                          {row.fatorSazonal != null ? (
+                            <span className={row.fatorSazonal >= 1.15 ? "font-bold text-amber-700" : row.fatorSazonal <= 0.85 ? "text-sky-700" : "text-slate-500"}>
+                              {row.fatorSazonal.toFixed(2)}×
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right text-slate-600">
+                          {row.dataPrevistaRutura
+                            ? new Date(row.dataPrevistaRutura).toLocaleDateString("pt-PT")
+                            : row.consumoMedioDiario
+                              ? "—"
+                              : <span className="text-slate-400">sem consumo</span>}
+                        </td>
                         <td className="px-4 py-3 text-right">{row.stockAtual}</td>
                         <td className="px-4 py-3 text-right">
                           {row.reorderQty > 0 ? (

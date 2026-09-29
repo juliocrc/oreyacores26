@@ -49,6 +49,11 @@ export type NeedRow = {
   avgPrice: number;
   consumoHistorico90d: number;
   consumoMedioMensal: number;
+  consumoMedioDiario: number;
+  coberturaDias: number | null;
+  dataPrevistaRutura: string | null;
+  fatorSazonal: number;
+  demandaSazonal90d: number;
   demandaAjustada90d: number;
   mensal: MonthlyNeed[];
   jangadasCount: number;
@@ -113,6 +118,11 @@ export type StockNeedsResult = {
     raftSerials: string[];
     stockMatched: StockMatched[];
     consumoHistorico90d: number;
+    consumoMedioDiario: number;
+    coberturaDias: number | null;
+    dataPrevistaRutura: string | null;
+    fatorSazonal: number;
+    demandaSazonal90d: number;
     demandaAjustada90d: number;
   }>;
   upcomingRafts30d: Array<{
@@ -180,6 +190,12 @@ function monthKey(date: Date): string {
 function addMonths(base: Date, months: number) {
   const d = new Date(base);
   d.setMonth(d.getMonth() + months);
+  return d;
+}
+
+function addDays(base: Date, days: number) {
+  const d = new Date(base);
+  d.setDate(d.getDate() + days);
   return d;
 }
 
@@ -358,6 +374,76 @@ async function fetchConsumoHistorico90d(): Promise<ConsumoHistorico> {
   return result;
 }
 
+type ConsumoSazonal = {
+  /** Quantidade consumida por mês do calendário (índice 0 = janeiro). */
+  porMesCalendario: number[];
+  /** Meses do calendário com pelo menos um movimento. */
+  mesesComDados: number;
+  /** Consumo médio por dia no período analisado. */
+  mediaDiaria: number;
+  total: number;
+};
+
+/**
+ * Consumo histórico alargado (por omissão 24 meses) para detetar sazonalidade.
+ * Distinto do consumo de 90 dias usado no ajuste histórico imediato.
+ */
+async function fetchConsumoSeasonal(days = 730): Promise<Map<string, ConsumoSazonal>> {
+  const map = new Map<string, ConsumoSazonal>();
+  try {
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+    const movimentos = await prisma.movimentacaoStock.findMany({
+      where: { createdAt: { gte: since }, tipo: "saida" },
+      select: { quantidade: true, createdAt: true, stock: { select: { referencia: true } } },
+    });
+    const refs = new Set<string>();
+    for (const m of movimentos) {
+      const ref = normalizeRef(m.stock?.referencia);
+      if (!ref) continue;
+      const qty = Math.abs(Number(m.quantidade) || 0);
+      if (!qty) continue;
+      const entry = map.get(ref) || { porMesCalendario: new Array(12).fill(0), mesesComDados: 0, mediaDiaria: 0, total: 0 };
+      const mesCal = m.createdAt.getMonth();
+      const chave = `${m.createdAt.getFullYear()}-${mesCal}`;
+      if (!refs.has(`${ref}|${chave}`)) {
+        refs.add(`${ref}|${chave}`);
+        entry.mesesComDados += 1;
+      }
+      entry.porMesCalendario[mesCal] += qty;
+      entry.total += qty;
+      map.set(ref, entry);
+    }
+    for (const entry of map.values()) {
+      entry.mediaDiaria = entry.total / Math.max(1, days);
+    }
+  } catch {
+    // ignore
+  }
+  return map;
+}
+
+/** Índice sazonal (por mês do calendário) normalizado à média, limitado a [0.5, 2.5]. */
+function buildSeasonalFactors(entry: ConsumoSazonal | undefined): number[] {
+  const neutro = new Array(12).fill(1);
+  if (!entry || entry.total <= 0 || entry.mesesComDados < 6) return neutro;
+  const mediaMensal = entry.total / 12;
+  if (mediaMensal <= 0) return neutro;
+  return entry.porMesCalendario.map((v) => {
+    const fator = v / mediaMensal;
+    return Math.min(2.5, Math.max(0.5, Math.round(fator * 100) / 100));
+  });
+}
+
+/** Fator sazonal médio para os próximos `months` meses do calendário. */
+function seasonalFactorForWindow(factors: number[], start: Date, months = 3): number {
+  let soma = 0;
+  for (let i = 0; i < months; i += 1) {
+    soma += factors[(start.getMonth() + i) % 12];
+  }
+  return Math.round((soma / months) * 100) / 100;
+}
+
 function buildStockIndexes(stockItems: StockRecord[]) {
   const byRef = new Map<string, StockRecord[]>();
   for (const s of stockItems) {
@@ -408,7 +494,7 @@ export async function computeStockNeeds(options?: {
   now.setHours(0, 0, 0, 0);
   const in12Months = addMonths(now, 12);
 
-  const [stockRaw, allRafts, certificadosWithValidades, consumoMap] = await Promise.all([
+  const [stockRaw, allRafts, certificadosWithValidades, consumoMap, consumoSeasonalMap] = await Promise.all([
     fetchStockRaw(stockScope),
     prisma.jangada.findMany({
       select: {
@@ -424,6 +510,7 @@ export async function computeStockNeeds(options?: {
     }),
     fetchCertificadosValidades(),
     fetchConsumoHistorico90d(),
+    fetchConsumoSeasonal(),
   ]);
 
   const stockItems = stockRaw.map((s) => ({
@@ -543,7 +630,18 @@ export async function computeStockNeeds(options?: {
       demand90d * (1 - HIST_BLEND) + Math.max(consumoHistorico90d, demand90d * 0.25) * HIST_BLEND
     );
 
-    const planningDemand = Math.max(demandaAjustada90d, minQty > 0 && stockAvailable <= minQty ? minQty : 0);
+    // Sazonalidade: índice por mês do calendário calculado a partir do consumo
+    // alargado; aplica-se à procura ajustada dos próximos 90 dias.
+    const sazonal = consumoSeasonalMap.get(refKey);
+    const consumoMedioDiario = sazonal?.mediaDiaria || 0;
+    const coberturaDias = consumoMedioDiario > 0 ? Math.floor(stockAvailable / consumoMedioDiario) : null;
+    const dataPrevistaRutura =
+      coberturaDias != null ? addDays(now, coberturaDias).toISOString().slice(0, 10) : null;
+    const seasonalFactors = buildSeasonalFactors(sazonal);
+    const fatorSazonal = seasonalFactorForWindow(seasonalFactors, now, 3);
+    const demandaSazonal90d = Math.ceil(demandaAjustada90d * fatorSazonal);
+
+    const planningDemand = Math.max(demandaSazonal90d, minQty > 0 && stockAvailable <= minQty ? minQty : 0);
     const isLow = stockAvailable < planningDemand || (minQty > 0 && stockAvailable <= minQty);
     const leadTimeDias = resolveLeadTimeDays(matched);
     const safetyBuffer = computeSafetyStock(planningDemand / 3, consumoMeses, leadTimeDias);
@@ -597,6 +695,11 @@ export async function computeStockNeeds(options?: {
       avgPrice,
       consumoHistorico90d,
       consumoMedioMensal: Math.round(consumoMedioMensal * 10) / 10,
+      consumoMedioDiario: Math.round(consumoMedioDiario * 100) / 100,
+      coberturaDias,
+      dataPrevistaRutura,
+      fatorSazonal,
+      demandaSazonal90d,
       demandaAjustada90d,
       mensal,
       jangadasCount: demand.raftSerials.size,
@@ -728,6 +831,11 @@ export async function computeStockNeeds(options?: {
     raftSerials: n.jangadasAfetadas,
     stockMatched: n.stockMatched,
     consumoHistorico90d: n.consumoHistorico90d,
+    consumoMedioDiario: n.consumoMedioDiario,
+    coberturaDias: n.coberturaDias,
+    dataPrevistaRutura: n.dataPrevistaRutura,
+    fatorSazonal: n.fatorSazonal,
+    demandaSazonal90d: n.demandaSazonal90d,
     demandaAjustada90d: n.demandaAjustada90d,
   }));
 

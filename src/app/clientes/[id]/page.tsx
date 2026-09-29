@@ -10,6 +10,7 @@ import { formatDateLongPt } from "@/lib/relatorios-page-helpers";
 import { User, Ship, FileText, ClipboardList, Settings, Mail, Phone, MapPin, Save, Search, Plus, Trash2, ExternalLink, AlertTriangle, Loader2, Building2, Receipt, History, MessageSquare, CreditCard, DollarSign, KeyRound } from "lucide-react";
 import { IVA_ISENCAO_CODES } from "@/lib/iva-isencao-codes";
 import { buildAddressLine } from "@/lib/client-address";
+import { saveShipDocument } from "@/lib/ship-downloads";
 
 type Navio = { id: number; nome: string; matricula: string; portoRegisto?: string | null; ilha: string | null; tipoPesca: string; clienteId?: number | null; cliente?: { id: number; nome: string } | null };
 type Cliente = { id: number; nome: string; numeroCliente?: string | null; modoPagamento?: string | null; nif?: string | null; email?: string | null; telefone?: string | null; telmovel?: string | null; morada?: string | null; moradaNumero?: string | null; codigoPostal?: string | null; localidade?: string | null; ilha?: string | null; observacoes?: string | null; navios: Navio[] };
@@ -222,7 +223,7 @@ export default function ClienteDetalhePage() {
     finally { setExportingThirdPartySheet(false); }
   };
 
-  const generateIvaDeclaration = () => {
+  const generateIvaDeclaration = async () => {
     if (!cliente) return;
 
     const navio = cliente.navios.find((n) => n.id === Number(declarationNavioId)) || cliente.navios[0];
@@ -298,14 +299,12 @@ export default function ClienteDetalhePage() {
     `;
 
     const blob = new Blob(['\ufeff' + htmlString], { type: 'application/msword' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `declaracao_isencao_iva_${String(navioNome || "embarcacao").replace(/\s+/g, "_")}.doc`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    await saveShipDocument({
+      shipName: navio?.nome || "embarcacao",
+      category: 'Declarações IVA',
+      filename: `declaracao_isencao_iva_${String(navioNome || "embarcacao").replace(/\s+/g, "_")}.doc`,
+      blob,
+    });
   };
 
   const addContactoLog = (e: React.FormEvent) => {

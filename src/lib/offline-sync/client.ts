@@ -154,6 +154,95 @@ export function clearOfflineSyncError() {
   writeStoredState({ lastError: null });
 }
 
+export function retryOfflineSyncOperations(ids?: string[]) {
+  const queue = readStoredQueue();
+  const idSet = ids ? new Set(ids) : null;
+  const nextQueue = queue.map((op) => {
+    if (idSet && !idSet.has(op.id)) return op;
+    return {
+      ...op,
+      attemptCount: 0,
+      failedPermanently: false,
+    };
+  });
+  writeStoredQueue(nextQueue);
+  writeStoredState({ lastError: null });
+  if (hasWindow() && navigator.onLine) {
+    void flushOfflineSyncQueue();
+  }
+  return nextQueue;
+}
+
+const LEGACY_INSPECTIONS_KEY = "offline_inspections";
+
+export function getLegacyOfflineInspections() {
+  if (!hasWindow()) return [] as Record<string, unknown>[];
+  const items = safeParseJson<unknown[]>(window.localStorage.getItem(LEGACY_INSPECTIONS_KEY), []);
+  return items.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object"));
+}
+
+export function getLegacyOfflineInspectionsCount() {
+  return getLegacyOfflineInspections().length;
+}
+
+export function importLegacyOfflineInspections() {
+  if (!hasWindow()) return 0;
+  const items = getLegacyOfflineInspections();
+  if (items.length === 0) return 0;
+
+  let imported = 0;
+  const remaining: unknown[] = [];
+  for (const item of items) {
+    const { jangadaId, id, payload } = item;
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+      remaining.push(item);
+      continue;
+    }
+    const body = payload as Record<string, unknown>;
+    const isNew = typeof id === "string" && id.startsWith("offline_");
+    const inspId = !isNew && typeof id === "string" && String(id).trim() ? String(id) : undefined;
+
+    const jangadaTouched = jangadaId != null && String(jangadaId).trim() !== "";
+    if (jangadaTouched) {
+      const jangadaBody: Record<string, unknown> = { ...body };
+      delete jangadaBody.checklist;
+      delete jangadaBody.packItems;
+      delete jangadaBody.artigosSubstituidos;
+      if (isNew) delete jangadaBody.id;
+      enqueueOfflineSyncOperation({
+        path: `/api/jangadas/${String(jangadaId)}`,
+        method: "PUT",
+        body: jangadaBody,
+        entityType: "jangada",
+        entityId: String(jangadaId),
+        summary: `Jangada #${String(jangadaId)} (rascunho legado)`,
+      });
+    }
+
+    const queued = enqueueOfflineSyncOperation({
+      path: inspId ? `/api/inspecoes?id=${inspId}` : "/api/inspecoes",
+      method: inspId ? "PUT" : "POST",
+      body,
+      entityType: "inspecao-legado",
+      entityId: inspId,
+      summary: `Inspeção offline: ${String(body.serial || body.numeroObra || id || "—")}`,
+    });
+
+    if (queued) {
+      imported++;
+    } else {
+      remaining.push(item);
+    }
+  }
+
+  window.localStorage.setItem(LEGACY_INSPECTIONS_KEY, JSON.stringify(remaining));
+  writeStoredState({ lastError: null });
+  if (imported > 0 && hasWindow() && navigator.onLine) {
+    void flushOfflineSyncQueue();
+  }
+  return imported;
+}
+
 export function writeOfflineSnapshot<T>(key: string, value: T) {
   if (!hasWindow()) return;
   window.localStorage.setItem(`${SNAPSHOT_PREFIX}${key}`, JSON.stringify(value));

@@ -5,6 +5,8 @@ import { PACK_TEMPLATES } from '@/config/packTemplates';
 import { getInspectionIntervalYears, getInspectionIntervalLabel } from '../rafts/inspectionInterval';
 import { LIFERAFT_REFERENCE_CATALOG } from '@/data/liferaftReference';
 import { normalizeModelMatchKey } from '@/lib/jangadas-page-helpers';
+import { parseMonthYearValue, toMonthYearString, toMonthInput, maskMonthYearInput } from '@/lib/date-utils';
+import { getStepNumberByKey } from './steps';
 
 const SOS_BRANDS = ['SOS', 'SURVITEC', 'VIKING', 'LALIZAS', 'ZODIAC', 'PLASTIMO', 'EUROVINIL'];
 const isSosBrand = (brand: string, model?: string) => {
@@ -36,11 +38,11 @@ const checkValidityWarning = (validadeStr: string, dataProxInspecao: string, dat
 
   if (!refDateStr) return null;
 
-  const [vYear, vMonth] = validadeStr.split('-').map(Number);
-  const valDate = new Date(vYear, (vMonth || 1) - 1, 1);
+  const vParsed = parseMonthYearValue(validadeStr);
+  const valDate = vParsed ? new Date(vParsed.year, vParsed.month - 1, 1) : new Date(NaN);
 
-  const [pYear, pMonth] = refDateStr.split('-').map(Number);
-  const proxDate = new Date(pYear, (pMonth || 1) - 1, 1);
+  const pParsed = parseMonthYearValue(refDateStr);
+  const proxDate = pParsed ? new Date(pParsed.year, pParsed.month - 1, 1) : new Date(NaN);
 
   if (isNaN(valDate.getTime()) || isNaN(proxDate.getTime())) return null;
 
@@ -51,7 +53,35 @@ const checkValidityWarning = (validadeStr: string, dataProxInspecao: string, dat
 };
 
 export default function Step1_DadosGerais() {
-  const { inspectionData, setInspectionData } = useJangadaWizardStore();
+  const { inspectionData, setInspectionData, inspecoes, hideOrcamento } = useJangadaWizardStore();
+  const stepNo = getStepNumberByKey(inspectionData, 'dados', { hideOrcamento });
+
+  const lastConcluded = useMemo(() => {
+    return (inspecoes || [])
+      .filter((i: any) => /conclu/i.test(String(i.status || '')))
+      .sort((a: any, b: any) => new Date(b.dataInspecao || 0).getTime() - new Date(a.dataInspecao || 0).getTime())[0] || null;
+  }, [inspecoes]);
+
+  const copyFromLastInspection = () => {
+    if (!lastConcluded) return;
+    const prev = lastConcluded;
+    const patch: Record<string, unknown> = {};
+    if (prev.navioNome) patch.shipName = prev.navioNome;
+    if (prev.owner || prev.armador) patch.owner = prev.owner || prev.armador;
+    if (prev.bandeira) patch.shipFlag = prev.bandeira;
+    if (prev.imo) patch.shipImo = prev.imo;
+    if (prev.callSignal || prev.callSign) patch.shipCallSign = prev.callSignal || prev.callSign;
+    if (prev.fabricType) patch.fabricType = prev.fabricType;
+    if (prev.launchType) patch.launchType = prev.launchType;
+    if (prev.painterLength) patch.painterLength = prev.painterLength;
+    if (prev.maxStowageHeight) patch.maxStowageHeight = prev.maxStowageHeight;
+    if (prev.dataFabrico) patch.dataFabrico = prev.dataFabrico;
+    if (prev.cylinderSerial) patch.cylinder = { ...inspectionData.cylinder, serial: prev.cylinderSerial };
+    if (prev.hruReferencia) patch.hruReference = prev.hruReferencia;
+    if (prev.hruSerial) patch.hruSerial = prev.hruSerial;
+    if (prev.hruValidade) { patch.hruValidade = prev.hruValidade; patch.hruExpiry = prev.hruValidade; }
+    setInspectionData(patch);
+  };
   
   // Auto-select "Sem pack" for SOS brand/model jangadas
   useEffect(() => {
@@ -88,13 +118,17 @@ export default function Step1_DadosGerais() {
   }, [catalogMatch, inspectionData.launchType, setInspectionData]);
 
   const handleChange = (field: string, value: any) => {
+    if (field === 'hruValidade') {
+      setInspectionData({ hruValidade: value, hruExpiry: value });
+      return;
+    }
     const nextData = { ...inspectionData, [field]: value };
     if ((field === 'dataInspecao' || field === 'brand' || field === 'model') && nextData.dataInspecao) {
       const years = getInspectionIntervalYears(
         nextData.brand,
         nextData.model,
         nextData.shipDetails
-      );
+      ) || 1;
       const parts = nextData.dataInspecao.split('-');
       if (parts[0] && parts[0].length === 4) {
         const year = parseInt(parts[0]) + years;
@@ -129,26 +163,38 @@ export default function Step1_DadosGerais() {
             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-sky-700">Placa de Identificação</p>
             <p className="text-lg font-black mt-0.5">{inspectionData.serial || 'S/N —'}</p>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-            {[
-              { label: 'Marca', value: inspectionData.brand },
-              { label: 'Modelo', value: inspectionData.model },
-              { label: 'Cap.', value: inspectionData.capacity ? `${inspectionData.capacity} pax` : '' },
-              { label: 'Pack', value: inspectionData.packType },
-            ].map((cell) => (
-              <div key={cell.label} className="bg-white border border-slate-200 rounded-lg px-3 py-2 shadow-sm">
-                <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">{cell.label}</p>
-                <p className={`text-sm font-bold truncate max-w-[10rem] ${cell.value ? 'text-slate-900' : 'text-slate-400'}`}>
-                  {cell.value || '—'}
-                </p>
-              </div>
-            ))}
+          <div className="flex items-center gap-3 flex-wrap">
+            {lastConcluded && (
+              <button
+                type="button"
+                onClick={copyFromLastInspection}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 shadow-sm transition-all text-xs"
+                title={`Copiar dados da vistoria concluída de ${lastConcluded.dataInspecao || ''}`}
+              >
+                ⚡ Copiar da última vistoria concluída
+              </button>
+            )}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+              {[
+                { label: 'Marca', value: inspectionData.brand },
+                { label: 'Modelo', value: inspectionData.model },
+                { label: 'Cap.', value: inspectionData.capacity ? `${inspectionData.capacity} pax` : '' },
+                { label: 'Pack', value: inspectionData.packType },
+              ].map((cell) => (
+                <div key={cell.label} className="bg-white border border-slate-200 rounded-lg px-3 py-2 shadow-sm">
+                  <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">{cell.label}</p>
+                  <p className={`text-sm font-bold truncate max-w-[10rem] ${cell.value ? 'text-slate-900' : 'text-slate-400'}`}>
+                    {cell.value || '—'}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
 
       <div>
-        <h2 className="text-2xl font-bold text-slate-800">1. Identificação Operacional</h2>
+        <h2 className="text-2xl font-bold text-slate-800">{stepNo > 0 ? `${stepNo}. ` : ''}Identificação Operacional</h2>
         <p className="text-slate-600 mt-1">Registe os dados identificativos da jangada e as suas características principais.</p>
       </div>
 
@@ -413,8 +459,11 @@ export default function Step1_DadosGerais() {
             <input 
               type="month" 
               className="w-full border-slate-200 rounded-xl px-4 py-3 bg-slate-50 focus:bg-white transition-colors"
-              value={inspectionData.dataFabrico || ''}
-              onChange={(e) => handleChange('dataFabrico', e.target.value)}
+              value={toMonthInput(inspectionData.dataFabrico) || ''}
+              onChange={(e) => {
+                const raw = e.target.value; // AAAA-MM
+                handleChange('dataFabrico', raw ? toMonthYearString(raw) : '');
+              }}
             />
           </div>
 
@@ -432,16 +481,32 @@ export default function Step1_DadosGerais() {
 
           {inspectionData.hruAplicavel === 'SIM' && (
             <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">N.º de Série do HRU</label>
+              <input
+                type="text"
+                placeholder="N.º de série do HRU"
+                className="w-full rounded-xl px-4 py-3 bg-white transition-colors border border-slate-200"
+                value={inspectionData.hruSerial || ''}
+                onChange={(e) => handleChange('hruSerial', e.target.value)}
+              />
+            </div>
+          )}
+
+          {inspectionData.hruAplicavel === 'SIM' && (
+            <div className="space-y-2">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Validade do HRU</label>
               <input 
-                type="month" 
+                type="text" 
+                inputMode="numeric"
+                placeholder="MM/AAAA"
+                maxLength={7}
                 className={`w-full rounded-xl px-4 py-3 bg-amber-50 focus:bg-white transition-colors border ${
                   hruWarning 
                     ? 'border-amber-300 ring-2 ring-amber-100 bg-amber-50 focus:ring-amber-200' 
                     : 'border-slate-200'
                 }`}
-                value={inspectionData.hruValidade || ''}
-                onChange={(e) => handleChange('hruValidade', e.target.value)}
+                value={toMonthYearString(inspectionData.hruValidade)}
+                onChange={(e) => handleChange('hruValidade', maskMonthYearInput(e.target.value))}
               />
               {hruWarning && (
                 <p className="text-[10px] text-amber-700 font-semibold mt-1">

@@ -22,7 +22,6 @@ const path = require("path");
 const ROOT = path.resolve(__dirname, "..");
 const DB_REL = "prisma/local.db";
 const DB_PATH = process.env.GDRIVE_DB_LOCAL_PATH || path.join(ROOT, DB_REL);
-const RCLONE = path.join(ROOT, "bin", "rclone.exe");
 
 function loadEnv(fileName) {
   const envPath = path.join(ROOT, fileName);
@@ -46,6 +45,19 @@ function loadEnv(fileName) {
 
 loadEnv(".env");
 loadEnv(".env.local");
+
+// Binário do rclone: pode ser renomeado/alternativo (RCLONE_BIN_NAME) para
+// contornar bloqueios por assinatura do programa de proteção (ex: Harmony).
+function resolveRclone() {
+  const configured = (process.env.RCLONE_BIN_NAME || "").trim();
+  if (configured) {
+    const p = path.join(ROOT, "bin", configured);
+    if (fs.existsSync(p)) return p;
+    console.warn(`[gdrive] Aviso: RCLONE_BIN_NAME="${configured}" não existe (bin\\${configured}). A usar rclone.exe.`);
+  }
+  return path.join(ROOT, "bin", "rclone.exe");
+}
+const RCLONE = resolveRclone();
 
 const REMOTE = process.env.GDRIVE_REMOTE || "gdrive";
 const GDRIVE_PATH = (process.env.GDRIVE_DB_PATH || "OreyAcores").replace(/^\/+|\/+$/g, "");
@@ -71,20 +83,50 @@ function backupsRemotePath() {
 
 function rclone(args) {
   if (!fs.existsSync(RCLONE)) {
-    console.error("[gdrive] rclone não encontrado em bin/rclone.exe");
+    console.error(`[gdrive] rclone não encontrado em bin/${path.basename(RCLONE)}`);
     return false;
   }
   const result = spawnSync(RCLONE, args, { encoding: "utf8", timeout: 900000, windowsHide: true });
   if (result.stdout) process.stdout.write(result.stdout);
   if (result.stderr) process.stderr.write(result.stderr);
+  if (result.error) {
+    // spawnSync preenche result.error quando o processo não consegue arrancar —
+    // tipicamente o programa de proteção bloqueou o arranque do rclone.
+    detectBlocked(result.error);
+    return false;
+  }
+  if (result.signal) {
+    console.error(`[gdrive] ${path.basename(RCLONE)} foi interrompido pelo sinal ${result.signal} — provavelmente bloqueado pelo programa de proteção.`);
+    return false;
+  }
   if (result.status !== 0) {
+    console.error(`[gdrive] ${path.basename(RCLONE)} saiu com código ${result.status}.`);
     return false;
   }
   return true;
 }
 
+function detectBlocked(err) {
+  const code = err && err.code;
+  const msg = err && err.message;
+  console.error(`[gdrive] ERRO ao arrancar bin/${path.basename(RCLONE)}: ${msg}`);
+  if (code === "EPERM" || code === "EACCES" || /operation not permitted|access is denied/i.test(msg || "")) {
+    console.error("[gdrive] Parece que o programa de proteção bloqueiou o rclone.exe (falso positivo).");
+    console.error("[gdrive]   - Execute VERIFICAR_RCLONE.bat para validar o binário e obter os passos de exceção.");
+    console.error("[gdrive]   - Alternativa: RENOMEAR_RCLONE.bat (evita deteção por nome/assinatura).");
+    return;
+  }
+  if (code === "ENOENT") {
+    console.error(`[gdrive] binário não existe: ${RCLONE}`);
+  }
+}
+
 function remoteListed() {
   const result = spawnSync(RCLONE, ["listremotes"], { encoding: "utf8", timeout: 30000, windowsHide: true });
+  if (result.error) {
+    detectBlocked(result.error);
+    return false;
+  }
   if (result.status !== 0) return false;
   const remotes = (result.stdout || "").split("\n").map((l) => l.trim().replace(":", ""));
   const required = [REMOTE];

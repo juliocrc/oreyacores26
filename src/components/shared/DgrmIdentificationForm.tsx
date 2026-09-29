@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { saveShipDocument } from "@/lib/ship-downloads";
 
 export type JangadaData = {
   brand?: string;
@@ -94,14 +95,13 @@ export default function DgrmIdentificationForm({ data }: { data: JangadaData }) 
       });
       if (!r.ok) throw new Error("Erro ao gerar DOCX");
       const blob = await r.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "Ficha_DGRM_Jangada.docx";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      const shipName = data.shipNameManual || data.inspecoes?.[0]?.navioNome || "";
+      await saveShipDocument({
+        shipName,
+        category: "DGRM",
+        filename: "Ficha_DGRM_Jangada.docx",
+        blob,
+      });
     } catch (e: unknown) {
       alert("Erro ao exportar: " + (e instanceof Error ? e.message : String(e)));
     } finally {

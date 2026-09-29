@@ -92,6 +92,7 @@ export default function TarefasDoDiaPanel() {
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState(false);
   const [horizonte, setHorizonte] = useState<number>(() => {
+    if (typeof window === "undefined") return 14;
     const stored = Number(window.localStorage.getItem(HORIZONTE_KEY));
     return HORIZONTES.includes(stored as (typeof HORIZONTES)[number]) ? stored : 14;
   });

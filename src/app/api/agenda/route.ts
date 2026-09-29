@@ -156,7 +156,7 @@ export async function GET(req: NextRequest) {
   if (!access) return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  const where: { raftSerial?: { equals: string; mode: "insensitive" } } = {};
+  const where: { raftSerial?: { equals: string } } = {};
   const activeStationId = resolveActiveServiceStationId(req, access);
 
   let allowedRaftSerials: string[] | null = null;
@@ -179,7 +179,7 @@ export async function GET(req: NextRequest) {
     if (allowedRaftSerials && !allowedRaftSerials.includes(raftSerial)) {
       return NextResponse.json([]);
     }
-    where.raftSerial = { equals: raftSerial, mode: "insensitive" };
+    where.raftSerial = { equals: raftSerial };
   }
 
   let eventos = await prisma.agendaEvento.findMany({ where, orderBy: { date: "desc" } });
@@ -270,10 +270,10 @@ export async function GET(req: NextRequest) {
   // Fallback de compatibilidade: ler registos antigos marcados na tabela Agenda
   const legacyWhere: {
     tipoPesca: string;
-    matricula?: { equals: string; mode: "insensitive" };
+    matricula?: { equals: string };
   } = { tipoPesca: AGENDA_MARKER };
   if (raftSerial) {
-    legacyWhere.matricula = { equals: raftSerial, mode: "insensitive" };
+    legacyWhere.matricula = { equals: raftSerial };
   }
   const legacy = await prisma.agenda.findMany({ where: legacyWhere, orderBy: { id: "desc" } });
   const normalizedLegacy = legacy.map(normalizeAgendaResponse);
@@ -315,7 +315,7 @@ export async function POST(req: NextRequest) {
     const access = await getAccessContext();
     const activeStationId = access ? resolveActiveServiceStationId(req, access) : null;
     const raft = await prisma.jangada.findFirst({
-      where: { serial: { equals: raftSerial, mode: "insensitive" } },
+      where: { serial: { equals: raftSerial } },
       select: { serviceStationId: true },
     });
 

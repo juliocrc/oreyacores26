@@ -2,8 +2,39 @@
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
 
+// Atalho no Ambiente de Trabalho via ficheiro .url (funciona por HTTP sem HTTPS/PWA).
+const SHORTCUT_DISMISS_KEY = "pwa-shortcut-banner-dismissed";
+const SHORTCUT_DISMISS_MS = 7 * 24 * 60 * 60 * 1000; // 7 dias
+
 const DISMISS_KEY = "pwa-install-banner-dismissed";
 const DISMISS_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+// Gerar conteúdo do ficheiro .url (InternetShortcut / ini) apontando para a app atual
+function buildShortcutUrlFile(origin: string, basePath: string): string {
+  const target = `${origin}${basePath || "/"}`;
+  return [
+    "[InternetShortcut]",
+    `URL=${target}`,
+    `IconFile=${origin}/icon-512.png`,
+    "IconIndex=0",
+    "IconArea=_IconIndex_",
+    "",
+  ].join("\r\n");
+}
+
+function downloadShortcutUrl() {
+  const { origin, pathname } = window.location;
+  const content = buildShortcutUrlFile(origin, pathname);
+  const blob = new Blob([content], { type: "application/internet-shortcut" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "Gestor Naval Pro.url";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;

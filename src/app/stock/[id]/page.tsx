@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { getStockCategoryOptions } from "@/lib/stock-categories";
+import { performOfflineAwareJsonRequest } from "@/lib/offline-sync/client";
 import JsBarcode from "jsbarcode";
 
 type StockArtigoForm = Partial<{
@@ -13,6 +14,7 @@ type StockArtigoForm = Partial<{
   precoVenda: string;
   validade: string;
   lote: string;
+  leadTimeDias: string;
 }>;
 
 export default function StockDetailPage() {
@@ -41,10 +43,15 @@ export default function StockDetailPage() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    await fetch(`/api/stock/${id}`, {
+    await performOfflineAwareJsonRequest({
+      path: `/api/stock/${id}`,
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form)
+      body: form,
+      queueEntry: {
+        entityType: "stock-artigo",
+        entityId: id ? String(id) : undefined,
+        summary: `Atualizar stock: ${form.referencia || form.descricao || id}`,
+      },
     });
     router.refresh();
   };
@@ -93,6 +100,11 @@ export default function StockDetailPage() {
           <div>
             <label className="block font-semibold">Lote</label>
             <input className="input input-bordered w-full" value={form.lote || ""} onChange={e => handleChange("lote", e.target.value)} />
+          </div>
+          <div>
+            <label className="block font-semibold">Prazo de entrega (dias)</label>
+            <input className="input input-bordered w-full" type="number" min="0" placeholder="15 (predefinido)" value={form.leadTimeDias ?? ""} onChange={e => handleChange("leadTimeDias", e.target.value)} />
+            <p className="text-xs text-slate-500">Usado nas previsões para calcular a data-limite de compra.</p>
           </div>
         </div>
         <div className="flex gap-2 mt-6">

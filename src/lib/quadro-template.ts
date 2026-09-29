@@ -9,7 +9,6 @@ export type QuadroSubstitutedArticle = {
   reference: string;
   quantity: number;
   validity: string;
-  lot: string;
 };
 
 export type QuadroTemplateInput = {
@@ -91,18 +90,17 @@ type SubstitutionDefinition = {
   refKey: string;
   qtyKey: string;
   valKey: string;
-  lotKey: string;
 };
 
 const SUBSTITUTION_DEFINITIONS: SubstitutionDefinition[] = [
-  { replacementKey: 'substituicao_explicita__farmacia', label: 'Farmácia / First Aid Kit', refKey: 'ref_farmacia', qtyKey: 'qtd_farmacia', valKey: 'validade_farmacia', lotKey: 'lote_farmacia' },
-  { replacementKey: 'substituicao_explicita__comprimidos_p_enjoo', label: 'Comprimidos Enjoo', refKey: 'ref_comprimidos', qtyKey: 'qtd_comprimidos', valKey: 'validade_comprimidos', lotKey: 'lote_comprimidos' },
-  { replacementKey: 'substituicao_explicita__foguetes_paraquedas', label: 'Foguetes Paraquedas', refKey: 'ref_paraquedas', qtyKey: 'qtd_paraquedas', valKey: 'validade_paraquedas', lotKey: 'lote_paraquedas' },
-  { replacementKey: 'substituicao_explicita__fachos_de_mao', label: 'Fachos de Mão', refKey: 'ref_fachos', qtyKey: 'qtd_fachos', valKey: 'validade_fachos_mao', lotKey: 'lote_fachos' },
-  { replacementKey: 'substituicao_explicita__potes_de_fumo', label: 'Potes de Fumo', refKey: 'ref_potes', qtyKey: 'qtd_potes', valKey: 'validade_potes_fumo', lotKey: 'lote_potes' },
-  { replacementKey: 'substituicao_explicita__pilhas_para_lanterna', label: 'Pilhas Lanterna', refKey: 'ref_bateria', qtyKey: 'qtd_pilhas_lanterna', valKey: 'validade_pilhas_lanterna', lotKey: 'lote_bateria' },
-  { replacementKey: 'substituicao_explicita__hru', label: 'HRU (Disparo Hidrostático)', refKey: 'hruReferencia', qtyKey: 'qtd_hru', valKey: 'hru_val', lotKey: 'lote_hru' },
-  { replacementKey: 'substituicao_explicita__cilindro', label: 'Cilindro de Insuflação', refKey: 'cylinderSerial', qtyKey: 'qtd_cilindro', valKey: 'cyl_test_val', lotKey: 'lote_cilindro' },
+  { replacementKey: 'substituicao_explicita__farmacia', label: 'Farmácia / First Aid Kit', refKey: 'ref_farmacia', qtyKey: 'qtd_farmacia', valKey: 'validade_farmacia' },
+  { replacementKey: 'substituicao_explicita__comprimidos_p_enjoo', label: 'Comprimidos Enjoo', refKey: 'ref_comprimidos', qtyKey: 'qtd_comprimidos', valKey: 'validade_comprimidos' },
+  { replacementKey: 'substituicao_explicita__foguetes_paraquedas', label: 'Foguetes Paraquedas', refKey: 'ref_paraquedas', qtyKey: 'qtd_paraquedas', valKey: 'validade_paraquedas' },
+  { replacementKey: 'substituicao_explicita__fachos_de_mao', label: 'Fachos de Mão', refKey: 'ref_fachos', qtyKey: 'qtd_fachos', valKey: 'validade_fachos_mao' },
+  { replacementKey: 'substituicao_explicita__potes_de_fumo', label: 'Potes de Fumo', refKey: 'ref_potes', qtyKey: 'qtd_potes', valKey: 'validade_potes_fumo' },
+  { replacementKey: 'substituicao_explicita__pilhas_para_lanterna', label: 'Pilhas Lanterna', refKey: 'ref_bateria', qtyKey: 'qtd_pilhas_lanterna', valKey: 'validade_pilhas_lanterna' },
+  { replacementKey: 'substituicao_explicita__hru', label: 'HRU (Disparo Hidrostático)', refKey: 'hruReferencia', qtyKey: 'qtd_hru', valKey: 'hru_val' },
+  { replacementKey: 'substituicao_explicita__cilindro', label: 'Cilindro de Insuflação', refKey: 'cylinderSerial', qtyKey: 'qtd_cilindro', valKey: 'cyl_test_val' },
 ];
 
 export function collectSubstitutedArticles(input: QuadroTemplateInput): QuadroSubstitutedArticle[] {
@@ -110,7 +108,7 @@ export function collectSubstitutedArticles(input: QuadroTemplateInput): QuadroSu
   const seen = new Set<string>();
   const result: QuadroSubstitutedArticle[] = [];
 
-  const add = (label: string, reference: string, quantity: number, validity: string, lot: string, dedupeKey: string) => {
+  const add = (label: string, reference: string, quantity: number, validity: string, dedupeKey: string) => {
     if (!reference || reference === '—') return;
     if (seen.has(dedupeKey)) return;
     seen.add(dedupeKey);
@@ -119,19 +117,20 @@ export function collectSubstitutedArticles(input: QuadroTemplateInput): QuadroSu
       reference,
       quantity,
       validity: validity ? formatMonthYear(validity) : '',
-      lot,
     });
   };
 
   SUBSTITUTION_DEFINITIONS.forEach((def) => {
     const qtyRaw = Number(checklist[def.replacementKey]);
     if (!Number.isFinite(qtyRaw) || qtyRaw <= 0) return;
+    const reference = def.refKey === 'hruReferencia' && asString(checklist.hru_serial)
+      ? asString(checklist.hru_serial)
+      : asString(checklist[def.refKey]) || '—';
     add(
       def.label,
-      asString(checklist[def.refKey]) || '—',
+      reference,
       Math.max(1, Math.round(qtyRaw)),
       def.valKey ? asString(checklist[def.valKey]) : '',
-      def.lotKey ? asString(checklist[def.lotKey]) : '',
       `checklist:${def.refKey}`,
     );
   });
@@ -144,7 +143,7 @@ export function collectSubstitutedArticles(input: QuadroTemplateInput): QuadroSu
       const label = String(item.descricao || item.name || item.referencia || 'Artigo').trim() || 'Artigo';
       const reference = String(item.referencia || '').trim();
       if (!reference) return;
-      add(label, reference, Math.round(quantity), String(item.validade || ''), String(item.codigoFabricante || ''), `substituicoes:${reference}`);
+      add(label, reference, Math.round(quantity), String(item.validade || ''), `substituicoes:${reference}`);
     });
   }
 
@@ -243,22 +242,41 @@ function formatMonthYearSpace(value: unknown) {
   return `${String(parsed.getMonth() + 1).padStart(2, '0')} ${parsed.getFullYear()}`;
 }
 
+function anoDaInspecao(value: unknown) {
+  const raw = asString(value);
+  if (!raw) return '';
+  const isoMatch = raw.match(/^(\d{4})-/);
+  if (isoMatch) return isoMatch[1];
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? '' : String(parsed.getFullYear());
+}
+
+/**
+ * Formato pedido: MARCA, MODELO, LOTAÇÃO, NÚMERO DE SÉRIE e ANO DE INSPEÇÃO.
+ * Ex.: "SURVITEC - 8MR - 14587 - SR-2231 - 2026.xlsx"
+ */
 function buildQuadroFileName(input: QuadroTemplateInput & Record<string, unknown>) {
-  const certNumber = sanitizeFriendlyFileNameSegment(input.certNumber);
-  const shipName = sanitizeFriendlyFileNameSegment(input.shipName);
-  const serial = sanitizeFriendlyFileNameSegment(input.raftSerial ?? input.serial);
+  const marca = sanitizeFriendlyFileNameSegment(input.brand);
+  const modelo = sanitizeFriendlyFileNameSegment(input.raftModel);
+  const lotacao = sanitizeFriendlyFileNameSegment(input.numeroObra);
+  const serie = sanitizeFriendlyFileNameSegment(input.raftSerial ?? input.serial);
+  const ano = anoDaInspecao(input.inspectionDate);
 
-  const parts = [certNumber, serial, shipName].filter(Boolean);
-  const mainLabel = parts.join('_').trim() || 'jangada';
+  const parts = [marca, modelo, lotacao, serie, ano].filter(Boolean);
 
-  return `${mainLabel.replace(/[\\/:*?"<>|\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 180)}.xlsx`;
+  if (!parts.length) return 'quadro_sem_dados.xlsx';
+  if (parts.length < 5) {
+    return `${parts.join(' - ')}_quadro.xlsx`;
+  }
+
+  return `${parts.join(' - ')}.xlsx`;
 }
 
 function asYesNo(value: unknown, fallback = 'NO') {
   if (typeof value === 'string') {
     const normalized = value.trim().toLowerCase();
     if (!normalized) return fallback;
-    if (['yes', 'sim', 'true', '1', 'y', 'ok'].includes(normalized)) return 'YES';
+    if (['yes', 'sim', 'true', '1', 'y', 'ok', 'passou', 'aprovou', 'realizado', 'feito'].includes(normalized)) return 'YES';
     if (['no', 'nao', 'não', 'false', '0', 'n', 'not_ok', 'n/a', 'na', 'n.d', 'nd'].includes(normalized)) return 'NO';
   }
   if (typeof value === 'boolean') return value ? 'YES' : 'NO';
@@ -271,7 +289,7 @@ function asYesNoOrNA(value: unknown, fallback: 'YES' | 'NO' = 'NO'): 'YES' | 'NO
     const normalized = value.trim().toLowerCase();
     if (!normalized) return fallback;
     if (['n/a', 'na', 'n.d', 'nd', 'não aplicável', 'nao aplicavel', 'not applicable'].includes(normalized)) return 'N/A';
-    if (['yes', 'sim', 'true', '1', 'y', 'ok'].includes(normalized)) return 'YES';
+    if (['yes', 'sim', 'true', '1', 'y', 'ok', 'passou', 'aprovou', 'realizado', 'feito'].includes(normalized)) return 'YES';
     if (['no', 'nao', 'não', 'false', '0', 'n', 'not_ok'].includes(normalized)) return 'NO';
   }
   if (typeof value === 'boolean') return value ? 'YES' : 'NO';
@@ -613,7 +631,6 @@ function fillTemplate(ws: ExcelJS.Worksheet, input: QuadroTemplateInput) {
 
   const dateMappings: Array<[string, string]> = [
     ['validade_luzes_exteriores', 'C29'],
-    ['validade_bateria', 'I25'],
     ['validade_agua', 'F63'],
     ['validade_racoes', 'F67'],
     ['validade_farmacia', 'J13'],
@@ -631,13 +648,6 @@ function fillTemplate(ws: ExcelJS.Worksheet, input: QuadroTemplateInput) {
     ['cilindro_co2', 'C47'],
     ['cabeca_disparo', 'C49'],
     ['comprimento_retenida', 'F41'],
-    ['lote_farmacia', 'I12'],
-    ['lote_comprimidos', 'I14'],
-    ['lote_paraquedas', 'I16'],
-    ['lote_fachos', 'I18'],
-    ['lote_potes', 'I20'],
-    ['lote_lanterna', 'I22'],
-    ['lote_bateria', 'G25'],
   ];
 
   const daysMappings: Array<[string, string]> = [
@@ -664,6 +674,11 @@ function fillTemplate(ws: ExcelJS.Worksheet, input: QuadroTemplateInput) {
     if (!value) return;
     setCell(ws.getCell(cellAddress), value);
   });
+
+  // Bateria de lítio — linha própria (D24/E24), independente das pilhas (G24/I25/J25).
+  const bateriaLitioRef = formatReferenceWithQuantity(checklist, 'ref_bateria_litio', 'qtd_bateria_litio', 1);
+  if (bateriaLitioRef) setCell(ws.getCell('F25'), bateriaLitioRef);
+  setCell(ws.getCell('F26'), formatMonthYear(checklist.validade_bateria));
 
   setCell(ws.getCell('F23'), batteryModel);
   setCell(ws.getCell('F37'), input.contentorClosureText);
@@ -744,7 +759,7 @@ function addExpiringArticlesSheet(ws: ExcelJS.Worksheet, input: QuadroTemplateIn
     { key: 'validade_agua', label: 'Saco de Água' },
     { key: 'validade_racoes', label: 'Rações Alimentares' },
     { key: 'hru_val', label: 'HRU' },
-    { key: 'cyl_test_val', label: 'Teste Hidrostático Cilindro' },
+    { key: 'cyl_test_val', label: 'Teste Hidráulico Cilindro' },
   ];
 
   const expiringItems: Array<{
@@ -868,7 +883,7 @@ function addSubstitutedArticlesSheet(ws: ExcelJS.Worksheet, articles: QuadroSubs
   ws.addRow([]);
 
   // Headers
-  const headers = ['Artigo', 'Referência', 'Qtd', 'Validade (MM-AAAA)', 'Lote'];
+  const headers = ['Artigo', 'Referência', 'Qtd', 'Validade (MM-AAAA)'];
   const headerRow = ws.addRow(headers);
   headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF059669' } };
   headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
@@ -881,7 +896,6 @@ function addSubstitutedArticlesSheet(ws: ExcelJS.Worksheet, articles: QuadroSubs
       article.reference,
       article.quantity,
       article.validity,
-      article.lot,
     ]);
     row.getCell(3).alignment = { horizontal: 'center' };
     row.getCell(4).alignment = { horizontal: 'center' };
@@ -905,7 +919,6 @@ function addSubstitutedArticlesSheet(ws: ExcelJS.Worksheet, articles: QuadroSubs
     { width: 24 }, // Referência
     { width: 8 },  // Qtd
     { width: 18 }, // Validade
-    { width: 26 }, // Lote
   ];
 
   // Print setup

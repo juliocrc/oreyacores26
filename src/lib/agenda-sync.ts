@@ -90,7 +90,7 @@ export async function syncNextInspectionAgenda(params: {
 
   await prisma.agendaEvento.deleteMany({
     where: {
-      raftSerial: { equals: raft.serial, mode: "insensitive" },
+      raftSerial: { equals: raft.serial },
       status: { in: [...ACTIVE_AGENDA_STATUSES] },
     },
   });
@@ -114,7 +114,7 @@ export async function clearActiveAgendaForRaft(params: {
 
   await prisma.agendaEvento.deleteMany({
     where: {
-      raftSerial: { equals: raftSerial, mode: "insensitive" },
+      raftSerial: { equals: raftSerial },
       status: { in: [...ACTIVE_AGENDA_STATUSES] },
     },
   });

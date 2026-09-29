@@ -1,9 +1,10 @@
 "use client";
 import React, { useState } from "react";
 import { useColeteWizardStore } from "./store/useColeteWizardStore";
-import { ArrowLeft, Save, CheckCircle2, ShieldCheck, Activity, AlertCircle, FileText, Download, Info } from "lucide-react";
+import { ArrowLeft, Save, CheckCircle2, ShieldCheck, Activity, AlertCircle, Info } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { formatValidityDisplay } from "@/lib/date-display";
+import { performOfflineAwareJsonRequest } from "@/lib/offline-sync/client";
 
 type Props = {
   onPrev: () => void;
@@ -80,14 +81,17 @@ export default function Step5_Finalizar({ onPrev }: Props) {
 
       const endpoint = "/api/inspecoes";
       const method = inspectionId ? "PUT" : "POST";
-      
-      const res = await fetch(endpoint, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
 
-      if (!res.ok) throw new Error("Erro ao gravar inspeção.");
+      await performOfflineAwareJsonRequest({
+        path: endpoint,
+        method,
+        body: payload,
+        queueEntry: {
+          entityType: "colete-inspection",
+          entityId: String(inspectionId || coleteId || ""),
+          summary: isDraft ? `Rascunho colete ${inspectionData.serial || coleteId}` : `Inspeção colete ${inspectionData.serial || coleteId}`,
+        },
+      });
 
       alert(isDraft ? "Rascunho guardado com sucesso!" : "Inspeção Concluída!");
       setIsDirty(false);
@@ -106,10 +110,10 @@ export default function Step5_Finalizar({ onPrev }: Props) {
            return v;
          };
 
-         await fetch(`/api/coletes/${coleteId}`, {
+await performOfflineAwareJsonRequest({
+           path: `/api/coletes/${coleteId}`,
            method: "PUT",
-           headers: { "Content-Type": "application/json" },
-           body: JSON.stringify({
+           body: {
              dataInspecao: inspectionData.dataInspecao,
              dataProxInspecao: inspectionData.dataProxInspecao,
              testePressao: inspectionData.testePressao,
@@ -130,14 +134,19 @@ export default function Step5_Finalizar({ onPrev }: Props) {
               apitoRef: whistle?.stockId ? (whistle?.reference || null) : undefined,
               apitoLote: whistle?.stockId ? (whistle?.lote || null) : undefined,
               apitoValidade: undefined,
-           })
+           },
+           queueEntry: {
+             entityType: "colete",
+             entityId: String(coleteId),
+             summary: `Colete ${inspectionData.serial || coleteId}: registos`,
+           },
          });
 
          // Create a VerificacaoColete record to show in timeline
-         await fetch(`/api/coletes/${coleteId}/verificacoes`, {
+         await performOfflineAwareJsonRequest({
+           path: `/api/coletes/${coleteId}/verificacoes`,
            method: "POST",
-           headers: { "Content-Type": "application/json" },
-           body: JSON.stringify({
+           body: {
              tecidoExterior: inspectionData.tecidoExterior,
              colagens: inspectionData.colagens,
              zataosVelcro: inspectionData.zataosVelcro,
@@ -150,19 +159,33 @@ export default function Step5_Finalizar({ onPrev }: Props) {
              dataVerificacao: inspectionData.dataInspecao,
              inspectorNome: "Técnico Autorizado",
              observacoes: inspectionData.observacoes,
-           })
+           },
+           queueEntry: {
+             entityType: "colete",
+             entityId: String(coleteId),
+             summary: `Colete ${inspectionData.serial || coleteId}: verificação`,
+           },
          });
          
          // Generate Certificate (calling the existing Colete certificate route if needed)
-         await fetch(`/api/coletes/${coleteId}/certificado`, { method: "POST" });
+         await performOfflineAwareJsonRequest({
+           path: `/api/coletes/${coleteId}/certificado`,
+           method: "POST",
+           body: undefined,
+           queueEntry: {
+             entityType: "colete",
+             entityId: String(coleteId),
+             summary: `Colete ${inspectionData.serial || coleteId}: certificado`,
+           },
+         });
       }
 
       reset();
       router.push(`/equipamentos`);
       router.refresh();
 
-    } catch (err: any) {
-      alert(err.message || "Erro desconhecido");
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Erro desconhecido");
     } finally {
       setIsSaving(false);
       setIsDrafting(false);

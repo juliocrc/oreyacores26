@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { SubstituirArtigoDialog } from '@/components/jangadas/SubstituirArtigoDialog';
 
 interface Jangada {
   id: number;
@@ -162,11 +161,6 @@ export const JangadaArtigosView = React.memo(function JangadaArtigosView({ janga
                       })()}
                     </td>
                     <td className="px-4 py-2 text-center">
-                      <SubstituirArtigoDialog
-                        jangadaId={jangadaId}
-                        artigo={artigo}
-                        onSuccess={carregarJangada}
-                      />
                     </td>
                   </tr>
                 ))}
@@ -213,11 +207,6 @@ export const JangadaArtigosView = React.memo(function JangadaArtigosView({ janga
                       })()}
                     </td>
                     <td className="px-4 py-2 text-center">
-                      <SubstituirArtigoDialog
-                        jangadaId={jangadaId}
-                        artigo={artigo}
-                        onSuccess={carregarJangada}
-                      />
                     </td>
                   </tr>
                 ))}
@@ -264,11 +253,6 @@ export const JangadaArtigosView = React.memo(function JangadaArtigosView({ janga
                       })()}
                     </td>
                     <td className="px-4 py-2 text-center">
-                      <SubstituirArtigoDialog
-                        jangadaId={jangadaId}
-                        artigo={artigo}
-                        onSuccess={carregarJangada}
-                      />
                     </td>
                   </tr>
                 ))}

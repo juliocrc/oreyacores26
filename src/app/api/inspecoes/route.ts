@@ -1,8 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
-import { buildDatabaseErrorResponse } from "@/lib/database-errors";
+import { buildDatabaseErrorResponse, extractErrorMessage } from "@/lib/database-errors";
+import { reverterMovimentosInspecao } from "@/lib/stock/inspecao-sync";
+
+function buildSaveErrorResponse(context: ReturnType<typeof beginApiRequest>, error: unknown, fallback: string) {
+  const safe = extractErrorMessage(error, fallback);
+  const response = safe === fallback
+    ? buildDatabaseErrorResponse(error, fallback)
+    : NextResponse.json({ error: safe }, { status: 400 });
+  finishApiRequest(context, response.status);
+  return withRequestId(response, context);
+}
 import { generateInspectionCertificateNumber, generateNextObraNumber, saveInspection } from "@/app/inspecoes/actions";
+import { InspectionLockedError } from "@/lib/inspecao-lock";
 import { saveInspectionSnapshot } from '@/lib/inspection-snapshots';
 import { beginApiRequest, captureApiError, finishApiRequest, withRequestId } from '@/lib/observability';
 import { parseOrdemServicoMeta, toOrdemServicoMetaJson } from "@/lib/ordens-servico";
@@ -250,13 +261,16 @@ export async function POST(req: NextRequest) {
 
       // Save snapshot for future historical view
       await saveInspectionSnapshot(created?.certificadoNumero || "", created?.jangadaId ?? 0);
-      return respond(created, undefined, { batch: false, inspecaoId: created?.id ?? null });
+      return respond({ ...(created || {}), stockWarnings: saved.stockWarnings || [] }, undefined, { batch: false, inspecaoId: created?.id ?? null });
     }
   } catch (error) {
+    // Bloqueio por regra de negócio: 409, nao 500.
+    if (error instanceof InspectionLockedError) {
+      captureApiError(context, error);
+      return respond({ error: error.message, motivo: error.motivo, requerReabertura: true }, { status: 409 });
+    }
     captureApiError(context, error);
-    const response = buildDatabaseErrorResponse(error, 'Erro ao criar inspecao');
-    finishApiRequest(context, response.status);
-    return withRequestId(response, context);
+    return buildSaveErrorResponse(context, error, 'Erro ao criar inspecao');
   }
 }
 
@@ -295,12 +309,15 @@ export async function PUT(req: NextRequest) {
       where: { id: saved.id },
       include: { artigos: true },
     });
-    return respond(updated, undefined, { inspecaoId: id });
+    return respond({ ...(updated || {}), stockWarnings: saved.stockWarnings || [] }, undefined, { inspecaoId: id });
   } catch (error) {
+    // Bloqueio por regra de negócio: 409, nao 500.
+    if (error instanceof InspectionLockedError) {
+      captureApiError(context, error);
+      return respond({ error: error.message, motivo: error.motivo, requerReabertura: true }, { status: 409 });
+    }
     captureApiError(context, error);
-    const response = buildDatabaseErrorResponse(error, 'Erro ao atualizar inspecao');
-    finishApiRequest(context, response.status);
-    return withRequestId(response, context);
+    return buildSaveErrorResponse(context, error, 'Erro ao atualizar inspecao');
   }
 }
 
@@ -337,17 +354,33 @@ export async function DELETE(req: NextRequest) {
         where: { id: { in: ids } },
         select: { id: true, certificadoNumero: true, jangadaSerial: true, dataInspecao: true },
       });
+
+      // Reverter os movimentos de stock ANTES de apagar, para o inventário
+      // reflectir a eliminação da inspeção.
+      let stockRevertido = 0;
+      for (const reg of registos) {
+        stockRevertido += await prisma.$transaction(
+          (tx) =>
+            reverterMovimentosInspecao(tx, reg.id, {
+              certificadoNumero: reg.certificadoNumero,
+              usuario: access.email || "sistema",
+              motivo: `Inspeção eliminada: ${reg.certificadoNumero || reg.id}`,
+            }),
+          { timeout: 20000 }
+        );
+      }
+
       const deleted = await prisma.inspecao.deleteMany({ where: { id: { in: ids } } });
       for (const reg of registos) {
         await logAuditoria({
           tabela: "Inspecao",
           tipoOperacao: "DELETE",
           idRegisto: reg.id,
-          descricao: `Inspeção eliminada em lote: ${reg.certificadoNumero || "sem certificado"}${reg.jangadaSerial ? ` (S/N ${reg.jangadaSerial})` : ""}${reg.dataInspecao ? ` em ${reg.dataInspecao}` : ""}.`,
+          descricao: `Inspeção eliminada em lote: ${reg.certificadoNumero || "sem certificado"}${reg.jangadaSerial ? ` (S/N ${reg.jangadaSerial})` : ""}${reg.dataInspecao ? ` em ${reg.dataInspecao}` : ""}.${stockRevertido ? " Movimentos de stock revertidos." : ""}`,
           usuario: access.email || "sistema",
         });
       }
-      return respond({ success: true, count: deleted.count, ids }, undefined, { batch: true });
+      return respond({ success: true, count: deleted.count, ids, stockMovimentosRevertidos: stockRevertido }, undefined, { batch: true });
     }
 
     if (!idParam) return respond({ error: 'Missing id' }, { status: 400 });
@@ -356,15 +389,26 @@ export async function DELETE(req: NextRequest) {
       where: { id },
       select: { id: true, certificadoNumero: true, jangadaSerial: true, dataInspecao: true },
     });
+
+    const stockRevertido = await prisma.$transaction(
+      (tx) =>
+        reverterMovimentosInspecao(tx, id, {
+          certificadoNumero: reg?.certificadoNumero,
+          usuario: access.email || "sistema",
+          motivo: `Inspeção eliminada: ${reg?.certificadoNumero || id}`,
+        }),
+      { timeout: 20000 }
+    );
+
     const deleted = await prisma.inspecao.delete({ where: { id } });
     await logAuditoria({
       tabela: "Inspecao",
       tipoOperacao: "DELETE",
       idRegisto: id,
-      descricao: `Inspeção eliminada: ${reg?.certificadoNumero || "sem certificado"}${reg?.jangadaSerial ? ` (S/N ${reg.jangadaSerial})` : ""}${reg?.dataInspecao ? ` em ${reg.dataInspecao}` : ""}.`,
+      descricao: `Inspeção eliminada: ${reg?.certificadoNumero || "sem certificado"}${reg?.jangadaSerial ? ` (S/N ${reg.jangadaSerial})` : ""}${reg?.dataInspecao ? ` em ${reg.dataInspecao}` : ""}.${stockRevertido ? " Movimentos de stock revertidos." : ""}`,
       usuario: access.email || "sistema",
     });
-    return respond(deleted, undefined, { batch: false, inspecaoId: id });
+    return respond({ ...deleted, stockMovimentosRevertidos: stockRevertido }, undefined, { batch: false, inspecaoId: id });
   } catch (error) {
     captureApiError(context, error);
     const response = buildDatabaseErrorResponse(error, 'Erro ao deletar inspecao');

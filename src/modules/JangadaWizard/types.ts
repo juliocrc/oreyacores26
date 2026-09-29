@@ -57,8 +57,10 @@ export type TestesData = {
   wpPressaoAtmFim: string;
   wpCamaraSupInicio: string;
   wpCamaraSupFim: string;
+  wpCamaraSupUnidade: string;
   wpCamaraInfInicio: string;
   wpCamaraInfFim: string;
+  wpCamaraInfUnidade: string;
   napUnidadePressao: string;
   napManometroId: string;
   napHoraInicio: string;
@@ -80,6 +82,8 @@ export type ChecklistItem = {
   fotos?: string[];
   validade?: string;
   voltagem?: string;
+  stockId?: number | string | null;
+  referencia?: string;
 };
 
 export type ComponenteItem = {
@@ -190,8 +194,12 @@ export type InspectionData = {
   hruAplicavel: string;
   hruValidade: string;
   hruReference: string;
+  hruSerial?: string;
+  hruStockId?: number | string | null;
   hruExpiry: string;
   hruTipo?: string;
+  luzesInstaladas?: string;
+  bateriaInstalada?: string;
   radarReflector: string;
   radarReflectorExpiry: string;
   shipDetails: ShipDetails;

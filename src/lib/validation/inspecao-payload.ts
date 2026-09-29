@@ -89,6 +89,10 @@ export const saveInspectionSchema = z
     cylinderSerial: stringOrNull,
     numeroObra: stringOrNull,
     orcamento: orcamentoSchema,
+    // Reabertura de inspeção já finalizada. Só é aceite com permissão de
+    // administrador e justificação — ver @/lib/inspecao-lock.
+    reabrir: z.boolean().optional(),
+    reaberturaJustificacao: stringOrNull,
   })
   .passthrough();
 

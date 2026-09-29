@@ -96,24 +96,24 @@ export async function GET(req: NextRequest) {
 
   if (search) {
     where.OR = [
-      { nome: { contains: search, mode: "insensitive" } },
-      { empresa: { contains: search, mode: "insensitive" } },
-      { localizacao: { contains: search, mode: "insensitive" } },
-      { email: { contains: search, mode: "insensitive" } },
-      { observacoes: { contains: search, mode: "insensitive" } },
+      { nome: { contains: search } },
+      { empresa: { contains: search } },
+      { localizacao: { contains: search } },
+      { email: { contains: search } },
+      { observacoes: { contains: search } },
     ];
   }
 
   if (categoria) {
-    where.categoria = { contains: categoria, mode: "insensitive" };
+    where.categoria = { contains: categoria };
   }
 
   if (empresa) {
-    where.empresa = { contains: empresa, mode: "insensitive" };
+    where.empresa = { contains: empresa };
   }
 
   if (localizacao) {
-    where.localizacao = { contains: localizacao, mode: "insensitive" };
+    where.localizacao = { contains: localizacao };
   }
 
   if (ativo === "true") {

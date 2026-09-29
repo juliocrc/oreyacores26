@@ -18,6 +18,19 @@ export async function register() {
       console.error('[Instrumentation] Falha no warmup Prisma:', err);
     }
 
+    // Aplicar modo WAL + busy_timeout na BD SQLite local (ignorado se Postgres).
+    try {
+      const { applySqlitePragmas } = await import('./lib/sqlite-pragmas');
+      const pragmaResult = await applySqlitePragmas();
+      if (pragmaResult.applied) {
+        console.log('[Instrumentation] PRAGMAs SQLite aplicados (WAL/synchronous/busy_timeout).');
+      } else if (pragmaResult.error) {
+        console.error('[Instrumentation] Falha ao aplicar PRAGMAs SQLite:', pragmaResult.error);
+      }
+    } catch (err) {
+      console.error('[Instrumentation] Falha ao aplicar PRAGMAs SQLite:', err);
+    }
+
     // Start database backup scheduler hourly on server startup
     const phase = process.env.NEXT_PHASE;
     if (phase === 'phase-development-server' || phase === 'phase-production-server') {

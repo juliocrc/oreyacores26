@@ -5,13 +5,19 @@ import CircularProgress from "@mui/material/CircularProgress";
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
 import { RefreshCw } from "lucide-react";
+import {
+  flushOfflineSyncQueue,
+  getLegacyOfflineInspectionsCount,
+  getOfflineSyncQueue,
+  importLegacyOfflineInspections,
+  subscribeOfflineSync,
+} from "@/lib/offline-sync/client";
 
 export default function OfflineSyncButton() {
-  const [offlineCount, setOfflineCount] = React.useState<number>(() => {
+  const [pendingCount, setPendingCount] = React.useState(() => {
     if (typeof window === "undefined") return 0;
     try {
-      const items = JSON.parse(localStorage.getItem("offline_inspections") || "[]");
-      return Array.isArray(items) ? items.length : 0;
+      return getOfflineSyncQueue().length + getLegacyOfflineInspectionsCount();
     } catch {
       return 0;
     }
@@ -19,113 +25,52 @@ export default function OfflineSyncButton() {
   const [isSyncing, setIsSyncing] = React.useState(false);
   const [toast, setToast] = React.useState<{ message: string; severity: "success" | "error" | "info" } | null>(null);
 
-  const checkOffline = React.useCallback(() => {
+  const refreshCount = React.useCallback(() => {
     if (typeof window === "undefined") return;
     try {
-      const items = JSON.parse(localStorage.getItem("offline_inspections") || "[]");
-      setOfflineCount(Array.isArray(items) ? items.length : 0);
+      setPendingCount(getOfflineSyncQueue().length + getLegacyOfflineInspectionsCount());
     } catch {
-      setOfflineCount(0);
+      setPendingCount(0);
     }
   }, []);
 
   React.useEffect(() => {
-    if (typeof window !== "undefined") {
-      window.addEventListener("online", checkOffline);
-      window.addEventListener("focus", checkOffline);
-      // Custom event to refresh when someone saves offline
-      window.addEventListener("offline-inspection-saved", checkOffline);
-      return () => {
-        window.removeEventListener("online", checkOffline);
-        window.removeEventListener("focus", checkOffline);
-        window.removeEventListener("offline-inspection-saved", checkOffline);
-      };
-    }
-  }, [checkOffline]);
+    const unsubscribe = subscribeOfflineSync(refreshCount);
+    window.addEventListener("online", refreshCount);
+    window.addEventListener("focus", refreshCount);
+    return () => {
+      unsubscribe();
+      window.removeEventListener("online", refreshCount);
+      window.removeEventListener("focus", refreshCount);
+    };
+  }, [refreshCount]);
 
   const handleSync = async () => {
-    if (offlineCount === 0 || isSyncing) return;
+    if (pendingCount === 0 || isSyncing) return;
     setIsSyncing(true);
     setToast({ message: "A iniciar sincronização de dados offline...", severity: "info" });
 
     try {
-      const items = JSON.parse(localStorage.getItem("offline_inspections") || "[]");
-      if (!Array.isArray(items) || items.length === 0) {
-        setIsSyncing(false);
-        checkOffline();
-        return;
+      const imported = importLegacyOfflineInspections();
+      if (imported > 0) {
+        setToast({ message: `Rascunhos legados importados (${imported}) para a fila partilhada.`, severity: "info" });
       }
 
-      const remainingItems = [...items];
-      let successCount = 0;
-      let failCount = 0;
+      const result = await flushOfflineSyncQueue();
+      refreshCount();
 
-      for (const item of items) {
-        try {
-          const { jangadaId, shipId, id, payload } = item;
-
-          // 1. Atualizar Jangada
-          if (jangadaId) {
-            const jangadaRes = await fetch(`/api/jangadas/${jangadaId}`, {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(payload),
-            });
-            if (!jangadaRes.ok) {
-              const errData = await jangadaRes.json().catch(() => ({}));
-              throw new Error(errData.error || `Erro ao atualizar jangada ${jangadaId}`);
-            }
-          }
-
-          // 2. Atualizar Navio se necessário
-          if (shipId && payload.shipName) {
-            await fetch(`/api/navios/${shipId}`, {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                proprietario: payload.owner,
-                bandeira: payload.shipFlag,
-                imo: payload.shipImo,
-                callSignal: payload.shipCallSign,
-              }),
-            }).catch((err) => console.warn("Erro ao atualizar navio associado:", err));
-          }
-
-          // 3. Gravar Inspeção
-          const isNew = String(id).startsWith("offline_");
-          const method = isNew ? "POST" : "PUT";
-          const url = isNew ? "/api/inspecoes" : `/api/inspecoes?id=${id}`;
-
-          const inspRes = await fetch(url, {
-            method,
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          });
-
-          if (!inspRes.ok) {
-            const errData = await inspRes.json().catch(() => ({}));
-            throw new Error(errData.error || `Erro ao gravar inspeção`);
-          }
-
-          // Remover item com sucesso
-          const idx = remainingItems.findIndex((x) => x.id === id);
-          if (idx !== -1) {
-            remainingItems.splice(idx, 1);
-          }
-          successCount++;
-        } catch (err) {
-          console.error("Erro na sincronização de item offline:", err);
-          failCount++;
-        }
-      }
-
-      localStorage.setItem("offline_inspections", JSON.stringify(remainingItems));
-      checkOffline();
-
-      if (failCount === 0) {
-        setToast({ message: `Sincronização concluída com sucesso! (${successCount} inspeção/inspeções)`, severity: "success" });
+      if (!result || result.processedCount === 0) {
+        setToast({ message: "Não há operações pendentes para sincronizar.", severity: "info" });
+      } else if (result.successCount === result.processedCount) {
+        setToast({
+          message: `Sincronização concluída com sucesso! (${result.successCount} operação/operações)`,
+          severity: "success" as const,
+        });
       } else {
-        setToast({ message: `Sincronizados: ${successCount} com sucesso, ${failCount} falharam.`, severity: "error" });
+        setToast({
+          message: `Sincronizados: ${result.successCount} com sucesso, ${result.processedCount - result.successCount} falharam.`,
+          severity: "error" as const,
+        });
       }
     } catch (error) {
       console.error("Erro geral na sincronização:", error);
@@ -135,7 +80,7 @@ export default function OfflineSyncButton() {
     }
   };
 
-  if (offlineCount === 0) return null;
+  if (pendingCount === 0) return null;
 
   return (
     <>
@@ -143,7 +88,7 @@ export default function OfflineSyncButton() {
         variant="contained"
         color="warning"
         size="small"
-        onClick={handleSync}
+        onClick={() => void handleSync()}
         disabled={isSyncing}
         startIcon={isSyncing ? <CircularProgress size={16} color="inherit" /> : <RefreshCw size={16} className="animate-spin-slow" />}
         sx={{
@@ -163,7 +108,7 @@ export default function OfflineSyncButton() {
           }
         }}
       >
-        {isSyncing ? "A Sincronizar..." : `Enviar Offline (${offlineCount})`}
+        {isSyncing ? "A Sincronizar..." : `Enviar Offline (${pendingCount})`}
       </Button>
 
       <Snackbar

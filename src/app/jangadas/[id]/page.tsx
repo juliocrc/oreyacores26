@@ -40,6 +40,16 @@ export default async function JangadaInspectionPage({ params }: { params: Promis
 
   const cliente = ship?.cliente || null;
 
+  const latestInspection = inspecoes
+    .filter((i) => i.status === "Concluída" && i.dataInspecao)
+    .sort((a, b) => b.dataInspecao.localeCompare(a.dataInspecao))[0] || null;
+  const mergedJangadaRaw = {
+    ...jangadaRaw,
+    dataInspecao: jangadaRaw.dataInspecao || latestInspection?.dataInspecao || null,
+    dataProxInspecao: jangadaRaw.dataProxInspecao || latestInspection?.dataProxInspecao || null,
+    ultimoCertificadoNumero: jangadaRaw.ultimoCertificadoNumero || latestInspection?.certificadoNumero || null,
+  };
+
   function nullToUndefined<T>(obj: T): T {
     if (obj === null || obj === undefined) return undefined as T;
     if (Array.isArray(obj)) return obj.map(nullToUndefined) as T;
@@ -59,7 +69,7 @@ export default async function JangadaInspectionPage({ params }: { params: Promis
   }
 
   const jangada = nullToUndefined({
-    ...jangadaRaw,
+    ...mergedJangadaRaw,
     ship,
     cliente,
     inspecoes,
@@ -76,6 +86,7 @@ export default async function JangadaInspectionPage({ params }: { params: Promis
           nome: true,
           telmovel: true,
           telefone: true,
+          email: true,
         },
       },
     },
@@ -86,7 +97,7 @@ export default async function JangadaInspectionPage({ params }: { params: Promis
     id: s.id,
     nome: s.nome,
     matricula: s.matricula,
-    cliente: s.cliente ? { id: s.cliente.id, nome: s.cliente.nome, telmovel: s.cliente.telmovel, telefone: s.cliente.telefone } : undefined,
+    cliente: s.cliente ? { id: s.cliente.id, nome: s.cliente.nome, telmovel: s.cliente.telmovel, telefone: s.cliente.telefone, email: s.cliente.email } : undefined,
   }));
 
   return (

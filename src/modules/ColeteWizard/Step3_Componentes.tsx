@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import { useColeteWizardStore } from "./store/useColeteWizardStore";
 import { ArrowLeft, ChevronRight, Activity, ChevronDown, Package, CheckCircle2, RefreshCw, X } from "lucide-react";
+import { maskMonthYearInput, toMonthYearString } from "@/lib/date-utils";
 
 type Props = {
   onNext: () => void;
@@ -33,7 +34,7 @@ export default function Step3_Componentes({ onNext, onPrev }: Props) {
             ...comp, 
             reference: stockItem.referencia,
             stockId: stockItem.id,
-            validade: (comp.id === 'cylinder' || comp.id === 'whistle') ? comp.validade : (stockItem.validade || comp.validade),
+            validade: (comp.id === 'cylinder' || comp.id === 'whistle') ? comp.validade : (toMonthYearString(stockItem.validade) || comp.validade),
             lote: stockItem.lote || comp.lote
           } : comp
         )
@@ -170,9 +171,12 @@ export default function Step3_Componentes({ onNext, onPrev }: Props) {
                         Validade
                       </label>
                       <input
-                        type="month"
-                        value={comp.validade}
-                        onChange={(e) => updateItem(comp.id, 'validade', e.target.value)}
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="MM/AAAA"
+                        maxLength={7}
+                        value={toMonthYearString(comp.validade)}
+                        onChange={(e) => updateItem(comp.id, 'validade', maskMonthYearInput(e.target.value))}
                         className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-white text-slate-800 focus:ring-2 focus:ring-indigo-100 transition-colors text-sm font-medium"
                       />
                     </div>

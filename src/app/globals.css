@@ -1,523 +1,399 @@
-/* Natively responsive layout */
+/* =============================================================
+   OREYACORESDELUXE — Design System
+   Tema claro SaaS, leve e interativo.
+
+   Organização:
+     1. Tokens (@theme)      -> gera utilitários Tailwind (bg-brand, text-ink…)
+     2. Base                 -> reset leve, tipografia, scrollbar, foco
+     3. Componentes          -> classes .ds-* reutilizáveis
+   ============================================================= */
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-  --primary-color: #2563eb;
-  --secondary-color: #22c55e;
-  --accent-color: #eab308;
-  --logo-url: none;
-  --app-text-strong: #0f172a;
-  --app-text-muted: #1e293b;
-  --app-border-color: #94a3b8;
-  --app-shadow-color: rgba(15, 23, 42, 0.08);
-  --app-hero-border: #bae6fd;
-  --app-hero-gradient: linear-gradient(90deg, #38bdf8 0%, #60a5fa 46%, #22d3ee 100%);
-  --app-hero-shadow: rgba(14, 116, 144, 0.22);
+/* -------------------------------------------------------------
+   1. TOKENS
+   ---------------------------------------------------------------- */
+@theme {
+  /* Superfícies */
+  --color-canvas: #f4f6fb;
+  --color-surface: #ffffff;
+  --color-surface-2: #f8fafc;
+  --color-surface-3: #eef2f9;
+
+  /* Traços */
+  --color-line: #e4e8f2;
+  --color-line-strong: #cbd5e1;
+
+  /* Texto */
+  --color-ink: #0f172a;
+  --color-ink-muted: #556275;
+  --color-ink-subtle: #8592a6;
+  --color-ink-invert: #ffffff;
+
+  /* Marca (indigo) */
+  --color-brand: #4f46e5;
+  --color-brand-strong: #4338ca;
+  --color-brand-soft: #eef2ff;
+  --color-brand-line: #c7d2fe;
+  --color-brand-ink: #3730a3;
+
+  /* Marítimo (ciano) */
+  --color-sea: #0891b2;
+  --color-sea-soft: #ecfeff;
+  --color-sea-line: #a5f3fc;
+
+  /* Semânticos */
+  --color-ok: #059669;
+  --color-ok-soft: #ecfdf5;
+  --color-ok-line: #a7f3d0;
+
+  --color-warn: #b45309;
+  --color-warn-soft: #fffbeb;
+  --color-warn-line: #fde68a;
+
+  --color-danger: #e11d48;
+  --color-danger-soft: #fff1f2;
+  --color-danger-line: #fecdd3;
+
+  /* Raios */
+  --radius-xs: 0.375rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+  --radius-2xl: 1.5rem;
+
+  /* Sombras (mais suaves e hierarquizadas) */
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px -4px rgba(15, 23, 42, 0.06);
+  --shadow-lift: 0 2px 4px rgba(15, 23, 42, 0.04), 0 12px 24px -8px rgba(15, 23, 42, 0.12);
+  --shadow-pop: 0 8px 16px -6px rgba(15, 23, 42, 0.10), 0 24px 48px -12px rgba(15, 23, 42, 0.18);
+
+  /* Movimento */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --font-sans: Inter, "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
 }
 
-:root {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* -------------------------------------------------------------
+   ALTO CONTRASTE
+   Sobrescreve os tokens do @theme para quem trabalha no cais
+   ou dentro de boats: fundo branco puro, texto preto, traços
+   grossos e cores mais saturadas. Aplicado pelo mesmo atributo
+   data-theme que o MUI usa, para os dois sistemas ficarem em sintonia.
+   ---------------------------------------------------------------- */
+[data-theme="altoContraste"] {
+  --color-canvas: #ffffff;
+  --color-surface: #ffffff;
+  --color-surface-2: #f2f4f8;
+  --color-surface-3: #e6eaf2;
+
+  --color-line: #64748b;
+  --color-line-strong: #0f172a;
+
+  --color-ink: #000000;
+  --color-ink-muted: #1f2937;
+  --color-ink-subtle: #334155;
+  --color-ink-invert: #ffffff;
+
+  --color-brand: #0b3ba8;
+  --color-brand-strong: #062a7d;
+  --color-brand-soft: #dbe6ff;
+  --color-brand-line: #0b3ba8;
+  --color-brand-ink: #062a7d;
+
+  --color-sea: #04566b;
+  --color-sea-soft: #d3f2f8;
+  --color-sea-line: #04566b;
+
+  --color-ok: #046a38;
+  --color-ok-soft: #d6f5e4;
+  --color-ok-line: #046a38;
+
+  --color-warn: #8a4b00;
+  --color-warn-soft: #ffeccc;
+  --color-warn-line: #8a4b00;
+
+  --color-danger: #a3001b;
+  --color-danger-soft: #ffe0e4;
+  --color-danger-line: #a3001b;
+
+  /* Sem sombras: a profundidade passa a ser dada pelo contorno. */
+  --shadow-xs: 0 0 0 1px rgba(15, 23, 42, 0.9);
+  --shadow-card: 0 0 0 2px rgba(15, 23, 42, 0.9);
+  --shadow-lift: 0 0 0 3px rgba(15, 23, 42, 0.95);
+  --shadow-pop: 0 0 0 3px rgba(15, 23, 42, 0.95);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-  html {
-    background-color: #18181b;
-    color: #e5e7eb;
-  }
-  body {
-    background-color: #18181b;
-    color: #e5e7eb;
-  }
-  .bg-white {
-    background-color: #23232a !important;
-  }
-  .text-black {
-    color: #e5e7eb !important;
-  }
-  .bg-blue-100 {
-    background-color: #1e293b !important;
-  }
-  .border {
-    border-color: #444 !important;
-  }
-  .shadow {
-    box-shadow: 0 2px 8px #0006 !important;
-  }
-  .bg-blue-600 {
-    background-color: #2563eb !important;
-  }
-  .bg-green-600 {
-    background-color: #22c55e !important;
-  }
-  .bg-yellow-500 {
-    background-color: #eab308 !important;
-  }
+/* -------------------------------------------------------------
+   2. BASE
+   ---------------------------------------------------------------- */
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
 }
-
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Inter, Arial, Helvetica, sans-serif;
-  font-size: 16px;
+  background-color: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 1rem;
   line-height: 1.55;
-  /* Fundo SVG marítimo com navios e elementos de segurança */
-  background-image: linear-gradient(180deg, rgba(248, 250, 252, 0.96) 0%, rgba(239, 246, 255, 0.94) 100%), url('data:image/svg+xml;utf8,<svg width="100vw" height="100vh" viewBox="0 0 1440 900" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="1440" height="900" fill="%23dbeafe"/><ellipse cx="720" cy="850" rx="700" ry="80" fill="%230a2540" opacity="0.08"/><ellipse cx="400" cy="820" rx="180" ry="30" fill="%23fff" opacity="0.1"/><ellipse cx="1100" cy="830" rx="220" ry="40" fill="%23fff" opacity="0.1"/><g opacity="0.18"><rect x="300" y="700" width="120" height="30" rx="10" fill="%23fff" stroke="%230a2540" stroke-width="3"/><rect x="320" y="690" width="80" height="20" rx="6" fill="%23eab308"/><circle cx="360" cy="715" r="8" fill="%2322c55e"/><rect x="340" y="720" width="40" height="8" rx="2" fill="%230a2540"/></g><g opacity="0.18"><rect x="900" y="740" width="160" height="40" rx="12" fill="%23fff" stroke="%230a2540" stroke-width="3"/><rect x="940" y="730" width="80" height="20" rx="6" fill="%23eab308"/><circle cx="980" cy="765" r="10" fill="%2322c55e"/><rect x="960" y="770" width="40" height="10" rx="2" fill="%230a2540"/></g><g opacity="0.16"><circle cx="1200" cy="200" r="30" fill="%23eab308" stroke="%230a2540" stroke-width="4"/><rect x="1185" y="190" width="30" height="8" rx="2" fill="%230a2540"/></g><g opacity="0.16"><rect x="600" y="100" width="80" height="30" rx="10" fill="%23fff" stroke="%230a2540" stroke-width="3"/><rect x="620" y="90" width="40" height="15" rx="4" fill="%2322c55e"/><circle cx="660" cy="115" r="7" fill="%23eab308"/></g></svg>');
-  background-size: auto, cover;
-  background-repeat: repeat, no-repeat;
-  background-attachment: scroll, fixed;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Brilho muito subtil no topo, sem imagens pesadas. */
+  background-image: radial-gradient(
+    1200px 400px at 50% -200px,
+    rgba(79, 70, 229, 0.07),
+    transparent 70%
+  );
+  background-repeat: no-repeat;
 }
 
-:root[data-theme="azores"] {
-  --background: #ffffff;
-  --foreground: #171717;
-  --primary-color: #2563eb;
-  --secondary-color: #22c55e;
-  --accent-color: #eab308;
-  --app-text-strong: #0f172a;
-  --app-text-muted: #1e293b;
-  --app-border-color: #94a3b8;
-  --app-shadow-color: rgba(15, 23, 42, 0.08);
-  --app-hero-border: #bae6fd;
-  --app-hero-gradient: linear-gradient(90deg, #38bdf8 0%, #60a5fa 46%, #22d3ee 100%);
-  --app-hero-shadow: rgba(14, 116, 144, 0.22);
+h1, h2, h3, h4, h5, h6 {
+  color: var(--color-ink);
+  letter-spacing: -0.015em;
+  text-wrap: balance;
 }
 
-:root[data-theme="deluxe"] {
-  --background: #fcfcfd;
-  --foreground: #0f172a;
-  --primary-color: #4f46e5;
-  --secondary-color: #eab308;
-  --accent-color: #06b6d4;
-  --app-text-strong: #0f172a;
-  --app-text-muted: #475569;
-  --app-border-color: #e2e8f0;
-  --app-shadow-color: rgba(79, 70, 229, 0.04);
-  --app-hero-border: #c7d2fe;
-  --app-hero-gradient: linear-gradient(135deg, #312e81 0%, #4f46e5 50%, #06b6d4 100%);
-  --app-hero-shadow: rgba(79, 70, 229, 0.18);
-}
-
-:root[data-theme="deluxe"] body {
-  background-image: linear-gradient(180deg, rgba(252, 252, 253, 0.98) 0%, rgba(245, 247, 255, 0.98) 100%),
-                    radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.08) 0%, transparent 45%),
-                    radial-gradient(circle at 90% 10%, rgba(6, 182, 212, 0.08) 0%, transparent 40%),
-                    radial-gradient(circle at 50% 80%, rgba(234, 179, 8, 0.04) 0%, transparent 50%);
-}
-
-:root[data-theme="oceano"] {
-  --background: #f3fbff;
-  --foreground: #082f49;
-  --primary-color: #0369a1;
-  --secondary-color: #0e7490;
-  --accent-color: #14b8a6;
-  --app-text-strong: #082f49;
-  --app-text-muted: #0f4c63;
-  --app-border-color: #7dd3fc;
-  --app-shadow-color: rgba(8, 47, 73, 0.16);
-  --app-hero-border: #7dd3fc;
-  --app-hero-gradient: linear-gradient(90deg, #0ea5e9 0%, #0284c7 46%, #14b8a6 100%);
-  --app-hero-shadow: rgba(8, 47, 73, 0.26);
-}
-
-:root[data-theme="vermelho"] {
-  --background: #fff7f7;
-  --foreground: #3f0f0f;
-  --primary-color: #b91c1c;
-  --secondary-color: #ea580c;
-  --accent-color: #f59e0b;
-  --app-text-strong: #3f0f0f;
-  --app-text-muted: #7f1d1d;
-  --app-border-color: #fca5a5;
-  --app-shadow-color: rgba(127, 29, 29, 0.14);
-  --app-hero-border: #fecaca;
-  --app-hero-gradient: linear-gradient(90deg, #ef4444 0%, #dc2626 46%, #f97316 100%);
-  --app-hero-shadow: rgba(153, 27, 27, 0.24);
-}
-
-:root[data-theme="noturno"],
-:root[data-theme="escuro"] {
-  --background: #f6f8ff;
-  --foreground: #111827;
-  --primary-color: #334155;
-  --secondary-color: #8b5cf6;
-  --accent-color: #ec4899;
-  --app-text-strong: #111827;
-  --app-text-muted: #334155;
-  --app-border-color: #cbd5e1;
-  --app-shadow-color: rgba(15, 23, 42, 0.12);
-  --app-hero-border: #c4b5fd;
-  --app-hero-gradient: linear-gradient(90deg, #0f172a 0%, #334155 42%, #7c3aed 100%);
-  --app-hero-shadow: rgba(91, 33, 182, 0.2);
-}
-
-:root[data-theme="escuro"] {
-  --primary-color: #1f2937;
-  --secondary-color: #c026d3;
-  --accent-color: #f97316;
-  --app-hero-gradient: linear-gradient(90deg, #111827 0%, #374151 46%, #c026d3 100%);
-}
-
-:root[data-theme="noturno"] body,
-:root[data-theme="escuro"] body {
-  background-image: linear-gradient(180deg, rgba(249, 250, 255, 0.98) 0%, rgba(241, 245, 255, 0.98) 100%), radial-gradient(circle at 20% 20%, rgba(139, 92, 246, 0.12) 0%, transparent 40%), radial-gradient(circle at 80% 10%, rgba(236, 72, 153, 0.12) 0%, transparent 38%);
-}
-
-main,
-body,
-button,
-input,
-select,
-textarea {
-  color: var(--app-text-strong);
-}
-
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
-  color: var(--app-text-strong);
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
-}
-
-p,
-label,
-li,
-td,
-th,
-span,
-div {
+p, li, td, th, label {
   text-wrap: pretty;
 }
 
-label,
-th,
-.font-semibold,
-.font-bold,
-.font-extrabold {
-  color: var(--app-text-strong) !important;
-}
-
-p,
-li,
-td,
-input,
-textarea,
-select {
-  color: var(--app-text-muted);
-}
-
-input,
-select,
-textarea {
-  min-height: 40px;
-  font-size: 0.94rem;
-  border-color: var(--app-border-color) !important;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-}
-
-button,
-a[role="button"],
-input[type="button"],
-input[type="submit"],
-input[type="reset"] {
-  font-size: 0.92rem;
-  font-weight: 700;
-  box-shadow: 0 2px 6px var(--app-shadow-color);
-}
-
-table th {
-  font-size: 0.96rem;
-  font-weight: 800;
-  color: var(--app-text-strong);
-}
-
-table td {
-  font-size: 0.96rem;
-}
-
-/* Keep utility shadows proportional to the component hierarchy. */
-.shadow-xl { box-shadow: 0 16px 32px var(--app-shadow-color) !important; }
-.shadow-lg { box-shadow: 0 10px 24px var(--app-shadow-color) !important; }
-.shadow-md { box-shadow: 0 6px 16px var(--app-shadow-color) !important; }
-.shadow-sm, .shadow { box-shadow: 0 2px 8px var(--app-shadow-color) !important; }
-
-button:focus-visible,
-a:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--primary-color) 35%, transparent);
+/* Foco consistente e visível em toda a app. */
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-brand);
   outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 
-@media (max-width: 900px) {
-  body {
-    background-attachment: scroll;
-  }
-
-  h1 {
-    font-size: clamp(1.75rem, 1.35rem + 2vw, 2.4rem);
-  }
-
-  h2 {
-    font-size: clamp(1.35rem, 1.15rem + 1vw, 1.8rem);
-  }
+/* Campos de formulário consistentes. */
+input, select, textarea {
+  font: inherit;
+  color: var(--color-ink);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  min-height: 42px;
+  padding-inline: 0.75rem;
+  transition: border-color 0.15s var(--ease-out-soft), box-shadow 0.15s var(--ease-out-soft);
 }
 
-button,
-input[type="button"],
-input[type="submit"],
-input[type="reset"] {
-  color: inherit !important;
+input:hover, select:hover, textarea:hover {
+  border-color: var(--color-line-strong);
 }
 
-.theme-azores {
-  --primary-color: #2563eb;
-  --secondary-color: #22c55e;
-  --accent-color: #eab308;
-  --logo-url: none;
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
 }
 
-.theme-orey {
-  --primary-color: #0a2540;
-  --secondary-color: #f87171;
-  --accent-color: #a78bfa;
-  --logo-url: none;
+input::placeholder, textarea::placeholder {
+  color: var(--color-ink-subtle);
 }
 
-.bg-primary {
-  background-color: var(--primary-color) !important;
+/* Remove as setas dos number inputs (são usados para campos de quantidade). */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
-.text-primary {
-  color: var(--primary-color) !important;
-}
-.bg-secondary {
-  background-color: var(--secondary-color) !important;
-}
-.text-secondary {
-  color: var(--secondary-color) !important;
-}
-.bg-accent {
-  background-color: var(--accent-color) !important;
-}
-.text-accent {
-  color: var(--accent-color) !important;
-}
-.logo {
-  background-image: var(--logo-url);
-  background-size: contain;
-  background-repeat: no-repeat;
-  width: 120px;
-  height: 48px;
-  display: inline-block;
+input[type="number"] {
+  -moz-appearance: textfield;
 }
 
-.app-hero-panel {
-  border: 1px solid var(--app-hero-border);
-  background: var(--app-hero-gradient);
-  color: #ffffff;
-  box-shadow: 0 24px 48px var(--app-hero-shadow) !important;
+/* Scrollbar discreta. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line-strong) transparent;
 }
-
-.app-hero-panel h1,
-.app-hero-panel h2,
-.app-hero-panel h3,
-.app-hero-panel p,
-.app-hero-panel span,
-.app-hero-panel label,
-.app-hero-panel .font-semibold,
-.app-hero-panel .font-bold,
-.app-hero-panel .font-extrabold {
-  color: inherit !important;
-  text-shadow: none !important;
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
 }
-
-.app-hero-card {
-  border: 1px solid rgba(255, 255, 255, 0.32);
-  background: rgba(255, 255, 255, 0.20);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+*::-webkit-scrollbar-track {
+  background: transparent;
 }
-
-.app-hero-card-soft {
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  background: rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
-@media (max-width: 1024px) {
-  html {
-    overflow-x: hidden;
-  }
-
-  body {
-    font-size: 16px;
-  }
-
-  main {
-    min-width: 0;
-  }
-
-  .rounded-3xl {
-    border-radius: 1.25rem !important;
-  }
-
-  table th,
-  table td {
-    white-space: nowrap;
-  }
-}
-
-.app-soft-blue-panel {
-  border: 1px solid #bfdbfe;
-  background: linear-gradient(90deg, #eff6ff 0%, #f0f9ff 55%, #ffffff 100%);
-}
-
-.app-soft-blue-strip {
-  border-bottom: 1px solid #dbeafe;
-  background: linear-gradient(90deg, #f8fbff 0%, #eff6ff 52%, #f0f9ff 100%);
-}
-
-.app-light-blue-surface {
-  border: 1px solid #bfdbfe;
-  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 48%, #cffafe 100%);
-  color: #0f172a;
-  box-shadow: 0 18px 38px rgba(59, 130, 246, 0.16) !important;
-}
-
-.app-light-blue-surface h1,
-.app-light-blue-surface h2,
-.app-light-blue-surface h3,
-.app-light-blue-surface p {
-  text-shadow: none;
-}
-
-.app-light-blue-glass {
-  border: 1px solid rgba(147, 197, 253, 0.95);
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
-.app-light-blue-muted {
-  color: #334155;
-}
-
-.app-light-blue-kicker {
-  color: #1d4ed8;
-}
-
-.app-light-blue-code {
-  border: 1px solid #bfdbfe;
-  background: #eff6ff;
-  color: #1e3a8a;
-}
-
-/* Deluxe Theme Styling Polish & Glassmorphism */
-:root[data-theme="deluxe"] .bg-white {
-  background-color: rgba(255, 255, 255, 0.76) !important;
-  backdrop-filter: blur(18px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(18px) saturate(180%) !important;
-  border-color: rgba(226, 232, 240, 0.6) !important;
-  box-shadow: 0 10px 30px -10px rgba(79, 70, 229, 0.04), 0 1px 3px rgba(0, 0, 0, 0.01) !important;
-}
-
-:root[data-theme="deluxe"] .border,
-:root[data-theme="deluxe"] .border-slate-200,
-:root[data-theme="deluxe"] .border-slate-200\/80 {
-  border-color: rgba(99, 102, 241, 0.12) !important;
-}
-
-:root[data-theme="deluxe"] .shadow-sm,
-:root[data-theme="deluxe"] .shadow,
-:root[data-theme="deluxe"] .shadow-md {
-  box-shadow: 0 8px 24px -6px rgba(79, 70, 229, 0.04), 0 1px 2px rgba(0, 0, 0, 0.01) !important;
-}
-
-:root[data-theme="deluxe"] .shadow-lg,
-:root[data-theme="deluxe"] .shadow-xl {
-  box-shadow: 0 20px 40px -10px rgba(79, 70, 229, 0.08), 0 1px 3px rgba(0, 0, 0, 0.01) !important;
-}
-
-:root[data-theme="deluxe"] .hover\:-translate-y-2:hover {
-  transform: translateY(-6px) !important;
-}
-
-:root[data-theme="deluxe"] .hover\:shadow-xl:hover {
-  box-shadow: 0 20px 40px -12px rgba(79, 70, 229, 0.16) !important;
-  border-color: rgba(99, 102, 241, 0.28) !important;
-}
-
-:root[data-theme="deluxe"] .bg-blue-50 {
-  background-color: rgba(99, 102, 241, 0.06) !important;
-  border-color: rgba(99, 102, 241, 0.16) !important;
-}
-
-:root[data-theme="deluxe"] .bg-rose-50 {
-  background-color: rgba(244, 63, 94, 0.06) !important;
-  border-color: rgba(244, 63, 94, 0.16) !important;
-}
-
-:root[data-theme="deluxe"] .bg-amber-50 {
-  background-color: rgba(245, 158, 11, 0.06) !important;
-  border-color: rgba(245, 158, 11, 0.16) !important;
-}
-
-:root[data-theme="deluxe"] .bg-emerald-50 {
-  background-color: rgba(16, 185, 129, 0.06) !important;
-  border-color: rgba(16, 185, 129, 0.16) !important;
-}
-
-:root[data-theme="deluxe"] .bg-slate-50 {
-  background-color: rgba(241, 245, 249, 0.4) !important;
-  border-color: rgba(226, 232, 240, 0.4) !important;
-}
-
-/* Sidebar Navigation Items in Deluxe Theme */
-:root[data-theme="deluxe"] [class*="MuiListItemButton-root"] {
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
-}
-
-:root[data-theme="deluxe"] [class*="MuiListItemButton-root"]:hover {
-  background-color: rgba(79, 70, 229, 0.06) !important;
-  transform: translateX(4px) !important;
-}
-
-:root[data-theme="deluxe"] [class*="MuiListItemButton-root"].Mui-selected {
-  background-color: rgba(79, 70, 229, 0.1) !important;
-  border-color: rgba(79, 70, 229, 0.2) !important;
-  border-left: 3.5px solid #4f46e5 !important;
-  padding-left: calc(1.75rem - 3.5px) !important;
-}
-
-/* Custom Scrollbar for Deluxe version */
-:root[data-theme="deluxe"] ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-:root[data-theme="deluxe"] ::-webkit-scrollbar-track {
-  background: rgba(241, 245, 249, 0.5);
-}
-
-:root[data-theme="deluxe"] ::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.4);
+*::-webkit-scrollbar-thumb {
+  background-color: var(--color-line-strong);
+  border: 3px solid transparent;
+  background-clip: content-box;
   border-radius: 99px;
 }
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-ink-subtle);
+}
 
-:root[data-theme="deluxe"] ::-webkit-scrollbar-thumb:hover {
-  background: rgba(99, 102, 241, 0.6);
+/* Animações partilhadas. */
+@keyframes ds-fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes ds-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes ds-pop {
+  0%   { opacity: 0; transform: scale(0.96); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes ds-shimmer {
+  100% { transform: translateX(100%); }
+}
+
+.ds-animate-in { animation: ds-fade-up 0.4s var(--ease-out-soft) both; }
+.ds-animate-pop { animation: ds-pop 0.22s var(--ease-spring) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* -------------------------------------------------------------
+   3. COMPONENTES
+   Definidos com @utility (não @layer) para que possam ser
+   compostas com @apply e usadas com variantes.
+   ---------------------------------------------------------------- */
+
+/* --- Superfícies --- */
+@utility ds-card {
+  @apply rounded-2xl border border-line bg-surface shadow-card;
+}
+
+@utility ds-card-interactive {
+  @apply ds-card transition-all duration-200;
+  &:hover {
+    @apply -translate-y-0.5 border-brand-line shadow-lift;
+  }
+}
+
+@utility ds-panel {
+  @apply rounded-2xl border border-line bg-surface-2 p-5;
+}
+
+/* --- Botões --- */
+@utility ds-btn {
+  @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl
+         border border-transparent px-4 font-semibold whitespace-nowrap
+         transition-all duration-150 select-none
+         disabled:pointer-events-none disabled:opacity-45;
+  &:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+}
+
+@utility ds-btn-md { @apply min-h-11 text-[0.9375rem]; }
+@utility ds-btn-sm { @apply min-h-9 px-3 text-sm; }
+@utility ds-btn-lg { @apply min-h-12 px-6 text-base; }
+
+@utility ds-btn-primary {
+  @apply bg-brand text-white shadow-xs hover:bg-brand-strong hover:shadow-card;
+}
+
+@utility ds-btn-secondary {
+  @apply border-line bg-surface text-ink hover:border-brand-line hover:bg-brand-soft hover:text-brand-ink;
+}
+
+@utility ds-btn-ghost {
+  @apply text-ink-muted hover:bg-surface-3 hover:text-ink;
+}
+
+@utility ds-btn-danger {
+  @apply bg-danger text-white hover:brightness-95;
+}
+
+@utility ds-btn-ok {
+  @apply bg-ok text-white hover:brightness-95;
+}
+
+/* --- Etiquetas --- */
+@utility ds-badge {
+  @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1
+         text-xs font-semibold whitespace-nowrap;
+}
+@utility ds-badge-brand  { @apply border-brand-line bg-brand-soft text-brand-ink; }
+@utility ds-badge-sea    { @apply border-sea-line bg-sea-soft text-sea; }
+@utility ds-badge-ok     { @apply border-ok-line bg-ok-soft text-ok; }
+@utility ds-badge-warn   { @apply border-warn-line bg-warn-soft text-warn; }
+@utility ds-badge-danger { @apply border-danger-line bg-danger-soft text-danger; }
+@utility ds-badge-muted  { @apply border-line bg-surface-2 text-ink-muted; }
+
+/* --- Campos --- */
+@utility ds-label {
+  @apply mb-1.5 block text-xs font-semibold tracking-wide text-ink-muted uppercase;
+}
+
+@utility ds-input {
+  @apply w-full min-h-11 rounded-xl border border-line bg-surface px-3.5
+         text-[0.9375rem] text-ink transition-all duration-150;
+  &:hover { @apply border-line-strong; }
+  &:focus {
+    @apply border-brand outline-none;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+  }
+}
+
+@utility ds-textarea { @apply ds-input min-h-24 resize-y py-2.5 leading-relaxed; }
+
+/* --- Tabelas --- */
+@utility ds-table-wrap {
+  @apply overflow-x-auto rounded-2xl border border-line bg-surface shadow-card;
+}
+
+@utility ds-table { @apply w-full border-collapse text-left; }
+
+@utility ds-table-head {
+  @apply sticky top-0 z-10 border-b border-line bg-surface-2 px-4 py-3
+         text-xs font-bold tracking-wide text-ink-muted uppercase;
+}
+
+@utility ds-table-cell { @apply border-b border-line/70 px-4 py-3 text-[0.9375rem] text-ink; }
+
+@utility ds-table-row {
+  @apply transition-colors duration-150;
+  &:hover { @apply bg-brand-soft/50; }
+  &:last-child td { @apply border-b-0; }
+}
+
+/* --- Cabeçalhos --- */
+@utility ds-section-title {
+  @apply flex items-center gap-2 text-lg font-bold text-ink;
+}
+
+@utility ds-kicker {
+  @apply text-[0.6875rem] font-bold tracking-[0.18em] text-ink-subtle uppercase;
+}
+
+/* --- Esqueleto de carregamento --- */
+@utility ds-skeleton {
+  @apply relative overflow-hidden rounded-lg bg-surface-3;
+  &::after {
+    content: "";
+    @apply absolute inset-0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.65), transparent);
+    transform: translateX(-100%);
+    animation: ds-shimmer 1.6s infinite;
+  }
+}
+
+/* --- Estado vazio --- */
+@utility ds-empty {
+  @apply flex flex-col items-center justify-center gap-2 rounded-2xl
+         border border-dashed border-line-strong bg-surface-2 px-6 py-12 text-center;
+}
+
+/* Legado: o logo continua disponível para os módulos existentes. */
+.logo {
+  background-image: var(--logo-url, none);
+  background-size: contain;
+  background-repeat: no-repeat;
+  display: inline-block;
+  width: 120px;
+  height: 48px;
 }

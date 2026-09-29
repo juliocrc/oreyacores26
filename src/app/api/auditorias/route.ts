@@ -21,10 +21,10 @@ export async function GET(req: NextRequest) {
     if (query) {
       andConditions.push({
         OR: [
-          { tabela: { contains: query, mode: "insensitive" as const } },
-          { tipoOperacao: { contains: query, mode: "insensitive" as const } },
-          { descricao: { contains: query, mode: "insensitive" as const } },
-          { usuario: { contains: query, mode: "insensitive" as const } },
+          { tabela: { contains: query } },
+          { tipoOperacao: { contains: query } },
+          { descricao: { contains: query } },
+          { usuario: { contains: query } },
         ],
       });
     }

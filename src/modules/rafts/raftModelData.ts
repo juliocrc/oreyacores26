@@ -653,7 +653,7 @@ const mkivTechnicalNotes: string[] = [
   'Configuração operacional principal TO; variante DL deve usar linhas específicas marcadas como configuração DL.',
   'Para 25P: TO = 10.77/0.54; DL = 12.57/0.63 (CO2/N2 em kg).',
   'Tolerância de carga de CO2: +0/-46 g; tolerância N2: +0/-10 g; tolerância global típica +0/-56 g.',
-  'Teste hidrostático de cilindro: periodicidade máxima de 5 anos (conforme manual).',
+  'Teste hidráulico de cilindro: periodicidade máxima de 5 anos (conforme manual).',
   'Inspecionar tubo sifão por som de toque e rejeitar cilindro com atraso perceptível (sinal de endurecimento).',
   'Mangueiras de inflação devem ficar corretamente encaixadas no conector M16 para evitar blow-off durante inflação.',
   'Para embalamento SOLAS A de 10-25P usar proteção adicional de espuma junto ao cilindro e válvulas de entrada.',

@@ -20,7 +20,7 @@ export const OS_TEMPLATES: OsTemplate[] = [
   {
     id: "inspecao-anual",
     nome: "Inspeção Anual",
-    descricao: "Inspeção periódica anual completa com teste hidrostático",
+    descricao: "Inspeção periódica anual completa com teste hidráulico",
     tipo: "inspecao",
     artigos: [
       { descricao: "Kit de reparação (vedantes, anilhas)", referencia: "KIT-REP", quantidade: 1, precoUnitario: 35 },

@@ -5,6 +5,7 @@ import { SessionProvider } from "next-auth/react";
 import type { Session } from "next-auth";
 import { APP_THEME_OPTIONS, AppThemeName, createAppTheme, DEFAULT_APP_THEME } from "../theme";
 import SessionPresenceHeartbeat from "./session-presence-heartbeat";
+import SessionIdleTimeout from "./session-idle-timeout";
 import OfflineSyncStatus from "@/components/OfflineSyncStatus";
 import { flushOfflineSyncQueue, updateOfflineSyncConnectivity } from "@/lib/offline-sync/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -137,6 +138,7 @@ export default function Providers({ children, session }: { children: React.React
   return (
     <SessionProvider session={session} refetchOnWindowFocus={false}>
       <SessionPresenceHeartbeat />
+      <SessionIdleTimeout />
       <OfflineSyncBootstrap />
       <ThemeControllerContext.Provider value={controller}>
         <ThemeProvider theme={muiTheme}>

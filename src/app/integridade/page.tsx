@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { MIN_REABERTURA_JUSTIFICACAO } from "@/lib/inspecao-lock";
 
 type IntegridadeItem = {
   id: number;
@@ -30,6 +31,10 @@ export default function IntegridadePage() {
   const [error, setError] = useState<string | null>(null);
   const [stampingIds, setStampingIds] = useState<Set<number>>(new Set());
   const [stampingAll, setStampingAll] = useState(false);
+  const [reabrirAlvo, setReabrirAlvo] = useState<IntegridadeItem | null>(null);
+  const [reabrirTexto, setReabrirTexto] = useState("");
+  const [reabrirErro, setReabrirErro] = useState<string | null>(null);
+  const [reabrindo, setReabrindo] = useState(false);
 
   const fetchList = useCallback(async () => {
     setLoading(true);
@@ -82,6 +87,31 @@ export default function IntegridadePage() {
     setStampingAll(false);
     void fetchList();
   }, [data, fetchList]);
+
+  const confirmarReabertura = useCallback(async () => {
+    if (!reabrirAlvo) return;
+    setReabrindo(true);
+    setReabrirErro(null);
+    try {
+      const res = await fetch(`/api/inspecoes/${reabrirAlvo.id}/reabrir`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ justificacao: reabrirTexto }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setReabrirErro(json?.error || `Falha ao reabrir (Código ${res.status})`);
+        return;
+      }
+      setReabrirAlvo(null);
+      setReabrirTexto("");
+      void fetchList();
+    } catch (err) {
+      setReabrirErro(err instanceof Error ? err.message : "Erro ao reabrir inspeção");
+    } finally {
+      setReabrindo(false);
+    }
+  }, [reabrirAlvo, reabrirTexto, fetchList]);
 
   const resumo = useMemo(() => {
     const d = data;
@@ -205,13 +235,24 @@ export default function IntegridadePage() {
                       <td className="px-3 py-2">{badge(i)}</td>
                       <td className="px-3 py-2 font-mono text-xs text-slate-400">{i.integrityHash ? i.integrityHash.slice(0, 12) : "—"}</td>
                       <td className="px-3 py-2">
-                        {!i.stamped && (
+                        {!i.stamped ? (
                           <button
                             className="rounded bg-slate-800 px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-slate-900 disabled:opacity-50"
                             onClick={() => stampOne(i.id)}
                             disabled={stampingIds.has(i.id)}
                           >
                             {stampingIds.has(i.id) ? "..." : "Carimbar"}
+                          </button>
+                        ) : (
+                          <button
+                            className="rounded border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800 transition-colors hover:bg-amber-100"
+                            onClick={() => {
+                              setReabrirAlvo(i);
+                              setReabrirTexto("");
+                              setReabrirErro(null);
+                            }}
+                          >
+                            Reabrir
                           </button>
                         )}
                       </td>
@@ -223,6 +264,52 @@ export default function IntegridadePage() {
           </div>
         ) : null}
       </div>
+
+      {reabrirAlvo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+          <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl">
+            <h2 className="text-base font-bold text-slate-800">Reabrir inspeção</h2>
+            <p className="mt-2 text-xs text-slate-600">
+              O certificado <strong>{reabrirAlvo.certificadoNumero || "—"}</strong> está finalizado e
+              assinado. Reabri-lo permite corrigir os dados, mas a alteração fica registada em
+              auditoria com o seu nome, a data e a justificação.
+            </p>
+            <label className="mt-4 block text-xs font-medium text-slate-700" htmlFor="justificacao-reabertura">
+              Justificação (mínimo {MIN_REABERTURA_JUSTIFICACAO} caracteres)
+            </label>
+            <textarea
+              id="justificacao-reabertura"
+              value={reabrirTexto}
+              onChange={(e) => setReabrirTexto(e.target.value)}
+              rows={4}
+              placeholder="Ex.: Erro de digitação no número de série do cilindro."
+              className="mt-1 w-full rounded border border-slate-300 px-2.5 py-2 text-sm text-slate-800 outline-none focus:border-slate-500"
+            />
+            <div className="mt-1 flex justify-between text-[11px] text-slate-400">
+              <span className={reabrirTexto.trim().length < MIN_REABERTURA_JUSTIFICACAO ? "text-amber-600" : ""}>
+                {reabrirTexto.trim().length}/{MIN_REABERTURA_JUSTIFICACAO}
+              </span>
+              {reabrirErro && <span className="text-right text-red-600">{reabrirErro}</span>}
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                className="rounded border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                onClick={() => setReabrirAlvo(null)}
+                disabled={reabrindo}
+              >
+                Cancelar
+              </button>
+              <button
+                className="rounded bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+                onClick={confirmarReabertura}
+                disabled={reabrindo || reabrirTexto.trim().length < MIN_REABERTURA_JUSTIFICACAO}
+              >
+                {reabrindo ? "A reabrir..." : "Confirmar reabertura"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

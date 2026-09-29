@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
 
     if (!jangada) {
       jangada = await prisma.jangada.findFirst({
-        where: { serial: { equals: serial, mode: "insensitive" } },
+        where: { serial: { equals: serial } },
         select: { ...PUBLIC_SELECT },
       });
     }

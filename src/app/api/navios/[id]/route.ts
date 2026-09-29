@@ -413,7 +413,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
         where: {
           OR: [
             { navioId: id },
-            { navioNome: { equals: navio.nome, mode: 'insensitive' } }
+            { navioNome: { equals: navio.nome } }
           ]
         },
         orderBy: { dataInspecao: 'desc' }

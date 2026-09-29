@@ -5,7 +5,7 @@ import { extrairPortoDeMatricula } from '@/utils/portosRegisto';
 import { NAVIO_TIPO_NAVIO_OPTIONS, NAVIO_TIPO_PESCA_OPTIONS, normalizeNavioTipoCategoria } from "@/lib/navio-legal-types";
 import { sortNaviosAlphabetically } from "@/lib/navios-sort";
 import type { Navio, JangadaItem, ColeteItem, EpirbItem, ClienteItem, ViewMode, NavioListColumnKey } from "@/types/navios-page";
-import { IS_AZORES_APP, LOCATION_COLUMN_KEY, LOCATION_COLUMN_LABEL, NAVIO_LIST_COLUMNS_KEY, NAVIO_LIST_COLUMNS, BANDEIRAS_OPCOES, INITIAL_NAVIO_FORM, navioEstadoBadge, NAVIO_ESTADO_LABELS } from "@/types/navios-page";
+import { IS_AZORES_APP, LOCATION_COLUMN_KEY, LOCATION_COLUMN_LABEL, NAVIO_LIST_COLUMNS_KEY, NAVIO_LIST_COLUMNS, BANDEIRAS_OPCOES, AZORES_LOCATION_OPTIONS, INITIAL_NAVIO_FORM, navioEstadoBadge, NAVIO_ESTADO_LABELS } from "@/types/navios-page";
 import { buildDefaultNavioColumns, getNavioLocationLabel } from "@/lib/navios-page-helpers";
 import { getLocationOptionsForTerritorio, type TerritorioGrupo } from "@/lib/portos-regioes";
 
@@ -77,7 +77,7 @@ export default function NaviosWizard() {
   const [clienteFilter, setClienteFilter] = useState<string>("");
   const [portoFilter, setPortoFilter] = useState<string>("");
   const [estadoFilter, setEstadoFilter] = useState<string>("");
-  const [territorioFilter, setTerritorioFilter] = useState<string>("AÇORES");
+  const [territorioFilter, setTerritorioFilter] = useState<string>("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(100);
   const filterUrlSynced = useRef(false);
@@ -628,6 +628,297 @@ export default function NaviosWizard() {
             ))}
           </div>
         </div>
+
+        <section id="navio-form" className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">{editId ? "Editar navio" : "Novo navio"}</h2>
+              <p className="text-sm text-slate-500">
+                {isFormExpanded
+                  ? "Ficha rápida para criar ou corrigir a embarcação e respetivas associações."
+                  : "Formulário recolhido para dar mais espaço ao diretório."}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                {editId ? "Edição" : isFormExpanded ? "Manual" : "Recolhido"}
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsFormExpanded((prev) => !prev)}
+                className="inline-flex items-center rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+              >
+                {isFormExpanded ? "Recolher formulário" : "Expandir formulário"}
+              </button>
+            </div>
+          </div>
+
+          {isFormExpanded ? (
+            <form onSubmit={handleSubmit} className="space-y-3">
+              <div>
+                <label className="block text-xs mb-1 text-gray-600">Nome do navio</label>
+                <input
+                  name="nome"
+                  value={form.nome}
+                  onChange={handleChange}
+                  placeholder="Nome do navio (obrigatório)"
+                  className="border rounded-lg px-3 py-2 w-full"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs mb-1 text-gray-600">Matrícula</label>
+                <input
+                  name="matricula"
+                  value={form.matricula || ""}
+                  onChange={handleChange}
+                  placeholder="Ex: PTHOR-1234567"
+                  className="border rounded-lg px-3 py-2 w-full"
+                />
+              </div>
+              <div>
+                <label className="block text-xs mb-1 text-gray-600">Porto de Registo</label>
+                <input
+                  name="portoRegisto"
+                  value={form.portoRegisto || ""}
+                  onChange={handleChange}
+                  placeholder="Preenchido automaticamente pela matrícula"
+                  className="border rounded-lg px-3 py-2 w-full bg-gray-50"
+                />
+              </div>
+              <div>
+                <label className="block text-xs mb-1 text-gray-600">Ilha</label>
+                <input
+                  name="ilha"
+                  value={form.ilha || ""}
+                  onChange={handleChange}
+                  placeholder="Ilha / região"
+                  className="border rounded-lg px-3 py-2 w-full"
+                  list="navio-ilhas-opcoes"
+                />
+                <datalist id="navio-ilhas-opcoes">
+                  {AZORES_LOCATION_OPTIONS.map((ilha) => (
+                    <option key={ilha} value={ilha} />
+                  ))}
+                </datalist>
+              </div>
+              <div>
+                <label className="block text-xs mb-1 text-gray-600">Enquadramento legal</label>
+                <input
+                  name="tipoPesca"
+                  value={form.tipoPesca || ""}
+                  onChange={handleChange}
+                  placeholder="Ex.: Pesca Local"
+                  className="border rounded-lg px-3 py-2 w-full"
+                  list="navio-tipo-pesca-opcoes"
+                />
+                <datalist id="navio-tipo-pesca-opcoes">
+                  {NAVIO_TIPO_PESCA_OPTIONS.map((tipo) => (
+                    <option key={tipo} value={tipo} />
+                  ))}
+                </datalist>
+              </div>
+              <div>
+                <label className="block text-xs mb-1 text-gray-600">Tipo de embarcação</label>
+                <input
+                  name="tipoNavio"
+                  value={form.tipoNavio || ""}
+                  onChange={handleChange}
+                  placeholder="Ex.: Marítimo-Turística"
+                  className="border rounded-lg px-3 py-2 w-full"
+                  list="navio-tipo-navio-opcoes"
+                />
+                <datalist id="navio-tipo-navio-opcoes">
+                  {NAVIO_TIPO_NAVIO_OPTIONS.map((tipo) => (
+                    <option key={tipo} value={tipo} />
+                  ))}
+                </datalist>
+              </div>
+              <div>
+                <label className="block text-xs mb-1 text-gray-600">Comprimento (m)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  name="comprimentoMetros"
+                  value={String(form.comprimentoMetros ?? "")}
+                  onChange={handleChange}
+                  placeholder="Opcional · útil para pesca costeira"
+                  className="border rounded-lg px-3 py-2 w-full"
+                />
+              </div>
+              <div>
+                <label className="block text-xs mb-1 text-gray-600">Proprietário</label>
+                <input
+                  name="proprietario"
+                  value={form.proprietario || ""}
+                  onChange={handleChange}
+                  placeholder="Proprietário"
+                  className="border rounded-lg px-3 py-2 w-full"
+                />
+              </div>
+              <div>
+                <label className="block text-xs mb-1 text-gray-600">Bandeira</label>
+                <input
+                  name="bandeira"
+                  value={form.bandeira || ""}
+                  onChange={handleChange}
+                  placeholder="Bandeira"
+                  className="border rounded-lg px-3 py-2 w-full"
+                  list="bandeiras-opcoes"
+                />
+                <datalist id="bandeiras-opcoes">
+                  {BANDEIRAS_OPCOES.map((flag) => (
+                    <option key={flag} value={flag} />
+                  ))}
+                </datalist>
+              </div>
+              <div>
+                <label className="block text-xs mb-1 text-gray-600">MMSI</label>
+                <input
+                  name="mmsi"
+                  value={form.mmsi || ""}
+                  onChange={handleChange}
+                  placeholder="MMSI"
+                  className="border rounded-lg px-3 py-2 w-full"
+                />
+              </div>
+              <div>
+                <label className="block text-xs mb-1 text-gray-600">IMO</label>
+                <input
+                  name="imo"
+                  value={form.imo || ""}
+                  onChange={handleChange}
+                  placeholder="IMO"
+                  className="border rounded-lg px-3 py-2 w-full"
+                />
+              </div>
+              <div>
+                <label className="block text-xs mb-1 text-gray-600">CALL SIGNAL</label>
+                <input
+                  name="callSignal"
+                  value={form.callSignal || ""}
+                  onChange={handleChange}
+                  placeholder="CALL SIGNAL"
+                  className="border rounded-lg px-3 py-2 w-full"
+                />
+              </div>
+              <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-900">
+                HRU e refletor de radar são registados na ficha da jangada.
+              </div>
+
+              <div>
+                <label className="block text-xs mb-1 text-gray-600">Cliente / Armador</label>
+                <select
+                  value={selectedClienteId}
+                  onChange={(e) => setSelectedClienteId(e.target.value)}
+                  className="border rounded-lg px-3 py-2 w-full"
+                >
+                  <option value="">Sem cliente associado</option>
+                  {clientesDisponiveis
+                    .slice()
+                    .sort((a, b) => (a.nome || "").localeCompare(b.nome || "", "pt", { sensitivity: "base" }))
+                    .map((cliente) => (
+                      <option key={cliente.id} value={cliente.id}>
+                        {cliente.nome} {cliente.ilha ? `(${cliente.ilha})` : ""} {cliente.numeroCliente ? `[${cliente.numeroCliente}]` : ""}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs mb-1 text-gray-600">Associar jangadas</label>
+                <select
+                  multiple
+                  value={selectedJangadaIds.map(String)}
+                  onChange={(e) => {
+                    const selected = Array.from(e.target.selectedOptions)
+                      .map((opt) => Number(opt.value))
+                      .filter((id) => Number.isFinite(id));
+                    setSelectedJangadaIds(selected);
+                  }}
+                  className="border rounded-lg px-3 py-2 w-full"
+                  size={Math.min(6, Math.max(3, jangadasDisponiveis.length || 3))}
+                >
+                  {jangadasDisponiveis
+                    .slice()
+                    .sort((a, b) => (a.serial || "").localeCompare(b.serial || ""))
+                    .map((jangada) => (
+                      <option key={jangada.id} value={jangada.id}>
+                        {jangada.serial} {jangada.brand || jangada.model ? `- ${[jangada.brand, jangada.model].filter(Boolean).join(" ")}` : ""}
+                      </option>
+                    ))}
+                </select>
+                <p className="text-[11px] text-gray-500 mt-1">Dica: mantenha Ctrl pressionado para selecionar várias jangadas.</p>
+              </div>
+
+              <div>
+                <label className="block text-xs mb-1 text-gray-600">Associar coletes</label>
+                <select
+                  multiple
+                  value={selectedColeteIds.map(String)}
+                  onChange={(e) => {
+                    const selected = Array.from(e.target.selectedOptions)
+                      .map((opt) => Number(opt.value))
+                      .filter((id) => Number.isFinite(id));
+                    setSelectedColeteIds(selected);
+                  }}
+                  className="border rounded-lg px-3 py-2 w-full"
+                  size={Math.min(6, Math.max(3, coletesDisponiveis.length || 3))}
+                >
+                  {coletesDisponiveis
+                    .slice()
+                    .sort((a, b) => (a.serial || "").localeCompare(b.serial || ""))
+                    .map((colete) => (
+                      <option key={colete.id} value={colete.id}>
+                        {colete.serial} {colete.marca || colete.modelo ? `- ${[colete.marca, colete.modelo].filter(Boolean).join(" ")}` : ""}
+                        {colete.estado ? ` (${colete.estado})` : ""}
+                      </option>
+                    ))}
+                </select>
+                <p className="text-[11px] text-gray-500 mt-1">Dica: mantenha Ctrl pressionado para selecionar vários coletes.</p>
+              </div>
+
+              <div>
+                <label className="block text-xs mb-1 text-gray-600">Associar EPIRBs</label>
+                <select
+                  multiple
+                  value={selectedEpirbIds.map(String)}
+                  onChange={(e) => {
+                    const selected = Array.from(e.target.selectedOptions)
+                      .map((opt) => Number(opt.value))
+                      .filter((id) => Number.isFinite(id));
+                    setSelectedEpirbIds(selected);
+                  }}
+                  className="border rounded-lg px-3 py-2 w-full"
+                  size={Math.min(6, Math.max(3, epirbsDisponiveis.length || 3))}
+                >
+                  {epirbsDisponiveis
+                    .slice()
+                    .sort((a, b) => (a.serial || "").localeCompare(b.serial || ""))
+                    .map((epirb) => (
+                      <option key={epirb.id} value={epirb.id}>
+                        {epirb.serial} {epirb.marca || epirb.modelo ? `- ${[epirb.marca, epirb.modelo].filter(Boolean).join(" ")}` : ""}
+                        {epirb.estado ? ` (${epirb.estado})` : ""}
+                      </option>
+                    ))}
+                </select>
+                <p className="text-[11px] text-gray-500 mt-1">Dica: mantenha Ctrl pressionado para selecionar vários EPIRBs.</p>
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button type="button" className="px-4 py-2 bg-gray-200 rounded-lg" onClick={() => { setEditId(null); setForm(INITIAL_NAVIO_FORM); setSelectedClienteId(""); setSelectedColeteIds([]); setSelectedJangadaIds([]); setSelectedEpirbIds([]); setIsFormExpanded(false); }}>Cancelar</button>
+                <button type="submit" className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">Salvar</button>
+              </div>
+            </form>
+          ) : (
+            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-600">
+              O formulário está recolhido para libertar espaço ao diretório. Abra-o quando precisar de criar ou editar um navio.
+            </div>
+          )}
+          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+            Navios sem matrícula: <b>{stats.semMatricula}</b>. O porto de registo continua a ser sugerido automaticamente a partir da matrícula.
+          </div>
+        </section>
 
         <div className="w-full">
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">

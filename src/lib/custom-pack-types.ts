@@ -2,10 +2,11 @@ import prisma from "@/lib/prisma";
 import {
   buildMandatoryPackItemsFromCustomArticles,
   getMandatoryPackItemsForRaft,
+  resolvePackFieldDefinition,
   type CustomMandatoryPackArticleInput,
   type MandatoryPackItem,
 } from "@/modules/rafts/mandatoryPack";
-import { getRecognizedPackTypeOptions, isRaftManagedPackArticleName, normalizarPackType, PACK_TEMPLATES } from "@/config/packTemplates";
+import { getRecognizedPackTypeOptions, isRaftManagedPackArticleName, normalizarPackType, obterArtigosObrigatorios, PACK_TEMPLATES } from "@/config/packTemplates";
 
 function getCustomPackTypeModel() {
   return prisma.customPackType;
@@ -207,7 +208,7 @@ export async function findCustomPackTypeByName(name: string, options?: { include
   try {
     const row = await getCustomPackTypeModel().findFirst({
       where: {
-        name: { equals: normalizedName, mode: "insensitive" },
+        name: { equals: normalizedName },
         ...(options?.includeInactive ? {} : { isActive: true }),
       },
       include: {
@@ -243,7 +244,7 @@ export async function upsertCustomPackType(options: {
 
   const duplicate = await getCustomPackTypeModel().findFirst({
     where: {
-      name: { equals: name, mode: "insensitive" },
+      name: { equals: name },
       ...(options.id ? { NOT: { id: options.id } } : {}),
     },
     select: { id: true },
@@ -322,6 +323,35 @@ export function buildCustomPackMandatoryItems(pack: CustomPackTypeListItem, capa
     category: item.stockCategory,
   }));
 
+  const capacityNum = Math.floor(Number(capacity || 0));
+  if (capacityNum > 0) {
+    const templateType = normalizarPackType(pack.name);
+    const template = templateType ? PACK_TEMPLATES[templateType] : undefined;
+    if (template) {
+      const scalableByDefinition = new Map<string, number>();
+      for (const article of template) {
+        const scalable = article.quantidadePorPessoa !== undefined || article.quantidadePercentual !== undefined || (article.escalas?.length || 0) > 0;
+        if (!scalable) continue;
+        const definition = resolvePackFieldDefinition(article.nome);
+        if (!definition) continue;
+        const resolved = obterArtigosObrigatorios(pack.name, capacityNum).find((a) => a.nome.toLowerCase() === article.nome.toLowerCase());
+        if (!resolved) continue;
+        scalableByDefinition.set(definition.name, resolved.embalagens ?? resolved.quantidade);
+      }
+
+      if (scalableByDefinition.size > 0) {
+        for (const item of items) {
+          const definition = resolvePackFieldDefinition(item.name);
+          if (!definition) continue;
+          const scaledQuantity = scalableByDefinition.get(definition.name);
+          if (scaledQuantity !== undefined) {
+            item.quantity = scaledQuantity;
+          }
+        }
+      }
+    }
+  }
+
   return buildMandatoryPackItemsFromCustomArticles({
     packCode: pack.name,
     capacity,
@@ -356,10 +386,24 @@ export async function resolveMandatoryPackItemsForRaftAsync(context: {
 
 export async function listAvailablePackTypeOptions() {
   const customPacks = await listCustomPackTypes({ includeInactive: false });
-  return getRecognizedPackTypeOptions([
-    ...Object.keys(PACK_TEMPLATES),
-    ...customPacks.map((pack: CustomPackTypeListItem) => pack.name),
-  ]);
+  const seen = new Set<string>();
+  const options: string[] = [];
+
+  for (const option of getRecognizedPackTypeOptions(Object.keys(PACK_TEMPLATES))) {
+    const raw = normalizePackName(option);
+    if (!raw || seen.has(raw)) continue;
+    seen.add(raw);
+    options.push(raw);
+  }
+
+  for (const pack of customPacks) {
+    const raw = normalizePackName(pack.name);
+    if (!raw || seen.has(raw)) continue;
+    seen.add(raw);
+    options.push(raw);
+  }
+
+  return options.sort((a, b) => a.localeCompare(b, "pt-PT"));
 }
 
 export async function isKnownPackTypeName(packType: string, options?: { includeInactiveCustom?: boolean }) {

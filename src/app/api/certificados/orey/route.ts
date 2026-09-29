@@ -12,13 +12,15 @@ export async function POST(request: Request) {
     const { buffer, html, fileName } = await buildOreyCertificateArtifacts(payload);
 
     // Guardar no folder organizado por ano (CERTIFICADOS AÇORES {YEAR})
+    let savedPath: string | undefined;
     if (format === 'xlsx' && buffer) {
       const year = getYearFromDate(payload.inspectionDate);
-      await saveCertificadoToYearFolder(year, fileName, buffer, {
+      const saved = await saveCertificadoToYearFolder(year, fileName, buffer, {
         serial: payload.raftSerial || undefined,
         date: payload.inspectionDate ? new Date(payload.inspectionDate) : undefined,
         type: "CERT",
       });
+      savedPath = saved.relativePath;
     }
 
     if (format === 'xlsx') {
@@ -27,6 +29,7 @@ export async function POST(request: Request) {
           'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           'Content-Disposition': `attachment; filename="${fileName}"`,
           'Cache-Control': 'no-store',
+          ...(savedPath ? { 'X-Orey-Saved-Path': savedPath } : {}),
         },
       });
     }

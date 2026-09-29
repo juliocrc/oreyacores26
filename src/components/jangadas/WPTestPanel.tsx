@@ -84,7 +84,7 @@ export default function WPTestPanel({ jangada, compact = false }: WPTestPanelPro
   const fsStatus = jangada.testeFS || "N/D";
   const dlStatus = jangada.testeDL || "N/D";
 
-  const unit = jangada.testeWPUnidadePressao === "mbar" ? "hpa" : (jangada.testeWPUnidadePressao || "hpa");
+  const unit = jangada.testeWPUnidadePressao || "hpa";
 
   const wpCalc = useMemo<WPCalculation | null>(() => {
     const tIn = parseNumber(jangada.testeWPTemperaturaInicial);

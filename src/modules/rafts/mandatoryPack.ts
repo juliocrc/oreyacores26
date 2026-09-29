@@ -603,6 +603,36 @@ export function isArticleNonExpiring(article: { name?: string | null; referencia
   return false;
 }
 
+/**
+ * Allowlist de artigos em que a validade é OBRIGATÓRIA no fecho da
+ * inspeção: pirotécnicos (foguetes, fachos, potes de fumo), farmácia,
+ * comprimidos, águas e rações. Pilhas, bateria de lítio e todos os
+ * restantes artigos ficam isentos.
+ */
+export const VALIDITY_REQUIRED_PACK_NAMES: ReadonlySet<string> = new Set([
+  'foguetoes_paraquedas',
+  'fachos_mao',
+  'potes_fumo',
+  'ambulancia',
+  'comprimidos_enjoo',
+  'saco_agua',
+  'racoes_alimentares',
+]);
+
+/**
+ * Verifica se um artigo do pack exige validade obrigatória (allowlist).
+ * O matching usa os mesmos tokens das PACK_FIELD_DEFINITIONS.
+ */
+export function isArticleValidityRequired(article: { name?: string | null; referencia?: string | null }): boolean {
+  for (const synItem of SYNTHETIC_NON_EXPIRING_ITEMS) {
+    if (!synItem.validityFieldName) continue;
+    if (findMatchingArticleForPackItem(synItem, [article])) {
+      return VALIDITY_REQUIRED_PACK_NAMES.has(synItem.checklistName);
+    }
+  }
+  return false;
+}
+
 function normalizeText(value?: string | null) {
   return String(value || '')
     .normalize('NFD')
@@ -677,6 +707,14 @@ function parseQuantity(rawQuantity: string | undefined, capacity: number, itemNa
     return Math.max(1, Math.ceil(capacity * numericValue));
   }
 
+  // Handle "(N embalagens de X)" patterns — a quantidade que interessa para o
+  // stock é o número de embalagens físicas (ex: água 15L = 30 sacos de 0.5L,
+  // comprimidos 60 doses = 1 embalagem de 60), não o total na unidade base.
+  const embalagensMatch = normalized.match(/\((\d+(?:\.\d+)?)\s+embalag(?:em|ens)\s+de\s/);
+  if (embalagensMatch) {
+    return Math.max(1, Math.ceil(Number(embalagensMatch[1])));
+  }
+
   // Handle "X doses" / "X unidades" / "Xx" patterns
   if (numericValue !== null && Number.isFinite(numericValue)) {
     return Math.max(1, Math.ceil(numericValue));
@@ -686,7 +724,7 @@ function parseQuantity(rawQuantity: string | undefined, capacity: number, itemNa
   return fallback;
 }
 
-function resolvePackFieldDefinition(itemName: string) {
+export function resolvePackFieldDefinition(itemName: string) {
   const normalized = normalizeText(itemName);
   if (!normalized) return undefined;
   const nameTokens = new Set(normalized.split(' ').filter((t) => t.length > 1));

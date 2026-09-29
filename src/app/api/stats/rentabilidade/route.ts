@@ -3,7 +3,7 @@ import prisma from "@/lib/prisma";
 import { getAccessContext } from "@/lib/access-control";
 import { buildDatabaseErrorResponse } from "@/lib/database-errors";
 
-export const CUSTO_PECAS_PCT = 0.6;
+const CUSTO_PECAS_PCT = 0.6;
 
 type GrupoRent = {
   key: string;

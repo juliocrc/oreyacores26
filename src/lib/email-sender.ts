@@ -14,11 +14,18 @@ export function isEmailConfigured(): boolean {
   return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
 }
 
+export type EmailAttachment = {
+  filename: string;
+  content: Buffer | string;
+  contentType?: string;
+};
+
 export async function sendEmail(opts: {
   to: string;
   subject: string;
   text?: string;
   html?: string;
+  attachments?: EmailAttachment[];
 }): Promise<{ ok: boolean; error?: string }> {
   const transporter = criarTransporter();
   if (!transporter) return { ok: false, error: "Email não configurado. Defina SMTP_HOST, SMTP_USER e SMTP_PASS." };
@@ -29,6 +36,11 @@ export async function sendEmail(opts: {
       subject: opts.subject,
       text: opts.text,
       html: opts.html,
+      attachments: opts.attachments?.map((a) => ({
+        filename: a.filename,
+        content: a.content,
+        contentType: a.contentType,
+      })),
     });
     return { ok: true };
   } catch (error) {

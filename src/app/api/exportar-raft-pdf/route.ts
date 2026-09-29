@@ -9,15 +9,17 @@ export async function POST(request: Request) {
     const payload = await request.json();
     const { buffer, fileName } = await buildQuadroPDFArtifacts(payload);
 
-    // Guardar no folder organizado por navio (NAVIOS/{navio}/)
+    // Guardar no folder organizado por navio (public/navios/{navio}/)
     const shipName = (payload as Record<string, unknown>).shipName as string | undefined;
     const raftSerial = (payload as Record<string, unknown>).raftSerial as string | undefined;
     const inspectionDate = (payload as Record<string, unknown>).inspectionDate as string | undefined;
+    let savedPath: string | undefined;
     if (shipName && buffer) {
-      await saveQuadroToNavioFolder(shipName, fileName, buffer, {
+      const saved = await saveQuadroToNavioFolder(shipName, fileName, buffer, {
         serial: raftSerial,
         date: inspectionDate ? new Date(inspectionDate) : undefined,
       });
+      savedPath = saved.relativePath;
     }
 
     return new NextResponse(new Uint8Array(buffer), {
@@ -25,6 +27,7 @@ export async function POST(request: Request) {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="${fileName}"`,
         'Cache-Control': 'no-store',
+        ...(savedPath ? { 'X-Orey-Saved-Path': savedPath } : {}),
       },
     });
   } catch (error) {

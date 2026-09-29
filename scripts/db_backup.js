@@ -5,6 +5,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { verifyBackup } = require('./backup_helpers');
 
 const DB_PATH = path.join(process.cwd(), 'prisma', 'local.db');
 const BACKUPS_DIR = path.join(process.cwd(), 'backups');
@@ -36,6 +37,26 @@ function createBackupFile() {
   const filePath = path.join(BACKUPS_DIR, fileName);
   fs.copyFileSync(DB_PATH, filePath);
   return filePath;
+}
+
+// Em modo WAL, copiar apenas o ficheiro principal pode omitir transacoes que ainda
+// vivem no ficheiro -wal. Um wal_checkpoint(FULL) consolida tudo no local.db antes da copia.
+async function checkpointSqliteDb() {
+  const url = process.env.SUPABASE_DATABASE_URL || process.env.DIRECT_URL || process.env.DATABASE_URL || '';
+  if (!url.startsWith('file:')) return; // nao-SQLite (ex.: Postgres) => nada a fazer
+  try {
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
+    try {
+      await prisma.$executeRawUnsafe('PRAGMA journal_mode = WAL');
+      await prisma.$executeRawUnsafe('PRAGMA busy_timeout = 8000');
+      await prisma.$executeRawUnsafe('PRAGMA wal_checkpoint(FULL)');
+    } finally {
+      await prisma.$disconnect();
+    }
+  } catch (err) {
+    console.error('[backup] Aviso: falha no wal_checkpoint antes do backup (a copia continua):', err.message);
+  }
 }
 
 function pruneOldBackups(maxCount) {
@@ -82,19 +103,32 @@ function syncToZapier(filePath, fileName) {
 }
 
 function runBackup() {
-  try {
-    const filePath = createBackupFile();
-    if (filePath) {
-      console.log('[backup] Backup criado:', filePath);
+  return (async () => {
+    try {
+      await checkpointSqliteDb();
+
+      const filePath = createBackupFile();
+      if (!filePath) return { ok: false };
+
+      const verification = await verifyBackup(filePath);
+      if (verification.ok) {
+        console.log(
+          '[backup] Backup verificado com sucesso:',
+          filePath,
+          JSON.stringify(verification.counts)
+        );
+      } else {
+        console.error('[backup] Backup criado mas a verificação FALHOU:', filePath, verification.error);
+      }
+
       syncToZapier(filePath, path.basename(filePath));
       pruneOldBackups(14); // guarda os ultimos 14 backups automaticos
-      return { ok: true, file: filePath };
+      return { ok: true, file: filePath, verified: verification.ok, verification };
+    } catch (err) {
+      console.error('[backup] Erro a criar backup:', err);
+      return { ok: false, error: err.message };
     }
-    return { ok: false };
-  } catch (err) {
-    console.error('[backup] Erro a criar backup:', err);
-    return { ok: false, error: err.message };
-  }
+  })();
 }
 
 let timer = null;
@@ -102,16 +136,22 @@ let timer = null;
 // startBackupScheduler: arranca o agendador automatico (24h) num servidor vivo.
 function startBackupScheduler() {
   if (timer) return; // evitar duplicacao em re-registros
-  runBackup(); // backup imediato no arranque
-  timer = setInterval(runBackup, BACKUP_INTERVAL_MS);
+  void runBackup().catch((e) => console.error('[backup] Erro no backup inicial:', e)); // backup imediato no arranque
+  timer = setInterval(() => {
+    void runBackup().catch((e) => console.error('[backup] Erro no backup agendado:', e));
+  }, BACKUP_INTERVAL_MS);
   if (timer.unref) timer.unref(); // nao impede o processo de terminar
   console.log('[backup] Agendador automatico ativo (intervalo: 24h).');
 }
 
 // Permite tambem execucao manual (node scripts/db_backup.js)
 if (require.main === module) {
-  const result = runBackup();
-  console.log('[backup] Resultado:', JSON.stringify(result));
+  runBackup()
+    .then((result) => console.log('[backup] Resultado:', JSON.stringify(result)))
+    .catch((e) => {
+      console.error('[backup] Erro fatal:', e);
+      process.exit(1);
+    });
 }
 
 module.exports = { startBackupScheduler, runBackup };

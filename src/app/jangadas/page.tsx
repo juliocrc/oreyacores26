@@ -7,8 +7,10 @@ import { useSession } from "next-auth/react";
 import { appToast } from "@/lib/app-toast";
 import { getRecognizedPackTypeOptions } from "@/config/packTemplates";
 import { findRaftTechnicalModel, raftModelData } from "@/modules/rafts/raftModelData";
+import { getMandatoryPackItemsForRaft, type MandatoryPackItem } from "@/modules/rafts/mandatoryPack";
 import { QrCode, X, Calendar, AlertTriangle } from "lucide-react";
 import { Html5QrcodeScanner } from "html5-qrcode";
+import { matchesSearch as matchesSearchTermo } from "@/lib/search";
 import type { Jangada, JangadaCatalogOption, JangadaListColumnKey, PausedInspectionDraftMeta } from "@/types/jangadas-page";
 import { INITIAL_FORM, FALLBACK_INFLATION_SYSTEM_OPTIONS, FIRING_HEAD_KEYWORDS, JANGADA_LIST_COLUMNS, JANGADA_LIST_COLUMNS_KEY } from "@/types/jangadas-page";
 import {
@@ -268,6 +270,8 @@ export default function JangadasPage() {
   const [editId, setEditId] = useState<number | null>(null);
   const [showWizard, setShowWizard] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
+  const [wizardTab, setWizardTab] = useState<"dados" | "artigos">("dados");
+  const [artigoValidades, setArtigoValidades] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!showScanner) return;
@@ -341,23 +345,33 @@ export default function JangadasPage() {
   const [draftsFound, setDraftsFound] = useState<Array<{ id: string; serial: string; savedAt: string }>>([]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const found = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith("jangada-wizard-draft-")) {
-        try {
-          const val = JSON.parse(localStorage.getItem(key) || "{}");
-          const id = key.replace("jangada-wizard-draft-", "");
-          found.push({
-            id,
-            serial: val.inspectionData?.serial || `ID ${id}`,
-            savedAt: val.savedAt || new Date().toISOString(),
-          });
-        } catch {}
+    async function checkDrafts() {
+      if (typeof window === "undefined") return;
+      const found = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith("jangada-wizard-draft-")) {
+          try {
+            const val = JSON.parse(localStorage.getItem(key) || "{}");
+            const id = key.replace("jangada-wizard-draft-", "");
+            const res = await fetch(`/api/inspecoes?jangadaId=${id}`);
+            const inspList = await res.json().catch(() => []);
+            const latest = Array.isArray(inspList) && inspList.length > 0 ? inspList[0] : null;
+            if (latest && (latest.status === 'Concluída' || latest.status === 'Condenada')) {
+              localStorage.removeItem(key);
+              continue;
+            }
+            found.push({
+              id,
+              serial: val.inspectionData?.serial || `ID ${id}`,
+              savedAt: val.savedAt || new Date().toISOString(),
+            });
+          } catch {}
+        }
       }
+      setDraftsFound(found);
     }
-    setDraftsFound(found);
+    checkDrafts();
   }, []);
 
   // Sync filters to URL
@@ -636,21 +650,44 @@ export default function JangadasPage() {
     }
     setLoading(true);
     const isEditing = Boolean(editId);
-    const payload = { ...form, capacity: Number(form.capacity) };
+    const payload: Record<string, unknown> = { ...form, capacity: Number(form.capacity) };
+    if (!isEditing) {
+      const artigos = wizardPackItems
+        .filter((item) => artigoValidades[item.label])
+        .map((item) => ({
+          name: item.label,
+          quantidade: item.quantity,
+          validade: artigoValidades[item.label]
+            ? `${artigoValidades[item.label]}-01T00:00:00.000Z`
+            : null,
+          referencia: item.reference || null,
+          codigoFabricante: item.reference || null,
+        }));
+      if (artigos.length > 0) {
+        payload.artigos = artigos;
+      }
+    }
     let response: Response;
-    if (editId) {
-      response = await fetch(`/api/jangadas?id=${editId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      setEditId(null);
-    } else {
-      response = await fetch("/api/jangadas", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+    try {
+      if (editId) {
+        response = await fetch(`/api/jangadas?id=${editId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        setEditId(null);
+      } else {
+        response = await fetch("/api/jangadas", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      }
+    } catch (err) {
+      console.error("Erro ao salvar jangada:", err);
+      appToast.error("Não foi possível contactar o servidor. Tente novamente.");
+      setLoading(false);
+      return;
     }
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
@@ -661,6 +698,8 @@ export default function JangadasPage() {
     const savedJangada = await response.json().catch(() => null);
     setForm(INITIAL_FORM);
     setShowWizard(false);
+    setWizardTab("dados");
+    setArtigoValidades({});
     await fetchJangadas();
     appToast.success(isEditing ? "Jangada atualizada com sucesso." : "Jangada criada com sucesso.");
     setLoading(false);
@@ -674,6 +713,8 @@ export default function JangadasPage() {
     setForm(j);
     setEditId(j.id);
     setShowWizard(true);
+    setWizardTab("dados");
+    setArtigoValidades({});
   }
 
   async function handleDelete(id: number) {
@@ -698,18 +739,22 @@ export default function JangadasPage() {
     setForm(INITIAL_FORM);
     setEditId(null);
     setShowWizard(true);
+    setWizardTab("dados");
+    setArtigoValidades({});
   }
 
   const filteredJangadas = jangadas.filter(j => {
-    const s = search.toLowerCase();
-    const matchesSearch = (
-      j.brand.toLowerCase().includes(s) ||
-      j.model.toLowerCase().includes(s) ||
-      j.serial.toLowerCase().includes(s) ||
-      j.owner.toLowerCase().includes(s) ||
-      (j.navio?.cliente?.nome || "").toLowerCase().includes(s) ||
-      (j.navio?.nome || "").toLowerCase().includes(s) ||
-      (j.shipNameManual || "").toLowerCase().includes(s)
+    // Pesquisa tolerante: acentos, separadores e erros de dedo.
+    const matchesTermo = matchesSearchTermo(
+      search,
+      j.brand,
+      j.model,
+      j.serial,
+      j.owner,
+      j.navio?.nome,
+      j.navio?.cliente?.nome,
+      j.shipNameManual,
+      (j as { linkedShipName?: string | null }).linkedShipName
     );
 
     const matchesBrand =
@@ -722,7 +767,13 @@ export default function JangadasPage() {
     const matchesCapacity =
       !filterCapacity || String(j.capacity) === filterCapacity;
     const matchesShip =
-      !filterShip || (j.shipNameManual || j.navio?.nome || "").toLowerCase().includes(filterShip.toLowerCase());
+      !filterShip ||
+      matchesSearchTermo(
+        filterShip,
+        j.shipNameManual,
+        j.navio?.nome,
+        (j as { linkedShipName?: string | null }).linkedShipName
+      );
     const matchesInspecaoMes =
       !filterInspecaoMes || getMonthKey(j.dataInspecao) === filterInspecaoMes;
     const matchesProximaMes =
@@ -744,7 +795,7 @@ export default function JangadasPage() {
       matchesHruCritical = isHruCritical(j.hruValidade);
     }
 
-    return matchesSearch && matchesBrand && matchesModel && matchesPack && matchesCapacity && matchesShip && matchesInspecaoMes && matchesProximaMes && matchesExpiring && matchesHruCritical;
+    return matchesTermo && matchesBrand && matchesModel && matchesPack && matchesCapacity && matchesShip && matchesInspecaoMes && matchesProximaMes && matchesExpiring && matchesHruCritical;
   });
 
   const sortedFilteredJangadas = [...filteredJangadas].sort((a, b) => {
@@ -966,6 +1017,20 @@ export default function JangadasPage() {
     });
   }, [editId, selectedTechnicalModel, showWizard]);
 
+  const wizardPackItems = useMemo<MandatoryPackItem[]>(() => {
+    if (editId) return [];
+    if (!form.brand || !form.model || !String(form.packType || "").trim()) return [];
+    if (!normalizeCapacityValue(form.capacity)) return [];
+    return getMandatoryPackItemsForRaft({
+      brand: form.brand,
+      model: form.model,
+      packType: form.packType,
+      capacity: Number(form.capacity) || 0,
+    });
+  }, [editId, form.brand, form.model, form.packType, form.capacity]);
+
+  const artigoValidadesCount = Object.keys(artigoValidades).filter((label) => Boolean(artigoValidades[label])).length;
+
   const clearFilters = () => {
     setSearch("");
     setFilterBrand("");
@@ -1082,7 +1147,7 @@ export default function JangadasPage() {
               {draftsFound.map((d) => (
                 <button
                   key={d.id}
-                  onClick={() => router.push(`/jangadas/${d.id}/inspecao`)}
+                  onClick={() => router.push(`/jangadas/${d.id}?startInspection=1`)}
                   className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition shadow-sm"
                 >
                   Retomar ({d.serial})
@@ -1340,6 +1405,29 @@ export default function JangadasPage() {
             <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-gray-200">
               <h3 className="text-lg font-bold mb-4">{editId ? "Editar Jangada" : "Nova Jangada"}</h3>
               <form onSubmit={handleSubmit} className="space-y-3">
+                {!editId && (
+                  <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
+                    <button
+                      type="button"
+                      onClick={() => setWizardTab("dados")}
+                      className={`flex-1 rounded-md px-3 py-1.5 text-sm font-semibold transition ${wizardTab === "dados" ? "bg-white shadow-sm text-slate-800" : "text-slate-500 hover:text-slate-700"}`}
+                    >
+                      Dados
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setWizardTab("artigos")}
+                      className={`flex-1 rounded-md px-3 py-1.5 text-sm font-semibold transition ${wizardTab === "artigos" ? "bg-white shadow-sm text-slate-800" : "text-slate-500 hover:text-slate-700"}`}
+                    >
+                      Validades dos artigos
+                      {artigoValidadesCount > 0 && (
+                        <span className="ml-1 inline-flex items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold px-1.5 py-0.5">{artigoValidadesCount}</span>
+                      )}
+                    </button>
+                  </div>
+                )}
+                {wizardTab === "dados" || editId ? (
+                <>
                 <label className="block text-xs font-semibold text-gray-700">
                   Marca
                   <select
@@ -1458,9 +1546,69 @@ export default function JangadasPage() {
                     </p>
                   ) : null}
                 </label>
+                </>
+                ) : (
+                <div className="space-y-3">
+                  {!form.brand || !form.model || !String(form.packType || "").trim() || !normalizeCapacityValue(form.capacity) ? (
+                    <p className="text-sm text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                      Preencha os dados (marca, modelo, tipo de pack e lotação) para ver os artigos obrigatórios do pack.
+                    </p>
+                  ) : wizardPackItems.length === 0 ? (
+                    <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                      Não foi possível determinar os artigos obrigatórios para este pack.
+                    </p>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-semibold text-slate-600">{wizardPackItems.length} artigo(s) obrigatórios do pack</p>
+                        <span className="text-[11px] text-slate-400">Validade opcional</span>
+                      </div>
+                      <div className="max-h-[46vh] overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-100">
+                        {wizardPackItems.map((item) => {
+                          const expirable = Boolean(item.validityFieldName);
+                          const hasValidade = Boolean(artigoValidades[item.label]);
+                          return (
+                            <div key={item.label} className="flex items-center justify-between gap-3 px-3 py-2">
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-slate-800 truncate">{item.label}</p>
+                                <p className="text-[11px] text-slate-400 truncate">
+                                  {item.quantityLabel}
+                                  {item.reference ? ` • ${item.reference}` : ""}
+                                </p>
+                              </div>
+                              {expirable ? (
+                                <div className="flex shrink-0 items-center gap-2">
+                                  <input
+                                    type="month"
+                                    value={artigoValidades[item.label] || ""}
+                                    onChange={(e) =>
+                                      setArtigoValidades((prev) => ({ ...prev, [item.label]: e.target.value }))
+                                    }
+                                    className="border rounded-lg px-2 py-1.5 text-sm w-[9.5rem]"
+                                  />
+                                  {hasValidade ? (
+                                    <span className="text-[10px] font-bold uppercase tracking-wide text-emerald-600">validade</span>
+                                  ) : null}
+                                </div>
+                              ) : (
+                                <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                  Sem validade
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <p className="text-[11px] text-slate-400">
+                        As validades definidas aqui são registadas nos artigos da jangada e ficam visíveis na ficha técnica.
+                      </p>
+                    </>
+                  )}
+                </div>
+                )}
 
                 <div className="flex gap-2 justify-end">
-                  <button type="button" className="px-4 py-2 bg-gray-200 rounded-lg" onClick={() => { setShowWizard(false); setEditId(null); }}>Cancelar</button>
+                  <button type="button" className="px-4 py-2 bg-gray-200 rounded-lg" onClick={() => { setShowWizard(false); setEditId(null); setWizardTab("dados"); setArtigoValidades({}); }}>Cancelar</button>
                   <button type="submit" className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">Salvar</button>
                 </div>
               </form>

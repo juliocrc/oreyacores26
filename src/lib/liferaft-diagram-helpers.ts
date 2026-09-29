@@ -56,7 +56,23 @@ export function fmtDate(v: unknown) {
 
 export function getDateStatus(d?: string | null): "OK" | "WARNING" | "CRITICAL" | "NONE" {
   if (!d) return "NONE";
-  const date = new Date(d);
+  const s = String(d).trim();
+  let date: Date;
+  const mmYyyy = s.match(/^(\d{1,2})\/(\d{4})$/);
+  const yyyyMm = s.match(/^(\d{4})[-/](\d{1,2})(?:[-/](\d{1,2}))?$/);
+  if (mmYyyy) {
+    const month = Number(mmYyyy[1]);
+    const year = Number(mmYyyy[2]);
+    if (month >= 1 && month <= 12 && year > 0) date = new Date(year, month - 1, 1, 12);
+    else date = new Date(NaN);
+  } else if (yyyyMm) {
+    const year = Number(yyyyMm[1]);
+    const month = Number(yyyyMm[2]);
+    const day = yyyyMm[3] ? Number(yyyyMm[3]) : 1;
+    date = new Date(year, month - 1, day, 12);
+  } else {
+    date = new Date(s);
+  }
   if (isNaN(date.getTime())) return "NONE";
   const days = Math.ceil((date.getTime() - Date.now()) / 86_400_000);
   return days < 0 ? "CRITICAL" : days <= 90 ? "WARNING" : "OK";

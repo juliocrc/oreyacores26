@@ -3,6 +3,7 @@ import React, { useMemo } from 'react';
 import { useJangadaWizardStore } from './store/useJangadaWizardStore';
 import { ShieldCheck, FileText, CheckCircle2, Clock, AlertTriangle, Landmark, ClipboardCheck } from 'lucide-react';
 import type { InspectionData } from './types';
+import { getStepNumberByKey } from './steps';
 
 const STATUS_OPTIONS = [
   { value: 'POR_APLICAR', label: 'Por Aplicar', icon: Clock, color: 'text-amber-600 bg-amber-50 hover:bg-amber-100 border-amber-200' },
@@ -22,7 +23,8 @@ function setBulletinStatus(
 }
 
 export default function Step6C_BoletinsServico() {
-  const { inspectionData, setInspectionData } = useJangadaWizardStore();
+  const { inspectionData, setInspectionData, hideOrcamento } = useJangadaWizardStore();
+  const stepNo = getStepNumberByKey(inspectionData, 'boletins', { hideOrcamento });
 
   const bulletins = inspectionData.applicableServiceBulletins || [];
   const applied = inspectionData.serviceBulletinsApplied || {};
@@ -43,7 +45,7 @@ export default function Step6C_BoletinsServico() {
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
       <div>
-        <h2 className="text-2xl font-bold text-slate-800">6-b. Boletins de Serviço</h2>
+        <h2 className="text-2xl font-bold text-slate-800">{stepNo > 0 ? `${stepNo}. ` : ''}Boletins de Serviço</h2>
         <p className="text-slate-600 mt-1">
           Aplicação dos boletins de serviço aplicáveis à marca e modelo da jangada ({inspectionData.brand || '—'} · {inspectionData.model || '—'}).
         </p>

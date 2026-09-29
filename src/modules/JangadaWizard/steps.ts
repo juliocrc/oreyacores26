@@ -54,9 +54,21 @@ export function getWizardSteps(
     "boletins",
   ];
   if (needsRepair(data)) order.push("reparacoes");
+  // Orçamento logo a seguir às substituições (pack) para reconciliar
+  // substituições ↔ linhas; fecho (resumo) só depois de tudo validado.
   order.push("orcamento", "resumo", "certificados", "historico");
   const filtered = opts?.hideOrcamento ? order.filter((key) => key !== "orcamento") : order;
   return filtered.map((key) => BASE_STEPS_BY_KEY[key]);
+}
+
+export function getStepNumberByKey(
+  data: InspectionData,
+  key: string,
+  opts?: { hideOrcamento?: boolean }
+): number {
+  const steps = getWizardSteps(data, opts);
+  const idx = steps.findIndex((s) => s.key === key);
+  return idx === -1 ? 0 : idx + 1;
 }
 
 export function getStepIndexByKey(steps: { key: string }[], key: string) {

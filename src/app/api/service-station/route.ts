@@ -190,7 +190,7 @@ async function resolveJangadaIdFromBody(body: Record<string, unknown>) {
   if (!serial) return null;
 
   const raft = await prisma.jangada.findFirst({
-    where: { serial: { equals: serial, mode: "insensitive" } },
+    where: { serial: { equals: serial } },
     select: { id: true },
   });
 

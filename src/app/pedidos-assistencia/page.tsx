@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Anchor, Mail, MessageSquare, Phone } from "lucide-react";
 
 const ESTADOS_PEDIDO_ASSISTENCIA = [
   "novo",
@@ -69,7 +70,7 @@ export default function PedidosAssistenciaPage() {
   const [count, setCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [estadoFilter, setEstadoFilter] = useState<string>("novo");
+  const [estadoFilter, setEstadoFilter] = useState<string>("");
   const [search, setSearch] = useState("");
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [savingId, setSavingId] = useState<number | null>(null);
@@ -132,9 +133,33 @@ export default function PedidosAssistenciaPage() {
     }
   }
 
-  const totalNovos = count;
-  const emAtendimento = pedidos.filter((p) => p.estado === "em_atendimento").length;
-  const concluidos = pedidos.filter((p) => p.estado === "concluido").length;
+  const stats = useMemo(() => {
+    const porEstado: Record<string, number> = { novo: 0, em_atendimento: 0, concluido: 0, arquivado: 0 };
+    for (const p of pedidos) {
+      const key = String(p.estado || "novo").toLowerCase();
+      porEstado[key] = (porEstado[key] || 0) + 1;
+    }
+    return {
+      total: pedidos.length,
+      novo: porEstado.novo || 0,
+      em_atendimento: porEstado.em_atendimento || 0,
+      concluido: porEstado.concluido || 0,
+      arquivado: porEstado.arquivado || 0,
+    };
+  }, [pedidos]);
+
+  async function abrirJangada(serial: string | null | undefined) {
+    if (!serial) return;
+    try {
+      const res = await fetch(`/api/jangadas/serial/${encodeURIComponent(serial)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const id = data?.id ?? data?.jangada?.id;
+      if (id) window.open(`/jangadas/${id}`, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      console.error(err);
+    }
+  }
 
   async function converterEmOT(id: number) {
     setConvertingId(id);
@@ -192,22 +217,26 @@ export default function PedidosAssistenciaPage() {
               </button>
             </div>
           </div>
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             <div className="app-hero-card rounded-xl p-3">
-              <p className="text-xs uppercase tracking-[0.2em] text-sky-100">Em vista</p>
-              <p className="mt-1 text-xl font-bold sm:text-2xl">{filteredPedidos.length}</p>
+              <p className="text-xs uppercase tracking-[0.2em] text-sky-100">Total</p>
+              <p className="mt-1 text-xl font-bold sm:text-2xl">{stats.total}</p>
             </div>
             <div className="app-hero-card rounded-xl p-3">
-              <p className="text-xs uppercase tracking-[0.2em] text-sky-100">Novos (filtro atual)</p>
-              <p className="mt-1 text-xl font-bold sm:text-2xl">{totalNovos}</p>
+              <p className="text-xs uppercase tracking-[0.2em] text-sky-100">Novos</p>
+              <p className="mt-1 text-xl font-bold sm:text-2xl">{stats.novo}</p>
             </div>
             <div className="app-hero-card rounded-xl p-3">
               <p className="text-xs uppercase tracking-[0.2em] text-sky-100">Em atendimento</p>
-              <p className="mt-1 text-xl font-bold sm:text-2xl">{emAtendimento}</p>
+              <p className="mt-1 text-xl font-bold sm:text-2xl">{stats.em_atendimento}</p>
             </div>
             <div className="app-hero-card rounded-xl p-3">
               <p className="text-xs uppercase tracking-[0.2em] text-sky-100">Concluídos</p>
-              <p className="mt-1 text-xl font-bold sm:text-2xl">{concluidos}</p>
+              <p className="mt-1 text-xl font-bold sm:text-2xl">{stats.concluido}</p>
+            </div>
+            <div className="app-hero-card rounded-xl p-3">
+              <p className="text-xs uppercase tracking-[0.2em] text-sky-100">Arquivados</p>
+              <p className="mt-1 text-xl font-bold sm:text-2xl">{stats.arquivado}</p>
             </div>
           </div>
         </div>
@@ -254,7 +283,7 @@ export default function PedidosAssistenciaPage() {
                 className="self-start rounded-lg bg-gray-200 px-3 py-2 text-xs font-medium text-slate-700"
                 onClick={() => {
                   setSearch("");
-                  setEstadoFilter("novo");
+                  setEstadoFilter("");
                 }}
               >
                 Limpar filtros
@@ -277,10 +306,20 @@ export default function PedidosAssistenciaPage() {
               {filteredPedidos.map((pedido) => {
                 const badge = estadoBadge(pedido.estado);
                 const expanded = expandedId === pedido.id;
+                const iniciais = String(pedido.nome || "P")
+                  .split(/\s+/)
+                  .filter(Boolean)
+                  .slice(0, 2)
+                  .map((w) => w[0])
+                  .join("")
+                  .toUpperCase();
                 return (
                   <div key={pedido.id} className="border border-gray-200 rounded-lg bg-white p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex flex-wrap items-center gap-2">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-100 text-xs font-bold text-sky-700">
+                          {iniciais}
+                        </span>
                         <button
                           className="font-semibold text-gray-900 hover:text-blue-700 hover:underline text-left"
                           onClick={() => setExpandedId(expanded ? null : pedido.id)}
@@ -321,6 +360,44 @@ export default function PedidosAssistenciaPage() {
                       <p><b>Atualizado:</b> {formatDate(pedido.updatedAt)}</p>
                     </div>
 
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      {pedido.telefone && (
+                        <>
+                          <a
+                            href={`https://wa.me/${pedido.telefone.replace(/\s+/g, "")}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1.5 rounded-md border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
+                          >
+                            <MessageSquare size={12} /> WhatsApp
+                          </a>
+                          <a
+                            href={`tel:${pedido.telefone.replace(/\s+/g, "")}`}
+                            className="inline-flex items-center gap-1.5 rounded-md border border-indigo-300 bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-800 hover:bg-indigo-100"
+                          >
+                            <Phone size={12} /> Chamada
+                          </a>
+                        </>
+                      )}
+                      {pedido.email && (
+                        <a
+                          href={`mailto:${pedido.email}`}
+                          className="inline-flex items-center gap-1.5 rounded-md border border-sky-300 bg-sky-50 px-2 py-1 text-xs font-semibold text-sky-800 hover:bg-sky-100"
+                        >
+                          <Mail size={12} /> E-mail
+                        </a>
+                      )}
+                      {pedido.jangadaSerial && (
+                        <button
+                          onClick={() => abrirJangada(pedido.jangadaSerial)}
+                          title={`Abrir ficha da jangada ${pedido.jangadaSerial}`}
+                          className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer"
+                        >
+                          <Anchor size={12} /> Ficha {pedido.jangadaSerial}
+                        </button>
+                      )}
+                    </div>
+
                     {expanded && (
                       <div className="mt-3 rounded-lg border border-gray-200 bg-slate-50 p-3 text-sm">
                         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Descrição</p>
@@ -345,7 +422,7 @@ export default function PedidosAssistenciaPage() {
                         {pedido.ordensServico!.map((os) => (
                           <a
                             key={os.id}
-                            href="/ordens-servico"
+                            href={`/ordens-servico/${os.id}`}
                             className="inline-flex items-center gap-1.5 rounded-md border border-sky-300 bg-sky-50 px-2 py-0.5 text-xs font-semibold text-sky-800 hover:bg-sky-100"
                           >
                             OT {os.numeroOrdem}

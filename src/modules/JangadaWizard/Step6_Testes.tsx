@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useJangadaWizardStore } from './store/useJangadaWizardStore';
 import { getTestRecommendations, type TestRecommendation } from '@/modules/rafts/testRules';
 import { getDlLoadReference } from '@/modules/rafts/dlLoadReference';
+import { getStepNumberByKey } from './steps';
 import { Activity, Gauge, ArrowDownToLine, Droplet, Clock, Timer, Play, Pause, RotateCcw, AlertTriangle, Info, CheckCircle2, XCircle, HelpCircle, ShieldAlert } from 'lucide-react';
 
 const TEST_ICONS: Record<string, React.ElementType> = {
@@ -52,12 +53,23 @@ const STATUS_CONFIG: Record<string, { bg: string; border: string; text: string; 
 };
 
 export default function Step6_Testes() {
-  const { inspectionData, setInspectionData } = useJangadaWizardStore();
+  const { inspectionData, setInspectionData, hideOrcamento } = useJangadaWizardStore();
+  const stepNo = getStepNumberByKey(inspectionData, 'testes', { hideOrcamento });
   const testes = inspectionData.testes || {};
   const [equipments, setEquipments] = useState<any[]>([]);
 
   const [timerSec, setTimerSec] = useState(0);
   const [timerRunning, setTimerRunning] = useState(false);
+
+  const [realNow, setRealNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = window.setInterval(() => setRealNow(new Date()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const nowHHMMSS = () => {
+    return `${String(realNow.getHours()).padStart(2, '0')}:${String(realNow.getMinutes()).padStart(2, '0')}:${String(realNow.getSeconds()).padStart(2, '0')}`;
+  };
 
   useEffect(() => {
     if (!timerRunning) return;
@@ -154,18 +166,25 @@ export default function Step6_Testes() {
   };
 
   const handleTestChange = (testId: string, result: string) => {
+    const nextTestes: Record<string, unknown> = {
+      ...testes,
+      [testId]: result,
+    };
+
+    if (testId === 'testeNAP' && result === 'PASSOU') {
+      if (!nextTestes.napHoraInicio) nextTestes.napHoraInicio = nowHHMM();
+      if (!nextTestes.napHoraFim) nextTestes.napHoraFim = nowHHMM();
+    }
+
     setInspectionData({
-      testes: {
-        ...testes,
-        [testId]: result
-      }
+      testes: nextTestes as typeof testes,
     });
   };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
       <div>
-        <h2 className="text-2xl font-bold text-slate-800">6. Testes Operacionais e de Pressão</h2>
+        <h2 className="text-2xl font-bold text-slate-800">{stepNo > 0 ? `${stepNo}. ` : ''}Testes Operacionais e de Pressão</h2>
         <p className="text-slate-600 mt-1">Registe os resultados dos testes estruturais realizados na jangada.</p>
       </div>
 
@@ -388,11 +407,12 @@ export default function Step6_Testes() {
                       <div className="flex items-center gap-2">
                         <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Unidade:</label>
                         <select 
-                          value={testes.wpUnidadePressao === 'mbar' ? 'hpa' : (testes.wpUnidadePressao || 'hpa')}
+                          value={testes.wpUnidadePressao || 'hpa'}
                           onChange={(e) => handleTestChange('wpUnidadePressao', e.target.value)}
                           className="border-slate-200 rounded-xl px-2 py-1 text-xs font-bold bg-white focus:ring-2 focus:ring-indigo-100"
                         >
                           <option value="hpa">hPa</option>
+                          <option value="mbar">mbar</option>
                           <option value="inh2o">inH2O</option>
                           <option value="inhg">inHg</option>
                         </select>
@@ -471,6 +491,15 @@ export default function Step6_Testes() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2 ml-auto flex-wrap">
+                        <div className="flex flex-col items-end mr-2">
+                          <p className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Hora atual (real)</p>
+                          <p className="text-2xl font-black tabular-nums font-mono text-slate-900 leading-none mt-0.5">{nowHHMMSS()}</p>
+                          {testes.wpHoraInicio && (
+                            <p className="text-[10px] text-indigo-600 font-bold mt-1">
+                              Início registado: {testes.wpHoraInicio}
+                            </p>
+                          )}
+                        </div>
                         <button
                           type="button"
                           onClick={handleStartTimer}
@@ -500,7 +529,7 @@ export default function Step6_Testes() {
                       </div>
                     </div>
 
-                    <div className="space-y-1.5">
+<div className="space-y-1.5">
                       <label className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center justify-between gap-2">
                         Hora Início
                         <button
@@ -517,23 +546,13 @@ export default function Step6_Testes() {
                       <input
                         type="time"
                         value={testes.wpHoraInicio || ''}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          handleTestChange('wpHoraInicio', val);
-                          if (val) {
-                            const [h, m] = val.split(':').map(Number);
-                            if (!isNaN(h) && !isNaN(m)) {
-                              const endH = (h + 1) % 24;
-                              handleTestChange('wpHoraFim', `${String(endH).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
-                            }
-                          }
-                        }}
+                        onChange={(e) => handleTestChange('wpHoraInicio', e.target.value)}
                         className="w-full border-slate-200 rounded-xl px-3 py-2 bg-white text-sm focus:ring-2 focus:ring-indigo-100"
                       />
                     </div>
                     <div className="space-y-1.5">
 <label className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center justify-between gap-2">
-                        Hora Fim (Automático +60m)
+                        Hora Fim
                         <button
                           type="button"
                           onClick={() => {
@@ -553,7 +572,35 @@ export default function Step6_Testes() {
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Temp. Inicial (ºC)</label>
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center justify-between gap-2">
+                        Temp. Inicial (ºC)
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=37.7688&longitude=-25.5825&current=temperature_2m,pressure_msl&timezone=auto`);
+                              const data = await res.json();
+                              const temp = data?.current?.temperature_2m;
+                              const press = data?.current?.pressure_msl;
+                              const nextTestes = { ...testes };
+                              if (temp !== undefined && temp !== null) {
+                                nextTestes.wpTempInicio = String(temp);
+                                nextTestes.wpTempFim = String(temp);
+                              }
+                              if (press !== undefined && press !== null) {
+                                nextTestes.wpPressaoAtmInicio = String(Math.round(press));
+                                nextTestes.wpPressaoAtmFim = String(Math.round(press));
+                              }
+                              setInspectionData({ testes: nextTestes });
+                            } catch (e) {
+                              console.error(e);
+                            }
+                          }}
+                          className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200"
+                        >
+                          Meteorologia (Agora)
+                        </button>
+                      </label>
                       <input 
                         type="number" step="0.1"
                         value={testes.wpTempInicio || ''}
@@ -592,41 +639,80 @@ export default function Step6_Testes() {
 
                     <div className="col-span-full border-t border-slate-200 my-2"></div>
 
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Pressão Câm. Sup. (Início)</label>
-                      <input 
-                        type="number" step="0.01"
-                        value={testes.wpCamaraSupInicio || ''}
-                        onChange={(e) => handleTestChange('wpCamaraSupInicio', e.target.value)}
-                        className="w-full border-slate-200 rounded-xl px-3 py-2 bg-white text-sm focus:ring-2 focus:ring-indigo-100"
-                      />
+                    {/* Câmara Superior — com unidade própria */}
+                    <div className="col-span-full grid grid-cols-1 md:grid-cols-2 gap-4 rounded-xl border border-slate-200 bg-white p-4">
+                      <div className="col-span-full flex flex-wrap items-center justify-between gap-2">
+                        <h6 className="text-sm font-bold text-slate-700">Câmara Superior</h6>
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Unidade:</label>
+                          <select
+                            value={testes.wpCamaraSupUnidade || testes.wpUnidadePressao || 'hpa'}
+                            onChange={(e) => handleTestChange('wpCamaraSupUnidade', e.target.value)}
+                            className="border-slate-200 rounded-xl px-2 py-1 text-xs font-bold bg-white focus:ring-2 focus:ring-indigo-100"
+                          >
+                            <option value="hpa">hPa</option>
+                          <option value="mbar">mbar</option>
+                            <option value="inh2o">inH2O</option>
+                            <option value="inhg">inHg</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Pressão Câm. Sup. (Início)</label>
+                        <input
+                          type="number" step="0.01"
+                          value={testes.wpCamaraSupInicio || ''}
+                          onChange={(e) => handleTestChange('wpCamaraSupInicio', e.target.value)}
+                          className="w-full border-slate-200 rounded-xl px-3 py-2 bg-white text-sm focus:ring-2 focus:ring-indigo-100"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Pressão Câm. Sup. (Fim)</label>
+                        <input
+                          type="number" step="0.01"
+                          value={testes.wpCamaraSupFim || ''}
+                          onChange={(e) => handleTestChange('wpCamaraSupFim', e.target.value)}
+                          className="w-full border-slate-200 rounded-xl px-3 py-2 bg-white text-sm focus:ring-2 focus:ring-indigo-100"
+                        />
+                      </div>
                     </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Pressão Câm. Sup. (Fim)</label>
-                      <input 
-                        type="number" step="0.01"
-                        value={testes.wpCamaraSupFim || ''}
-                        onChange={(e) => handleTestChange('wpCamaraSupFim', e.target.value)}
-                        className="w-full border-slate-200 rounded-xl px-3 py-2 bg-white text-sm focus:ring-2 focus:ring-indigo-100"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Pressão Câm. Inf. (Início)</label>
-                      <input 
-                        type="number" step="0.01"
-                        value={testes.wpCamaraInfInicio || ''}
-                        onChange={(e) => handleTestChange('wpCamaraInfInicio', e.target.value)}
-                        className="w-full border-slate-200 rounded-xl px-3 py-2 bg-white text-sm focus:ring-2 focus:ring-indigo-100"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Pressão Câm. Inf. (Fim)</label>
-                      <input 
-                        type="number" step="0.01"
-                        value={testes.wpCamaraInfFim || ''}
-                        onChange={(e) => handleTestChange('wpCamaraInfFim', e.target.value)}
-                        className="w-full border-slate-200 rounded-xl px-3 py-2 bg-white text-sm focus:ring-2 focus:ring-indigo-100"
-                      />
+
+                    {/* Câmara Inferior — com unidade própria */}
+                    <div className="col-span-full grid grid-cols-1 md:grid-cols-2 gap-4 rounded-xl border border-slate-200 bg-white p-4">
+                      <div className="col-span-full flex flex-wrap items-center justify-between gap-2">
+                        <h6 className="text-sm font-bold text-slate-700">Câmara Inferior</h6>
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Unidade:</label>
+                          <select
+                            value={testes.wpCamaraInfUnidade || testes.wpUnidadePressao || 'hpa'}
+                            onChange={(e) => handleTestChange('wpCamaraInfUnidade', e.target.value)}
+                            className="border-slate-200 rounded-xl px-2 py-1 text-xs font-bold bg-white focus:ring-2 focus:ring-indigo-100"
+                          >
+                            <option value="hpa">hPa</option>
+                          <option value="mbar">mbar</option>
+                            <option value="inh2o">inH2O</option>
+                            <option value="inhg">inHg</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Pressão Câm. Inf. (Início)</label>
+                        <input
+                          type="number" step="0.01"
+                          value={testes.wpCamaraInfInicio || ''}
+                          onChange={(e) => handleTestChange('wpCamaraInfInicio', e.target.value)}
+                          className="w-full border-slate-200 rounded-xl px-3 py-2 bg-white text-sm focus:ring-2 focus:ring-indigo-100"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Pressão Câm. Inf. (Fim)</label>
+                        <input
+                          type="number" step="0.01"
+                          value={testes.wpCamaraInfFim || ''}
+                          onChange={(e) => handleTestChange('wpCamaraInfFim', e.target.value)}
+                          className="w-full border-slate-200 rounded-xl px-3 py-2 bg-white text-sm focus:ring-2 focus:ring-indigo-100"
+                        />
+                      </div>
                     </div>
 
                     {/* Cálculos Automáticos WP */}
@@ -647,19 +733,21 @@ export default function Step6_Testes() {
                           const infIn = parseFloat(testes.wpCamaraInfInicio);
                           const infOut = parseFloat(testes.wpCamaraInfFim);
 
-                          const unit = testes.wpUnidadePressao === 'mbar' ? 'hpa' : (testes.wpUnidadePressao || 'hpa');
+                          const defaultUnit = testes.wpUnidadePressao || 'hpa';
+                          const supUnit = testes.wpCamaraSupUnidade || defaultUnit;
+                          const infUnit = testes.wpCamaraInfUnidade || defaultUnit;
 
-                          const toMbar = (val: number) => {
+                          const toMbarUnit = (val: number, u: string) => {
                             if (isNaN(val)) return NaN;
-                            if (unit === 'inhg') return val * 33.8638866667;
-                            if (unit === 'inh2o') return val * 2.490889;
+                            if (u === 'inhg') return val * 33.8638866667;
+                            if (u === 'inh2o') return val * 2.490889;
                             return val;
                           };
 
-                          const fromMbar = (val: number) => {
+                          const fromMbarUnit = (val: number, u: string) => {
                             if (isNaN(val)) return NaN;
-                            if (unit === 'inhg') return val / 33.8638866667;
-                            if (unit === 'inh2o') return val / 2.490889;
+                            if (u === 'inhg') return val / 33.8638866667;
+                            if (u === 'inh2o') return val / 2.490889;
                             return val;
                           };
 
@@ -674,10 +762,10 @@ export default function Step6_Testes() {
                           const totalCorrectionMb = correctionTempMb + correctionBaroMb;
                           const tempValid = Math.abs(tempDelta) <= 3.5;
 
-                          const analyzeChamber = (startRaw: number, endRaw: number) => {
+                          const analyzeChamber = (startRaw: number, endRaw: number, u: string) => {
                             if (isNaN(startRaw) || isNaN(endRaw)) return null;
-                            const startMb = toMbar(startRaw);
-                            const endMb = toMbar(endRaw);
+                            const startMb = toMbarUnit(startRaw, u);
+                            const endMb = toMbarUnit(endRaw, u);
 
                             const correctedEndMb = endMb + totalCorrectionMb;
                             const dropMbRaw = startMb - correctedEndMb;
@@ -686,15 +774,16 @@ export default function Step6_Testes() {
                             const passes = percent <= 5 && tempValid;
                             
                             return { 
-                              correctedEndDisplay: fromMbar(correctedEndMb), 
-                              dropDisplay: fromMbar(dropMb), 
+                              correctedEndDisplay: fromMbarUnit(correctedEndMb, u), 
+                              dropDisplay: fromMbarUnit(dropMb, u), 
                               percent, 
-                              passes 
+                              passes,
+                              unit: u,
                             };
                           };
 
-                          const sup = analyzeChamber(supIn, supOut);
-                          const inf = analyzeChamber(infIn, infOut);
+                          const sup = analyzeChamber(supIn, supOut, supUnit);
+                          const inf = analyzeChamber(infIn, infOut, infUnit);
 
                           return (
                             <>
@@ -702,8 +791,8 @@ export default function Step6_Testes() {
                                 <p className="text-xs font-bold text-slate-500 uppercase">Câmara Superior</p>
                                 {sup ? (
                                   <div className="mt-2 space-y-1">
-                                    <p className="text-sm">P. Corrigida: <span className="font-semibold text-slate-800">{sup.correctedEndDisplay.toFixed(2)} {unit}</span></p>
-                                    <p className="text-sm">Queda: <span className="font-semibold text-red-500">{sup.dropDisplay.toFixed(2)} {unit} ({sup.percent.toFixed(2)}%)</span></p>
+                                    <p className="text-sm">P. Corrigida: <span className="font-semibold text-slate-800">{sup.correctedEndDisplay.toFixed(2)} {sup.unit}</span></p>
+                                    <p className="text-sm">Queda: <span className="font-semibold text-red-500">{sup.dropDisplay.toFixed(2)} {sup.unit} ({sup.percent.toFixed(2)}%)</span></p>
                                     <p className={`text-sm font-bold mt-1.5 flex items-center gap-1 ${sup.passes ? 'text-emerald-600' : 'text-red-600'}`}>
                                       {sup.passes ? '✓ APROVADO' : '✗ REPROVADO'}
                                     </p>
@@ -720,8 +809,8 @@ export default function Step6_Testes() {
                                 <p className="text-xs font-bold text-slate-500 uppercase">Câmara Inferior</p>
                                 {inf ? (
                                   <div className="mt-2 space-y-1">
-                                    <p className="text-sm">P. Corrigida: <span className="font-semibold text-slate-800">{inf.correctedEndDisplay.toFixed(2)} {unit}</span></p>
-                                    <p className="text-sm">Queda: <span className="font-semibold text-red-500">{inf.dropDisplay.toFixed(2)} {unit} ({inf.percent.toFixed(2)}%)</span></p>
+                                    <p className="text-sm">P. Corrigida: <span className="font-semibold text-slate-800">{inf.correctedEndDisplay.toFixed(2)} {inf.unit}</span></p>
+                                    <p className="text-sm">Queda: <span className="font-semibold text-red-500">{inf.dropDisplay.toFixed(2)} {inf.unit} ({inf.percent.toFixed(2)}%)</span></p>
                                     <p className={`text-sm font-bold mt-1.5 flex items-center gap-1 ${inf.passes ? 'text-emerald-600' : 'text-red-600'}`}>
                                       {inf.passes ? '✓ APROVADO' : '✗ REPROVADO'}
                                     </p>
@@ -749,11 +838,12 @@ export default function Step6_Testes() {
                       <div className="flex items-center gap-2">
                         <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Unidade:</label>
                         <select 
-                          value={testes.napUnidadePressao === 'mbar' ? 'hpa' : (testes.napUnidadePressao || 'hpa')}
+                          value={testes.napUnidadePressao || 'hpa'}
                           onChange={(e) => handleTestChange('napUnidadePressao', e.target.value)}
                           className="border-slate-200 rounded-xl px-2 py-1 text-xs font-bold bg-white focus:ring-2 focus:ring-indigo-100"
                         >
                           <option value="hpa">hPa</option>
+                          <option value="mbar">mbar</option>
                           <option value="inh2o">inH2O</option>
                           <option value="inhg">inHg</option>
                         </select>
@@ -790,26 +880,34 @@ export default function Step6_Testes() {
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Hora Início</label>
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center justify-between gap-2">
+                        Hora Início
+                        <button
+                          type="button"
+                          onClick={() => handleTestChange('napHoraInicio', nowHHMM())}
+                          className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2 py-1 rounded-md border border-indigo-200"
+                        >
+                          Agora
+                        </button>
+                      </label>
                       <input 
                         type="time" 
                         value={testes.napHoraInicio || ''}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          handleTestChange('napHoraInicio', val);
-                          if (val) {
-                            const [h, m] = val.split(':').map(Number);
-                            if (!isNaN(h) && !isNaN(m)) {
-                              const endH = (h + 1) % 24;
-                              handleTestChange('napHoraFim', `${String(endH).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
-                            }
-                          }
-                        }}
+                        onChange={(e) => handleTestChange('napHoraInicio', e.target.value)}
                         className="w-full border-slate-200 rounded-xl px-3 py-2 bg-white text-sm focus:ring-2 focus:ring-indigo-100"
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Hora Fim (Automático +60m)</label>
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center justify-between gap-2">
+                        Hora Fim
+                        <button
+                          type="button"
+                          onClick={() => handleTestChange('napHoraFim', nowHHMM())}
+                          className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2 py-1 rounded-md border border-indigo-200"
+                        >
+                          Agora
+                        </button>
+                      </label>
                       <input 
                         type="time" 
                         value={testes.napHoraFim || ''}

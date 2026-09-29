@@ -1,6 +1,6 @@
 @echo off
 title Preparar Pacote Standalone Acores
-cd /d "D:\Acores"
+cd /d "%~dp0"
 
 set DATA=%DATE:~-4,4%%DATE:~-10,2%%DATE:~-7,2%
 set ZIP_NAME=Orey_Acores_Standalone_%DATA%.zip
@@ -16,7 +16,7 @@ if exist "%WORK_DIR%" rmdir /s /q "%WORK_DIR%"
 mkdir "%WORK_DIR%"
 
 REM Copiar todos os ficheios exceto node_modules e .next
-xcopy /E /I /Q /Y "D:\Acores\*" "%WORK_DIR%" >nul 2>&1
+xcopy /E /I /Q /Y "%~dp0*" "%WORK_DIR%" >nul 2>&1
 
 REM Remover pastas grandes e desnecessarias do pacote
 for %%d in (node_modules .next .git .vercel backups terminal_logs) do (

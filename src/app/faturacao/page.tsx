@@ -21,6 +21,7 @@ import {
 } from "chart.js";
 import { formatDateTimeShort } from "@/lib/date-utils";
 import { getIvaRate, calcIva } from "@/lib/iva";
+import { useSession } from "next-auth/react";
 import { useWhatsAppAllowed, WHATSAPP_ALLOWED_USER_EMAIL } from "@/lib/use-whatsapp-allowed";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend);
@@ -99,6 +100,8 @@ function getPagamentoStatus(ordem: OrdemItem | null) {
 
 export default function FaturacaoConsolePage() {
   const { allowed: whatsappAllowed } = useWhatsAppAllowed();
+  const { data: session, status: sessionStatus } = useSession();
+  const isAdmin = session?.user?.role === "ADMIN";
   const [viewMode, setViewMode] = useState<"console" | "kpis">("console");
   const [loadingList, setLoadingList] = useState(true);
   const [orders, setOrders] = useState<OrdemItem[]>([]);
@@ -193,9 +196,15 @@ export default function FaturacaoConsolePage() {
   }, [searchQuery, statusFilter]);
 
   useEffect(() => {
+    if (sessionStatus !== "authenticated") return;
+    if (!isAdmin) {
+      setErrorMsg("Apenas administradores podem aceder à área de faturação.");
+      setLoadingList(false);
+      return;
+    }
     // eslint-disable-next-line react-hooks/set-state-in-effect -- setLoading(true) no início do fetch assíncrono controla o estado de carregamento.
     fetchOrders();
-  }, [fetchOrders]);
+  }, [fetchOrders, sessionStatus, isAdmin]);
 
   const fetchFaturas = useCallback(async () => {
     setFaturasLoading(true);

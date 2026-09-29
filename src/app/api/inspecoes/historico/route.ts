@@ -157,6 +157,7 @@ export async function POST(request: NextRequest) {
             hruReferencia: hru?.referencia || jangada.hruReferencia || null,
             hruDataInstalacao: hru?.dataInstalacao || jangada.hruDataInstalacao || null,
             hruValidade: hru?.validade || jangada.hruValidade || null,
+            hruSerial: hru?.serial || jangada.hruSerial || null,
             
             // Dados de testes WP
             testeWP: testes?.testeWP || jangada.testeWP || null,
@@ -208,6 +209,7 @@ export async function POST(request: NextRequest) {
       hruReferencia: hru?.referencia || jangada.hruReferencia,
       hruDataInstalacao: hru?.dataInstalacao || jangada.hruDataInstalacao,
       hruValidade: hru?.validade || jangada.hruValidade,
+      hruSerial: hru?.serial || jangada.hruSerial,
 
       // Override test values
       testeWP: testes?.testeWP || jangada.testeWP || "N/D",
@@ -399,6 +401,7 @@ export async function PUT(request: NextRequest) {
             hruReferencia: hru?.referencia || null,
             hruDataInstalacao: hru?.dataInstalacao || null,
             hruValidade: hru?.validade || null,
+            hruSerial: hru?.serial || null,
             
             // Dados de testes WP
             testeWP: testes?.testeWP || null,
@@ -449,6 +452,7 @@ export async function PUT(request: NextRequest) {
       hruReferencia: hru?.referencia || null,
       hruDataInstalacao: hru?.dataInstalacao || null,
       hruValidade: hru?.validade || null,
+      hruSerial: hru?.serial || jangada.hruSerial || null,
 
       testeWP: testes?.testeWP || "N/D",
       testeNAP: testes?.testeNAP || "N/D",

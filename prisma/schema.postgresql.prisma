@@ -1450,3 +1450,23 @@ model Comunicacao {
   @@index([status])
   @@index([enviadoEm])
 }
+
+model DeclaracaoIsencaoIva {
+  id               Int       @id @default(autoincrement())
+  numeroSequencial Int
+  ano              Int
+  numeroCompleto   String    @unique
+  clienteNome      String?
+  clienteNif       String?
+  navioNome        String?
+  navioMatricula   String?
+  codigoIsencaoIva String?
+  origem           String?
+  emitidoPorId     String?
+  dataEmissao      DateTime  @default(now())
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([ano])
+  @@index([numeroSequencial])
+}

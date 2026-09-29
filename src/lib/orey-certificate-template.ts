@@ -32,6 +32,7 @@ export type OreyCertificateTemplateInput = {
   cylinderHydroTestDate?: string;
   packType?: string;
   hruReference?: string;
+  hruSerial?: string;
   hruExpiry?: string;
   radarReflector?: string;
   radarReflectorExpiry?: string;
@@ -143,7 +144,7 @@ function asYesNo(value: unknown) {
   if (typeof value === 'string') {
     const normalized = value.trim().toLowerCase();
     if (!normalized || ['no', 'nao', 'não', 'false', '0', 'n', 'not_ok', 'n/a', 'na', 'n.d', 'nd'].includes(normalized)) return 'NO';
-    if (['yes', 'sim', 'true', '1', 'y', 'ok'].includes(normalized)) return 'YES';
+    if (['yes', 'sim', 'true', '1', 'y', 'ok', 'passou', 'aprovou', 'realizado', 'feito'].includes(normalized)) return 'YES';
   }
   return value ? 'YES' : 'NO';
 }
@@ -153,7 +154,7 @@ function asYesNoOrNA(value: unknown, fallback: 'YES' | 'NO' = 'NO'): 'YES' | 'NO
     const normalized = value.trim().toLowerCase();
     if (!normalized) return fallback;
     if (['n/a', 'na', 'n.d', 'nd', 'não aplicável', 'nao aplicavel', 'not applicable'].includes(normalized)) return 'N/A';
-    if (['yes', 'sim', 'true', '1', 'y', 'ok'].includes(normalized)) return 'YES';
+    if (['yes', 'sim', 'true', '1', 'y', 'ok', 'passou', 'aprovou', 'realizado', 'feito'].includes(normalized)) return 'YES';
     if (['no', 'nao', 'não', 'false', '0', 'n', 'not_ok'].includes(normalized)) return 'NO';
   }
   if (typeof value === 'boolean') return value ? 'YES' : 'NO';
@@ -427,7 +428,10 @@ function fillTemplate(worksheet: ExcelJS.Worksheet, input: OreyCertificateTempla
   setText(worksheet.getCell('I27'), input.raftSerial);
   setText(worksheet.getCell('K27'), formatDateDDMMYYYY(input.nextInspectionDate));
 
-  // HRU fields (C31, D31, G31, K31) left blank intentionally
+  // HRU row (merged label C31:E31 "HRU test:") — reference, serial and expiry.
+  setText(worksheet.getCell('G31'), input.hruReference);
+  setText(worksheet.getCell('I31'), input.hruSerial);
+  setText(worksheet.getCell('K31'), formatMonthYear(input.hruExpiry));
 
   if (asString(input.radarReflector)) {
     setText(worksheet.getCell('D33'), '1');
@@ -544,7 +548,8 @@ export async function buildOreyCertificateArtifacts(input: OreyCertificateTempla
   const html = wrapPreviewHtml(XLSX.utils.sheet_to_html(previewSheet, { editable: false }));
   const certificateNumber = sanitizeFileNameSegment(input.certNumber, 'SEM-NUMERO');
   const shipName = sanitizeFileNameSegment(asString(input.shipName).toUpperCase(), 'SEM NAVIO');
-  const fileName = `${certificateNumber} ${shipName}.xlsx`;
+  // Formato pedido: AZ26-NNN (NOME DO NAVIO)
+  const fileName = `${certificateNumber} (${shipName}).xlsx`;
 
   return {
     buffer,

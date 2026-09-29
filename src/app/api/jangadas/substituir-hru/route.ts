@@ -32,9 +32,9 @@ export async function GET(request: NextRequest) {
         OR: [
           { referencia: '20701002' },
           { referencia: '20701001' },
-          { descricao: { contains: 'HRU', mode: 'insensitive' } },
-          { descricao: { contains: 'Disparo', mode: 'insensitive' } },
-          { categoria: { contains: 'HRU', mode: 'insensitive' } }
+          { descricao: { contains: 'HRU' } },
+          { descricao: { contains: 'Disparo' } },
+          { categoria: { contains: 'HRU' } }
         ]
       },
       orderBy: { descricao: 'asc' },
@@ -147,8 +147,8 @@ export async function POST(request: NextRequest) {
             inspecaoId: lastInspecao.id,
             OR: [
               { referencia: novaReferencia },
-              { name: { contains: 'HRU', mode: 'insensitive' } },
-              { name: { contains: 'Disparo', mode: 'insensitive' } }
+              { name: { contains: 'HRU' } },
+              { name: { contains: 'Disparo' } }
             ]
           }
         });

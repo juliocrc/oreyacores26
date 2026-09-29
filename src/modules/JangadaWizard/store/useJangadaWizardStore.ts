@@ -16,7 +16,7 @@ type WizardState = {
   setStep: (step: number) => void;
   setStepByKey: (key: string) => void;
   currentStepKey: () => string | null;
-  nextStep: () => void;
+  nextStep: (force?: boolean) => boolean;
   prevStep: () => void;
   canProceed: () => boolean;
   validationErrors: string[];
@@ -32,6 +32,7 @@ type WizardState = {
   setJangadaId: (id: number | null) => void;
   setShipId: (id: number | null) => void;
   setInspecaoId: (id: number | null) => void;
+  setInspecoes: (list: any[]) => void;
   
   inspectionData: InspectionData;
   setInspectionData: (data: Partial<InspectionData>) => void;
@@ -69,12 +70,14 @@ export const useJangadaWizardStore = create<WizardState>()(
         const steps = currentWizardSteps(state);
         return steps[state.currentStep - 1]?.key ?? null;
       },
-      nextStep: () => {
+      nextStep: (force?: boolean): boolean => {
         const state = get();
-        if (state.canProceed()) {
+        if (force || state.canProceed()) {
           const steps = currentWizardSteps(state);
           set({ currentStep: Math.min(state.currentStep + 1, steps.length), validationErrors: [] });
+          return true;
         }
+        return false;
       },
       prevStep: () => set((state) => {
         const steps = currentWizardSteps(state);
@@ -132,6 +135,7 @@ export const useJangadaWizardStore = create<WizardState>()(
       setJangadaId: (id) => set({ jangadaId: id }),
       setShipId: (id) => set({ shipId: id }),
       setInspecaoId: (id) => set({ inspecaoId: id }),
+      setInspecoes: (list) => set({ inspecoes: list }),
       
       inspectionData: {} as InspectionData,
       setInspectionData: (data) => set((state) => ({ 
@@ -152,9 +156,17 @@ export const useJangadaWizardStore = create<WizardState>()(
           serial: raftData?.serial || '',
           packType: raftData?.packType || '',
           capacity: raftData?.capacity || '',
-          dataFabrico: raftData?.dataFabrico || '',
-          dataInspecao: draftData?.dataInspecao || getLocalDateKey(),
-          dataProxInspecao: draftData?.dataProxInspecao || '',
+           dataFabrico: raftData?.dataFabrico || draftData?.dataFabrico || '',
+           dataInspecao: draftData?.dataInspecao || getLocalDateKey(),
+           dataProxInspecao: draftData?.dataProxInspecao || (() => {
+             const inspDate = draftData?.dataInspecao || getLocalDateKey();
+             const parts = inspDate.split('-');
+             if (parts[0] && parts[0].length === 4) {
+               const year = parseInt(parts[0], 10) + 1;
+               return `${year}-${parts[1] || '01'}-${parts[2] || '01'}`;
+             }
+             return '';
+           })(),
           shipName: draftData?.navioNome || raftData?.shipNameManual || raftData?.shipDetails?.nome || '',
           
           owner: raftData?.shipDetails?.proprietario || raftData?.ownerDisplay || raftData?.owner || '',
@@ -165,9 +177,14 @@ export const useJangadaWizardStore = create<WizardState>()(
           fabricType: raftData?.fabricType || '',
           painterLength: raftData?.painterLength || '',
           maxStowageHeight: raftData?.maxStowageHeight || '',
-          hruReference: raftData?.hruReferencia || '',
-          hruExpiry: raftData?.hruValidade || '',
+hruReference: draftData?.hruReference || raftData?.hruReferencia || '',
+            hruSerial: draftData?.hruSerial || raftData?.hruSerial || '',
+            hruStockId: draftData?.hruStockId || raftData?.hruStockId || null,
+            hruExpiry: draftData?.hruExpiry || raftData?.hruValidade || '',
           hruTipo: raftData?.hruTipo || '',
+          hruAplicavel: draftData?.hruAplicavel || raftData?.hruAplicavel || 'NAO',
+          luzesInstaladas: draftData?.luzesInstaladas || 'SIM',
+          bateriaInstalada: draftData?.bateriaInstalada || 'SIM',
           radarReflector: raftData?.radarReflector || '',
           radarReflectorExpiry: raftData?.radarReflectorValidade || '',
           certificadoNumero: draftData?.certificadoNumero || '',

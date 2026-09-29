@@ -139,27 +139,26 @@ export async function buildQuadroPDFArtifacts(input: QuadroTemplateInput) {
   y += 7;
 
   const packItems = [
-    { key: 'farmacia', label: 'Farmácia / First Aid Kit', ref: 'ref_farmacia', qty: 'qtd_farmacia', val: 'validade_farmacia', lot: 'lote_farmacia' },
-    { key: 'comprimidos', label: 'Comprimidos Enjoo', ref: 'ref_comprimidos', qty: 'qtd_comprimidos', val: 'validade_comprimidos', lot: 'lote_comprimidos' },
-    { key: 'paraquedas', label: 'Foguetes Paraquedas', ref: 'ref_paraquedas', qty: 'qtd_paraquedas', val: 'validade_paraquedas', lot: 'lote_paraquedas' },
-    { key: 'fachos', label: 'Fachos de Mão', ref: 'ref_fachos', qty: 'qtd_fachos', val: 'validade_fachos_mao', lot: 'lote_fachos' },
-    { key: 'potes', label: 'Potes de Fumo', ref: 'ref_potes', qty: 'qtd_potes', val: 'validade_potes_fumo', lot: 'lote_potes' },
-    { key: 'lanterna', label: 'Lanterna', ref: 'ref_lanterna', qty: 'qtd_lanterna', val: 'validade_lanterna', lot: 'lote_lanterna' },
-    { key: 'pilhas', label: 'Pilhas Lanterna', ref: 'ref_bateria', qty: 'qtd_pilhas_lanterna', val: 'validade_pilhas_lanterna', lot: 'lote_bateria' },
-    { key: 'bateria_litio', label: 'Bateria Lítio', ref: 'ref_bateria_litio', qty: 'qtd_bateria_litio', val: 'validade_bateria', lot: 'lote_bateria_litio' },
-    { key: 'cinta_fecho', label: 'Cinta de Fecho', ref: 'ref_cinta_fecho', qty: 'qtd_cinta_fecho', val: '', lot: '' },
-    { key: 'jogo_reparacao', label: 'Jogo Reparação', ref: 'ref_jogo_reparacao', qty: 'qtd_jogo_reparacao', val: '', lot: '' },
-    { key: 'luz_ext', label: 'Luz Exterior', ref: '', qty: '', val: 'validade_luzes_exteriores', lot: '' },
-    { key: 'luz_int', label: 'Luz Interior', ref: '', qty: '', val: 'validade_bateria', lot: '' },
-    { key: 'agua', label: 'Saco de Água', ref: 'ref_agua', qty: '', val: 'validade_agua', lot: '' },
-    { key: 'racoes', label: 'Rações Alimentares', ref: 'ref_racoes', qty: '', val: 'validade_racoes', lot: '' },
+    { key: 'farmacia', label: 'Farmácia / First Aid Kit', ref: 'ref_farmacia', qty: 'qtd_farmacia', val: 'validade_farmacia' },
+    { key: 'comprimidos', label: 'Comprimidos Enjoo', ref: 'ref_comprimidos', qty: 'qtd_comprimidos', val: 'validade_comprimidos' },
+    { key: 'paraquedas', label: 'Foguetes Paraquedas', ref: 'ref_paraquedas', qty: 'qtd_paraquedas', val: 'validade_paraquedas' },
+    { key: 'fachos', label: 'Fachos de Mão', ref: 'ref_fachos', qty: 'qtd_fachos', val: 'validade_fachos_mao' },
+    { key: 'potes', label: 'Potes de Fumo', ref: 'ref_potes', qty: 'qtd_potes', val: 'validade_potes_fumo' },
+    { key: 'lanterna', label: 'Lanterna', ref: 'ref_lanterna', qty: 'qtd_lanterna', val: 'validade_lanterna' },
+    { key: 'pilhas', label: 'Pilhas Lanterna', ref: 'ref_bateria', qty: 'qtd_pilhas_lanterna', val: 'validade_pilhas_lanterna' },
+    { key: 'bateria_litio', label: 'Bateria Lítio', ref: 'ref_bateria_litio', qty: 'qtd_bateria_litio', val: 'validade_bateria' },
+    { key: 'cinta_fecho', label: 'Cinta de Fecho', ref: 'ref_cinta_fecho', qty: 'qtd_cinta_fecho', val: '' },
+    { key: 'jogo_reparacao', label: 'Jogo Reparação', ref: 'ref_jogo_reparacao', qty: 'qtd_jogo_reparacao', val: '' },
+    { key: 'luz_ext', label: 'Luz Exterior', ref: '', qty: '', val: 'validade_luzes_exteriores' },
+    { key: 'luz_int', label: 'Luz Interior', ref: '', qty: '', val: 'validade_bateria' },
+    { key: 'agua', label: 'Saco de Água', ref: 'ref_agua', qty: '', val: 'validade_agua' },
+    { key: 'racoes', label: 'Rações Alimentares', ref: 'ref_racoes', qty: '', val: 'validade_racoes' },
   ];
 
   const tableBody = packItems.map(item => {
     const val = item.val ? checklist[item.val] : '';
     const ref = item.ref ? checklist[item.ref] : '';
     const qty = item.qty ? checklist[item.qty] : '';
-    const lot = item.lot ? checklist[item.lot] : '';
     
     const valFormatted = val ? formatMonthYear(val) : '—';
     const days = val ? getDaysRemaining(String(val), input.inspectionDate ? new Date(input.inspectionDate) : new Date()) : null;
@@ -180,13 +179,12 @@ export async function buildQuadroPDFArtifacts(input: QuadroTemplateInput) {
       valFormatted,
       daysStr,
       status,
-      lot || '—',
     ];
   });
 
   (doc as any).autoTable({
     startY: y,
-    head: [['Artigo', 'Ref.', 'Qtd', 'Validade', 'Dias', 'Estado', 'Lote']],
+    head: [['Artigo', 'Ref.', 'Qtd', 'Validade', 'Dias', 'Estado']],
     body: tableBody,
     theme: 'striped',
     headStyles: { fillColor: [79, 70, 229], textColor: 255, fontSize: 7, fontStyle: 'bold' },
@@ -198,7 +196,6 @@ export async function buildQuadroPDFArtifacts(input: QuadroTemplateInput) {
       3: { cellWidth: 22, halign: 'center' },
       4: { cellWidth: 20, halign: 'center' },
       5: { cellWidth: 22, halign: 'center' },
-      6: { cellWidth: 25, halign: 'center' },
     },
     didParseCell: (hook: any) => {
       if (hook.section === 'body' && hook.column.index === 5) {
@@ -241,22 +238,20 @@ export async function buildQuadroPDFArtifacts(input: QuadroTemplateInput) {
       article.reference,
       String(article.quantity),
       article.validity || '—',
-      article.lot || '—',
     ]);
 
     (doc as any).autoTable({
       startY: y,
-      head: [['Artigo', 'Referência', 'Qtd', 'Validade', 'Lote']],
+      head: [['Artigo', 'Referência', 'Qtd', 'Validade']],
       body: substitutedBody,
       theme: 'striped',
       headStyles: { fillColor: [5, 150, 105], textColor: 255, fontSize: 7, fontStyle: 'bold' },
       styles: { fontSize: 7, cellPadding: 2 },
       columnStyles: {
-        0: { cellWidth: 55 },
-        1: { cellWidth: 35, halign: 'center' },
+        0: { cellWidth: 62 },
+        1: { cellWidth: 42, halign: 'center' },
         2: { cellWidth: 12, halign: 'center' },
-        3: { cellWidth: 25, halign: 'center' },
-        4: { cellWidth: 35, halign: 'center' },
+        3: { cellWidth: 30, halign: 'center' },
       },
     });
 

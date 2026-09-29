@@ -9,8 +9,8 @@ function getInspecaoArtigoDelegate() {
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const where: Prisma.ArtigoJangadaWhereInput = {};
-  const referencia = searchParams.get("referencia"); if (referencia) where.referencia = { contains: referencia, mode: "insensitive" };
-  const descricao = searchParams.get("descricao"); if (descricao) where.name = { contains: descricao, mode: "insensitive" };
+  const referencia = searchParams.get("referencia"); if (referencia) where.referencia = { contains: referencia };
+  const descricao = searchParams.get("descricao"); if (descricao) where.name = { contains: descricao };
   if (searchParams.get("inspecaoId")) where.inspecaoId = Number(searchParams.get("inspecaoId"));
   if (searchParams.get("stockId")) where.stockId = Number(searchParams.get("stockId"));
 

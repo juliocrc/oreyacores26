@@ -52,7 +52,7 @@ export async function syncEntregaAgendaEvent(params: {
 
   const existing = await prisma.agendaEvento.findFirst({
     where: {
-      raftSerial: { equals: raftSerial, mode: "insensitive" },
+      raftSerial: { equals: raftSerial },
       type: ENTREGA_EVENT_TYPE,
       status: { in: [...ACTIVE_AGENDA_STATUSES] },
     },
@@ -92,7 +92,7 @@ export async function clearEntregaAgendaEvent(params: {
 
   const deleted = await prisma.agendaEvento.deleteMany({
     where: {
-      raftSerial: { equals: raftSerial, mode: "insensitive" },
+      raftSerial: { equals: raftSerial },
       type: ENTREGA_EVENT_TYPE,
       status: { in: [...ACTIVE_AGENDA_STATUSES] },
     },

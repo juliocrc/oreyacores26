@@ -1,6 +1,6 @@
 @echo off
 title Agendar Backup Automatico - Executar como Administrador
-cd /d "D:\Acores"
+cd /d "%~dp0"
 
 echo ========================================
 echo   Agendar Backup Automatico
@@ -13,10 +13,10 @@ echo.
 pause
 
 REM Diario as 17:30
-schtasks /Create /SC DAILY /TN "OreyAcoresBackup" /TR "D:\Acores\BACKUP_AUTOMATICO.bat" /ST 17:30 /RL HIGHEST /F
+schtasks /Create /SC DAILY /TN "OreyAcoresBackup" /TR "\"%~dp0BACKUP_AUTOMATICO.bat\"" /ST 17:30 /RL HIGHEST /F
 
 REM Ao iniciar o Windows
-schtasks /Create /SC ONSTART /TN "OreyAcoresBackupStartup" /TR "D:\Acores\BACKUP_AUTOMATICO.bat" /RL HIGHEST /F
+schtasks /Create /SC ONSTART /TN "OreyAcoresBackupStartup" /TR "\"%~dp0BACKUP_AUTOMATICO.bat\"" /RL HIGHEST /F
 
 echo.
 echo Tarefas criadas:

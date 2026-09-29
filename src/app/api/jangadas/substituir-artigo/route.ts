@@ -173,8 +173,14 @@ export async function POST(request: NextRequest) {
         throw new Error('Quantidade inválida para substituição');
       }
 
+      const stockDisponivel = Math.max(0, novoStock.quantidade - novoStock.quantidadeReservada);
       if (novoStock.quantidade < requestedQuantity) {
         throw new Error(`Quantidade do stock insuficiente. Tem ${novoStock.quantidade}, pediu ${requestedQuantity}.`);
+      }
+      if (requestedQuantity > stockDisponivel) {
+        throw new Error(
+          `Quantidade indisponível: ${novoStock.quantidadeReservada} unidade(s) reservadas; disponível para substituição é ${stockDisponivel}.`
+        );
       }
 
       const stockAntes = novoStock.quantidade;

@@ -25,6 +25,7 @@ import { Visibility, VisibilityOff } from "@mui/icons-material";
 import { signIn, useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { APP_CONFIG } from "@/lib/app-config";
+import { markAppSessionOpen } from "@/app/session-idle-timeout";
 
 function resolveCallbackUrl(rawCallbackUrl: string | null) {
   if (!rawCallbackUrl) return "/";
@@ -141,6 +142,7 @@ function LoginPageContent() {
 
   React.useEffect(() => {
     if (status === "authenticated") {
+      markAppSessionOpen();
       if (session?.user?.role === "CLIENTE") {
         router.replace("/portal/cliente");
       } else {
@@ -157,6 +159,7 @@ function LoginPageContent() {
       const result = await signIn("credentials", { email, password, callbackUrl, redirect: false });
       if (result?.error) { setError("Email ou password incorretos."); return; }
       if (selectedStationId) setActiveStationCookie(Number(selectedStationId));
+      markAppSessionOpen();
       window.location.href = callbackUrl;
     } catch (err) {
       console.error("Login error:", err);
@@ -173,6 +176,7 @@ function LoginPageContent() {
       const result = await signIn("credentials", { loginType: "passwordless", userId: String(selectedColab.id), callbackUrl, redirect: false });
       if (result?.error) { setError("Não foi possível iniciar sessão."); return; }
       if (selectedStationId) setActiveStationCookie(Number(selectedStationId));
+      markAppSessionOpen();
       window.location.href = callbackUrl;
     } catch (err) {
       console.error("Login error:", err);
@@ -222,6 +226,7 @@ function LoginPageContent() {
         redirect: false,
       });
       if (result?.error) { setClientError("Código inválido ou expirado."); return; }
+      markAppSessionOpen();
       window.location.href = "/portal/cliente";
     } catch (err) {
       console.error("Client login error:", err);
@@ -268,11 +273,13 @@ function LoginPageContent() {
           {error && <Alert severity="error">{error}</Alert>}
 
           {tab === 0 && (
-            <Stack spacing={3} component="form" onSubmit={handleStaffLogin}>
+            <Stack spacing={3} component="form" onSubmit={handleStaffLogin} autoComplete="off">
               <TextField label="Endereço de Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-                required fullWidth sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 } }} />
+                required fullWidth autoComplete="off" name="orey-email"
+                sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 } }} />
               <TextField label="Password" type={showPassword ? "text" : "password"} value={password}
                 onChange={(e) => setPassword(e.target.value)} required fullWidth
+                autoComplete="new-password" name="orey-password"
                 sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 } }}
                 InputProps={{
                   endAdornment: (

@@ -28,7 +28,8 @@ import Alert from "@mui/material/Alert";
 import { signOut, useSession } from "next-auth/react";
 import { usePathname, useRouter } from "next/navigation";
 import { APP_CONFIG } from "@/lib/app-config";
-import { APP_TOAST_EVENT, type AppToastPayload } from "@/lib/app-toast";
+import { APP_TOAST_EVENT, appToast, type AppToastPayload } from "@/lib/app-toast";
+import { chooseRootFolder, getConfiguredRootName } from "@/lib/ship-downloads";
 import { canonicalizePermissionPathPrefix } from "@/lib/permission-access";
 import { getAccessRoleLabel, hasElevatedAccess } from "@/lib/permission-access";
 import { LEGACY_OT_CREATION_ROUTE, OT_CREATION_ROUTE } from "@/lib/permissions-catalog";
@@ -68,87 +69,25 @@ type LoginAlertEvent = {
 
 const navSections: NavSection[] = [
   {
-    label: "Operação",
+    label: "Inspeção",
     items: [
-      { label: "Agenda", href: "/agenda", icon: "🗓️", roles: ["ADMIN"] },
-      { label: "Estação de Serviço", href: "/estacao-servico", icon: "🏭", roles: APP_CONFIG.theme === 'deluxe' ? ["ADMIN", "USER"] : ["ADMIN"] },
-      { label: "Oficina & Calibração", href: "/oficina", icon: "🛠️", roles: ["ADMIN", "USER"] },
-      { label: "Logística", href: "/logistica", icon: "🚚", roles: ["ADMIN"] },
-      { label: "Check-In/Out Cais", href: "/cais", icon: "⚓", roles: ["ADMIN", "USER"] },
-      { label: "Alertas", href: "/alertas", icon: "🚨", roles: ["ADMIN", "USER"] },
-      { label: "Pedidos de Assistência", href: "/pedidos-assistencia", icon: "📩", roles: ["ADMIN", "USER"] },
-      { label: "Backups", href: "/backups", icon: "💾", roles: ["ADMIN"] },
-    ],
-  },
-  {
-    label: "Ordens de Serviço",
-    items: [
-      { label: "Criar OT", href: "/criar-ot", icon: "📝", roles: ["ADMIN", "USER"] },
-      { label: "Ordens de Serviço", href: "/ordens-servico", icon: "📋", roles: ["ADMIN", "USER"] },
-      { label: "Portal (vista cliente)", href: "/portal/ordens-servico", icon: "👁️", roles: ["ADMIN", "USER"] },
-      { label: "Orçamentos", href: "/orcamentos", icon: "🧮", roles: ["ADMIN", "USER"] },
-    ],
-  },
-  {
-    label: "Comercial & Faturação",
-    items: [
-      { label: "Faturação", href: "/faturacao", icon: "💳", roles: ["ADMIN", "USER"] },
-      { label: "Cobranças", href: "/cobrancas", icon: "💰", roles: ["ADMIN", "USER"] },
-      { label: "Contas a Receber", href: "/contas-receber", icon: "📊", roles: ["ADMIN"] },
-      { label: "Relatório de Validades", href: "/relatorio-validades", icon: "📅", roles: ["ADMIN", "USER"] },
-      { label: "Rentabilidade", href: "/rentabilidade", icon: "📊", roles: ["ADMIN"] },
-    ],
-  },
-  {
-    label: "Frota e Equipamento",
-    items: [
-      { label: "Jangadas", href: "/jangadas", icon: "🛶", roles: ["ADMIN", "USER"] },
-      { label: "Estado Jangada", href: "/estado-jangada", icon: "🛟", roles: ["ADMIN", "USER"] },
+      { label: "Agenda", href: "/agenda", icon: "📅", roles: ["ADMIN", "USER"] },
       { label: "Inspeções", href: "/inspecoes", icon: "🔍", roles: ["ADMIN", "USER"] },
-      { label: "Packs", href: "/packs", icon: "🎒", roles: ["ADMIN", "USER"] },
-      { label: "Navios", href: "/navios", icon: "🚢", roles: ["ADMIN"] },
-      { label: "EPIRBs", href: "/epirbs", icon: "📡", roles: ["ADMIN"] },
-      { label: "Coletes", href: "/equipamentos", icon: "🦺", roles: ["ADMIN"] },
-      { label: "Fatos de Imersão", href: "/fatos-imersao", icon: "🧥", roles: ["ADMIN"] },
-      { label: "Cilindros", href: "/cilindros", icon: "🫙", roles: ["ADMIN"] },
-      { label: "Extintores", href: "/extintores", icon: "🧯", roles: ["ADMIN"] },
+      { label: "Jangadas", href: "/jangadas", icon: "🛶", roles: ["ADMIN", "USER"] },
+      { label: "Coletes", href: "/equipamentos", icon: "🦺", roles: ["ADMIN", "USER"] },
     ],
   },
   {
-    label: "Stock",
+    label: "Frota",
     items: [
-      { label: "Stock", href: "/stock", icon: "📦", roles: ["ADMIN"] },
-      { label: "Reposições", href: "/stock/reposicoes", icon: "🔁", roles: ["ADMIN"] },
+      { label: "Navios", href: "/navios", icon: "🚢", roles: ["ADMIN", "USER"] },
+      { label: "Clientes", href: "/clientes", icon: "👥", roles: ["ADMIN", "USER"] },
     ],
   },
   {
-    label: "Clientes",
+    label: "Material",
     items: [
-      { label: "Clientes", href: "/clientes", icon: "👥", roles: ["ADMIN"] },
-      { label: "Técnicos", href: "/tecnicos", icon: "🧑‍🔧", roles: ["ADMIN"] },
-      { label: "Comunicações", href: "/comunicacoes", icon: "📨", roles: ["ADMIN"] },
-      { label: "WhatsApp", href: "/whatsapp", icon: "💬", roles: ["ADMIN"] },
-    ],
-  },
-  {
-    label: "Documentação & Qualidade",
-    items: [
-      { label: "Qualidade de Dados", href: "/qualidade-dados", icon: "✅", roles: ["ADMIN"] },
-      { label: "Integridade", href: "/integridade", icon: "🔐", roles: ["ADMIN"] },
-      { label: "Conformidade DGRM", href: "/dgrm", icon: "📄", roles: ["ADMIN"] },
-      { label: "Auditorias", href: "/auditorias", icon: "🔎", roles: ["ADMIN"] },
-      { label: "Departamento Técnico", href: "/departamento-tecnico", icon: "🧠", roles: ["ADMIN"] },
-      { label: "Legislação", href: "/legislacao", icon: "⚖️", roles: ["ADMIN"] },
-      { label: "Certificados Externos", href: "/fotos", icon: "📑", roles: ["ADMIN"] },
-      { label: "Relatórios", href: "/relatorios", icon: "📈", roles: ["ADMIN"] },
-      { label: "Contactos Internos", href: "/contactos-internos", icon: "☎️", roles: ["ADMIN"] },
-    ],
-  },
-  {
-    label: "Administração",
-    items: [
-      { label: "Utilizadores", href: "/utilizadores", icon: "👤", roles: ["ADMIN"] },
-      { label: "Registar", href: "/registar", icon: "➕", roles: ["ADMIN"] },
+      { label: "Stock", href: "/stock", icon: "📦", roles: ["ADMIN", "USER"] },
     ],
   },
 ];
@@ -204,6 +143,7 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
   const [loginAlertsQueue, setLoginAlertsQueue] = React.useState<LoginAlertEvent[]>([]);
   const [appToastQueue, setAppToastQueue] = React.useState<AppToastPayload[]>([]);
   const [mounted, setMounted] = React.useState(false);
+  const [documentsRootName, setDocumentsRootName] = React.useState<string | null>(null);
   const isOnline = React.useSyncExternalStore(subscribeOnlineStatus, getOnlineStatusSnapshot, getOnlineStatusServerSnapshot);
   const activeLoginAlert = loginAlertsQueue[0] ?? null;
   const activeAppToast = appToastQueue[0] ?? null;
@@ -479,6 +419,22 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
 
   const handleAccountMenuClose = () => {
     setAccountAnchorEl(null);
+  };
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    void getConfiguredRootName().then((name) => setDocumentsRootName(name));
+  }, []);
+
+  const handleChooseDocumentFolder = async () => {
+    handleAccountMenuClose();
+    const name = await chooseRootFolder();
+    if (name) {
+      setDocumentsRootName(name);
+      appToast.success(
+        `Pasta principal: ${name}. Serão criadas NAVIOS AÇORES e CERTIFICADOS AÇORES <ano> dentro dela.`,
+      );
+    }
   };
 
   const handleLogout = async () => {
@@ -777,6 +733,11 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
               <Menu anchorEl={accountAnchorEl} open={Boolean(accountAnchorEl)} onClose={handleAccountMenuClose} anchorOrigin={{ vertical: "bottom", horizontal: "right" }} transformOrigin={{ vertical: "top", horizontal: "right" }}>
                 <MenuItem disabled>{user.email}</MenuItem>
                 <MenuItem disabled>{userAccessLabel}</MenuItem>
+                <Divider />
+                <MenuItem disabled sx={{ fontSize: 12 }}>
+                  Pasta documentos: {documentsRootName || "não definida"}
+                </MenuItem>
+                <MenuItem onClick={handleChooseDocumentFolder}>📁 Definir pasta de documentos</MenuItem>
                 <Divider />
                 <MenuItem onClick={handleLogout}>Terminar sessão</MenuItem>
               </Menu>

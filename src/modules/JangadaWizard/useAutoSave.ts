@@ -30,7 +30,25 @@ export function useAutoSave() {
       const dataStr = JSON.stringify(draft);
 
       if (dataStr !== lastDataRef.current) {
-        localStorage.setItem(key, dataStr);
+        try {
+          localStorage.setItem(key, dataStr);
+        } catch (error) {
+          const quotaExceeded = error instanceof DOMException && error.name === 'QuotaExceededError';
+          if (!quotaExceeded) throw error;
+
+          try {
+            for (let i = localStorage.length - 1; i >= 0; i--) {
+              const storageKey = localStorage.key(i);
+              if (storageKey && storageKey !== key && storageKey.startsWith('jangada-wizard-draft-')) {
+                localStorage.removeItem(storageKey);
+              }
+            }
+            localStorage.setItem(key, dataStr);
+          } catch (retryError) {
+            console.error('[AutoSave] Error saving draft after cleanup:', retryError);
+            return;
+          }
+        }
         lastDataRef.current = dataStr;
         setLastSaved(new Date());
       }

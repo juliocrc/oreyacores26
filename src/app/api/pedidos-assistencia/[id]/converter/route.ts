@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
     }
 
     const jangada = await prisma.jangada.findFirst({
-      where: { serial: { equals: serial, mode: "insensitive" } },
+      where: { serial: { equals: serial } },
       select: { id: true, serial: true, brand: true, model: true },
     });
     if (!jangada) {

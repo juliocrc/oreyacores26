@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Mail, MessageSquare, MessageSquareText, X, Loader2, Flame, Waves } from "lucide-react";
+import { Mail, MessageSquare, MessageSquareText, Phone, X, Loader2, Flame, Waves } from "lucide-react";
 import { formatDateAuto } from "@/lib/date-utils";
 
 type Alerta = {
@@ -54,14 +54,35 @@ export default function AlertasPage() {
   const [selectedAlert, setSelectedAlert] = useState<Alerta | null>(null);
   const [loadingContact, setLoadingContact] = useState(false);
   const [contactInfo, setContactInfo] = useState<{ name: string; email: string; phone: string } | null>(null);
+  const [canal, setCanal] = useState<"whatsapp" | "sms" | "email" | "chamada">("whatsapp");
   const [messageText, setMessageText] = useState("");
   const [emailSubject, setEmailSubject] = useState("");
   const [sendingSms, setSendingSms] = useState(false);
-  const [smsStatus, setSmsStatus] = useState<{ ok: boolean; text: string } | null>(null);
+  const [sendStatus, setSendStatus] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const CANAIS: { key: "whatsapp" | "sms" | "email" | "chamada"; label: string; icon: React.ElementType }[] = [
+    { key: "whatsapp", label: "WhatsApp", icon: MessageSquare },
+    { key: "sms", label: "SMS", icon: MessageSquareText },
+    { key: "email", label: "E-mail", icon: Mail },
+    { key: "chamada", label: "Chamada", icon: Phone },
+  ];
+
+  const canalNeedsPhone = canal === "whatsapp" || canal === "sms" || canal === "chamada";
+  const canalDisabled = canalNeedsPhone ? !contactInfo?.phone : false;
+
+  const canalHint = () => {
+    if (!contactInfo) return "";
+    if (canal === "whatsapp") return `Será aberto no WhatsApp para ${contactInfo.phone || "telemóvel não indicado"}.`;
+    if (canal === "sms") return `Enviado por SMS (gateway) para ${contactInfo.phone || "telemóvel não indicado"}.`;
+    if (canal === "chamada") return `Ligação telefónica para ${contactInfo.phone || "telemóvel não indicado"}.`;
+    return `Enviado a partir do seu cliente de e-mail para ${contactInfo.email || "endereço não indicado"}.`;
+  };
 
   const handleNotifyClick = async (a: Alerta) => {
     setSelectedAlert(a);
     setIsNotifying(true);
+    setCanal("whatsapp");
+    setSendStatus(null);
     setLoadingContact(true);
     setContactInfo(null);
     setMessageText("");
@@ -114,7 +135,7 @@ export default function AlertasPage() {
   const handleSendSms = async () => {
     if (!contactInfo?.phone || !messageText.trim()) return;
     setSendingSms(true);
-    setSmsStatus(null);
+    setSendStatus(null);
     try {
       const res = await fetch("/api/notificar-sms", {
         method: "POST",
@@ -123,15 +144,48 @@ export default function AlertasPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        setSmsStatus({ ok: true, text: "SMS enviado com sucesso." });
+        setSendStatus({ ok: true, text: "SMS enviado com sucesso." });
       } else {
-        setSmsStatus({ ok: false, text: data?.error || `Falha ao enviar SMS (${res.status}).` });
+        setSendStatus({ ok: false, text: data?.error || `Falha ao enviar SMS (${res.status}).` });
       }
     } catch (e) {
       console.error(e);
-      setSmsStatus({ ok: false, text: "Erro de rede ao enviar SMS." });
+      setSendStatus({ ok: false, text: "Erro de rede ao enviar SMS." });
     } finally {
       setSendingSms(false);
+    }
+  };
+
+  const handleNotifyAction = async () => {
+    if (!contactInfo) return;
+    const number = (contactInfo.phone || "").replace(/\s+/g, "");
+    const email = contactInfo.email || "";
+    setSendStatus(null);
+
+    if (canal === "whatsapp" && number) {
+      window.open(
+        `https://wa.me/${number}?text=${encodeURIComponent(messageText)}`,
+        "_blank",
+      );
+      setSendStatus({ ok: true, text: "WhatsApp aberto para envio da mensagem." });
+      return;
+    }
+
+    if (canal === "sms") {
+      await handleSendSms();
+      return;
+    }
+
+    if (canal === "chamada" && number) {
+      window.location.href = `tel:${number}`;
+      setSendStatus({ ok: true, text: `A iniciar chamada para ${contactInfo.phone}.` });
+      return;
+    }
+
+    if (canal === "email") {
+      const mailto = `mailto:${email}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(messageText)}`;
+      window.open(mailto, "_blank");
+      setSendStatus({ ok: true, text: "Cliente de e-mail aberto com a mensagem preenchida." });
     }
   };
 
@@ -400,18 +454,51 @@ export default function AlertasPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold uppercase text-slate-400 mb-1">Assunto (E-mail)</label>
-                    <input
-                      type="text"
-                      value={emailSubject}
-                      onChange={(e) => setEmailSubject(e.target.value)}
-                      placeholder="Assunto da mensagem"
-                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
+                    <label className="block text-xs font-bold uppercase text-slate-400 mb-1">Meio de Notificação</label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {CANAIS.map((c) => {
+                        const Icon = c.icon;
+                        const ativo = canal === c.key;
+                        return (
+                          <button
+                            key={c.key}
+                            type="button"
+                            onClick={() => {
+                              setCanal(c.key);
+                              setSendStatus(null);
+                            }}
+                            className={`inline-flex flex-col items-center gap-1 rounded-xl border px-2 py-2.5 text-xs font-bold transition cursor-pointer ${
+                              ativo
+                                ? "border-indigo-500 bg-indigo-50 text-indigo-700 ring-2 ring-indigo-200"
+                                : "border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50"
+                            }`}
+                          >
+                            <Icon size={16} />
+                            {c.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-1.5">{canalHint()}</p>
                   </div>
 
+                  {canal === "email" && (
+                    <div>
+                      <label className="block text-xs font-bold uppercase text-slate-400 mb-1">Assunto (E-mail)</label>
+                      <input
+                        type="text"
+                        value={emailSubject}
+                        onChange={(e) => setEmailSubject(e.target.value)}
+                        placeholder="Assunto da mensagem"
+                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                  )}
+
                   <div>
-                    <label className="block text-xs font-bold uppercase text-slate-400 mb-1">Corpo da Mensagem</label>
+                    <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
+                      {canal === "chamada" ? "Mensagem (guião da chamada)" : "Corpo da Mensagem"}
+                    </label>
                     <textarea
                       rows={6}
                       value={messageText}
@@ -425,43 +512,43 @@ export default function AlertasPage() {
             </div>
 
             {/* Footer */}
-            <div className="bg-slate-50 px-6 py-4 flex flex-wrap justify-end gap-3 border-t border-slate-100">
-              <button
-                onClick={() => {
-                  const number = contactInfo?.phone.replace(/\s+/g, '') || "";
-                  const url = `https://wa.me/${number}?text=${encodeURIComponent(messageText)}`;
-                  window.open(url, '_blank');
-                }}
-                disabled={loadingContact || !contactInfo?.phone}
-                className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl text-xs transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-              >
-                <MessageSquare size={14} />
-                WhatsApp
-              </button>
-              <button
-                onClick={handleSendSms}
-                disabled={loadingContact || sendingSms || !contactInfo?.phone}
-                className="inline-flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white font-bold px-4 py-2 rounded-xl text-xs transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                title="Envia a mensagem por SMS através do gateway (app.textbee.dev)"
-              >
-                {sendingSms ? <Loader2 size={14} className="animate-spin" /> : <MessageSquareText size={14} />}
-                {sendingSms ? "A enviar..." : "SMS"}
-              </button>
-              {smsStatus && (
-                <span className={`text-xs font-semibold self-center ${smsStatus.ok ? "text-emerald-600" : "text-red-600"}`}>
-                  {smsStatus.text}
+            <div className="bg-slate-50 px-6 py-4 flex flex-wrap items-center justify-end gap-3 border-t border-slate-100">
+              {sendStatus && (
+                <span className={`text-xs font-semibold mr-auto ${sendStatus.ok ? "text-emerald-600" : "text-red-600"}`}>
+                  {sendStatus.text}
                 </span>
               )}
               <button
-                onClick={() => {
-                  const mailto = `mailto:${contactInfo?.email || ''}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(messageText)}`;
-                  window.open(mailto, '_blank');
-                }}
-                disabled={loadingContact}
-                className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-xs transition shadow-sm disabled:opacity-50 cursor-pointer"
+                onClick={handleNotifyAction}
+                disabled={loadingContact || sendingSms || canalDisabled}
+                title={canalDisabled ? "Contacto em falta — preencha o telemóvel." : undefined}
+                className={`inline-flex items-center gap-2 text-white font-bold px-4 py-2 rounded-xl text-xs transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${
+                  canal === "whatsapp"
+                    ? "bg-emerald-600 hover:bg-emerald-700"
+                    : canal === "sms"
+                    ? "bg-amber-600 hover:bg-amber-700"
+                    : canal === "chamada"
+                    ? "bg-indigo-600 hover:bg-indigo-700"
+                    : "bg-blue-600 hover:bg-blue-700"
+                }`}
               >
-                <Mail size={14} />
-                E-mail
+                {canal === "sms" && sendingSms ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  (() => {
+                    const CanalIcon = CANAIS.find((c) => c.key === canal)?.icon || Mail;
+                    return <CanalIcon size={14} />;
+                  })()
+                )}
+                {canal === "sms" && sendingSms
+                  ? "A enviar..."
+                  : canal === "whatsapp"
+                  ? "Enviar WhatsApp"
+                  : canal === "sms"
+                  ? "Enviar SMS"
+                  : canal === "chamada"
+                  ? "Iniciar Chamada"
+                  : "Abrir E-mail"}
               </button>
               <button
                 onClick={() => setIsNotifying(false)}

@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, Save, X, Search } from "lucide-react";
 import { toast } from "@/components/shared/Toast";
+import { performOfflineAwareJsonRequest } from "@/lib/offline-sync/client";
 
 type JangadaOption = {
   id: number;
@@ -175,19 +176,30 @@ export default function CriarOtPage() {
         body.jangadaId = selectedJangada!.id;
       }
 
-      const r = await fetch("/api/ordens-servico", {
+      const r = await performOfflineAwareJsonRequest<unknown>({
+        path: "/api/ordens-servico",
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body,
+        queueEntry: {
+          entityType: "ordem-servico",
+          summary: useCascade ? `OT em cascata (${selectedJangadaIds.size} jangadas)` : `OT ${selectedJangada!.id} · ${tipo}`,
+        },
       });
-      const result = await r.json().catch(() => null);
-      if (!r.ok) throw new Error(result?.error || "Erro ao criar OT.");
 
+      if (r.queued) {
+        toast.success("OT criada na fila offline; será enviada quando houver ligação.", "Offline");
+        router.push("/ordens-servico");
+        return;
+      }
+
+      const result = r.data;
       const newOrder = Array.isArray(result) ? result[0] : result;
-      if (!newOrder?.id) throw new Error("Resposta invalida do servidor.");
-      const label = useCascade ? `OT para ${selectedJangadaIds.size} jangada(s)` : `OT ${newOrder.numeroOrdem || newOrder.id}`;
+      if (!newOrder || typeof newOrder !== "object" || !("id" in newOrder) || !(newOrder as { id?: unknown }).id) {
+        throw new Error("Resposta invalida do servidor.");
+      }
+      const label = useCascade ? `OT para ${selectedJangadaIds.size} jangada(s)` : `OT ${String((newOrder as { numeroOrdem?: unknown }).numeroOrdem || (newOrder as { id?: unknown }).id)}`;
       toast.success(`${label} criada.`, "Sucesso");
-      router.push(`/ordens-servico/${newOrder.id}`);
+      router.push(`/ordens-servico/${String((newOrder as { id: unknown }).id)}`);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Erro ao criar OT.";
       setError(msg);

@@ -80,6 +80,15 @@ prisma/local.db-journal
 prisma/local.db*
 prisma/dev.db
 prisma/dev.db-journal
+# cópias datadas da base de dados (contêm dados de clientes - nunca versionar)
+prisma/local_*.db
+prisma/local_*.db-shm
+prisma/local_*.db-wal
+# ficheiros de configuração e chaves
+.rclone-crypt-pass.txt
+.env.local
+.env.vercel
+.env.vercel.production
 
 # logs de migração de dados (nao commitar)
 prisma/logs/

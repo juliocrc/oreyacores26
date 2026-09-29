@@ -2,10 +2,13 @@
 import React, { useMemo } from 'react';
 import { useJangadaWizardStore } from './store/useJangadaWizardStore';
 import { Package, ShieldAlert, Zap, Droplets, Flame, Stethoscope, Info, PackageSearch, X } from 'lucide-react';
-import { getMandatoryPackItemsForRaft, findMatchingArticleForPackItem } from '../rafts/mandatoryPack';
+import { getMandatoryPackItemsForRaft, findMatchingArticleForPackItem, VALIDITY_REQUIRED_PACK_NAMES } from '../rafts/mandatoryPack';
 import { isRationArticle } from '@/config/packTemplates';
 import { formatValidityDisplay } from '@/lib/date-display';
+import { maskMonthYearDisplay } from '@/lib/date-utils';
 import { getInspectionIntervalYears, getInspectionIntervalLabel, getSubstitutionMaxValidityDays } from '../rafts/inspectionInterval';
+import { normalizeStockReferenceByRule } from '@/lib/stock-reference-rules';
+import { getStepNumberByKey } from './steps';
 
 const toMonthYearFormat = (dateStr?: string | null) => {
   if (!dateStr) return '';
@@ -95,38 +98,6 @@ function getDaysRemaining(validadeStr: string, refDate: Date): number | null {
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 };
 
-const checkValidityWarning = (validadeStr: string, dataProxInspecao: string, dataInspecao: string, brand: string, shipDetails: any) => {
-  if (!validadeStr) return null;
-  
-  let refDateStr = dataProxInspecao;
-  if (!refDateStr && dataInspecao) {
-    const years = getInspectionIntervalYears(brand, '', shipDetails);
-    const parts = dataInspecao.split('-');
-    if (parts[0] && parts[0].length === 4) {
-      const year = parseInt(parts[0]) + years;
-      const month = parts[1] || '01';
-      const day = parts[2] || '01';
-      refDateStr = `${year}-${month}-${day}`;
-    }
-  }
-  
-  if (!refDateStr) return null;
-  
-  const vParsed = parseMonthYear(validadeStr);
-  if (!vParsed) return null;
-  const valDate = new Date(vParsed.year, vParsed.month - 1, 1);
-  
-  const [pYear, pMonth] = refDateStr.split('-').map(Number);
-  const proxDate = new Date(pYear, (pMonth || 1) - 1, 1);
-  
-  if (isNaN(valDate.getTime()) || isNaN(proxDate.getTime())) return null;
-  
-  if (valDate < proxDate) {
-    return 'warning';
-  }
-  return 'ok';
-};
-
 const getAnteriorValidityStatus = (
   validadeOriginal: string | undefined,
   dataProxInspecao: string,
@@ -189,7 +160,8 @@ const PACK_COLORS: Record<string, string> = {
 };
 
 export default function Step4_PackMascara() {
-  const { inspectionData, setInspectionData } = useJangadaWizardStore();
+  const { inspectionData, setInspectionData, hideOrcamento } = useJangadaWizardStore();
+  const stepNo = getStepNumberByKey(inspectionData, 'pack', { hideOrcamento });
 
   const packItems = inspectionData.packItems || {};
 
@@ -246,7 +218,9 @@ export default function Step4_PackMascara() {
           validade: validityFromRaft,
           validadeOriginal: validityFromRaft,
           lote: matched ? matched.codigoFabricante || matched.referencia || '' : '',
-          referencia: matched ? matched.referencia : '',
+          referencia:
+            normalizeStockReferenceByRule(matched?.referencia, item.label, item.englishLabel) ||
+            (matched?.referencia || ''),
           stockId: matched ? matched.id : undefined,
         };
       });
@@ -333,7 +307,7 @@ export default function Step4_PackMascara() {
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
       <div>
-        <h2 className="text-2xl font-bold text-slate-800">4. Pack de Emergência</h2>
+        <h2 className="text-2xl font-bold text-slate-800">{stepNo > 0 ? `${stepNo}. ` : ''}Pack de Emergência</h2>
         <p className="text-slate-600 mt-1">Registe as validades e quantidades dos consumíveis obrigatórios da jangada.</p>
         <div className="mt-3 flex items-center gap-2 bg-indigo-50 text-indigo-700 px-3 py-2 rounded-lg text-sm font-medium w-fit border border-indigo-100">
           <Info size={16} />
@@ -387,14 +361,8 @@ export default function Step4_PackMascara() {
               const data = packItems[item.checklistName] || { quantidadeVerificada: 0, quantidade: 0, lote: '', validade: '' };
               const isDamaged = isDamagedItem(data);
               const blockReasonDays = getSubstitutionBlockReason(data);
-              const warningStatus = checkValidityWarning(
-                data.validade || '',
-                inspectionData.dataProxInspecao,
-                inspectionData.dataInspecao,
-                inspectionData.brand,
-                inspectionData.shipDetails
-              );
-              const isWarning = warningStatus === 'warning';
+              const validityDays = getDaysRemaining(data.validade || '', refDate);
+              const isWarning = validityDays !== null && validityDays < 0;
 
               const anteriorStatus = getAnteriorValidityStatus(
                 data.validadeOriginal,
@@ -515,7 +483,11 @@ export default function Step4_PackMascara() {
 
                   <div className="col-span-12 lg:col-span-4 flex flex-col gap-3">
                     <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-                      {data.validadeOriginal ? (
+                      {data.quantidade > 0 ? (
+                        <span className="px-2 py-1 rounded-lg font-bold bg-emerald-600 text-white border border-emerald-700 flex items-center gap-1.5">
+                          <span>✓ Substituído · {data.validade || '—'}</span>
+                        </span>
+                      ) : data.validadeOriginal ? (
                         anteriorStatus ? (
                           <span className={`px-2 py-1 rounded-lg font-bold flex items-center gap-1.5 border ${
                             anteriorStatus.level === 'critical'
@@ -541,19 +513,22 @@ export default function Step4_PackMascara() {
                       {anteriorStatus && (anteriorStatus.level === 'critical' || anteriorStatus.level === 'warn') && data.quantidade === 0 && (
                         <button
                           type="button"
-                          onClick={() => handleItemChange(item.checklistName, 'quantidade', item.quantity || 1)}
+                          onClick={() => {
+                            handleItemChange(item.checklistName, 'quantidade', item.quantity || 1);
+                            setStockDialogKey(item.checklistName);
+                          }}
                           className="text-[10px] font-extrabold px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md shadow-sm transition"
                         >
                           Substituir Agora
                         </button>
                       )}
                     </div>
-                    {anteriorStatus?.level === 'critical' && (
+                    {anteriorStatus?.level === 'critical' && data.quantidade === 0 && (
                       <p className="text-[10px] text-red-700 font-bold leading-tight">
                         ⛔ Sugestão de substituição — a validade não cobre a próxima inspeção com margem mínima de 12 meses.
                       </p>
                     )}
-                    {anteriorStatus?.level === 'warn' && (
+                    {anteriorStatus?.level === 'warn' && data.quantidade === 0 && (
                       <p className="text-[10px] text-amber-700 font-semibold leading-tight">
                         ⚠️ A validade expira antes da próxima inspeção (sem folga de 12 meses). Considere substituir.
                       </p>
@@ -617,10 +592,10 @@ export default function Step4_PackMascara() {
                           inputMode="numeric"
                           placeholder="MM/AAAA"
                           maxLength={7}
-                          value={data.validade}
+                          value={maskMonthYearDisplay(data.validade)}
                           onChange={(e) => handleItemChange(item.checklistName, 'validade', maskMonthYearInput(e.target.value))}
                           className={`w-full text-sm rounded-xl px-2 py-2 bg-white focus:ring-2 transition-colors border ${
-                            data.quantidade > 0 && !data.validade 
+                            data.quantidade > 0 && !data.validade && VALIDITY_REQUIRED_PACK_NAMES.has(item.checklistName) 
                               ? 'border-red-300 ring-2 ring-red-100 bg-red-50' 
                               : isWarning
                                 ? 'border-amber-300 ring-2 ring-amber-100 bg-amber-50 focus:ring-amber-200 text-amber-900'
@@ -638,7 +613,7 @@ export default function Step4_PackMascara() {
                         })()}
                         {isWarning && (
                           <p className="text-[9px] text-amber-700 font-semibold mt-1 leading-tight">
-                            ⚠️ Sugere-se substituir (val. inferior a {getInspectionIntervalLabel(inspectionData.brand, inspectionData.model, inspectionData.shipDetails)})
+                            ⚠️ Validade expirada — sugere-se substituir o artigo.
                           </p>
                         )}
                       </div>

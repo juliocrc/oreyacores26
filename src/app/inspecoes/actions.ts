@@ -7,7 +7,10 @@ import { parseOrdemServicoMeta, toOrdemServicoMetaJson } from "@/lib/ordens-serv
 import { toCanonicalDateStr } from "@/lib/date-display";
 import { getIvaRate } from "@/lib/iva";
 import { stampInspectionWithDigest } from "@/lib/integrity-stamp";
+import { reverterMovimentosInspecao } from "@/lib/stock/inspecao-sync";
 import { saveInspectionSchema } from "@/lib/validation/inspecao-payload";
+import { getAccessContext } from "@/lib/access-control";
+import { evaluateInspectionEdit, isInspectionLocked, InspectionLockedError } from "@/lib/inspecao-lock";
 
 type SaveInspectionReplacementItem = {
   stockId?: number | null;
@@ -49,6 +52,9 @@ type SaveInspectionPayload = {
   cylinderDataTeste?: string | null;
   cylinderSerial?: string | null;
   numeroObra?: string | null;
+  // Reabertura de inspeção finalizada — ver @/lib/inspecao-lock.
+  reabrir?: boolean;
+  reaberturaJustificacao?: string | null;
 orcamento?: {
       linhas?: Array<{
         id?: string;
@@ -244,10 +250,50 @@ export async function saveInspection(payload: SaveInspectionPayload) {
   const jangadaId = Number(payload.raftId);
   const coleteId = Number(payload.coleteId);
 
-  const replacements = normalizeReplacements(payload.artigosSubstituidos).map((item) => ({
-    ...item,
-    validade: toCanonicalDateStr(item.validade instanceof Date ? item.validade.toISOString().slice(0, 10) : item.validade ?? undefined) || null,
-  }));
+  // Inspecao ja finalizada = documento legal carimbado. Nao se altera sem
+  // reabertura explicita, com justificacao e por quem tem permissao.
+  let reaberturaPendente: { justificadaPor: string; hashAnterior: string | null; certificado: string | null } | null = null;
+  if (Number.isFinite(inspectionId) && inspectionId > 0) {
+    const existente = await prisma.inspecao.findUnique({
+      where: { id: inspectionId },
+      select: {
+        id: true,
+        certificadoNumero: true,
+        status: true,
+        integrityHash: true,
+        integrityTimestamp: true,
+        integrityVersion: true,
+      },
+    });
+
+    if (existente) {
+      const acesso = await getAccessContext();
+      const decisao = evaluateInspectionEdit({
+        bloqueada: isInspectionLocked(existente),
+        reabrir: payload.reabrir,
+        justificacao: payload.reaberturaJustificacao,
+        isAdmin: acesso?.isAdmin === true,
+        certificadoNumero: existente.certificadoNumero,
+      });
+
+      if (!decisao.permitido) {
+        throw new InspectionLockedError(decisao.mensagem, decisao.motivo);
+      }
+
+      if (decisao.reabertura) {
+        // O carimbo é retirado dentro da transação de gravação, para que uma
+        // falha a meio não deixe a inspeção aberta. O carimbo anterior fica
+        // guardado na auditoria como prova do estado original.
+        reaberturaPendente = {
+          justificadaPor: acesso?.email || String(payload.responsavel || "sistema"),
+          hashAnterior: existente.integrityHash ?? null,
+          certificado: existente.certificadoNumero ?? null,
+        };
+      }
+    }
+  }
+
+  const replacements = normalizeReplacements(payload.artigosSubstituidos);
 
   const resolvedJangadaId = (() => {
     if (Number.isFinite(jangadaId) && jangadaId > 0) return Number(jangadaId);
@@ -450,6 +496,9 @@ export async function saveInspection(payload: SaveInspectionPayload) {
           where: { id: existingInspection.id },
           data: {
             ...inspectionData,
+            // O carimbo cai dentro da transação, não antes dela: se a gravação
+            // falhar, a inspeção continua selada e sem vestígio de edição.
+            ...(reaberturaPendente ? { integrityHash: null, integrityTimestamp: null } : {}),
             updatedAt: new Date(),
           },
         })
@@ -622,13 +671,19 @@ export async function saveInspection(payload: SaveInspectionPayload) {
       await tx.artigoJangada.deleteMany({ where: { inspecaoId: inspecao.id } });
     }
 
-    const stockWarnings: string[] = [];
     const usarOrcamento = Boolean(payload.orcamento?.usarOrcamento);
     const hasExplicitOrcamento = !!payload.orcamento && Array.isArray(payload.orcamento.linhas) && payload.orcamento.linhas.length > 0;
 
     if (applyStockMovements) {
+      // Reversão prévia: garante idempotência numa re-gravação (nunca duplica stock).
+      await reverterMovimentosInspecao(tx, inspecao.id, {
+        certificadoNumero,
+        usuario: String(payload.responsavel || "operador"),
+      });
+
       if (hasExplicitOrcamento && usarOrcamento) {
-        // Reservar stock a partir das linhas do orçamento em vez de deduzir diretamente
+        // Finalizar com orçamento: a reserva converte-se em consumo real —
+        // `quantidade` desce e a reserva é libertada na mesma operação.
         const budgetLines = (payload.orcamento?.linhas || []).filter((linha) => {
           const sid = linha.stockId != null && linha.stockId !== "" ? Number(linha.stockId) : null;
           if (!Number.isFinite(sid ?? NaN) || (sid ?? 0) <= 0) return false;
@@ -644,44 +699,74 @@ export async function saveInspection(payload: SaveInspectionPayload) {
             where: { id: stockId },
             select: { id: true, quantidade: true, quantidadeReservada: true, quantidadeMinima: true, referencia: true, descricao: true },
           });
-          if (!stock) continue;
+          if (!stock) {
+            stockWarnings.push(
+              `Artigo de stock não encontrado para ${linha.referencia || `artigo ${stockId}`} — movimento registado como pendente.`,
+            );
+            continue;
+          }
 
-          const quantidadeReservadaAtual = stock.quantidadeReservada || 0;
-          const disponivelAntes = stock.quantidade - quantidadeReservadaAtual;
+          const rotulo = stock.referencia || linha.referencia || stock.descricao || `artigo ${stockId}`;
+          const reservada = stock.quantidadeReservada || 0;
+          const disponivelAntes = stock.quantidade - reservada;
 
           if (disponivelAntes < qty) {
-            stockWarnings.push(`Stock insuficiente para reserva de ${stock.referencia || linha.referencia || stock.descricao}: disponível ${disponivelAntes}, pedido ${qty}.`);
+            stockWarnings.push(
+              `Stock insuficiente para ${rotulo}: disponível ${disponivelAntes}, pedido ${qty}. Inspeção gravada e stock ficou deficitário.`,
+            );
           }
 
-          const novaQuantidadeReservada = quantidadeReservadaAtual + qty;
-          const novoDisponivel = stock.quantidade - novaQuantidadeReservada;
-
-          // Alerta de stock mínimo (#6)
-          if (stock.quantidadeMinima != null && novoDisponivel <= stock.quantidadeMinima) {
-            stockWarnings.push(`Alerta stock mínimo: ${stock.referencia || stock.descricao} fica com ${novoDisponivel} disponível (mínimo ${stock.quantidadeMinima}).`);
-          }
+          // Consumo real (pode ficar negativo — o défice tem de ficar visível).
+          const novaQuantidade = stock.quantidade - qty;
+          // Libertar a reserva correspondente; nunca abaixo de zero.
+          const novaReservada = Math.max(0, reservada - qty);
 
           await tx.stock.update({
             where: { id: stockId },
-            data: { quantidadeReservada: novaQuantidadeReservada },
+            data: { quantidade: novaQuantidade, quantidadeReservada: novaReservada },
           });
 
           await tx.movimentacaoStock.create({
             data: {
               stockId,
-              tipo: "reserva",
+              tipo: "saida",
               quantidade: qty,
-              quantidadeAntes: quantidadeReservadaAtual,
-              quantidadeDepois: novaQuantidadeReservada,
-              motivo: `Reserva por orçamento ${certificadoNumero}`,
+              quantidadeAntes: stock.quantidade,
+              quantidadeDepois: novaQuantidade,
+              motivo: `Consumo inspeção ${certificadoNumero}`,
               usuario: String(payload.responsavel || "operador"),
               inspecaoId: inspecao.id,
             },
           });
+
+          if (novaReservada !== reservada) {
+            await tx.movimentacaoStock.create({
+              data: {
+                stockId,
+                tipo: "libertar_reserva",
+                quantidade: reservada - novaReservada,
+                quantidadeAntes: reservada,
+                quantidadeDepois: novaReservada,
+                motivo: `Reserva convertida em consumo na inspeção ${certificadoNumero}`,
+                usuario: String(payload.responsavel || "operador"),
+                inspecaoId: inspecao.id,
+              },
+            });
+          }
+
+          // Alerta de stock mínimo (#6)
+          if (stock.quantidadeMinima != null && novaQuantidade <= stock.quantidadeMinima) {
+            stockWarnings.push(`Alerta stock mínimo: ${rotulo} fica com ${novaQuantidade} em stock (mínimo ${stock.quantidadeMinima}).`);
+          }
         }
       } else {
         for (const item of replacements) {
-          if (!item.stockId) continue;
+          if (!item.stockId) {
+            stockWarnings.push(
+              `${item.referencia || item.name} não está ligado ao stock — artigo gravado na inspeção sem baixa de stock.`,
+            );
+            continue;
+          }
 
           const stock = await tx.stock.findUnique({
             where: { id: item.stockId },
@@ -689,12 +774,15 @@ export async function saveInspection(payload: SaveInspectionPayload) {
           });
 
           if (!stock) {
-            throw new Error(`Artigo de stock não encontrado para ${item.referencia || item.name}.`);
+            stockWarnings.push(`Artigo de stock não encontrado para ${item.referencia || item.name} — substituição registada sem movimento de stock.`);
+            continue;
           }
 
-          const isStrap = item.referencia === 'D508' || item.referencia === 'D509' || item.referencia === 'MK20-FLAT';
-          if (stock.quantidade < item.quantidade && !isStrap) {
-            throw new Error(`Stock insuficiente para ${stock.referencia || item.referencia || item.name}.`);
+          const rotulo = stock.referencia || item.referencia || item.name;
+          if (stock.quantidade < item.quantidade) {
+            stockWarnings.push(
+              `Stock insuficiente para ${rotulo}: disponível ${stock.quantidade}, pedido ${item.quantidade}. Inspeção gravada e stock ficou deficitário.`,
+            );
           }
 
           const quantidadeDepois = stock.quantidade - item.quantidade;
@@ -900,7 +988,7 @@ export async function saveInspection(payload: SaveInspectionPayload) {
               ref === "L-FS" ? "Teste FS" :
               ref === "L-NAP" ? "Teste NAP" :
               ref === "L-GI" ? "Teste GI" :
-              ref === "L-TH" ? "Teste Hidrostático" : "Carga de CO2"
+              ref === "L-TH" ? "Teste Hidráulico" : "Carga de CO2"
             ),
             quantidadePrevista: 1,
             quantidadeUsada: 1,
@@ -1001,7 +1089,8 @@ export async function saveInspection(payload: SaveInspectionPayload) {
     }));
 
     try {
-      const syncPayload = {
+      const { syncInspectionToOrdemServico } = await import("@/lib/inspecao-os-sync");
+      await syncInspectionToOrdemServico({
         inspecaoId: saved.id,
         jangadaId: finalJangadaId,
         testesReprovados,
@@ -1009,16 +1098,36 @@ export async function saveInspection(payload: SaveInspectionPayload) {
         orcamento: payload.orcamento || null,
         autoCreateOS: true,
         isFinalSave: applyStockMovements,
-      };
-
-      await fetch(`${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/ordens-servico/sync-inspecao`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(syncPayload),
+        // Os artigos ativos da jangada já foram criados/atualizados na transação acima
+        skipArtigosSync: true,
       });
     } catch (syncError) {
       console.error("Sync inspeção→OS falhou (não crítico):", syncError);
     }
+  }
+
+  // A reabertura fica registada antes de qualquer alteracao: e o registo
+  // legal de que um documento assinado foi aberto, por quem e porquê.
+  if (reaberturaPendente) {
+    const justificacao = String(payload.reaberturaJustificacao || "").trim();
+    await logAuditoria({
+      tabela: "Inspecao",
+      tipoOperacao: "REABRIR",
+      idRegisto: saved.id,
+      descricao:
+        `Inspeção finalizada reaberta para alteração` +
+        `${reaberturaPendente.certificado ? ` (certificado ${reaberturaPendente.certificado})` : ""}. ` +
+        `Justificação: ${justificacao}`,
+      usuario: reaberturaPendente.justificadaPor,
+      dadosAntes: {
+        certificadoNumero: reaberturaPendente.certificado,
+        integrityHash: reaberturaPendente.hashAnterior,
+      },
+      dadosDepois: {
+        reaberturaJustificacao: justificacao,
+        carimboAnteriorPreservado: reaberturaPendente.hashAnterior,
+      },
+    });
   }
 
   await logAuditoria({

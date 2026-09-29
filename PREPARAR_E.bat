@@ -22,31 +22,37 @@ echo A copiar ficheiros (pode demorar alguns minutos)...
 echo.
 
 REM Copiar tudo exceto pastas grandes
-robocopy "D:\Acores" "E:\Acores" /E /NJH /NJS /NP /NDL /XD .git .vercel backups terminal_logs server_prod.log node_modules .next > nul
+robocopy "%~dp0" "E:\Acores" /E /NJH /NJS /NP /NDL /XD .git .vercel backups terminal_logs server_prod.log node_modules .next > nul
 
 REM Copiar node_modules (necessario para rebuild)
 echo A copiar node_modules...
-robocopy "D:\Acores\node_modules" "E:\Acores\node_modules" /E /NJH /NJS /NP /NDL > nul
+robocopy "%~dp0\node_modules" "E:\Acores\node_modules" /E /NJH /NJS /NP /NDL > nul
 
 REM Copiar bin (node.exe)
-robocopy "D:\Acores\bin" "E:\Acores\bin" /E /NJH /NJS /NP /NDL > nul
+robocopy "%~dp0\bin" "E:\Acores\bin" /E /NJH /NJS /NP /NDL > nul
+
+REM Copiar .next (standalone ja built)
+if exist "%~dp0\.next" (
+    echo A copiar .next standalone...
+    robocopy "%~dp0\.next" "E:\Acores\.next" /E /NJH /NJS /NP /NDL > nul
+)
+
+REM Ativar modo portatil (BD local + sincronizacao com a pen)
+echo Este modo usa esta pen como base de dados portatil. Nao apagar. > "E:\Acores\PORTABLE.txt"
 
 echo.
 echo Ficheiros copiados!
 echo.
 echo ========================================
-echo   FAZER REBUILD EM E:
+echo   A aplicacao esta pronta em E:\Acores
 echo ========================================
 echo.
-echo Execute o comando abaixo para fazer o
-echo rebuild na unidade E: (necessario para
-echo que a aplicacao funcione nessa unidade):
-echo.
-echo   cd /d E:\Acores
-echo   npx next build --webpack
-echo.
-echo Depois do build, execute:
-echo   INICIAR.bat
+echo Para usar:
+echo   1. Abrir E:\Acores
+echo   2. Executar CRIAR_ATALHO.bat (cria atalho com icone no Ambiente
+echo      de Trabalho apontando para a pen)
+echo   3. Clicar no atalho "GESTOR NAVAL"
+echo   4. Abrir http://localhost:3000
 echo.
 echo A abrir E:\Acores no Explorador de Ficheiros...
 explorer E:\Acores

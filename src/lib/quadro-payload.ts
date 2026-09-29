@@ -144,6 +144,7 @@ export type QuadroChecklistSource = {
   testeGI?: unknown;
   testeDL?: unknown;
   hruValidade?: unknown;
+  hruSerial?: unknown;
   dataInspecao?: unknown;
   cylinderDataTeste?: unknown;
 };
@@ -166,7 +167,7 @@ export function buildQuadroChecklistPayload(source: QuadroChecklistSource): Reco
     });
   };
 
-  const mapArticle = (tokens: string[], refKey?: string, valKey?: string, qtyKey?: string, statusKey?: string, loteKey?: string, explicitReplacementKey?: string) => {
+  const mapArticle = (tokens: string[], refKey?: string, valKey?: string, qtyKey?: string, statusKey?: string, explicitReplacementKey?: string) => {
     const art = findArticle(tokens);
     if (art) {
       if (refKey && art.referencia) checklist[refKey] = art.referencia;
@@ -180,10 +181,6 @@ export function buildQuadroChecklistPayload(source: QuadroChecklistSource): Reco
       }
       if (qtyKey && art.quantidade !== undefined) checklist[qtyKey] = art.quantidade;
       if (statusKey) checklist[statusKey] = 'YES';
-      if (loteKey && art.codigoFabricante) {
-        const lote = String(art.codigoFabricante).trim();
-        checklist[loteKey] = lote.toUpperCase().startsWith('LOTE') ? lote : `LOTE ${lote}`;
-      }
       if (explicitReplacementKey) {
         const replacedItem = (source.prevArtigos || []).find((r: any) =>
           (r.referencia && art.referencia && r.referencia === art.referencia) ||
@@ -201,78 +198,41 @@ export function buildQuadroChecklistPayload(source: QuadroChecklistSource): Reco
     }
   };
 
-  mapArticle(['farmacia'], 'ref_farmacia', 'validade_farmacia', 'qtd_farmacia', 'ambulancia', 'lote_farmacia', 'substituicao_explicita__farmacia');
-  if (!checklist.ref_farmacia) mapArticle(['ambulancia'], 'ref_farmacia', 'validade_farmacia', 'qtd_farmacia', 'ambulancia', 'lote_farmacia', 'substituicao_explicita__farmacia');
-  if (!checklist.ref_farmacia) mapArticle(['first', 'aid'], 'ref_farmacia', 'validade_farmacia', 'qtd_farmacia', 'ambulancia', 'lote_farmacia', 'substituicao_explicita__farmacia');
-  if (!checklist.ref_farmacia) mapArticle(['socorros'], 'ref_farmacia', 'validade_farmacia', 'qtd_farmacia', 'ambulancia', 'lote_farmacia', 'substituicao_explicita__farmacia');
+  mapArticle(['farmacia'], 'ref_farmacia', 'validade_farmacia', 'qtd_farmacia', 'ambulancia', 'substituicao_explicita__farmacia');
+  if (!checklist.ref_farmacia) mapArticle(['ambulancia'], 'ref_farmacia', 'validade_farmacia', 'qtd_farmacia', 'ambulancia', 'substituicao_explicita__farmacia');
+  if (!checklist.ref_farmacia) mapArticle(['first', 'aid'], 'ref_farmacia', 'validade_farmacia', 'qtd_farmacia', 'ambulancia', 'substituicao_explicita__farmacia');
+  if (!checklist.ref_farmacia) mapArticle(['socorros'], 'ref_farmacia', 'validade_farmacia', 'qtd_farmacia', 'ambulancia', 'substituicao_explicita__farmacia');
 
-  mapArticle(['comprimido'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'lote_comprimidos', 'substituicao_explicita__comprimidos_p_enjoo');
-  if (!checklist.ref_comprimidos) mapArticle(['pastilha'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'lote_comprimidos', 'substituicao_explicita__comprimidos_p_enjoo');
-  if (!checklist.ref_comprimidos) mapArticle(['enjoo'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'lote_comprimidos', 'substituicao_explicita__comprimidos_p_enjoo');
-  if (!checklist.ref_comprimidos) mapArticle(['seasick'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'lote_comprimidos', 'substituicao_explicita__comprimidos_p_enjoo');
-  if (!checklist.ref_comprimidos) mapArticle(['tables'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'lote_comprimidos', 'substituicao_explicita__comprimidos_p_enjoo');
+  mapArticle(['comprimido'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'substituicao_explicita__comprimidos_p_enjoo');
+  if (!checklist.ref_comprimidos) mapArticle(['pastilha'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'substituicao_explicita__comprimidos_p_enjoo');
+  if (!checklist.ref_comprimidos) mapArticle(['enjoo'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'substituicao_explicita__comprimidos_p_enjoo');
+  if (!checklist.ref_comprimidos) mapArticle(['seasick'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'substituicao_explicita__comprimidos_p_enjoo');
+  if (!checklist.ref_comprimidos) mapArticle(['tables'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'substituicao_explicita__comprimidos_p_enjoo');
 
-  mapArticle(['paraquedas'], 'ref_paraquedas', 'validade_paraquedas', 'qtd_paraquedas', 'foguetoes_paraquedas', 'lote_paraquedas', 'substituicao_explicita__foguetes_paraquedas');
-  if (!checklist.ref_paraquedas) mapArticle(['parachute'], 'ref_paraquedas', 'validade_paraquedas', 'qtd_paraquedas', 'foguetoes_paraquedas', 'lote_paraquedas', 'substituicao_explicita__foguetes_paraquedas');
-  if (!checklist.ref_paraquedas) mapArticle(['rocket'], 'ref_paraquedas', 'validade_paraquedas', 'qtd_paraquedas', 'foguetoes_paraquedas', 'lote_paraquedas', 'substituicao_explicita__foguetes_paraquedas');
+  mapArticle(['paraquedas'], 'ref_paraquedas', 'validade_paraquedas', 'qtd_paraquedas', 'foguetoes_paraquedas', 'substituicao_explicita__foguetes_paraquedas');
+  if (!checklist.ref_paraquedas) mapArticle(['parachute'], 'ref_paraquedas', 'validade_paraquedas', 'qtd_paraquedas', 'foguetoes_paraquedas', 'substituicao_explicita__foguetes_paraquedas');
+  if (!checklist.ref_paraquedas) mapArticle(['rocket'], 'ref_paraquedas', 'validade_paraquedas', 'qtd_paraquedas', 'foguetoes_paraquedas', 'substituicao_explicita__foguetes_paraquedas');
 
-  mapArticle(['facho'], 'ref_fachos', 'validade_fachos_mao', 'qtd_fachos', 'fachos_mao', 'lote_fachos', 'substituicao_explicita__fachos_de_mao');
-  if (!checklist.ref_fachos) mapArticle(['handflare'], 'ref_fachos', 'validade_fachos_mao', 'qtd_fachos', 'fachos_mao', 'lote_fachos', 'substituicao_explicita__fachos_de_mao');
-  if (!checklist.ref_fachos) mapArticle(['handflares'], 'ref_fachos', 'validade_fachos_mao', 'qtd_fachos', 'fachos_mao', 'lote_fachos', 'substituicao_explicita__fachos_de_mao');
+  mapArticle(['facho'], 'ref_fachos', 'validade_fachos_mao', 'qtd_fachos', 'fachos_mao', 'substituicao_explicita__fachos_de_mao');
+  if (!checklist.ref_fachos) mapArticle(['handflare'], 'ref_fachos', 'validade_fachos_mao', 'qtd_fachos', 'fachos_mao', 'substituicao_explicita__fachos_de_mao');
+  if (!checklist.ref_fachos) mapArticle(['handflares'], 'ref_fachos', 'validade_fachos_mao', 'qtd_fachos', 'fachos_mao', 'substituicao_explicita__fachos_de_mao');
 
-  mapArticle(['fumo'], 'ref_potes', 'validade_potes_fumo', 'qtd_potes', 'potes_fumo', 'lote_potes', 'substituicao_explicita__potes_de_fumo');
-  if (!checklist.ref_potes) mapArticle(['smoke'], 'ref_potes', 'validade_potes_fumo', 'qtd_potes', 'potes_fumo', 'lote_potes', 'substituicao_explicita__potes_de_fumo');
-  if (!checklist.ref_potes) mapArticle(['fumigeno'], 'ref_potes', 'validade_potes_fumo', 'qtd_potes', 'potes_fumo', 'lote_potes', 'substituicao_explicita__potes_de_fumo');
-  if (!checklist.ref_potes) mapArticle(['fumígeno'], 'ref_potes', 'validade_potes_fumo', 'qtd_potes', 'potes_fumo', 'lote_potes', 'substituicao_explicita__potes_de_fumo');
+  mapArticle(['fumo'], 'ref_potes', 'validade_potes_fumo', 'qtd_potes', 'potes_fumo', 'substituicao_explicita__potes_de_fumo');
+  if (!checklist.ref_potes) mapArticle(['smoke'], 'ref_potes', 'validade_potes_fumo', 'qtd_potes', 'potes_fumo', 'substituicao_explicita__potes_de_fumo');
+  if (!checklist.ref_potes) mapArticle(['fumigeno'], 'ref_potes', 'validade_potes_fumo', 'qtd_potes', 'potes_fumo', 'substituicao_explicita__potes_de_fumo');
+  if (!checklist.ref_potes) mapArticle(['fumígeno'], 'ref_potes', 'validade_potes_fumo', 'qtd_potes', 'potes_fumo', 'substituicao_explicita__potes_de_fumo');
 
-  mapArticle(['lanterna'], 'ref_lanterna', 'validade_lanterna', 'qtd_lanterna', 'lanterna', 'lote_lanterna');
-  if (!checklist.ref_lanterna) mapArticle(['torch'], 'ref_lanterna', 'validade_lanterna', 'qtd_lanterna', 'lanterna', 'lote_lanterna');
+  mapArticle(['lanterna'], 'ref_lanterna', 'validade_lanterna', 'qtd_lanterna', 'lanterna');
+  if (!checklist.ref_lanterna) mapArticle(['torch'], 'ref_lanterna', 'validade_lanterna', 'qtd_lanterna', 'lanterna');
 
-  mapArticle(['pilha'], 'ref_bateria', 'validade_pilhas_lanterna', 'qtd_pilhas_lanterna', 'pilhas_lanterna', 'lote_bateria', 'substituicao_explicita__pilhas_para_lanterna');
-  if (!checklist.ref_bateria) mapArticle(['torch', 'batter'], 'ref_bateria', 'validade_pilhas_lanterna', 'qtd_pilhas_lanterna', 'pilhas_lanterna', 'lote_bateria', 'substituicao_explicita__pilhas_para_lanterna');
+  // Pilhas (lanterna) e bateria de lítio são artigos independentes: só as pilhas
+  // preenchem a linha "Pilhas para Lanterna" e só a bateria de lítio a sua linha própria.
+  mapArticle(['pilha'], 'ref_bateria', 'validade_pilhas_lanterna', 'qtd_pilhas_lanterna', 'pilhas_lanterna', 'substituicao_explicita__pilhas_para_lanterna');
+  if (!checklist.ref_bateria) mapArticle(['torch', 'batter'], 'ref_bateria', 'validade_pilhas_lanterna', 'qtd_pilhas_lanterna', 'pilhas_lanterna', 'substituicao_explicita__pilhas_para_lanterna');
 
-  // Sincronizar bateria de lítio com pilhas se não houver artigo separado
-  if (!checklist.ref_bateria_litio) {
-    const bateriaLitio = findArticle(['bateria', 'litio']);
-    if (!bateriaLitio) {
-      const pilha = findArticle(['pilha']);
-      if (pilha) {
-        if (pilha.referencia) checklist.ref_bateria_litio = pilha.referencia;
-        if (pilha.validade) {
-          const valStr = String(pilha.validade);
-          checklist.validade_bateria = valStr.includes('T') ? valStr.slice(0, 7) : valStr;
-        }
-        if (pilha.quantidade !== undefined) checklist.qtd_bateria_litio = pilha.quantidade;
-        if (pilha.codigoFabricante) {
-          const lote = String(pilha.codigoFabricante).trim();
-          checklist.lote_bateria_litio = lote.toUpperCase().startsWith('LOTE') ? lote : `LOTE ${lote}`;
-        }
-        checklist.bateria_litio = 'YES';
-      }
-    }
-  }
-
-  mapArticle(['bateria', 'litio'], 'ref_bateria_litio', 'validade_bateria', 'qtd_bateria_litio', 'bateria_litio', 'lote_bateria_litio');
-  if (!checklist.ref_bateria_litio) mapArticle(['bateria', 'lítio'], 'ref_bateria_litio', 'validade_bateria', 'qtd_bateria_litio', 'bateria_litio', 'lote_bateria_litio');
-  if (!checklist.ref_bateria_litio) mapArticle(['bateria', 'lithium'], 'ref_bateria_litio', 'validade_bateria', 'qtd_bateria_litio', 'bateria_litio', 'lote_bateria_litio');
-
-  // Sincronizar inversamente: se houver bateria litio mas não pilhas
-  if (!checklist.ref_bateria) {
-    const bateriaLitio = findArticle(['bateria', 'litio']);
-    if (bateriaLitio) {
-      if (bateriaLitio.referencia) checklist.ref_bateria = bateriaLitio.referencia;
-      if (bateriaLitio.validade) {
-        const valStr = String(bateriaLitio.validade);
-        checklist.validade_pilhas_lanterna = valStr.includes('T') ? valStr.slice(0, 7) : valStr;
-      }
-      if (bateriaLitio.quantidade !== undefined) checklist.qtd_pilhas_lanterna = bateriaLitio.quantidade;
-      if (bateriaLitio.codigoFabricante) {
-        const lote = String(bateriaLitio.codigoFabricante).trim();
-        checklist.lote_bateria = lote.toUpperCase().startsWith('LOTE') ? lote : `LOTE ${lote}`;
-      }
-      checklist.pilhas_lanterna = 'YES';
-    }
-  }
+  mapArticle(['bateria', 'litio'], 'ref_bateria_litio', 'validade_bateria', 'qtd_bateria_litio', 'bateria_litio');
+  if (!checklist.ref_bateria_litio) mapArticle(['bateria', 'lítio'], 'ref_bateria_litio', 'validade_bateria', 'qtd_bateria_litio', 'bateria_litio');
+  if (!checklist.ref_bateria_litio) mapArticle(['bateria', 'lithium'], 'ref_bateria_litio', 'validade_bateria', 'qtd_bateria_litio', 'bateria_litio');
 
   mapArticle(['cinta', 'fecho'], 'ref_cinta_fecho', undefined, 'qtd_cinta_fecho', 'cinta_fecho');
   if (!checklist.ref_cinta_fecho) mapArticle(['bursting', 'band'], 'ref_cinta_fecho', undefined, 'qtd_cinta_fecho', 'cinta_fecho');
@@ -310,6 +270,9 @@ export function buildQuadroChecklistPayload(source: QuadroChecklistSource): Reco
     const expDate = new Date(vYear, (vMonth || 1) - 1, 1);
     const diffDays = Math.ceil((expDate.getTime() - refDate.getTime()) / (1000 * 60 * 60 * 24));
     checklist.hru_days = diffDays;
+  }
+  if (source.hruSerial) {
+    checklist.hru_serial = String(source.hruSerial);
   }
 
   // Cilindro teste hidrostático com dias restantes

@@ -1,0 +1,15 @@
+[
+  {
+    "name": "CERT_5017230300170_20250919.xlsx",
+    "originalName": "AZ25-192 RINQUINHO.xlsx",
+    "type": "certificado",
+    "serial": "5017230300170",
+    "date": "2025-09-19",
+    "size": 79560,
+    "hash": "7c1d7b07f58ec741",
+    "blobPath": null,
+    "modified": "2026-09-21T15:18:42.339Z",
+    "createdAt": "2026-09-21T15:18:42.339Z",
+    "updatedAt": "2026-09-21T15:18:42.339Z"
+  }
+]

@@ -4,8 +4,14 @@ import path from "path";
 import { put, del } from "@vercel/blob";
 
 const CERTIFICADOS_BASE = path.join(process.cwd(), "public", "certificados-organizados");
-const NAVIOS_BASE = path.join(process.cwd(), "public", "navios", "NAVIOS");
+const NAVIOS_BASE = path.join(process.cwd(), "public", "navios");
 const UPLOADS_TMP = path.join(process.cwd(), "public", "uploads", "tmp");
+
+/**
+ * OREYACORESDELUXE: os certificados vao todos para uma pasta unica e estavel.
+ * Ex.: public/certificados açores 2026 versao1
+ */
+const CERTIFICADOS_DELUXE_DIR = "certificados açores 2026 versao1";
 
 const BLOB_ENABLED = Boolean(process.env.BLOB_READ_WRITE_TOKEN);
 const SYNC_TO_BLOB = process.env.CERTIFICADOS_SYNC_BLOB === "true" && BLOB_ENABLED;
@@ -23,6 +29,20 @@ function sanitizeFileName(name: string): string {
     .replace(/[<>:"/\\|?*]/g, "_")
     .replace(/\s+/g, "_")
     .trim();
+}
+
+/**
+ * Preserva o nome gerado pelo template (ex.: "AZ26-001 (NAVIO).xlsx" ou
+ * "SURVITEC - 8MR - 14587 - SR-2231 - 2026.xlsx"), removendo apenas os
+ * caracteres proibidos no Windows. Espacos, parenteses e acentos sao mantidos.
+ */
+function sanitizeDisplayFileName(name: string): string {
+  return name
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/[. ]+$/g, "")
+    .trim()
+    .slice(0, 180);
 }
 
 function computeHash(buffer: Buffer): string {
@@ -49,9 +69,9 @@ function getNaviosBaseDir(): string {
   return NAVIOS_BASE;
 }
 
-function getCertificadosYearDir(year: number): string {
+function getCertificadosYearDir(_year: number): string {
   const base = getCertificadosBaseDir();
-  return path.join(base, `CERTIFICADOS AÇORES ${year}`);
+  return path.join(base, CERTIFICADOS_DELUXE_DIR);
 }
 
 function getNavioDir(shipName: string): string {
@@ -141,10 +161,8 @@ export async function saveCertificadoToYearFolder(
   ensureDir(dir);
 
   const hash = computeHash(buffer);
-  const ext = path.extname(fileName).slice(1) || "xlsx";
-  const standardName = meta?.serial && meta?.date
-    ? generateStandardName(meta.type || "CERT", meta.serial, meta.date, ext)
-    : sanitizeFileName(fileName);
+  // Usa o nome vindo do template: "AZ26-001 (NAVIO).xlsx"
+  const standardName = sanitizeDisplayFileName(fileName);
 
   // Deduplicação: se já existe ficheiro com mesmo hash, não gravar duplicado
   const index = readIndex(dir);
@@ -190,10 +208,8 @@ export async function saveQuadroToNavioFolder(
   ensureDir(dir);
 
   const hash = computeHash(buffer);
-  const ext = path.extname(fileName).slice(1) || "xlsx";
-  const standardName = meta?.serial && meta?.date
-    ? generateStandardName("QUADRO", meta.serial, meta.date, ext)
-    : sanitizeFileName(fileName);
+  // Quadro: "MARCA - MODELO - LOTAÇÃO - Nº SÉRIE - ANO.xlsx"
+  const standardName = sanitizeDisplayFileName(fileName);
 
   const index = readIndex(dir);
   const existing = index.find(e => e.hash === hash);

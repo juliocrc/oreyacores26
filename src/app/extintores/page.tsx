@@ -252,7 +252,7 @@ export default function ExtintoresPage() {
     ${obsHtml}
     <div class="foot">Documento gerado pelo Sistema de Gestão Orey · ${new Date().toLocaleDateString("pt-PT")}</div>
   </div>
-  <script>window.onload = function () { window.print(); };</script>
+   ${['<scr', 'ipt>window.onload = function () { window.print(); };</scr', 'ipt>'].join('')}
 </body>
 </html>`);
     win.document.close();

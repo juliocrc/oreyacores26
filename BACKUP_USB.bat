@@ -1,6 +1,6 @@
 @echo off
 title Backup Externo USB
-cd /d "D:\Acores"
+cd /d "%~dp0"
 
 set DATA=%DATE:~-4,4%%DATE:~-10,2%%DATE:~-7,2%
 

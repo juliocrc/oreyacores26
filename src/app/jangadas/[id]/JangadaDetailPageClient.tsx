@@ -38,19 +38,21 @@ import {
   Smartphone,
   ShieldCheck,
   Clock,
-  Copy
+  Copy,
+  Mail
 } from 'lucide-react';
 import { appToast } from "@/lib/app-toast";
 import { useWhatsAppAllowed, WHATSAPP_ALLOWED_USER_EMAIL } from "@/lib/use-whatsapp-allowed";
 import JangadaWizardLoader from '@/modules/JangadaWizard/JangadaWizardLoader';
 import WizardRouter from '@/modules/JangadaWizard/WizardRouter';
-import { SubstituirArtigoDialog } from '@/components/jangadas/SubstituirArtigoDialog';
 import { EditarArtigoDialog } from '@/components/jangadas/EditarArtigoDialog';
 import { EditarArtigoSubstituidoDialog } from '@/components/jangadas/EditarArtigoSubstituidoDialog';
 import { InspecaoDetalhesDialog } from '@/components/jangadas/InspecaoDetalhesDialog';
 import { findMatchingArticleForPackItem, dedupeRaftArticles, isArticleNonExpiring, type MandatoryPackItem } from '@/modules/rafts/mandatoryPack';
 import { getTestRecommendations } from '@/modules/rafts/testRules';
 import { buildWpDerivedValues, convertMbarToUnit } from '@/lib/quadro-payload';
+import { fetchOreyWeatherAt } from '@/lib/orey-weather';
+import { saveShipDocument, saveCertificateDocument, yearFromDate, toastSavedPathIfPresent } from '@/lib/ship-downloads';
 import { raftModelData } from '@/modules/rafts/raftModelData';
 import QrLabelGeneratorDialog from '@/components/jangadas/QrLabelGeneratorDialog';
 import { toMonthInput, formatMonthPt, parseMonthEnd } from '@/lib/date-utils';
@@ -64,6 +66,8 @@ import { fmtPeso } from '@/lib/liferaft-diagram-helpers';
 import { getContainerClosureMatchBundle } from '@/modules/rafts/containerClosureStraps';
 import DgrmIdentificationForm, { type JangadaData as DgrmJangadaData } from '@/components/shared/DgrmIdentificationForm';
 import CertificadoExternoDialog from '@/components/jangadas/CertificadoExternoDialog';
+import EnviarCertificadoDialog from '@/components/jangadas/EnviarCertificadoDialog';
+import type { InspectionCertificateInput } from '@/lib/inspection-certificate';
 import DuplicarFichaDialog from '@/components/jangadas/DuplicarFichaDialog';
 import SyncResultDialog from '@/components/jangadas/SyncResultDialog';
 import ScheduleInspectionDialog from '@/components/jangadas/ScheduleInspectionDialog';
@@ -260,7 +264,7 @@ interface Ship {
   bandeira?: string;
   imo?: string;
   callSignal?: string;
-  cliente?: { id?: number; nome?: string; telmovel?: string | null; telefone?: string | null };
+  cliente?: { id?: number; nome?: string; telmovel?: string | null; telefone?: string | null; email?: string | null };
 }
 
 interface Movimento {
@@ -289,6 +293,23 @@ interface Inspecao {
   integrityTimestamp?: string | null;
   integrityVersion?: number | null;
   integrityValid?: boolean | null;
+  testeWP?: string;
+  testeWPUnidadePressao?: string;
+  testeWPInstrumento?: string;
+  testeWPHoraInicio?: string;
+  testeWPHoraFim?: string;
+  testeWPTemperaturaInicial?: string;
+  testeWPTemperaturaFinal?: string;
+  testeWPPressaoAtmosfericaInicial?: string;
+  testeWPPressaoAtmosfericaFinal?: string;
+  testeWPCamaraSuperiorInicio?: string;
+  testeWPCamaraSuperiorFim?: string;
+  testeWPCamaraSuperiorQueda?: string;
+  testeWPCamaraInferiorInicio?: string;
+  testeWPCamaraInferiorFim?: string;
+  testeWPCamaraInferiorQueda?: string;
+  checklistSnapshot?: Record<string, unknown> | null;
+  _hruAplicavel?: string | null;
 }
 
 interface Recall {
@@ -412,6 +433,296 @@ export interface JangadaFormData {
   [key: string]: unknown;
 }
 
+function fmtMonthYear(v: unknown): string {
+  if (v == null || v === '') return '—';
+  const s = String(v).trim();
+  const m = s.match(/^(\d{4})-(\d{1,2})/);
+  if (m) {
+    const mo = String(Number(m[2])).padStart(2, '0');
+    return `${mo}/${m[1]}`;
+  }
+  return s || '—';
+}
+
+function espelhoValidadeBadge(v: unknown): { cls: string; label: string } {
+  if (v == null || v === '' || v === '—' || v === '-') {
+    return { cls: 'bg-slate-100 text-slate-500 border-slate-300', label: 'Sem data' };
+  }
+  const s = String(v).trim();
+  const m = s.match(/^(\d{4})-(\d{1,2})/);
+  if (!m) return { cls: 'bg-slate-100 text-slate-600 border-slate-300', label: s };
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  if (!year || !month || month < 1 || month > 12) {
+    return { cls: 'bg-slate-100 text-slate-600 border-slate-300', label: s };
+  }
+  const end = new Date(year, month - 1, 1);
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const days = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  if (days < 0) return { cls: 'bg-red-100 text-red-700 border-red-300', label: 'Expirado' };
+  if (days <= 30) return { cls: 'bg-amber-100 text-amber-800 border-amber-300', label: `Crítico (${days}d)` };
+  return { cls: 'bg-emerald-100 text-emerald-800 border-emerald-300', label: 'OK' };
+}
+
+function prettifyKey(key: string): string {
+  return key
+    .replace(/^ref_/, 'Referência ')
+    .replace(/^validade_/, 'Validade ')
+    .replace(/^qtd_/, 'Qtd ')
+    .replace(/_/g, ' ')
+    .trim();
+}
+
+type EspelhoItem = {
+  label: string;
+  refKey?: string;
+  qtyKey?: string;
+  valKey?: string;
+  flagKey?: string;
+};
+
+const ESPELHO_GRUPOS: { titulo: string; cor: string; items: EspelhoItem[] }[] = [
+  {
+    titulo: 'Consumíveis / First Aid',
+    cor: 'text-emerald-700',
+    items: [
+      { label: 'Farmácia / First Aid Kit', refKey: 'ref_farmacia', qtyKey: 'qtd_farmacia', valKey: 'validade_farmacia' },
+      { label: 'Comprimidos Enjoo', refKey: 'ref_comprimidos', qtyKey: 'qtd_comprimidos', valKey: 'validade_comprimidos' },
+      { label: 'Foguetes Paraquedas', refKey: 'ref_paraquedas', qtyKey: 'qtd_paraquedas', valKey: 'validade_paraquedas' },
+      { label: 'Fachos de Mão', refKey: 'ref_fachos', qtyKey: 'qtd_fachos', valKey: 'validade_fachos_mao' },
+      { label: 'Potes de Fumo', refKey: 'ref_potes', qtyKey: 'qtd_potes', valKey: 'validade_potes_fumo' },
+    ],
+  },
+  {
+    titulo: 'Iluminação',
+    cor: 'text-amber-700',
+    items: [
+      { label: 'Lanterna', refKey: 'ref_lanterna', qtyKey: 'qtd_lanterna', valKey: 'validade_lanterna' },
+      { label: 'Pilhas da Lanterna', refKey: 'ref_bateria', qtyKey: 'qtd_pilhas_lanterna', valKey: 'validade_pilhas_lanterna', flagKey: 'pilhas_lanterna' },
+      { label: 'Bateria Lítio', refKey: 'ref_bateria_litio', qtyKey: 'qtd_bateria_litio', valKey: 'validade_bateria', flagKey: 'bateria_litio' },
+      { label: 'Luz Exterior', refKey: 'ref_luz_exterior', qtyKey: 'qtd_luz_exterior', valKey: 'validade_luzes_exteriores' },
+    ],
+  },
+  {
+    titulo: 'Sobrevivência',
+    cor: 'text-sky-700',
+    items: [
+      { label: 'Saco de Água', refKey: 'ref_agua', qtyKey: 'qtd_agua', valKey: 'validade_agua', flagKey: 'saco_agua' },
+      { label: 'Rações Alimentares', refKey: 'ref_racoes', qtyKey: 'qtd_racoes', valKey: 'validade_racoes', flagKey: 'racoes_alimentares' },
+      { label: 'Cinta de Fecho', refKey: 'ref_cinta_fecho', qtyKey: 'qtd_cinta_fecho' },
+      { label: 'Jogo de Reparação', refKey: 'ref_jogo_reparacao', qtyKey: 'qtd_jogo_reparacao', flagKey: 'jogo_reparacao' },
+    ],
+  },
+  {
+    titulo: 'Equipamento',
+    cor: 'text-indigo-700',
+    items: [
+      { label: 'HRU (Disparo Hidrostático)', refKey: 'hruReferencia', valKey: 'hru_val' },
+      { label: 'Cilindro (Teste Hidráulico)', refKey: 'cylinderSerial', valKey: 'cyl_test_val' },
+    ],
+  },
+];
+
+const ESPELHO_TESTES: { key: string; label: string }[] = [
+  { key: 'teste_wp', label: 'Teste de Pressão (WP)' },
+  { key: 'teste_nap', label: 'Teste NAP' },
+  { key: 'teste_fs', label: 'Teste Freestyle (FS)' },
+  { key: 'teste_gi', label: 'Grande Inflação (GI)' },
+  { key: 'teste_dl', label: 'Teste de Descida (DL)' },
+];
+
+function EspelhoChecklist({ data, artigos }: { data: JangadaFormData; artigos: Artigo[] }) {
+  const checklist = data.inspectionChecklistValues || {};
+  const checklistKeys = Object.keys(checklist).filter((k) => !k.startsWith('_'));
+
+  const consumedKeys = new Set<string>([
+    'hruReferencia',
+    'cylinderSerial',
+  ]);
+  ESPELHO_GRUPOS.forEach((g) =>
+    g.items.forEach((it) => {
+      if (it.refKey) consumedKeys.add(it.refKey);
+      if (it.qtyKey) consumedKeys.add(it.qtyKey);
+      if (it.valKey) consumedKeys.add(it.valKey);
+      if (it.flagKey) consumedKeys.add(it.flagKey);
+    }),
+  );
+  ESPELHO_TESTES.forEach((t) => consumedKeys.add(t.key));
+
+  const unknownEntries = Object.entries(checklist)
+    .filter(([k, v]) => {
+      if (!k || k.startsWith('_')) return false;
+      if (consumedKeys.has(k)) return false;
+      if (k.startsWith('substituicao_')) return false;
+      if (k.startsWith('lote_')) return false;
+      if (v == null || v === '') return false;
+      if (typeof v === 'object') return false;
+      return true;
+    })
+    .sort(([a], [b]) => a.localeCompare(b));
+
+  const itemTemDados = (it: EspelhoItem): boolean =>
+    [it.refKey && checklist[it.refKey], it.qtyKey && checklist[it.qtyKey], it.valKey && checklist[it.valKey], it.flagKey && checklist[it.flagKey]].some(
+      (v) => v != null && v !== '',
+    );
+
+  const flagPresente = (flag?: string): boolean => {
+    if (!flag) return false;
+    const v = checklist[flag];
+    if (v == null) return false;
+    const s = String(v).trim().toLowerCase();
+    if (s === '') return false;
+    return !['nao', 'n', 'no', '0', 'false', 'ausente', 'em_falta'].includes(s);
+  };
+
+  const testesPresentes = ESPELHO_TESTES.map((t) => ({ ...t, value: checklist[t.key] })).filter((t) => t.value != null && String(t.value).trim() !== '');
+
+  return (
+    <div className="space-y-5">
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-widest text-indigo-600">Espelho da Checklist</p>
+            <h3 className="mt-1 text-lg font-bold text-slate-900">Checklist da última inspeção</h3>
+            <p className="mt-1 text-xs text-slate-500">
+              Campos reflectidos automaticamente a partir dos valores registados na última inspeção.
+            </p>
+          </div>
+          <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+            Última inspeção: {data.dataInspecao ? formatDate(data.dataInspecao) : '—'}
+          </span>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Próxima inspeção</p>
+            <p className="mt-1 text-sm font-semibold text-slate-800">{data.dataProxInspecao ? formatDate(data.dataProxInspecao) : '—'}</p>
+          </div>
+          <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Certificado</p>
+            <p className="mt-1 text-sm font-semibold text-slate-800">{data.ultimoCertificadoNumero || data.certificadoExternoNumero || '—'}</p>
+          </div>
+          <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Artigos no pack</p>
+            <p className="mt-1 text-sm font-semibold text-slate-800">{artigos.length}</p>
+          </div>
+          <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Campos espelhados</p>
+            <p className="mt-1 text-sm font-semibold text-slate-800">{checklistKeys.length}</p>
+          </div>
+        </div>
+      </div>
+
+      {testesPresentes.length > 0 && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h4 className="text-sm font-bold uppercase tracking-widest text-indigo-600">Testes</h4>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {testesPresentes.map((t) => {
+              const valor = String(t.value);
+              return (
+                <span
+                  key={t.key}
+                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                    /aprovado|satisfat|pass|ok/i.test(valor)
+                      ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                      : /reprovado|falha|fail|na|n\.?a\.?/i.test(valor)
+                      ? 'border-red-300 bg-red-50 text-red-700'
+                      : 'border-slate-300 bg-slate-50 text-slate-700'
+                  }`}
+                >
+                  {valor}
+                  <span className="font-bold text-slate-500">{t.label}</span>
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {ESPELHO_GRUPOS.map((g) => {
+        const itens = g.items.filter(itemTemDados);
+        if (itens.length === 0) return null;
+        return (
+          <div key={g.titulo} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h4 className={`text-sm font-bold uppercase tracking-widest ${g.cor}`}>{g.titulo}</h4>
+            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+              {itens.map((it) => {
+                const ref = it.refKey ? checklist[it.refKey] : undefined;
+                const qty = it.qtyKey ? checklist[it.qtyKey] : undefined;
+                const val = it.valKey ? checklist[it.valKey] : undefined;
+                const badge = espelhoValidadeBadge(val);
+                const itemFlagPresente = flagPresente(it.flagKey);
+                const hasFlag = it.flagKey && checklist[it.flagKey] != null && String(checklist[it.flagKey]).trim() !== '';
+                return (
+                  <div key={it.label} className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-bold text-slate-700">{it.label}</p>
+                      {hasFlag && (
+                        <span
+                          className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${
+                            itemFlagPresente
+                              ? 'border-emerald-300 bg-emerald-100 text-emerald-800'
+                              : 'border-red-300 bg-red-100 text-red-700'
+                          }`}
+                        >
+                          {itemFlagPresente ? 'A bordo' : 'Em falta'}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-2 space-y-1 text-xs">
+                      <p className="text-slate-600">
+                        <b>Referência:</b> {ref != null && String(ref).trim() !== '' ? String(ref) : '—'}
+                      </p>
+                      {qty != null && String(qty).trim() !== '' && (
+                        <p className="text-slate-600">
+                          <b>Qtd:</b> {String(qty)}
+                        </p>
+                      )}
+                      {val != null && String(val).trim() !== '' && (
+                        <p className="flex items-center justify-between gap-2">
+                          <span className="text-slate-600">
+                            <b>Validade:</b> <span className="font-medium text-slate-700">{fmtMonthYear(val)}</span>
+                          </span>
+                          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${badge.cls}`}>{badge.label}</span>
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+
+      {unknownEntries.length > 0 && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h4 className="text-sm font-bold uppercase tracking-widest text-slate-500">Outros campos</h4>
+          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+            {unknownEntries.map(([k, v]) => (
+              <div key={k} className="rounded-lg border border-slate-100 bg-slate-50/60 p-3">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{prettifyKey(k)}</p>
+                <p className="mt-1 truncate text-sm font-semibold text-slate-700" title={String(v)}>
+                  {String(v)}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {checklistKeys.length === 0 && (
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+          <p className="text-sm text-slate-500">
+            Nenhum valor de checklist registado ainda. Complete uma inspeção no wizard para espelhar aqui todos os campos da
+            checklist.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 type Props = {
   jangadaId: number;
   initialData: JangadaFormData | null;
@@ -425,7 +736,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
   const [isVistoriaAtual, setIsVistoriaAtual] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [inspecaoFormDirty, setInspecaoFormDirty] = useState(false);
-  const [activeTab, setActiveTab] = useState<'dados' | 'artigos' | 'pack' | 'contentor' | 'historico' | 'testeWP' | 'boletins' | 'dgrm'>('dados');
+  const [activeTab, setActiveTab] = useState<'dados' | 'artigos' | 'pack' | 'contentor' | 'historico' | 'testeWP' | 'boletins' | 'checklist' | 'dgrm'>('dados');
   const [data, setData] = useState<JangadaFormData>(initialData || {});
   const [editForm, setEditForm] = useState<JangadaFormData>(initialData ? { ...initialData } : {});
   const [saving, setSaving] = useState(false);
@@ -447,6 +758,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
   const [compareSelection, setCompareSelection] = useState<number[]>([]);
   const [isCompareOpen, setIsCompareOpen] = useState(false);
   const [isCertificadoExternoOpen, setIsCertificadoExternoOpen] = useState(false);
+  const [isEnviarCertificadoOpen, setIsEnviarCertificadoOpen] = useState(false);
   const [isDuplicarOpen, setIsDuplicarOpen] = useState(false);
   const [duplicarSaving, setDuplicarSaving] = useState(false);
   const [isHistoricaOpen, setIsHistoricaOpen] = useState(false);
@@ -578,7 +890,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
             <div class="model">${brandModel} (${data.capacity || ''}P)</div>
           </div>
           `}
-          ${isMulti ? '<script>window.print(); window.close();<' + '/script>' : ''}
+           ${isMulti ? ['<scr', 'ipt>window.print(); window.close();</scr', 'ipt>'].join('') : ''}
         </body>
       </html>
     `);
@@ -645,6 +957,8 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
     if (drafts.length === 0) return;
     
     let successCount = 0;
+    const bloqueados: Array<{ payload: any; jangadaId: any; motivo: string }> = [];
+    const retentar: any[] = [];
     setSaving(true);
     for (const draft of drafts) {
       try {
@@ -676,18 +990,50 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
           body: JSON.stringify(cleanPayload)
         });
         
-        if (res.ok) successCount++;
+        if (res.ok) {
+          successCount++;
+        } else if (res.status === 409) {
+          // Inspeção já finalizada: repetir não resolve e o rascunho ficaria
+          // preso na fila para sempre. Retira-se e avisa-se o utilizador.
+          const erro = await res.json().catch(() => ({}));
+          console.warn("Rascunho bloqueado por inspeção finalizada:", erro?.error);
+          bloqueados.push({ ...draft, motivo: String(erro?.error || 'inspeção finalizada') });
+        } else {
+          // Falha transitória: vale a pena tentar mais tarde.
+          retentar.push(draft);
+        }
       } catch (err) {
         console.error("Erro ao sincronizar rascunho offline:", err);
+        retentar.push(draft);
       }
     }
     setSaving(false);
-    
-    if (successCount === drafts.length) {
+
+    // Só sobrevivem à fila os rascunhos que falharam por uma razão que pode
+    // resolver-se sozinha. Os bloqueados saem de fininho: insistir neles
+    // nunca ia resultar, e ficariam a tentar para sempre.
+    if (retentar.length > 0) {
+      localStorage.setItem('offline_inspections', JSON.stringify(retentar));
+    } else {
       localStorage.removeItem('offline_inspections');
-      alert(`Sincronização concluída com sucesso! ${successCount} inspeção(ões) enviada(s) para o servidor.`);
-      setOfflineDraftsCount(0);
-      
+    }
+    setOfflineDraftsCount(retentar.length);
+
+    if (bloqueados.length > 0) {
+      alert(
+        `${bloqueados.length} rascunho(s) não foram enviados porque a inspeção já está finalizada:\n\n` +
+        bloqueados.map((b) => `• ${b.motivo}`).join('\n') +
+        '\n\nSe precisares de alterar, reabre a inspeção com justificação.'
+      );
+    }
+
+    if (retentar.length === 0) {
+      if (bloqueados.length > 0) {
+        alert(`Sincronização concluída: ${successCount} inspeção(ões) enviada(s).`);
+      } else {
+        alert(`Sincronização concluída com sucesso! ${successCount} inspeção(ões) enviada(s) para o servidor.`);
+      }
+
       const raftRes = await fetch(`/api/jangadas/${jangadaId}`);
       if (raftRes.ok) {
         const raftData = await raftRes.json();
@@ -695,10 +1041,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
         setEditForm(raftData);
       }
     } else {
-      alert(`Sincronização concluída parcialmente: ${successCount} de ${drafts.length} rascunhos sincronizados.`);
-      const remaining = drafts.slice(successCount);
-      localStorage.setItem('offline_inspections', JSON.stringify(remaining));
-      setOfflineDraftsCount(remaining.length);
+      alert(`Sincronização concluída parcialmente: ${successCount} de ${drafts.length} rascunhos sincronizados. ${retentar.length} por repetir.`);
     }
   };
   
@@ -1007,32 +1350,60 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
     });
   };
 
-  const fetchLocalPressure = async (field: 'testeWPPressaoAtmosfericaInicial' | 'testeWPPressaoAtmosfericaFinal') => {
-    if (typeof window === 'undefined' || !navigator.geolocation) {
-      appToast.error("Geolocalização não é suportada pelo seu navegador.");
-      return;
+  const handleFetchOreyWeather = async () => {
+    const rawDate = String((isEditing ? editForm.testeWP : data.testeWP) || '').trim();
+    const timeRaw = String((isEditing ? editForm.testeWPHoraInicio : data.testeWPHoraInicio) || '').trim();
+    const now = new Date();
+
+    let startAt: Date;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
+      startAt = new Date(`${rawDate}T00:00:00`);
+    } else if (/^\d{4}-\d{2}$/.test(rawDate)) {
+      const [year, month] = rawDate.split('-').map(Number);
+      const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1;
+      startAt = isCurrentMonth ? new Date(now) : new Date(year, month - 1, 15);
+    } else {
+      startAt = new Date(now);
+    }
+    if (Number.isNaN(startAt.getTime())) startAt = new Date(now);
+
+    const timeMatch = timeRaw.match(/^(\d{1,2}):(\d{2})$/);
+    if (timeMatch) {
+      startAt.setHours(Number(timeMatch[1]), Number(timeMatch[2]), 0, 0);
+    } else if (startAt.toDateString() !== now.toDateString()) {
+      startAt.setHours(12, 0, 0, 0);
+    } else {
+      startAt.setHours(now.getHours(), now.getMinutes(), 0, 0);
     }
 
-    appToast.info("A obter localização GPS...");
-    navigator.geolocation.getCurrentPosition(async (position) => {
-      try {
-        const { latitude, longitude } = position.coords;
-        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=pressure_msl`);
-        if (!res.ok) throw new Error("Erro na API meteorológica");
-        const weatherData = await res.json();
-        const pressureHpa = weatherData?.current?.pressure_msl;
-        if (pressureHpa) {
-          handleWpFieldChange(field, String(Math.round(pressureHpa)));
-          appToast.success(`Pressão obtida: ${Math.round(pressureHpa)} hPa`);
-        } else {
-          throw new Error("Dados de pressão inválidos");
-        }
-      } catch (err) {
-        appToast.error("Não foi possível obter a pressão atmosférica atual.");
+    const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
+
+    const formatTemp = (value: number | null) => (value === null ? '' : String(Math.round(value * 10) / 10));
+    const formatPressure = (value: number | null) => (value === null ? '' : String(Math.round(value)));
+
+    try {
+      appToast.info("A obter temperatura e pressão (Orey)...");
+      const [startSnap, endSnap] = await Promise.all([
+        fetchOreyWeatherAt(startAt),
+        fetchOreyWeatherAt(endAt),
+      ]);
+
+      const hasStart = startSnap.temperatureC !== null || startSnap.pressureHpa !== null;
+      const hasEnd = endSnap.temperatureC !== null || endSnap.pressureHpa !== null;
+      if (!hasStart && !hasEnd) {
+        appToast.error("Não foi possível obter dados meteorológicos para essa data/hora.");
+        return;
       }
-    }, () => {
-      appToast.error("Acesso à localização recusado. Introduza a pressão manualmente.");
-    });
+
+      if (startSnap.temperatureC !== null) handleWpFieldChange('testeWPTemperaturaInicial', formatTemp(startSnap.temperatureC));
+      if (startSnap.pressureHpa !== null) handleWpFieldChange('testeWPPressaoAtmosfericaInicial', formatPressure(startSnap.pressureHpa));
+      if (endSnap.temperatureC !== null) handleWpFieldChange('testeWPTemperaturaFinal', formatTemp(endSnap.temperatureC));
+      if (endSnap.pressureHpa !== null) handleWpFieldChange('testeWPPressaoAtmosfericaFinal', formatPressure(endSnap.pressureHpa));
+
+      appToast.success(`Dados de ${startAt.toLocaleDateString('pt-PT')} preenchidos (Orey).`);
+    } catch {
+      appToast.error("Não foi possível obter dados meteorológicos para essa data/hora.");
+    }
   };
 
   const { allowed: whatsappAllowed } = useWhatsAppAllowed();
@@ -1275,7 +1646,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
       });
     };
 
-    const mapArticle = (tokens: string[], refKey?: string, valKey?: string, qtyKey?: string, statusKey?: string, loteKey?: string, explicitReplacementKey?: string) => {
+    const mapArticle = (tokens: string[], refKey?: string, valKey?: string, qtyKey?: string, statusKey?: string, explicitReplacementKey?: string) => {
       const art = findArticle(tokens);
       if (art) {
         if (refKey && art.referencia) checklist[refKey] = art.referencia;
@@ -1289,10 +1660,6 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
         }
         if (qtyKey && art.quantidade !== undefined) checklist[qtyKey] = art.quantidade;
         if (statusKey) checklist[statusKey] = 'YES';
-        if (loteKey && art.codigoFabricante) {
-          const lote = String(art.codigoFabricante).trim();
-          checklist[loteKey] = lote.toUpperCase().startsWith('LOTE') ? lote : `LOTE ${lote}`;
-        }
         if (explicitReplacementKey) {
           const replacedItem = (lastInspecao?.artigos || []).find((r) => (r.referencia && art.referencia && r.referencia === art.referencia) || (r.name && art.name && normalizeText(r.name).includes(normalizeText(art.name))));
           const replacedQty = replacedItem ? Number(replacedItem.quantidade || 0) : 0;
@@ -1307,78 +1674,39 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
       }
     };
 
-    mapArticle(['farmacia'], 'ref_farmacia', 'validade_farmacia', 'qtd_farmacia', 'ambulancia', 'lote_farmacia', 'substituicao_explicita__farmacia');
-    if (!checklist.ref_farmacia) mapArticle(['ambulancia'], 'ref_farmacia', 'validade_farmacia', 'qtd_farmacia', 'ambulancia', 'lote_farmacia', 'substituicao_explicita__farmacia');
-    if (!checklist.ref_farmacia) mapArticle(['first', 'aid'], 'ref_farmacia', 'validade_farmacia', 'qtd_farmacia', 'ambulancia', 'lote_farmacia', 'substituicao_explicita__farmacia');
-    if (!checklist.ref_farmacia) mapArticle(['socorros'], 'ref_farmacia', 'validade_farmacia', 'qtd_farmacia', 'ambulancia', 'lote_farmacia', 'substituicao_explicita__farmacia');
+    mapArticle(['farmacia'], 'ref_farmacia', 'validade_farmacia', 'qtd_farmacia', 'ambulancia', 'substituicao_explicita__farmacia');
+    if (!checklist.ref_farmacia) mapArticle(['ambulancia'], 'ref_farmacia', 'validade_farmacia', 'qtd_farmacia', 'ambulancia', 'substituicao_explicita__farmacia');
+    if (!checklist.ref_farmacia) mapArticle(['first', 'aid'], 'ref_farmacia', 'validade_farmacia', 'qtd_farmacia', 'ambulancia', 'substituicao_explicita__farmacia');
+    if (!checklist.ref_farmacia) mapArticle(['socorros'], 'ref_farmacia', 'validade_farmacia', 'qtd_farmacia', 'ambulancia', 'substituicao_explicita__farmacia');
 
-    mapArticle(['comprimido'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'lote_comprimidos', 'substituicao_explicita__comprimidos_p_enjoo');
-    if (!checklist.ref_comprimidos) mapArticle(['pastilha'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'lote_comprimidos', 'substituicao_explicita__comprimidos_p_enjoo');
-    if (!checklist.ref_comprimidos) mapArticle(['enjoo'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'lote_comprimidos', 'substituicao_explicita__comprimidos_p_enjoo');
-    if (!checklist.ref_comprimidos) mapArticle(['seasick'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'lote_comprimidos', 'substituicao_explicita__comprimidos_p_enjoo');
-    if (!checklist.ref_comprimidos) mapArticle(['tables'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'lote_comprimidos', 'substituicao_explicita__comprimidos_p_enjoo');
+    mapArticle(['comprimido'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'substituicao_explicita__comprimidos_p_enjoo');
+    if (!checklist.ref_comprimidos) mapArticle(['pastilha'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'substituicao_explicita__comprimidos_p_enjoo');
+    if (!checklist.ref_comprimidos) mapArticle(['enjoo'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'substituicao_explicita__comprimidos_p_enjoo');
+    if (!checklist.ref_comprimidos) mapArticle(['seasick'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'substituicao_explicita__comprimidos_p_enjoo');
+    if (!checklist.ref_comprimidos) mapArticle(['tables'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'substituicao_explicita__comprimidos_p_enjoo');
 
-    mapArticle(['paraquedas'], 'ref_paraquedas', 'validade_paraquedas', 'qtd_paraquedas', 'foguetoes_paraquedas', 'lote_paraquedas', 'substituicao_explicita__foguetes_paraquedas');
-    if (!checklist.ref_paraquedas) mapArticle(['parachute'], 'ref_paraquedas', 'validade_paraquedas', 'qtd_paraquedas', 'foguetoes_paraquedas', 'lote_paraquedas', 'substituicao_explicita__foguetes_paraquedas');
-    if (!checklist.ref_paraquedas) mapArticle(['rocket'], 'ref_paraquedas', 'validade_paraquedas', 'qtd_paraquedas', 'foguetoes_paraquedas', 'lote_paraquedas', 'substituicao_explicita__foguetes_paraquedas');
+    mapArticle(['paraquedas'], 'ref_paraquedas', 'validade_paraquedas', 'qtd_paraquedas', 'foguetoes_paraquedas', 'substituicao_explicita__foguetes_paraquedas');
+    if (!checklist.ref_paraquedas) mapArticle(['parachute'], 'ref_paraquedas', 'validade_paraquedas', 'qtd_paraquedas', 'foguetoes_paraquedas', 'substituicao_explicita__foguetes_paraquedas');
+    if (!checklist.ref_paraquedas) mapArticle(['rocket'], 'ref_paraquedas', 'validade_paraquedas', 'qtd_paraquedas', 'foguetoes_paraquedas', 'substituicao_explicita__foguetes_paraquedas');
 
-    mapArticle(['facho'], 'ref_fachos', 'validade_fachos_mao', 'qtd_fachos', 'fachos_mao', 'lote_fachos', 'substituicao_explicita__fachos_de_mao');
-    if (!checklist.ref_fachos) mapArticle(['handflare'], 'ref_fachos', 'validade_fachos_mao', 'qtd_fachos', 'fachos_mao', 'lote_fachos', 'substituicao_explicita__fachos_de_mao');
-    if (!checklist.ref_fachos) mapArticle(['handflares'], 'ref_fachos', 'validade_fachos_mao', 'qtd_fachos', 'fachos_mao', 'lote_fachos', 'substituicao_explicita__fachos_de_mao');
+    mapArticle(['facho'], 'ref_fachos', 'validade_fachos_mao', 'qtd_fachos', 'fachos_mao', 'substituicao_explicita__fachos_de_mao');
+    if (!checklist.ref_fachos) mapArticle(['handflare'], 'ref_fachos', 'validade_fachos_mao', 'qtd_fachos', 'fachos_mao', 'substituicao_explicita__fachos_de_mao');
+    if (!checklist.ref_fachos) mapArticle(['handflares'], 'ref_fachos', 'validade_fachos_mao', 'qtd_fachos', 'fachos_mao', 'substituicao_explicita__fachos_de_mao');
 
-    mapArticle(['fumo'], 'ref_potes', 'validade_potes_fumo', 'qtd_potes', 'potes_fumo', 'lote_potes', 'substituicao_explicita__potes_de_fumo');
-    if (!checklist.ref_potes) mapArticle(['smoke'], 'ref_potes', 'validade_potes_fumo', 'qtd_potes', 'potes_fumo', 'lote_potes', 'substituicao_explicita__potes_de_fumo');
-    if (!checklist.ref_potes) mapArticle(['fumigeno'], 'ref_potes', 'validade_potes_fumo', 'qtd_potes', 'potes_fumo', 'lote_potes', 'substituicao_explicita__potes_de_fumo');
-    if (!checklist.ref_potes) mapArticle(['fumígeno'], 'ref_potes', 'validade_potes_fumo', 'qtd_potes', 'potes_fumo', 'lote_potes', 'substituicao_explicita__potes_de_fumo');
+    mapArticle(['fumo'], 'ref_potes', 'validade_potes_fumo', 'qtd_potes', 'potes_fumo', 'substituicao_explicita__potes_de_fumo');
+    if (!checklist.ref_potes) mapArticle(['smoke'], 'ref_potes', 'validade_potes_fumo', 'qtd_potes', 'potes_fumo', 'substituicao_explicita__potes_de_fumo');
+    if (!checklist.ref_potes) mapArticle(['fumigeno'], 'ref_potes', 'validade_potes_fumo', 'qtd_potes', 'potes_fumo', 'substituicao_explicita__potes_de_fumo');
+    if (!checklist.ref_potes) mapArticle(['fumígeno'], 'ref_potes', 'validade_potes_fumo', 'qtd_potes', 'potes_fumo', 'substituicao_explicita__potes_de_fumo');
 
-    mapArticle(['lanterna'], 'ref_lanterna', 'validade_lanterna', 'qtd_lanterna', 'lanterna', 'lote_lanterna');
-    if (!checklist.ref_lanterna) mapArticle(['torch'], 'ref_lanterna', 'validade_lanterna', 'qtd_lanterna', 'lanterna', 'lote_lanterna');
+    mapArticle(['lanterna'], 'ref_lanterna', 'validade_lanterna', 'qtd_lanterna', 'lanterna');
+    if (!checklist.ref_lanterna) mapArticle(['torch'], 'ref_lanterna', 'validade_lanterna', 'qtd_lanterna', 'lanterna');
 
-    mapArticle(['pilha'], 'ref_bateria', 'validade_pilhas_lanterna', 'qtd_pilhas_lanterna', 'pilhas_lanterna', 'lote_bateria', 'substituicao_explicita__pilhas_para_lanterna');
-    if (!checklist.ref_bateria) mapArticle(['torch', 'batter'], 'ref_bateria', 'validade_pilhas_lanterna', 'qtd_pilhas_lanterna', 'pilhas_lanterna', 'lote_bateria', 'substituicao_explicita__pilhas_para_lanterna');
+    mapArticle(['pilha'], 'ref_bateria', 'validade_pilhas_lanterna', 'qtd_pilhas_lanterna', 'pilhas_lanterna', 'substituicao_explicita__pilhas_para_lanterna');
+    if (!checklist.ref_bateria) mapArticle(['torch', 'batter'], 'ref_bateria', 'validade_pilhas_lanterna', 'qtd_pilhas_lanterna', 'pilhas_lanterna', 'substituicao_explicita__pilhas_para_lanterna');
 
-    // Sincronizar bateria de lítio com pilhas se não houver artigo separado
-    if (!checklist.ref_bateria_litio) {
-      const bateriaLitio = findArticle(['bateria', 'litio']);
-      if (!bateriaLitio) {
-        const pilha = findArticle(['pilha']);
-        if (pilha) {
-          if (pilha.referencia) checklist.ref_bateria_litio = pilha.referencia;
-          if (pilha.validade) {
-            const valStr = String(pilha.validade);
-            checklist.validade_bateria = valStr.includes('T') ? valStr.slice(0, 7) : valStr;
-          }
-          if (pilha.quantidade !== undefined) checklist.qtd_bateria_litio = pilha.quantidade;
-          if (pilha.codigoFabricante) {
-            const lote = String(pilha.codigoFabricante).trim();
-            checklist.lote_bateria_litio = lote.toUpperCase().startsWith('LOTE') ? lote : `LOTE ${lote}`;
-          }
-          checklist.bateria_litio = 'YES';
-        }
-      }
-    }
-
-    mapArticle(['bateria', 'litio'], 'ref_bateria_litio', 'validade_bateria', 'qtd_bateria_litio', 'bateria_litio', 'lote_bateria_litio');
-    if (!checklist.ref_bateria_litio) mapArticle(['bateria', 'lítio'], 'ref_bateria_litio', 'validade_bateria', 'qtd_bateria_litio', 'bateria_litio', 'lote_bateria_litio');
-    if (!checklist.ref_bateria_litio) mapArticle(['bateria', 'lithium'], 'ref_bateria_litio', 'validade_bateria', 'qtd_bateria_litio', 'bateria_litio', 'lote_bateria_litio');
-
-    // Sincronizar inversamente: se houver bateria litio mas não pilhas
-    if (!checklist.ref_bateria) {
-      const bateriaLitio = findArticle(['bateria', 'litio']);
-      if (bateriaLitio) {
-        if (bateriaLitio.referencia) checklist.ref_bateria = bateriaLitio.referencia;
-        if (bateriaLitio.validade) {
-          const valStr = String(bateriaLitio.validade);
-          checklist.validade_pilhas_lanterna = valStr.includes('T') ? valStr.slice(0, 7) : valStr;
-        }
-        if (bateriaLitio.quantidade !== undefined) checklist.qtd_pilhas_lanterna = bateriaLitio.quantidade;
-        if (bateriaLitio.codigoFabricante) {
-          const lote = String(bateriaLitio.codigoFabricante).trim();
-          checklist.lote_bateria = lote.toUpperCase().startsWith('LOTE') ? lote : `LOTE ${lote}`;
-        }
-        checklist.pilhas_lanterna = 'YES';
-      }
-    }
+    mapArticle(['bateria', 'litio'], 'ref_bateria_litio', 'validade_bateria', 'qtd_bateria_litio', 'bateria_litio');
+    if (!checklist.ref_bateria_litio) mapArticle(['bateria', 'lítio'], 'ref_bateria_litio', 'validade_bateria', 'qtd_bateria_litio', 'bateria_litio');
+    if (!checklist.ref_bateria_litio) mapArticle(['bateria', 'lithium'], 'ref_bateria_litio', 'validade_bateria', 'qtd_bateria_litio', 'bateria_litio');
 
     mapArticle(['cinta', 'fecho'], 'ref_cinta_fecho', undefined, 'qtd_cinta_fecho', 'cinta_fecho');
     if (!checklist.ref_cinta_fecho) mapArticle(['bursting', 'band'], 'ref_cinta_fecho', undefined, 'qtd_cinta_fecho', 'cinta_fecho');
@@ -1434,7 +1762,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
   const handleExportCertificadoExcel = async () => {
     try {
       const payload = {
-        certNumber: lastInspecao?.certificadoNumero || data.ultimoCertificadoNumero || '',
+        certNumber: data.ultimoCertificadoNumero || lastInspecao?.certificadoNumero || '',
         inspectionDate: lastInspecao?.dataInspecao || data.dataInspecao || '',
         nextInspectionDate: lastInspecao?.dataProxInspecao || data.dataProxInspecao || '',
         shipName: data.shipNameManual || linkedShip?.nome || '',
@@ -1472,20 +1800,30 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
 
       if (!res.ok) throw new Error('Falha ao gerar o ficheiro excel');
 
+      if (toastSavedPathIfPresent(res, 'Certificado')) return;
+
       const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
       // Filename: [certNumber] [shipName].xlsx
-      a.download = `${payload.certNumber} ${payload.shipName}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+      await saveCertificateDocument({
+        year: yearFromDate(payload.inspectionDate),
+        filename: `${payload.certNumber} ${payload.shipName}.xlsx`,
+        blob,
+      });
     } catch (error: unknown) {
       alert('Erro ao exportar certificado: ' + (error instanceof Error ? error.message : String(error)));
     }
   };
+
+  const buildCertificatePdfInput = (): InspectionCertificateInput => ({
+    certNumber: data.ultimoCertificadoNumero || lastInspecao?.certificadoNumero || '',
+    inspectionDate: lastInspecao?.dataInspecao || data.dataInspecao || '',
+    shipName: data.shipNameManual || linkedShip?.nome || '',
+    raftModel: data.model || '',
+    raftSerial: data.serial || '',
+    status: lastInspecao?.status || 'Concluída',
+    technician: lastInspecao?.responsavel || 'Técnico Autorizado',
+    checklist: buildChecklistPayload(),
+  });
 
   const handleExportQuadroExcel = async () => {
     try {
@@ -1504,7 +1842,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
 
       const payload = {
         numeroObra: data.numeroObra || '',
-        certNumber: lastInspecao?.certificadoNumero || data.ultimoCertificadoNumero || '',
+        certNumber: data.ultimoCertificadoNumero || lastInspecao?.certificadoNumero || '',
         inspectionDate: lastInspecao?.dataInspecao || data.dataInspecao || '',
         nextInspectionDate: lastInspecao?.dataProxInspecao || data.dataProxInspecao || '',
         shipName: data.shipNameManual || linkedShip?.nome || '',
@@ -1560,20 +1898,20 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
 
       if (!res.ok) throw new Error('Falha ao gerar o ficheiro excel');
 
+      if (toastSavedPathIfPresent(res, 'Quadro')) return;
+
       const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
       // Filename: [raftSerial] [raftModel] [capacity]P (MM YYYY).xlsx
       const inspectionDate = new Date(payload.inspectionDate);
       const month = String(inspectionDate.getMonth() + 1).padStart(2, '0');
       const year = inspectionDate.getFullYear();
       const monthYear = `${month} ${year}`;
-      a.download = `${payload.raftSerial} ${payload.raftModel} ${payload.raftCapacity}P (${monthYear}).xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+      await saveShipDocument({
+        shipName: payload.shipName,
+        category: 'Quadros',
+        filename: `${payload.raftSerial} ${payload.raftModel} ${payload.raftCapacity}P (${monthYear}).xlsx`,
+        blob,
+      });
     } catch (error: unknown) {
       alert('Erro ao exportar quadro: ' + (error instanceof Error ? error.message : String(error)));
     }
@@ -1596,7 +1934,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
 
       const payload = {
         numeroObra: data.numeroObra || '',
-        certNumber: lastInspecao?.certificadoNumero || data.ultimoCertificadoNumero || '',
+        certNumber: data.ultimoCertificadoNumero || lastInspecao?.certificadoNumero || '',
         inspectionDate: lastInspecao?.dataInspecao || data.dataInspecao || '',
         nextInspectionDate: lastInspecao?.dataProxInspecao || data.dataProxInspecao || '',
         shipName: data.shipNameManual || linkedShip?.nome || '',
@@ -1652,19 +1990,19 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
 
       if (!res.ok) throw new Error('Falha ao gerar o PDF');
 
+      if (toastSavedPathIfPresent(res, 'Quadro PDF')) return;
+
       const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
       const inspectionDate = new Date(payload.inspectionDate);
       const month = String(inspectionDate.getMonth() + 1).padStart(2, '0');
       const year = inspectionDate.getFullYear();
       const monthYear = `${month} ${year}`;
-      a.download = `${payload.raftSerial} ${payload.raftModel} ${payload.raftCapacity}P (${monthYear}).pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+      await saveShipDocument({
+        shipName: payload.shipName,
+        category: 'Quadros',
+        filename: `${payload.raftSerial} ${payload.raftModel} ${payload.raftCapacity}P (${monthYear}).pdf`,
+        blob,
+      });
     } catch (error: unknown) {
       alert('Erro ao exportar quadro PDF: ' + (error instanceof Error ? error.message : String(error)));
     }
@@ -1917,12 +2255,17 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
   };
 
   if (isInspecting) {
+    const inspectionShip = ships.find((s) => s.id === data.shipId);
+    const inspectionShipName = data.shipNameManual || inspectionShip?.nome || '-';
+    const inspectionOwner = inspectionShip?.cliente?.nome || data.ownerDisplay || data.owner || '-';
     return (
       <div className="min-h-screen bg-slate-50 py-4 sm:py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Inspeção da Jangada</h1>
+              <p className="text-base font-bold text-indigo-700 mt-1">Navio: <span>{inspectionShipName}</span></p>
+              <p className="text-sm text-slate-500 mt-1">Armador: <span className="font-semibold text-slate-700">{inspectionOwner}</span></p>
               <p className="text-sm text-slate-500 mt-1">Série: <span className="font-semibold text-slate-700">{data.serial}</span> · Modelo: <span className="font-semibold text-slate-700">{data.brand} {data.model}</span></p>
             </div>
             <button 
@@ -2316,6 +2659,14 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                   Gerar Certificado Excel
                 </button>
                 <button
+                  onClick={() => setIsEnviarCertificadoOpen(true)}
+                  disabled={!(data.ultimoCertificadoNumero || lastInspecao?.certificadoNumero)}
+                  className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-all shadow-md shadow-indigo-600/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Mail size={18} />
+                  Enviar Certificado
+                </button>
+                <button
                   onClick={handleExportQuadroExcel}
                   className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-all shadow-sm"
                 >
@@ -2512,6 +2863,15 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
           >
             <FileCheck size={16} />
             Boletins de Serviço ({(data.applicableServiceBulletins || []).length})
+          </button>
+          <button
+            onClick={() => setActiveTab('checklist')}
+            className={`flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold transition-all w-full sm:w-auto justify-center ${
+              activeTab === 'checklist' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <ClipboardCheck size={16} />
+            Espelho Checklist
           </button>
           <button
             onClick={() => setActiveTab('dgrm')}
@@ -2775,12 +3135,21 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                   ) : (
                     <p className="font-semibold text-slate-800">{data.ultimoCertificadoNumero || '—'}</p>
                   )}
-                </div>
+             </div>
+              </div>
+
+              {/* Diagrama Interativo da Jangada */}
+              <div className="xl:col-span-1">
+                <LiferaftDiagram
+                  jangada={data}
+                  artigos={artigos}
+                  checklist={{
+                    ...(data.inspectionChecklistValues || {}),
+                    ...(lastInspecao?.checklistSnapshot || {}),
+                  }}
+                />
               </div>
             </div>
-
-            {/* Diagrama Interativo da Jangada */}
-            <LiferaftDiagram jangada={data} artigos={artigos} />
 
             {/* Bloco 2: Cilindro de Insuflação */}
             <div className="bg-white rounded-3xl border border-slate-200/60 p-6 shadow-sm space-y-6">
@@ -3148,7 +3517,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                         onChange={(e) => handleEditChange('cylinderCabecaDisparoRef', e.target.value)}
                       >
                         <option value="">Selecionar...</option>
-                        {stockItems.filter((s) => s.referencia?.startsWith('HEAD-')).map((s) => (
+                        {stockItems.map((s) => (
                           <option key={s.id} value={s.referencia}>
                             {s.referencia} - {s.descricao} (stock: {s.quantidade || 0})
                           </option>
@@ -3204,7 +3573,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                         onChange={(e) => handleEditChange('cylinderTuboCamaraSuperiorRef', e.target.value)}
                       >
                         <option value="">Selecionar...</option>
-                        {stockItems.filter((s) => s.referencia?.startsWith('TUBO-')).map((s) => (
+                        {stockItems.map((s) => (
                           <option key={s.id} value={s.referencia}>
                             {s.referencia} - {s.descricao} (stock: {s.quantidade || 0})
                           </option>
@@ -3245,7 +3614,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                         onChange={(e) => handleEditChange('cylinderTuboCamaraInferiorRef', e.target.value)}
                       >
                         <option value="">Selecionar...</option>
-                        {stockItems.filter((s) => s.referencia?.startsWith('TUBO-')).map((s) => (
+                        {stockItems.map((s) => (
                           <option key={s.id} value={s.referencia}>
                             {s.referencia} - {s.descricao} (stock: {s.quantidade || 0})
                           </option>
@@ -3286,7 +3655,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                         onChange={(e) => handleEditChange('valvulasAlivio', e.target.value)}
                       >
                         <option value="">Selecionar...</option>
-                        {stockItems.filter((s) => s.referencia?.startsWith('VAL-') || s.referencia?.startsWith('CONN-') || s.referencia?.startsWith('0.')).map((s) => (
+                        {stockItems.map((s) => (
                           <option key={s.id} value={s.referencia}>
                             {s.referencia} - {s.descricao} (stock: {s.quantidade || 0})
                           </option>
@@ -3327,7 +3696,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                         onChange={(e) => handleEditChange('valvulasAtestar', e.target.value)}
                       >
                         <option value="">Selecionar...</option>
-                        {stockItems.filter((s) => s.referencia?.startsWith('VAL-') || s.referencia?.startsWith('CONN-') || s.referencia?.startsWith('0.')).map((s) => (
+                        {stockItems.map((s) => (
                           <option key={s.id} value={s.referencia}>
                             {s.referencia} - {s.descricao} (stock: {s.quantidade || 0})
                           </option>
@@ -3534,16 +3903,6 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                               }}
                               onSuccess={fetchJangadaData}
                             />
-                          <SubstituirArtigoDialog
-                            jangadaId={jangadaId}
-                            artigo={{
-                              id: artigo.id,
-                              name: artigo.name,
-                              quantidade: artigo.quantidade,
-                              referencia: artigo.referencia || '',
-                            }}
-                            onSuccess={fetchJangadaData}
-                          />
                           <button
                             onClick={() => handleDeleteArtigo(artigo.id)}
                             className="text-red-500 hover:text-red-700 p-1.5 hover:bg-red-50 rounded-lg transition-colors"
@@ -3762,29 +4121,6 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                                       }}
                                       onSuccess={fetchJangadaData}
                                     />
-                                    {matched && matched.referencia ? (
-                                      <SubstituirArtigoDialog
-                                        jangadaId={jangadaId}
-                                        artigo={{
-                                          id: Number((matched as Record<string, unknown>).id || 0),
-                                          name: matched.name || '',
-                                          quantidade: Number(matched.quantidade || 0),
-                                          referencia: matched.referencia || '',
-                                        }}
-                                        onSuccess={fetchJangadaData}
-                                      />
-                                    ) : (
-                                      <SubstituirArtigoDialog
-                                        jangadaId={jangadaId}
-                                        artigo={{
-                                          id: 0,
-                                          name: String(item.label || ''),
-                                          quantidade: Number(item.quantity || 1),
-                                          referencia: '',
-                                        }}
-                                        onSuccess={fetchJangadaData}
-                                      />
-                                    )}
                                   </td>
                                 </tr>
                               );
@@ -4337,7 +4673,23 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
         })()}
 
         {activeTab === 'testeWP' && (() => {
-          const wpSource = isEditing ? editForm : data;
+          const lastInsp = lastInspecao || (data.inspecoes && data.inspecoes.length > 0 ? [...data.inspecoes].sort((a: any, b: any) => new Date(b.dataInspecao).getTime() - new Date(a.dataInspecao).getTime())[0] : null);
+          const rawWpSource = isEditing ? editForm : data;
+          const wpSource = {
+            ...rawWpSource,
+            testeWP: rawWpSource.testeWP || lastInsp?.testeWP,
+            testeWPUnidadePressao: rawWpSource.testeWPUnidadePressao || lastInsp?.testeWPUnidadePressao,
+            testeWPHoraInicio: rawWpSource.testeWPHoraInicio || lastInsp?.testeWPHoraInicio,
+            testeWPHoraFim: rawWpSource.testeWPHoraFim || lastInsp?.testeWPHoraFim,
+            testeWPTemperaturaInicial: rawWpSource.testeWPTemperaturaInicial || lastInsp?.testeWPTemperaturaInicial,
+            testeWPTemperaturaFinal: rawWpSource.testeWPTemperaturaFinal || lastInsp?.testeWPTemperaturaFinal,
+            testeWPPressaoAtmosfericaInicial: rawWpSource.testeWPPressaoAtmosfericaInicial || lastInsp?.testeWPPressaoAtmosfericaInicial,
+            testeWPPressaoAtmosfericaFinal: rawWpSource.testeWPPressaoAtmosfericaFinal || lastInsp?.testeWPPressaoAtmosfericaFinal,
+            testeWPCamaraSuperiorInicio: rawWpSource.testeWPCamaraSuperiorInicio || lastInsp?.testeWPCamaraSuperiorInicio,
+            testeWPCamaraSuperiorFim: rawWpSource.testeWPCamaraSuperiorFim || lastInsp?.testeWPCamaraSuperiorFim,
+            testeWPCamaraInferiorInicio: rawWpSource.testeWPCamaraInferiorInicio || lastInsp?.testeWPCamaraInferiorInicio,
+            testeWPCamaraInferiorFim: rawWpSource.testeWPCamaraInferiorFim || lastInsp?.testeWPCamaraInferiorFim,
+          };
           const wpDerived = buildWpDerivedValues({
             pressureUnit: wpSource.testeWPUnidadePressao,
             startTime: wpSource.testeWPHoraInicio,
@@ -4583,6 +4935,23 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                         </p>
                       </div>
 
+                      {isEditing && (
+                        <div className="md:col-span-2">
+                          <button
+                            type="button"
+                            onClick={handleFetchOreyWeather}
+                            title="Preencher temperatura e pressão atmosférica (Orey Técnica, Cabouco) para a data e hora indicadas"
+                            className="w-full px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl transition-all text-xs font-bold border border-indigo-150 flex items-center justify-center gap-1.5"
+                          >
+                            <Gauge size={14} />
+                            <span>Preencher Temperatura e Pressão (Orey)</span>
+                          </button>
+                          <p className="mt-1 text-[10px] text-slate-500 text-center">
+                            Opcional. Usa as coordenadas da Orey Técnica; para datas passadas obtém dados históricos.
+                          </p>
+                        </div>
+                      )}
+
                       {/* Temperaturas */}
                       <div className="space-y-1">
                         <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Temp. Inicial (°C)</span>
@@ -4616,23 +4985,12 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                       <div className="space-y-1">
                         <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Pressão Atmosférica Inicial (hPa)</span>
                         {isEditing ? (
-                          <div className="flex gap-2">
-                            <input
-                              className="flex-1 border-slate-200 rounded-xl px-4 py-2 bg-white text-sm focus:ring-2 focus:ring-indigo-500 min-w-0"
-                              value={editForm.testeWPPressaoAtmosfericaInicial || ''}
-                              placeholder="Ex.: 1013"
-                              onChange={(e) => handleWpFieldChange('testeWPPressaoAtmosfericaInicial', e.target.value)}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => fetchLocalPressure('testeWPPressaoAtmosfericaInicial')}
-                              title="Obter Pressão Atmosférica Atual via GPS"
-                              className="px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 hover:text-indigo-850 rounded-xl transition-all text-xs font-bold border border-indigo-150 flex items-center gap-1 shrink-0"
-                            >
-                              <Gauge size={14} />
-                              <span>GPS</span>
-                            </button>
-                          </div>
+                          <input
+                            className="w-full border-slate-200 rounded-xl px-4 py-2 bg-white text-sm focus:ring-2 focus:ring-indigo-500"
+                            value={editForm.testeWPPressaoAtmosfericaInicial || ''}
+                            placeholder="Ex.: 1013"
+                            onChange={(e) => handleWpFieldChange('testeWPPressaoAtmosfericaInicial', e.target.value)}
+                          />
                         ) : (
                           <p className="font-semibold text-slate-800">{data.testeWPPressaoAtmosfericaInicial ? `${data.testeWPPressaoAtmosfericaInicial} hPa` : '—'}</p>
                         )}
@@ -4641,23 +4999,12 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                       <div className="space-y-1">
                         <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Pressão Atmosférica Final (hPa)</span>
                         {isEditing ? (
-                          <div className="flex gap-2">
-                            <input
-                              className="flex-1 border-slate-200 rounded-xl px-4 py-2 bg-white text-sm focus:ring-2 focus:ring-indigo-500 min-w-0"
-                              value={editForm.testeWPPressaoAtmosfericaFinal || ''}
-                              placeholder="Ex.: 1012"
-                              onChange={(e) => handleWpFieldChange('testeWPPressaoAtmosfericaFinal', e.target.value)}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => fetchLocalPressure('testeWPPressaoAtmosfericaFinal')}
-                              title="Obter Pressão Atmosférica Atual via GPS"
-                              className="px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 hover:text-indigo-850 rounded-xl transition-all text-xs font-bold border border-indigo-150 flex items-center gap-1 shrink-0"
-                            >
-                              <Gauge size={14} />
-                              <span>GPS</span>
-                            </button>
-                          </div>
+                          <input
+                            className="w-full border-slate-200 rounded-xl px-4 py-2 bg-white text-sm focus:ring-2 focus:ring-indigo-500"
+                            value={editForm.testeWPPressaoAtmosfericaFinal || ''}
+                            placeholder="Ex.: 1012"
+                            onChange={(e) => handleWpFieldChange('testeWPPressaoAtmosfericaFinal', e.target.value)}
+                          />
                         ) : (
                           <p className="font-semibold text-slate-800">{data.testeWPPressaoAtmosfericaFinal ? `${data.testeWPPressaoAtmosfericaFinal} hPa` : '—'}</p>
                         )}
@@ -5102,6 +5449,10 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
         <DgrmIdentificationForm data={data as DgrmJangadaData} />
       )}
 
+      {activeTab === 'checklist' && (
+        <EspelhoChecklist data={data} artigos={artigos} />
+      )}
+
       {/* Print-Only Compact Dossier Page */}
       <div className="hidden print:block print-dossier-page text-slate-800 text-[10px] leading-tight">
         {(() => {
@@ -5457,6 +5808,17 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
           />
         );
       })()}
+
+      {/* Enviar Certificado por Email */}
+      <EnviarCertificadoDialog
+        isOpen={isEnviarCertificadoOpen}
+        onClose={() => setIsEnviarCertificadoOpen(false)}
+        certificate={buildCertificatePdfInput()}
+        defaultTo={linkedShip?.cliente?.email || ''}
+        clienteId={linkedShip?.cliente?.id}
+        jangadaId={jangadaId}
+        refId={jangadaId}
+      />
 
       {/* Certificado Externo Modal */}
       <CertificadoExternoDialog

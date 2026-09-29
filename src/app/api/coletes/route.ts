@@ -14,11 +14,11 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const where: Prisma.ColeteWhereInput = {};
-    const serial = searchParams.get("serial"); if (serial) where.serial = { contains: serial, mode: "insensitive" };
-    const marca = searchParams.get("marca"); if (marca) where.marca = { contains: marca, mode: "insensitive" };
-    const modelo = searchParams.get("modelo"); if (modelo) where.modelo = { contains: modelo, mode: "insensitive" };
-    const tamanho = searchParams.get("tamanho"); if (tamanho) where.tamanho = { contains: tamanho, mode: "insensitive" };
-    const estado = searchParams.get("estado"); if (estado) where.estado = { contains: estado, mode: "insensitive" };
+    const serial = searchParams.get("serial"); if (serial) where.serial = { contains: serial };
+    const marca = searchParams.get("marca"); if (marca) where.marca = { contains: marca };
+    const modelo = searchParams.get("modelo"); if (modelo) where.modelo = { contains: modelo };
+    const tamanho = searchParams.get("tamanho"); if (tamanho) where.tamanho = { contains: tamanho };
+    const estado = searchParams.get("estado"); if (estado) where.estado = { contains: estado };
     const dataFabrico = searchParams.get("dataFabrico");
     if (dataFabrico) {
       // dataFabrico is stored as free-text string in the database

@@ -1,7 +1,7 @@
 import { createTheme } from '@mui/material/styles';
 import { APP_CONFIG } from './lib/app-config';
 
-export type AppThemeName = 'azores' | 'noturno' | 'escuro' | 'vermelho' | 'oceano' | 'deluxe';
+export type AppThemeName = 'azores' | 'noturno' | 'escuro' | 'vermelho' | 'oceano' | 'deluxe' | 'altoContraste';
 
 export const DEFAULT_APP_THEME: AppThemeName = (APP_CONFIG?.theme as AppThemeName) || 'escuro';
 
@@ -90,6 +90,20 @@ const THEME_PRESETS: Record<AppThemeName, ThemePreset> = {
     backgroundPaper: '#0f172a',
     textPrimary: '#ffffff',
     textSecondary: '#9ca3af',
+  },
+  // Postos de inspeção e decks com sol directo: traços mais grossos,
+  // texto mais escuro e cores saturadas para se ler à distância.
+  altoContraste: {
+    label: 'Alto contraste (Oficina)',
+    mode: 'light',
+    primaryMain: '#0b3ba8',
+    primaryDark: '#062a7d',
+    primaryLight: '#dbe6ff',
+    secondaryMain: '#8a1f00',
+    backgroundDefault: '#ffffff',
+    backgroundPaper: '#ffffff',
+    textPrimary: '#000000',
+    textSecondary: '#1f2937',
   },
 };
 
