@@ -45,7 +45,7 @@ jobs:
       - name: Verify standalone build
         run: node launcher.js --check
       - name: Upload standalone artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: standalone-build
           path: |
@@ -73,7 +73,7 @@ jobs:
       - name: Verify standalone build (Windows)
         run: node launcher.js --check
       - name: Upload Windows standalone artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: standalone-build-windows
           path: |
