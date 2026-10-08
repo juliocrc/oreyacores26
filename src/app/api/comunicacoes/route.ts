@@ -13,15 +13,18 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const tipo = searchParams.get("tipo");
     const status = searchParams.get("status");
+    const direcao = searchParams.get("direcao"); // enviada | recebida
     const clienteId = Number(searchParams.get("clienteId"));
     const jangadaId = Number(searchParams.get("jangadaId"));
     const ordemServicoId = Number(searchParams.get("ordemServicoId"));
     const q = String(searchParams.get("q") || "").trim();
-    const limite = Math.min(Number(searchParams.get("limite") || 100), 500);
+    const limite = Math.min(Number(searchParams.get("limite") || 200), 500);
 
     const where: Record<string, unknown> = {};
     if (tipo) where.tipo = tipo;
     if (status) where.status = status;
+    if (direcao === "recebida") where.status = "recebido";
+    if (direcao === "enviada") where.status = { not: "recebido" } as never;
     if (Number.isFinite(clienteId) && clienteId > 0) where.clienteId = clienteId;
     if (Number.isFinite(jangadaId) && jangadaId > 0) where.jangadaId = jangadaId;
     if (Number.isFinite(ordemServicoId) && ordemServicoId > 0) where.ordemServicoId = ordemServicoId;
@@ -30,25 +33,28 @@ export async function GET(req: NextRequest) {
         { destinatario: { contains: q } },
         { mensagem: { contains: q } },
         { assunto: { contains: q } },
+        { enviadoPor: { contains: q } },
       ];
     }
 
-    const [items, total, porTipo, falhas] = await Promise.all([
+    const [items, total, porTipo, porStatus, recebidasNaoRespondidas] = await Promise.all([
       prisma.comunicacao.findMany({
         where,
-        orderBy: [{ enviadoEm: "desc" }],
+        orderBy: [{ enviadoEm: "desc" }, { id: "desc" }],
         take: limite,
       }),
       prisma.comunicacao.count({ where }),
       prisma.comunicacao.groupBy({ by: ["tipo"], _count: true }),
-      prisma.comunicacao.count({ where: { status: "falhou" } }),
+      prisma.comunicacao.groupBy({ by: ["status"], _count: true }),
+      prisma.comunicacao.count({ where: { status: "recebido", respondidoEm: null } }),
     ]);
 
     return NextResponse.json({
       items,
       total,
       porTipo,
-      falhas,
+      porStatus,
+      recebidasNaoRespondidas,
     });
   } catch (error) {
     console.error("[GET /api/comunicacoes]", error);
@@ -95,6 +101,16 @@ export async function POST(req: NextRequest) {
       ref,
       enviadoPor: operador?.name || operador?.email || String(access.userId),
     });
+
+    if (result.ok && body?.responderA != null) {
+      const recebidaId = Number(body.responderA);
+      if (Number.isFinite(recebidaId) && recebidaId > 0) {
+        await prisma.comunicacao.update({
+          where: { id: recebidaId },
+          data: { respondidoEm: new Date() },
+        }).catch(() => {});
+      }
+    }
 
     return NextResponse.json(
       result.ok

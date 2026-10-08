@@ -33,7 +33,7 @@ describe("selecionarTecnico", () => {
     jest.clearAllMocks();
   });
 
-  test("aceita o caso normal do NextAuth em que signIn devolve undefined em sucesso", async () => {
+  test("autentica com palavra-passe quando signIn devolve undefined em sucesso", async () => {
     const cookieStore = { set: jest.fn() };
     const { cookies } = await import("next/headers");
     (cookies as jest.Mock).mockResolvedValue(cookieStore);
@@ -51,13 +51,26 @@ describe("selecionarTecnico", () => {
 
     const formData = new FormData();
     formData.set("tecnicoId", "7");
+    formData.set("password", "segredo");
 
     await expect(selecionarTecnico({}, formData)).resolves.toEqual({ ok: true });
     expect(signIn).toHaveBeenCalledWith("credentials", expect.objectContaining({
-      loginType: "passwordless",
-      userId: "99",
+      loginType: "credentials",
+      email: "julio.correia@orey.com",
+      password: "segredo",
       redirect: false,
     }));
     expect(cookieStore.set).toHaveBeenCalledWith("orey_app_open", "1", expect.objectContaining({ path: "/" }));
+  });
+
+  test("devolve erro quando falta a palavra-passe", async () => {
+    const { cookies } = await import("next/headers");
+    (cookies as jest.Mock).mockResolvedValue({ set: jest.fn() });
+
+    const formData = new FormData();
+    formData.set("tecnicoId", "7");
+
+    await expect(selecionarTecnico({}, formData)).resolves.toEqual({ erro: "Introduza a palavra-passe." });
+    expect(signIn).not.toHaveBeenCalled();
   });
 });

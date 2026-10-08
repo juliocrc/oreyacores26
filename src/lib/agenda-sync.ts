@@ -1,4 +1,5 @@
 import prisma from "@/lib/prisma";
+import { getTechnicianKeyByName, normalizeTechnicianName } from "@/lib/agenda-technicians";
 
 const ACTIVE_AGENDA_STATUSES = ["scheduled", "confirmed", "in_progress", "testing", "paused"] as const;
 
@@ -94,6 +95,126 @@ export async function syncNextInspectionAgenda(params: {
       status: { in: [...ACTIVE_AGENDA_STATUSES] },
     },
   });
+}
+
+function normalizePerfectDate(value: Date): Date {
+  const date = new Date(value);
+  if (date.getHours() === 0 && date.getMinutes() === 0 && date.getSeconds() === 0) {
+    date.setHours(9, 0, 0, 0);
+  }
+  return date;
+}
+
+async function hasVacationConflictAssistencia(responsavelRaw?: string | null, date?: Date | null) {
+  const responsavel = normalizeTechnicianName(responsavelRaw);
+  if (!responsavel || !date) return false;
+
+  const tecnicoKey = getTechnicianKeyByName(responsavel);
+  if (!tecnicoKey) return false;
+
+  const dataInicio = new Date(date);
+  dataInicio.setHours(0, 0, 0, 0);
+  const dataFim = new Date(date);
+  dataFim.setHours(23, 59, 59, 999);
+
+  const holiday = await prisma.tecnicoAusencia.findFirst({
+    where: {
+      tecnicoKey,
+      tipo: "ferias",
+      dataInicio: { lte: dataFim },
+      dataFim: { gte: dataInicio },
+    },
+    select: { id: true },
+  }).catch(() => null);
+
+  return Boolean(holiday);
+}
+
+export type SyncAssistenciaAgendaResult = {
+  id: number;
+  created: boolean;
+  responsavel: string;
+  vacationDropped: boolean;
+};
+
+/** Cria ou atualiza (idempotente por jangada + dia) o evento de assistência/inspeção na agenda. */
+export async function syncAssistenciaAgendaEvent(params: {
+  raftSerial: string;
+  date: Date;
+  title?: string;
+  responsavel?: string | null;
+  serviceStationId?: number | null;
+}): Promise<SyncAssistenciaAgendaResult | null> {
+  const raftSerial = String(params.raftSerial || "").trim();
+  if (!raftSerial) return null;
+
+  const date = normalizePerfectDate(params.date || new Date());
+  const title = String(params.title || "").trim() || "Inspeção - Assistência";
+  const responsavel = normalizeTechnicianName(params.responsavel);
+
+  const vacationDropped = await hasVacationConflictAssistencia(responsavel, date);
+
+  const dayInicio = new Date(date);
+  dayInicio.setHours(0, 0, 0, 0);
+  const dayFim = new Date(date);
+  dayFim.setHours(23, 59, 59, 999);
+
+  const existing = await prisma.agendaEvento.findFirst({
+    where: {
+      raftSerial: { equals: raftSerial },
+      status: { in: [...ACTIVE_AGENDA_STATUSES] },
+      date: { gte: dayInicio, lte: dayFim },
+    },
+    orderBy: { id: "desc" },
+  });
+
+  if (existing) {
+    const updated = await prisma.agendaEvento.update({
+      where: { id: existing.id },
+      data: {
+        title,
+        date,
+        serviceStationId: params.serviceStationId ?? existing.serviceStationId,
+        responsavel: vacationDropped
+          ? (existing.responsavel || "")
+          : ((responsavel ?? existing.responsavel) || ""),
+        type: existing.type || "Inspeção",
+        inspectionType: existing.inspectionType || "Inspeção",
+        durationMinutes: existing.durationMinutes && existing.durationMinutes > 0 ? existing.durationMinutes : 210,
+        status: "scheduled",
+      },
+    });
+
+    return {
+      id: updated.id,
+      created: false,
+      responsavel: updated.responsavel || "",
+      vacationDropped,
+    };
+  }
+
+  const created = await prisma.agendaEvento.create({
+    data: {
+      title,
+      date,
+      raftSerial,
+      responsavel: vacationDropped ? "" : (responsavel || ""),
+      status: "scheduled",
+      type: "Inspeção",
+      inspectionType: "Inspeção",
+      durationMinutes: 210,
+      bufferBeforeMinutes: 0,
+      bufferAfterMinutes: 0,
+      serviceStationId: params.serviceStationId ?? null,
+    },
+  });
+
+  return {
+    id: created.id,
+    created: true,
+    responsavel: created.responsavel || "",
+    vacationDropped,
+  };
 }
 
 export async function clearActiveAgendaForRaft(params: {

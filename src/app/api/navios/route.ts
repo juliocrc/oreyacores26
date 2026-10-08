@@ -12,6 +12,12 @@ import { APP_CONFIG, normalizeStationMatchToken } from "@/lib/app-config";
 import { getResolvedClienteIslandForNavio, normalizeManualNavioIsland } from "@/lib/navio-island-resolution";
 import { inferAzoresIslandFromPort, isInvalidIslandValue, canonicalizeAzoresIsland } from "@/lib/azores-islands";
 import { normalizeNavioDisplayName } from '@/lib/navio-name-normalization';
+import {
+  hasNavioTextFilter,
+  navioMatchesTextFilters,
+  type NavioSearchableRow,
+  type NavioTextFilters,
+} from '@/lib/navios-search';
 
 function isMissingNavioComprimentoMetrosColumn(error: unknown) {
   const message = String(error || "");
@@ -47,6 +53,7 @@ async function findNaviosWithResilientSelect(
         serviceStationId: true,
         nome: true,
         matricula: true,
+        cfr: true,
         portoRegisto: true,
         ilha: true,
         tipoPesca: true,
@@ -99,6 +106,7 @@ async function findNaviosWithResilientSelect(
         serviceStationId: true,
         nome: true,
         matricula: true,
+        cfr: true,
         portoRegisto: true,
         ilha: true,
         tipoPesca: true,
@@ -463,8 +471,14 @@ export async function GET(req: NextRequest) {
     }
     */
     const scopeWhere: Prisma.NavioWhereInput = { ...where };
-    const nomeParam = searchParams.get("nome"); if (nomeParam) where.nome = { contains: nomeParam };
-    const matriculaParam = searchParams.get("matricula"); if (matriculaParam) where.matricula = { contains: matriculaParam };
+    // As pesquisas de texto (nome/matrícula/q) saem do SQL: o LIKE do SQLite não
+    // normaliza acentos nem caixa fora do ASCII, pelo que são aplicadas em
+    // memória com normalização (ver naviosMatchesTextFilters).
+    const nomeParam = searchParams.get("nome");
+    const matriculaParam = searchParams.get("matricula");
+    const qParam = searchParams.get("q");
+    const textFilters: NavioTextFilters = { nome: nomeParam, matricula: matriculaParam, q: qParam };
+    const textFilterActive = hasNavioTextFilter(textFilters);
     const ilhaParam = searchParams.get("ilha"); if (ilhaParam) where.ilha = { contains: ilhaParam };
     const serviceStationIdParam = searchParams.get("serviceStationId");
     if (serviceStationIdParam) {
@@ -489,20 +503,6 @@ export async function GET(req: NextRequest) {
         where.clienteId = parsed;
       }
     }
-    const qParam = searchParams.get("q");
-    if (qParam) {
-      where.AND = [{
-        OR: [
-          { nome: { contains: qParam } },
-          { matricula: { contains: qParam } },
-          { cfr: { contains: qParam } },
-          { mmsi: { contains: qParam } },
-          { imo: { contains: qParam } },
-          { callSignal: { contains: qParam } },
-          { portoRegisto: { contains: qParam } },
-        ],
-      }];
-    }
     const territorioParam = searchParams.get("territorio");
     if (territorioParam) where.territorioGrupo = { equals: territorioParam };
     const portoParam = searchParams.get("porto");
@@ -521,15 +521,7 @@ export async function GET(req: NextRequest) {
     // resposta é o mesmo (array), por isso quem consome não precisa de mudar.
     if (searchParams.get("lite") === "1") {
       const liteWhere: Prisma.NavioWhereInput = { ...where };
-      const liteNome = searchParams.get("nome"); if (liteNome) liteWhere.nome = { contains: liteNome };
-      const liteQ = searchParams.get("q");
-      if (liteQ) {
-        liteWhere.OR = [
-          { nome: { contains: liteQ } },
-          { matricula: { contains: liteQ } },
-        ];
-      }
-        const lite = await prisma.navio.findMany({
+        let lite = await prisma.navio.findMany({
           where: liteWhere,
           // cliente entra porque /clientes usa esta lista em dois sítios: o <select>
           // por linha mostra "Associado a: <cliente>" e filtra por esse nome, e o
@@ -540,14 +532,16 @@ export async function GET(req: NextRequest) {
           orderBy: [{ nome: "asc" }],
           take: 10000,
         });
+        if (textFilterActive) {
+          lite = lite.filter((row) => navioMatchesTextFilters(row as NavioSearchableRow, textFilters));
+        }
         return NextResponse.json(lite);
     }
 
     if (limiteParam !== null || paginaParam !== null) {
       const porPagina = Math.min(Math.max(Number(limiteParam) || 100, 1), 10000);
       const pagina = Math.max(Number(paginaParam) || 1, 1);
-      const [total, items, stats, portosGroups, clientesRows] = await Promise.all([
-        prisma.navio.count({ where }),
+      const [rawItems, stats, portosGroups, clientesRows] = await Promise.all([
         findNaviosWithResilientSelect(where, {
           orderBy: [{ nome: "asc" }],
           skip: 0,
@@ -557,6 +551,10 @@ export async function GET(req: NextRequest) {
         prisma.navio.groupBy({ by: ["portoRegisto"], where: scopeWhere, _count: { _all: true } }),
         prisma.cliente.findMany({ where: { navios: { some: scopeWhere } }, select: { nome: true }, orderBy: { nome: "asc" } }),
       ]);
+      const items = textFilterActive
+        ? rawItems.filter((row) => navioMatchesTextFilters(row as NavioSearchableRow, textFilters))
+        : rawItems;
+      const total = items.length;
       const portos = Array.from(new Set(
         portosGroups.map((g) => g.portoRegisto).filter((p): p is string => Boolean(p))
       )).sort((a, b) => a.localeCompare(b, "pt", { sensitivity: "base" }));
@@ -575,7 +573,10 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    const navios = await findNaviosWithResilientSelect(where, { take: 10000 });
+    let navios = await findNaviosWithResilientSelect(where, { take: 10000 });
+    if (textFilterActive) {
+      navios = navios.filter((row) => navioMatchesTextFilters(row as NavioSearchableRow, textFilters));
+    }
 
     return NextResponse.json(
       navios.map((n) => serializeNavio(n as unknown as Record<string, unknown>))

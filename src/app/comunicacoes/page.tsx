@@ -1,6 +1,6 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
-import { MessageSquare, Send, RefreshCw, MessageCircle, Mail, Smartphone, Loader2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { MessageSquare, Send, RefreshCw, MessageCircle, Mail, Smartphone, Loader2, Inbox, Reply, CheckCheck, Clock3, XCircle } from "lucide-react";
 import { appToast } from "@/lib/app-toast";
 
 type Comunicacao = {
@@ -16,6 +16,8 @@ type Comunicacao = {
   refId?: number | null;
   enviadoPor?: string | null;
   enviadoEm: string;
+  respondidoEm?: string | null;
+  clienteId?: number | null;
 };
 
 type ClienteResumo = {
@@ -48,16 +50,33 @@ const TEMPLATES: Array<{ key: string; label: string; build: (c: ClienteResumo | 
     label: "Recordação de pagamento",
     build: (c) => `Olá ${c?.nome || "Exmo. Cliente"},\n\nRecordamos que existem faturas em dívida na nossa conta corrente.\n\nAgradecemos o seu contacto para regularização.\n\nOrey Azores`,
   },
+  {
+    key: "resposta",
+    label: "Responder ao cliente",
+    build: (c) => `Olá ${c?.nome || "Exmo. Cliente"},\n\nAgradecemos o seu contacto.`,
+  },
 ];
+
+const STATUS_BADGES: Record<string, { label: string; bg: string }> = {
+  enviado: { label: "Enviado", bg: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+  entregue: { label: "Entregue", bg: "bg-sky-100 text-sky-700 border-sky-200" },
+  lido: { label: "Lido", bg: "bg-indigo-100 text-indigo-700 border-indigo-200" },
+  pendente: { label: "Pendente", bg: "bg-amber-100 text-amber-700 border-amber-200" },
+  falhou: { label: "Falhou", bg: "bg-rose-100 text-rose-700 border-rose-200" },
+  recebido: { label: "Recebido", bg: "bg-violet-100 text-violet-700 border-violet-200" },
+  rascunho: { label: "Rascunho", bg: "bg-slate-100 text-slate-600 border-slate-200" },
+};
 
 export default function ComunicacoesPage() {
   const [items, setItems] = useState<Comunicacao[]>([]);
+  const [resumo, setResumo] = useState<{ total: number; recebidasNaoRespondidas: number; porStatus?: Record<string, number> }>({ total: 0, recebidasNaoRespondidas: 0 });
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
 
   // Filtros
   const [filterTipo, setFilterTipo] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+  const [filterDirecao, setFilterDirecao] = useState("");
   const [filterQ, setFilterQ] = useState("");
 
   // Formulário
@@ -68,6 +87,18 @@ export default function ComunicacoesPage() {
   const [destinatario, setDestinatario] = useState("");
   const [assunto, setAssunto] = useState("");
   const [mensagem, setMensagem] = useState(TEMPLATES[0].build(null));
+  const [responderA, setResponderA] = useState<Comunicacao | null>(null);
+
+  const totals = useMemo(() => {
+    const porStatus: Record<string, number> = {};
+    for (const c of items) porStatus[c.status] = (porStatus[c.status] || 0) + 1;
+    return {
+      recebidas: items.filter((c) => c.status === "recebido").length,
+      enviadas: items.length - items.filter((c) => c.status === "recebido").length,
+      falhas: porStatus.falhou || 0,
+      pendentes: porStatus.pendente || 0,
+    };
+  }, [items]);
 
   const carregarClientes = useCallback(async (q: string) => {
     try {
@@ -81,6 +112,7 @@ export default function ComunicacoesPage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     carregarClientes("");
   }, [carregarClientes]);
 
@@ -90,27 +122,53 @@ export default function ComunicacoesPage() {
       const params = new URLSearchParams();
       if (filterTipo) params.set("tipo", filterTipo);
       if (filterStatus) params.set("status", filterStatus);
+      if (filterDirecao) params.set("direcao", filterDirecao);
       if (filterQ) params.set("q", filterQ);
       const res = await fetch(`/api/comunicacoes?${params.toString()}`);
       if (!res.ok) throw new Error("Falha ao carregar");
       const json = await res.json();
       setItems(json.items || []);
+      setResumo({
+        total: json.total ?? 0,
+        recebidasNaoRespondidas: json.recebidasNaoRespondidas ?? 0,
+      });
     } catch {
       appToast.error("Não foi possível carregar o histórico.");
     } finally {
       setLoading(false);
     }
-  }, [filterTipo, filterStatus, filterQ]);
+  }, [filterTipo, filterStatus, filterDirecao, filterQ]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchHistory();
   }, [fetchHistory]);
 
   useEffect(() => {
+    if (responderA) return;
     if (!cliente) return;
     const tel = String(cliente.telmovel || "").trim() || String(cliente.telefone || "").trim();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDestinatario(tipo === "EMAIL" ? String(cliente.email || "").trim() : tel);
-  }, [cliente, tipo]);
+  }, [cliente, tipo, responderA]);
+
+  const preencherResposta = (c: Comunicacao) => {
+    setTipo(c.tipo === "EMAIL" ? "EMAIL" : "WHATSAPP");
+    setDestinatario(c.destinatario || "");
+    setAssunto(c.tipo === "EMAIL" ? `Re: ${c.assunto || "A sua mensagem"}` : "");
+    setMensagem(`Olá,\n\nAgradecemos o seu contacto.\n\nCom os melhores cumprimentos,\nOrey Azores`);
+    setResponderA(c);
+    setCliente(null);
+    setClienteBusca("");
+    setClientes([]);
+    document.getElementById("comunicacoes-form")?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const limparResposta = () => {
+    setResponderA(null);
+    setAssunto("");
+    setMensagem(TEMPLATES[0].build(cliente));
+  };
 
   const handleEnviar = async () => {
     if (!mensagem.trim()) return appToast.warning("Escreva a mensagem.");
@@ -124,9 +182,10 @@ export default function ComunicacoesPage() {
           mensagem,
           assunto: assunto || undefined,
           destinatario: destinatario || undefined,
-          clienteId: cliente?.id || undefined,
-          refTipo: cliente ? "Cliente" : undefined,
-          refId: cliente?.id || undefined,
+          clienteId: cliente?.id ?? responderA?.clienteId ?? undefined,
+          refTipo: cliente || responderA?.clienteId ? "Cliente" : undefined,
+          refId: cliente?.id ?? responderA?.clienteId ?? undefined,
+          responderA: responderA?.id || undefined,
         }),
       });
       const json = await res.json();
@@ -137,8 +196,9 @@ export default function ComunicacoesPage() {
         window.open(json.whatsappUrl, "_blank");
         appToast.success("Link WhatsApp aberto. Confirme o envio na aplicação.");
       } else {
-        appToast.success("Comunicação enviada com sucesso!");
+        appToast.success(responderA ? "Resposta enviada com sucesso!" : "Comunicação enviada com sucesso!");
       }
+      if (responderA) limparResposta();
       await fetchHistory();
     } catch {
       appToast.error("Erro ao enviar comunicação.");
@@ -147,18 +207,30 @@ export default function ComunicacoesPage() {
     }
   };
 
-  const statusBadge = (status: string) => {
-    const map: Record<string, string> = {
-      enviado: "bg-emerald-100 text-emerald-700 border-emerald-200",
-      pendente: "bg-amber-100 text-amber-700 border-amber-200",
-      falhou: "bg-rose-100 text-rose-700 border-rose-200",
-      rascunho: "bg-slate-100 text-slate-600 border-slate-200",
-    };
-    return map[status] || map.rascunho;
+  const abrirWhatsApp = (c: Comunicacao) => {
+    const nome = extrairNomeRemetente(c);
+    const msg = encodeURIComponent(`Olá ${nome ? nome + ", " : ""}aqui é da Orey Azores.\n\nObrigado pelo seu contacto. Em que podemos ajudar?`);
+    const phone = (c.destinatario || "").replace(/\D/g, "").replace(/^0+/, "");
+    window.open(`https://wa.me/${phone}?text=${msg}`, "_blank");
   };
+
+  const abrirEmail = (c: Comunicacao) => {
+    const to = c.destinatario || "";
+    const subject = encodeURIComponent(`Re: ${c.assunto || "Orey Azores — a sua mensagem"}`);
+    window.open(`mailto:${to}?subject=${subject}`, "_blank");
+  };
+
+  const statusBadge = (status: string) => {
+    const map = STATUS_BADGES[status] || STATUS_BADGES.rascunho;
+    return map.bg;
+  };
+  const statusLabel = (status: string) => (STATUS_BADGES[status] || STATUS_BADGES.rascunho).label;
 
   const tipoIcon = (tipo: string) =>
     tipo === "WHATSAPP" ? <MessageCircle size={14} className="text-emerald-600" /> : tipo === "EMAIL" ? <Mail size={14} className="text-indigo-500" /> : <Smartphone size={14} className="text-sky-600" />;
+
+  const eRecebida = (c: Comunicacao) => c.status === "recebido";
+  const extrairNomeRemetente = (c: Comunicacao) => String(c.enviadoPor || "").replace(/^remetente:/, "");
 
   return (
     <div className="min-h-screen bg-slate-50 py-8">
@@ -168,7 +240,7 @@ export default function ComunicacoesPage() {
             <MessageSquare className="text-indigo-600" size={28} />
             <div>
               <h1 className="text-2xl font-bold text-slate-900">Módulo de Comunicação</h1>
-              <p className="text-sm text-slate-500">Envios por SMS, WhatsApp e e-mail com histórico centralizado</p>
+              <p className="text-sm text-slate-500">Envios por SMS, WhatsApp e e-mail com histórico centralizado e mensagens recebidas</p>
             </div>
           </div>
           <button
@@ -179,9 +251,62 @@ export default function ComunicacoesPage() {
           </button>
         </div>
 
+        {/* Indicadores */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="rounded-xl border border-slate-200 bg-white p-3 flex items-center gap-3">
+            <Inbox size={18} className="text-violet-500" />
+            <div>
+              <div className="text-2xl font-bold text-slate-900">{totals.recebidas}</div>
+              <div className="text-xs text-slate-500">Recebidas</div>
+            </div>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-3 flex items-center gap-3">
+            <Send size={18} className="text-emerald-500" />
+            <div>
+              <div className="text-2xl font-bold text-slate-900">{totals.enviadas}</div>
+              <div className="text-xs text-slate-500">Enviadas</div>
+            </div>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-3 flex items-center gap-3">
+            <MessageCircle size={18} className="text-violet-500" />
+            <div>
+              <div className="text-2xl font-bold text-slate-900">{resumo.recebidasNaoRespondidas}</div>
+              <div className="text-xs text-slate-500">Sem resposta</div>
+            </div>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-3 flex items-center gap-3">
+            <Clock3 size={18} className="text-amber-500" />
+            <div>
+              <div className="text-2xl font-bold text-slate-900">{totals.pendentes}</div>
+              <div className="text-xs text-slate-500">Pendentes</div>
+            </div>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-3 flex items-center gap-3">
+            <XCircle size={18} className="text-rose-500" />
+            <div>
+              <div className="text-2xl font-bold text-slate-900">{totals.falhas}</div>
+              <div className="text-xs text-slate-500">Falhas</div>
+            </div>
+          </div>
+        </div>
+
         {/* Nova comunicação */}
-        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          <div className="px-5 py-3 border-b border-slate-100 font-semibold text-sm text-slate-700">Nova comunicação</div>
+        <div id="comunicacoes-form" className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="px-5 py-3 border-b border-slate-100 font-semibold text-sm text-slate-700 flex items-center justify-between">
+            <span>
+              Nova comunicação
+              {responderA && (
+                <span className="ml-2 text-xs font-normal text-violet-600">
+                  ↦ responder a mensagem #{responderA.id}{responderA.destinatario ? ` de ${String(responderA.destinatario).replace(/^\+/, "+")}` : ""}
+                </span>
+              )}
+            </span>
+            {responderA && (
+              <button type="button" onClick={limparResposta} className="text-xs text-slate-400 hover:text-slate-600 font-semibold">
+                Cancelar resposta
+              </button>
+            )}
+          </div>
           <div className="p-5 grid grid-cols-1 lg:grid-cols-2 gap-5">
             <div className="space-y-4">
               <div>
@@ -206,6 +331,7 @@ export default function ComunicacoesPage() {
                             setCliente(c);
                             setClienteBusca("");
                             setClientes([]);
+                            setResponderA(null);
                           }}
                         >
                           <span className="font-semibold text-slate-800">{c.nome}</span>
@@ -304,8 +430,15 @@ export default function ComunicacoesPage() {
                 className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition disabled:opacity-50"
               >
                 {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-                {tipo === "WHATSAPP" ? "Abrir WhatsApp" : `Enviar ${tipo}`}
+                {responderA ? "Enviar resposta" : tipo === "WHATSAPP" ? "Abrir WhatsApp" : `Enviar ${tipo}`}
               </button>
+              <div className="text-[11px] text-slate-400 text-center leading-relaxed">
+                {responderA
+                  ? "Esta ação marca a mensagem recebida como respondida."
+                  : tipo === "WHATSAPP"
+                    ? "O WhatsApp abre o link wa.me para confirmares o envio."
+                    : ""}
+              </div>
             </div>
           </div>
         </div>
@@ -313,7 +446,7 @@ export default function ComunicacoesPage() {
         {/* Histórico */}
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
           <div className="px-5 py-3 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
-            <span className="font-semibold text-sm text-slate-700">Histórico de comunicações</span>
+            <span className="font-semibold text-sm text-slate-700">Histórico de comunicações {resumo.total > 0 && `(${resumo.total})`}</span>
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <select value={filterTipo} onChange={(e) => setFilterTipo(e.target.value)} className="border border-slate-200 rounded-lg px-2.5 py-1.5 bg-slate-50 text-xs">
                 <option value="">Todos os canais</option>
@@ -321,11 +454,19 @@ export default function ComunicacoesPage() {
                 <option value="WHATSAPP">WhatsApp</option>
                 <option value="EMAIL">Email</option>
               </select>
+              <select value={filterDirecao} onChange={(e) => setFilterDirecao(e.target.value)} className="border border-slate-200 rounded-lg px-2.5 py-1.5 bg-slate-50 text-xs">
+                <option value="">Todas as direções</option>
+                <option value="recebida">Recebidas</option>
+                <option value="enviada">Enviadas</option>
+              </select>
               <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="border border-slate-200 rounded-lg px-2.5 py-1.5 bg-slate-50 text-xs">
                 <option value="">Todos os estados</option>
                 <option value="enviado">Enviado</option>
+                <option value="entregue">Entregue</option>
+                <option value="lido">Lido</option>
+                <option value="recebido">Recebido</option>
                 <option value="pendente">Pendente</option>
-                <option value="falhou">Falhou</option>
+                <option value="falhou">Falha</option>
               </select>
               <input
                 value={filterQ}
@@ -344,24 +485,61 @@ export default function ComunicacoesPage() {
               <p className="font-semibold text-slate-500">Nenhuma comunicação registada</p>
             </div>
           ) : (
-            <div className="divide-y divide-slate-100 text-sm max-h-[480px] overflow-auto">
+            <div className="divide-y divide-slate-100 text-sm max-h-[560px] overflow-auto">
               {items.map((c) => (
-                <div key={c.id} className="px-5 py-3 flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
+                <div key={c.id} className={`px-5 py-3 flex flex-wrap items-start justify-between gap-3 ${eRecebida(c) ? "bg-violet-50/40" : ""}`}>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
                       {tipoIcon(c.tipo)}
-                      <span className="font-semibold text-slate-800">{c.tipo}</span>
-                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${statusBadge(c.status)}`}>{c.status}</span>
+                      <span className={`font-semibold ${eRecebida(c) ? "text-violet-800" : "text-slate-800"}`}>
+                        {eRecebida(c) ? "↤ Recebida" : c.tipo}
+                      </span>
+                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${statusBadge(c.status)}`}>{statusLabel(c.status)}</span>
+                      {c.status === "lido" && <CheckCheck size={13} className="text-indigo-400" />}
+                      {c.respondidoEm && <span className="text-[10px] text-emerald-600 font-bold uppercase">√ respondido</span>}
                       {c.refTipo && <span className="text-xs text-slate-400">· {c.refTipo}{c.refId ? ` #${c.refId}` : ""}</span>}
+                      {c.clienteId && <span className="text-xs text-slate-400">· cliente #{c.clienteId}</span>}
                     </div>
                     <p className="mt-1 text-xs text-slate-400">
-                      {c.destinatario && `→ ${c.destinatario}`}
-                      {c.enviadoEm && ` · ${new Date(c.enviadoEm).toLocaleString("pt-PT")}`}
-                      {c.enviadoPor && ` · por ${c.enviadoPor}`}
+                      <span className="font-medium">
+                        {eRecebida(c) ? "de" : "para"} <span className="text-slate-600">{c.destinatario || "—"}</span>
+                      </span>
+                      {eRecebida(c) && extrairNomeRemetente(c) && <span> · {extrairNomeRemetente(c)}</span>}
+                      {` · ${new Date(c.enviadoEm).toLocaleString("pt-PT")}`}
+                      {!eRecebida(c) && c.enviadoPor && ` · por ${c.enviadoPor}`}
                     </p>
                     <p className="mt-1 text-slate-600 whitespace-pre-line line-clamp-2">{c.mensagem}</p>
                     {c.erro && <p className="mt-1 text-xs text-rose-600">Erro: {c.erro}</p>}
                   </div>
+                  {eRecebida(c) && (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => preencherResposta(c)}
+                        title="Responder no formulário"
+                        className="flex items-center gap-1 rounded-lg border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-xs font-bold text-violet-700 hover:bg-violet-100 transition"
+                      >
+                        <Reply size={13} /> Responder
+                      </button>
+                      {c.tipo === "WHATSAPP" && (
+                        <button
+                          onClick={() => abrirWhatsApp(c)}
+                          title="Responder diretamente no WhatsApp"
+                          className="flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100 transition"
+                        >
+                          <MessageCircle size={13} /> WhatsApp
+                        </button>
+                      )}
+                      {c.tipo === "EMAIL" && (
+                        <button
+                          onClick={() => abrirEmail(c)}
+                          title="Responder por email"
+                          className="flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition"
+                        >
+                          <Mail size={13} /> Email
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

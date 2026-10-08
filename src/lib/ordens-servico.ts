@@ -68,6 +68,7 @@ export type OrdemServicoMeta = {
   grupoNumeroOrdem?: string;
   origem?: string;
   queueId?: number;
+  agendaEventId?: number;
   shipId?: number;
   shipName?: string;
   linhas?: Array<{

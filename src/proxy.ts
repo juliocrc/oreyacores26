@@ -92,6 +92,7 @@ const API_PUBLICAS_EXATAS = [
   "/api/health",
   "/api/setup-db",
   "/api/whatsapp/webhook",
+  "/api/comunicacoes/inbound",
   "/api/service-stations/public",
 ] as const;
 

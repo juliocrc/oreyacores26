@@ -4,6 +4,12 @@ import { getApiSessionToken } from "@/lib/api-auth";
 import prisma from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { parsePedidoAssistenciaJangadaIds } from "@/lib/pedido-assistencia";
+import {
+  appendOrdemServicoLog,
+  appendWorkflowTransition,
+  parseOrdemServicoMeta,
+  toOrdemServicoMetaJson,
+} from "@/lib/ordens-servico";
 
 export const runtime = "nodejs";
 
@@ -400,6 +406,43 @@ export async function PATCH(req: NextRequest) {
 
   try {
     const updated = await prisma.pedidoAssistencia.update({ where: { id }, data });
+
+    // Sincronização bidirecional: arquivar o pedido cancela as OTs ainda não concluídas.
+    if (data.estado === "arquivado") {
+      try {
+        const ordensPendentes = await prisma.ordemServico.findMany({
+          where: {
+            pedidoAssistenciaId: id,
+            status: { in: ["pendente", "agendada", "confirmada"] },
+          },
+          select: { id: true, metadados: true },
+        });
+
+        for (const ordem of ordensPendentes) {
+          const ordemMeta = parseOrdemServicoMeta(ordem.metadados);
+          const nextMeta = appendOrdemServicoLog(
+            appendWorkflowTransition(ordemMeta, "cancelada", {
+              origin: "pedido_assistencia",
+              message: `Pedido de assistência #${id} arquivado; OT cancelada automaticamente.`,
+              user: access.email || "sistema",
+            }),
+            {
+              type: "STATUS",
+              message: `Pedido de assistência #${id} arquivado — OT cancelada automaticamente.`,
+              user: access.email || "sistema",
+            },
+          );
+
+          await prisma.ordemServico.update({
+            where: { id: ordem.id },
+            data: { status: "cancelada", metadados: toOrdemServicoMetaJson(nextMeta) },
+          });
+        }
+      } catch (syncError) {
+        console.error("[PATCH /api/pedidos-assistencia] Erro ao arquivar OTs:", syncError);
+      }
+    }
+
     return NextResponse.json({ success: true, pedido: updated });
   } catch (error) {
     console.error("[PATCH /api/pedidos-assistencia]", error);
