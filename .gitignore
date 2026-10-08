@@ -65,6 +65,8 @@ backup_*.js
 db_dump.*
 *.csv
 *.xlsx
+*.xls
+*.docx
 
 # processed PDFs
 OMT*.pdf
@@ -221,3 +223,12 @@ clean_pkg.js
 # tooling da sessao (opencode/agents), nao pertence ao repo da app
 .opencode/
 .agents/
+
+# templates binarios usados em runtime: os gerados por scripts/_generate_template_embeds.cjs
+# têm de existir no CI/build (caso contrário o ficheiro de embeds perde entradas).
+# NÃO ignorar estes (as regras *.xlsx/*.docx/*.xls acima são re-ativadas abaixo).
+!templates/template quadro.xlsx
+!templates/template certificado coletes.docx
+!templates/template Ficha de Verif. Múltipla.xlsx
+!templates/terceiro template.xlsx
+!templates/FICHA_DGRM_TEMPLATE.docx
