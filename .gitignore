@@ -60,6 +60,7 @@ generated/
 # backup files
 backup_*.json
 backup_*.js
+!scripts/backup_helpers.js
 
 # data dumps
 db_dump.*
