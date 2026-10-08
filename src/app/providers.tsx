@@ -56,10 +56,14 @@ export function useAppThemeController() {
 
 function OfflineSyncBootstrap() {
   React.useEffect(() => {
-    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+    // Só em produção. Em desenvolvimento o RuntimeClientGuard desregista o
+    // service worker e limpa os caches; registar aqui ao mesmo tempo fazia os
+    // dois lutar a cada carga e deixava a pagina controlada por um SW morto.
+    // Com sw.js em cache-first sobre _next/static, isso servia chunks antigos
+    // e provocava "ChunkLoadError" de forma intermitente.
+    if (process.env.NODE_ENV === "production" && typeof window !== "undefined" && "serviceWorker" in navigator) {
       navigator.serviceWorker.register("/sw.js")
-        .then((reg) => console.log("Service Worker registered:", reg.scope))
-        .catch((err) => console.error("Service Worker register fail:", err));
+        .catch((err) => console.warn("Service Worker register failed:", err));
     }
 
     updateOfflineSyncConnectivity(navigator.onLine);
@@ -102,7 +106,19 @@ function OfflineSyncBootstrap() {
 }
 
 export default function Providers({ children, session }: { children: React.ReactNode; session?: Session | null }) {
-  const [queryClient] = React.useState(() => new QueryClient());
+  // Sem staleTime o react-query considera tudo expirado no instante seguinte e
+  // volta a pedir tudo a cada montagem — navegar entre ecras repetia 13-17
+  // pedidos. 30s evita esse desperdicio sem dadosstrasseiros.
+  const [queryClient] = React.useState(() => new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 30_000,
+        gcTime: 5 * 60_000,
+        refetchOnWindowFocus: false,
+        retry: 1,
+      },
+    },
+  }));
   // The first client render must match SSR. Read localStorage only after
   // hydration so persisted themes cannot change MUI class names mid-hydration.
   const [themeName, setThemeNameState] = React.useState<AppThemeName>(DEFAULT_APP_THEME);

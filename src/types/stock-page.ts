@@ -15,6 +15,7 @@ export type ItemStock = {
   validade?: string;
   associavelJangada?: boolean;
   categoria?: string;
+  unit?: string | null;
   descricao?: string;
   foto?: string;
   quantidadeMinima?: number | null;
@@ -131,6 +132,7 @@ export const INITIAL_STOCK_FORM: ItemStock = {
   validade: "",
   associavelJangada: false,
   categoria: "",
+  unit: "un",
   descricao: "",
   quantidadeMinima: null,
   localizacao: "",

@@ -66,13 +66,34 @@ const REGION_PRESETS: Record<RegionPresetKey, RegionPreset> = {
   },
 };
 
-function readString(name: string, fallback: string) {
-  const value = process.env[name]?.trim();
-  return value || fallback;
+// O Next substitui `process.env.NEXT_PUBLIC_*` por literais na fase de build
+// apenas quando a escrita e um acesso ESTATICO a membro. Com `process.env[name]`
+// (indice dinamico) o bundle do cliente fica com `process.env` vazio e todas as
+// variaveis caem silenciosamente no preset — o servidor e o cliente renderizavam
+// nomes/temas diferentes, o que causava o erro de hidratacao. Por isso cada
+// variavel e lida aqui de forma literal.
+const PUBLIC_ENV = {
+  regionPreset: process.env.NEXT_PUBLIC_APP_REGION_PRESET,
+  slug: process.env.NEXT_PUBLIC_APP_SLUG,
+  name: process.env.NEXT_PUBLIC_APP_NAME,
+  issuerName: process.env.NEXT_PUBLIC_APP_ISSUER_NAME,
+  theme: process.env.NEXT_PUBLIC_APP_THEME,
+  defaultServiceStationCode: process.env.NEXT_PUBLIC_DEFAULT_SERVICE_STATION_CODE,
+  defaultRegionLabel: process.env.NEXT_PUBLIC_DEFAULT_REGION_LABEL,
+  icsUidDomain: process.env.NEXT_PUBLIC_ICS_UID_DOMAIN,
+  geoCenterLat: process.env.NEXT_PUBLIC_APP_GEO_CENTER_LAT,
+  geoCenterLng: process.env.NEXT_PUBLIC_APP_GEO_CENTER_LNG,
+  geoLabel: process.env.NEXT_PUBLIC_APP_GEO_LABEL,
+  ivaRate: process.env.NEXT_PUBLIC_IVA_RATE,
+  storageNamespace: process.env.NEXT_PUBLIC_APP_STORAGE_NAMESPACE,
+} as const;
+
+function readString(value: string | undefined, fallback: string) {
+  return value?.trim() || fallback;
 }
 
-function readNumber(name: string, fallback: number) {
-  const raw = process.env[name]?.trim();
+function readNumber(value: string | undefined, fallback: number) {
+  const raw = value?.trim();
   if (!raw) return fallback;
   const parsed = Number(raw);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -86,28 +107,30 @@ function normalizePresetKey(raw?: string | null): RegionPresetKey {
   return "ACORES";
 }
 
-const presetKey = normalizePresetKey(process.env.NEXT_PUBLIC_APP_REGION_PRESET);
+const presetKey = normalizePresetKey(PUBLIC_ENV.regionPreset);
 const preset = REGION_PRESETS[presetKey];
+// APP_STORAGE_NAMESPACE (sem NEXT_PUBLIC_) so existe no servidor; no cliente
+// usamos a variante publica para que as chaves de storage coincidam.
 const serverStorageNamespace = typeof window === "undefined"
-  ? readString("APP_STORAGE_NAMESPACE", preset.slug)
+  ? readString(process.env.APP_STORAGE_NAMESPACE, preset.slug)
   : "";
 
 export const APP_CONFIG = {
   presetKey,
-  slug: readString("NEXT_PUBLIC_APP_SLUG", preset.slug),
-  name: readString("NEXT_PUBLIC_APP_NAME", preset.name),
-  issuerName: readString("NEXT_PUBLIC_APP_ISSUER_NAME", preset.issuerName),
-  theme: readString("NEXT_PUBLIC_APP_THEME", preset.theme),
-  defaultServiceStationCode: readString("NEXT_PUBLIC_DEFAULT_SERVICE_STATION_CODE", preset.defaultServiceStationCode),
-  defaultRegionLabel: readString("NEXT_PUBLIC_DEFAULT_REGION_LABEL", preset.defaultRegionLabel),
-  icsUidDomain: readString("NEXT_PUBLIC_ICS_UID_DOMAIN", preset.icsUidDomain),
+  slug: readString(PUBLIC_ENV.slug, preset.slug),
+  name: readString(PUBLIC_ENV.name, preset.name),
+  issuerName: readString(PUBLIC_ENV.issuerName, preset.issuerName),
+  theme: readString(PUBLIC_ENV.theme, preset.theme),
+  defaultServiceStationCode: readString(PUBLIC_ENV.defaultServiceStationCode, preset.defaultServiceStationCode),
+  defaultRegionLabel: readString(PUBLIC_ENV.defaultRegionLabel, preset.defaultRegionLabel),
+  icsUidDomain: readString(PUBLIC_ENV.icsUidDomain, preset.icsUidDomain),
   geoCenter: {
-    lat: readNumber("NEXT_PUBLIC_APP_GEO_CENTER_LAT", preset.geoCenter.lat),
-    lng: readNumber("NEXT_PUBLIC_APP_GEO_CENTER_LNG", preset.geoCenter.lng),
+    lat: readNumber(PUBLIC_ENV.geoCenterLat, preset.geoCenter.lat),
+    lng: readNumber(PUBLIC_ENV.geoCenterLng, preset.geoCenter.lng),
   },
-  geoLabel: readString("NEXT_PUBLIC_APP_GEO_LABEL", preset.geoLabel),
-  ivaRate: readNumber("NEXT_PUBLIC_APP_IVA_RATE", preset.ivaRate),
-  storageNamespace: readString("NEXT_PUBLIC_APP_STORAGE_NAMESPACE", serverStorageNamespace || preset.slug),
+  geoLabel: readString(PUBLIC_ENV.geoLabel, preset.geoLabel),
+  ivaRate: readNumber(PUBLIC_ENV.ivaRate, preset.ivaRate),
+  storageNamespace: readString(PUBLIC_ENV.storageNamespace, serverStorageNamespace || preset.slug),
 } as const;
 
 export const APP_METADATA = {

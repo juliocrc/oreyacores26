@@ -4,6 +4,7 @@ export type TecnicoRow = {
   email: string | null;
   ativo: boolean;
   serviceStationId: number | null;
+  observacoes?: string | null;
 };
 
 export type StationGroup = {

@@ -5,7 +5,7 @@ import { CheckCircle, Download, FileText, Loader2, ArrowRight, ExternalLink, Upl
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { appToast } from '@/lib/app-toast';
-import { saveShipDocument, saveCertificateDocument, yearFromDate, toastSavedPathIfPresent } from '@/lib/ship-downloads';
+import { saveShipDocument, saveCertificateDocument, yearFromDate, toastSavedPathIfPresent, ensureFolderPermissionNow } from '@/lib/ship-downloads';
 import { buildCertificatePayload as buildSharedCertificatePayload } from './buildCertificatePayload';
 import { buildAbateReportDoc, abateReportFilename } from '@/lib/abate-report-pdf';
 import { getAbateMotivoLabel } from '@/lib/abate-constants';
@@ -138,6 +138,11 @@ export default function Step9_Certificados() {
       appToast.error("Aprove primeiro o certificado como 2º par de olhos antes de emitir.");
       return;
     }
+    // Autorizar a pasta de documentos ANTES do fetch. Depois da ida-e-volta à
+    // rede a user activation expira e o requestPermission do IndexedDB falha,
+    // o que fazia o certificado/quadro irem para Downloads em vez de serem
+    // gravados na pasta.
+    const folderStatus = await ensureFolderPermissionNow();
     setLoading(type);
     setPreviewHtml(null);
     try {
@@ -155,13 +160,34 @@ export default function Step9_Certificados() {
         body: JSON.stringify(payload)
       });
 
-      if (!response.ok) throw new Error('Falha ao gerar certificado');
+      if (!response.ok) {
+        // Preserva a mensagem real do servidor: sem isto, qualquer falha de
+        // geração aparecia apenas como "Erro ao gerar certificado".
+        let detail = '';
+        try {
+          const raw = await response.text();
+          try {
+            const parsed = JSON.parse(raw) as { error?: unknown; message?: unknown };
+            const candidate = parsed?.error || parsed?.message;
+            detail = typeof candidate === 'string' ? candidate : raw;
+          } catch {
+            detail = raw;
+          }
+        } catch {
+          detail = '';
+        }
+        const docLabel = type === 'quadro-xlsx' ? 'quadro de inspeção' : 'certificado';
+        throw new Error(
+          `Falha ao gerar ${docLabel} (HTTP ${response.status})${detail ? `: ${detail.slice(0, 300)}` : ''}`,
+        );
+      }
 
       if (type === 'orey-xlsx' || type === 'quadro-xlsx') {
-        // Guarda o ficheiro nas pastas organizadas (quadro → public/navios/{navio}/,
+        // A cópia no servidor é apenas informativa; o ficheiro é sempre
+        // gravado nas pastas organizadas (quadro → public/navios/{navio}/,
         // certificado → public/certificados-organizados/certificados açores 2026 versao1/)
-        // em vez de descarregar.
-        if (toastSavedPathIfPresent(response, type === 'orey-xlsx' ? 'Certificado' : 'Quadro')) return;
+        // ou descarregado se a pasta de documentos não estiver configurada.
+        toastSavedPathIfPresent(response, type === 'orey-xlsx' ? 'Certificado' : 'Quadro');
 
         const blob = await response.blob();
 
@@ -176,18 +202,29 @@ export default function Step9_Certificados() {
             : `${certNumber} (${ship}).xlsx`;
         }
 
+        const docLabel = type === 'quadro-xlsx' ? 'Quadro' : 'Certificado';
+        if (folderStatus !== 'granted') {
+          appToast.info(
+            folderStatus === 'not-configured'
+              ? `${docLabel} gerado. Pasta de documentos não configurada — ficheiro vai para Downloads. Defina-a no menu da conta (canto superior direito).`
+              : `${docLabel} gerado. Sem autorização para a pasta de documentos — ficheiro vai para Downloads.`,
+          );
+        }
+
         if (type === 'quadro-xlsx') {
           await saveShipDocument({
             shipName: payload.shipName || inspectionData.shipName || inspectionData.shipNameManual,
             category: 'Quadros',
             filename: fileName,
             blob,
+            quiet: true,
           });
         } else {
           await saveCertificateDocument({
             year: yearFromDate(payload.inspectionDate),
             filename: fileName,
             blob,
+            quiet: true,
           });
         }
       } else {
@@ -196,7 +233,7 @@ export default function Step9_Certificados() {
       }
     } catch (error) {
       console.error(error);
-      alert('Erro ao gerar certificado. Verifique a consola.');
+      appToast.error(error instanceof Error ? error.message : 'Erro ao gerar documento. Verifique a consola.');
     } finally {
       setLoading(null);
     }

@@ -1,6 +1,6 @@
 "use client";
-import React, { useState, useEffect, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 import { 
   ClipboardList, 
@@ -474,6 +474,19 @@ function prettifyKey(key: string): string {
     .trim();
 }
 
+// A validade dos fachos de mão só é mostrada se o artigo da jangada tiver
+// validade registada. Jangadas sem validade ficam em branco (nunca herda a
+// validade do stock, ex. 06/2028).
+function fachoHasValidity(artigos: Artigo[] | undefined): boolean {
+  const normalizeText = (text: string) =>
+    text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const facho = (artigos || []).find((art) => {
+    const nameNorm = normalizeText(art.name || '');
+    return nameNorm.includes('facho') || nameNorm.includes('handflare');
+  });
+  return !facho || !!facho.validade;
+}
+
 type EspelhoItem = {
   label: string;
   refKey?: string;
@@ -533,7 +546,8 @@ const ESPELHO_TESTES: { key: string; label: string }[] = [
 ];
 
 function EspelhoChecklist({ data, artigos }: { data: JangadaFormData; artigos: Artigo[] }) {
-  const checklist = data.inspectionChecklistValues || {};
+  const checklist: Record<string, unknown> = { ...(data.inspectionChecklistValues || {}) };
+  if (!fachoHasValidity(artigos)) delete checklist.validade_fachos_mao;
   const checklistKeys = Object.keys(checklist).filter((k) => !k.startsWith('_'));
 
   const consumedKeys = new Set<string>([
@@ -731,6 +745,7 @@ type Props = {
 
 export default function JangadaDetailPageClient({ jangadaId, initialData, ships }: Props) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isInspecting, setIsInspecting] = useState(false);
   const [inspectionToOpen, setInspectionToOpen] = useState<Inspecao | null>(null);
   const [isVistoriaAtual, setIsVistoriaAtual] = useState(false);
@@ -764,6 +779,9 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
   const [isHistoricaOpen, setIsHistoricaOpen] = useState(false);
   const [matchingRecalls, setMatchingRecalls] = useState<Recall[]>([]);
   const [syncLoading, setSyncLoading] = useState(false);
+  // "certificado" | "quadro" enquanto o ficheiro esta a ser gerado no servidor.
+  // Sem isto os botoes ficam seemingly inertes durante a geracao, que demora.
+  const [aGerarDoc, setAGerarDoc] = useState<'certificado' | 'quadro' | null>(null);
   const [syncResult, setSyncResult] = useState<{ success: boolean; warning?: string; summary?: { added: number; updated: number; stockLinked: number; total: number }; hasSnapshot?: boolean; details?: string; packSource?: string } | null>(null);
   const [showSyncResult, setShowSyncResult] = useState(false);
 
@@ -1224,6 +1242,45 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
     const lastSerial = lastWithSerial.cylinderSerialSnapshot || "";
     return String(currentSerial).trim() !== String(lastSerial).trim();
   }, [inspectionList, currentSerial]);
+
+  // Ações pedidas por deep-link (dashboard): /jangadas/:id?action=certificado|quadro|qr|dossier
+  const pendingAction = searchParams.get('action');
+  const handledActionRef = useRef<string | null>(null);
+  const exportHandlersRef = useRef<{ certificado: () => void; quadro: () => void } | null>(null);
+  useEffect(() => {
+    if (!pendingAction) return;
+    if (handledActionRef.current === pendingAction) return;
+    if (loadingData) return;
+    handledActionRef.current = pendingAction;
+
+    // Executar fora do ciclo de render para evitar updates em cascata.
+    const timer = window.setTimeout(() => {
+      switch (pendingAction) {
+        case 'certificado':
+          exportHandlersRef.current?.certificado();
+          break;
+        case 'quadro':
+          exportHandlersRef.current?.quadro();
+          break;
+        case 'qr':
+          setIsQrOpen(true);
+          break;
+        case 'dossier':
+          setPrintMode('dossier');
+          window.setTimeout(() => { window.print(); }, 50);
+          break;
+        default:
+          break;
+      }
+    }, 0);
+
+    // Limpar o parâmetro para não repetir a ação em renders seguintes.
+    const url = new URL(window.location.href);
+    url.searchParams.delete('action');
+    window.history.replaceState({}, '', url.toString());
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingAction, loadingData]);
 
   if (loadingData) {
     return (
@@ -1756,10 +1813,16 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
       checklist.cyl_test_days = diffDays;
     }
 
+    // Sem validade nos artigos da jangada, a validade dos fachos de mão fica
+    // em branco (remove valor legado, ex. 06/2028 vindo do stock).
+    if (!fachoHasValidity(data.artigos)) delete checklist.validade_fachos_mao;
+
     return checklist;
   };
 
   const handleExportCertificadoExcel = async () => {
+    if (aGerarDoc) return;
+    setAGerarDoc('certificado');
     try {
       const payload = {
         certNumber: data.ultimoCertificadoNumero || lastInspecao?.certificadoNumero || '',
@@ -1798,9 +1861,14 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) throw new Error('Falha ao gerar o ficheiro excel');
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error('Falha ao gerar o ficheiro excel: ' + errorText);
+      }
 
-      if (toastSavedPathIfPresent(res, 'Certificado')) return;
+      // A cópia no servidor é apenas informativa; prossegue-se sempre para
+      // gravar na pasta de documentos ou descarregar para o browser.
+      toastSavedPathIfPresent(res, 'Certificado');
 
       const blob = await res.blob();
       // Filename: [certNumber] [shipName].xlsx
@@ -1811,6 +1879,8 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
       });
     } catch (error: unknown) {
       alert('Erro ao exportar certificado: ' + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      setAGerarDoc(null);
     }
   };
 
@@ -1826,6 +1896,8 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
   });
 
   const handleExportQuadroExcel = async () => {
+    if (aGerarDoc) return;
+    setAGerarDoc('quadro');
     try {
       const derivedWp = buildWpDerivedValues({
         pressureUnit: data.testeWPUnidadePressao,
@@ -1896,9 +1968,14 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) throw new Error('Falha ao gerar o ficheiro excel');
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error('Falha ao gerar o ficheiro excel: ' + errorText);
+      }
 
-      if (toastSavedPathIfPresent(res, 'Quadro')) return;
+      // A cópia no servidor é apenas informativa; prossegue-se sempre para
+      // gravar na pasta de documentos ou descarregar para o browser.
+      toastSavedPathIfPresent(res, 'Quadro');
 
       const blob = await res.blob();
       // Filename: [raftSerial] [raftModel] [capacity]P (MM YYYY).xlsx
@@ -1914,7 +1991,17 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
       });
     } catch (error: unknown) {
       alert('Erro ao exportar quadro: ' + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      setAGerarDoc(null);
     }
+  };
+
+  // Expor as exportações ao despachante de deep-link declarado acima.
+  // Atribuição intencional durante o render: o despachante só corre num timeout.
+  // eslint-disable-next-line react-hooks/refs
+  exportHandlersRef.current = {
+    certificado: () => { void handleExportCertificadoExcel(); },
+    quadro: () => { void handleExportQuadroExcel(); },
   };
 
   const handleExportQuadroPDF = async () => {
@@ -1990,7 +2077,9 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
 
       if (!res.ok) throw new Error('Falha ao gerar o PDF');
 
-      if (toastSavedPathIfPresent(res, 'Quadro PDF')) return;
+      // A cópia no servidor é apenas informativa; prossegue-se sempre para
+      // gravar na pasta de documentos ou descarregar para o browser.
+      toastSavedPathIfPresent(res, 'Quadro PDF');
 
       const blob = await res.blob();
       const inspectionDate = new Date(payload.inspectionDate);
@@ -2625,53 +2714,27 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                   <QrCode size={18} className="text-indigo-600" />
                   Gerar Etiqueta QR
                 </button>
-                <div className="relative group">
-                  <button className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-all shadow-sm">
-                    <FileText size={18} className="text-indigo-600" />
-                    Imprimir Etiqueta ▾
-                  </button>
-                  <div className="absolute right-0 top-full mt-1 w-56 rounded-xl bg-white border border-slate-200 shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-all z-50 overflow-hidden">
-                    <button
-                      onClick={() => printJangadaLabel("single")}
-                      className="w-full px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-indigo-50 flex items-center gap-2 border-b border-slate-100"
-                    >
-                      <FileSpreadsheet size={15} /> Etiqueta individual
-                    </button>
-                    <button
-                      onClick={() => printJangadaLabel("avery")}
-                      className="w-full px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-indigo-50 flex items-center gap-2 border-b border-slate-100"
-                    >
-                      <FileSpreadsheet size={15} /> Folha A4 (24 etiquetas)
-                    </button>
-                    <button
-                      onClick={() => printJangadaLabel("avery")}
-                      className="w-full px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-indigo-50 flex items-center gap-2"
-                    >
-                      <FileSpreadsheet size={15} /> Etiqueta 60×30mm
-                    </button>
-                  </div>
-                </div>
                 <button
                   onClick={handleExportCertificadoExcel}
-                  className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-all shadow-sm"
+                  disabled={aGerarDoc !== null}
+                  title={aGerarDoc === 'certificado' ? 'A gerar o certificado...' : undefined}
+                  className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-all shadow-sm disabled:opacity-60 disabled:cursor-progress"
                 >
-                  <FileSpreadsheet size={18} className="text-emerald-600" />
-                  Gerar Certificado Excel
-                </button>
-                <button
-                  onClick={() => setIsEnviarCertificadoOpen(true)}
-                  disabled={!(data.ultimoCertificadoNumero || lastInspecao?.certificadoNumero)}
-                  className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-all shadow-md shadow-indigo-600/20 disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  <Mail size={18} />
-                  Enviar Certificado
+                  {aGerarDoc === 'certificado'
+                    ? <Loader2 size={18} className="animate-spin text-emerald-600" />
+                    : <FileSpreadsheet size={18} className="text-emerald-600" />}
+                  {aGerarDoc === 'certificado' ? 'A gerar...' : 'Gerar Certificado Excel'}
                 </button>
                 <button
                   onClick={handleExportQuadroExcel}
-                  className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-all shadow-sm"
+                  disabled={aGerarDoc !== null}
+                  title={aGerarDoc === 'quadro' ? 'A gerar o quadro...' : undefined}
+                  className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-all shadow-sm disabled:opacity-60 disabled:cursor-progress"
                 >
-                  <FileSpreadsheet size={18} className="text-blue-600" />
-                  Gerar Quadro Excel
+                  {aGerarDoc === 'quadro'
+                    ? <Loader2 size={18} className="animate-spin text-blue-600" />
+                    : <FileSpreadsheet size={18} className="text-blue-600" />}
+                  {aGerarDoc === 'quadro' ? 'A gerar...' : 'Gerar Quadro Excel'}
                 </button>
                 <button
                   onClick={() => printJangadaLabel()}

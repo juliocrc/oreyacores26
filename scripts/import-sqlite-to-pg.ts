@@ -8,6 +8,10 @@
  * Writes to PostgreSQL via the `pg` module directly.
  */
 
+throw new Error(
+  "This legacy TypeScript importer is disabled because it can silently skip data. Use `npm run db:import:preview` and the guarded CommonJS importer instead."
+);
+
 import { PrismaClient } from "@prisma/client";
 import { Pool } from "pg";
 import path from "path";

@@ -266,6 +266,7 @@ export async function GET(req: NextRequest) {
       estadoArtigo: true,
       referenciaSubstituta: true,
       categoria: true,
+      unit: true,
       associavelJangada: true,
       aplicavelMarcaJangada: true,
       aplicavelModeloJangada: true,

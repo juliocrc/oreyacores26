@@ -149,14 +149,10 @@ function step6Percent(d: InspectionData) {
   return { percent: Math.round((filled / results.length) * 100), missing };
 }
 
-function step6CPercent(d: InspectionData) {
-  const bulletins = d.applicableServiceBulletins || [];
-  if (bulletins.length === 0) return { percent: 100, missing: [] };
-  const applied = d.serviceBulletinsApplied || {};
-  const answered = bulletins.filter((b) => applied[b.id] && applied[b.id] !== 'POR_APLICAR').length;
-  const missing: string[] = [];
-  if (answered < bulletins.length) missing.push(`${bulletins.length - answered} boletim(ens) por aplicar`);
-  return { percent: Math.round((answered / bulletins.length) * 100), missing };
+function step6CPercent(_d: InspectionData) {
+  // Os boletins de servico sao informativos. Nao contam para a percentagem do
+  // passo nem bloqueiam a gravacao da inspecao.
+  return { percent: 100, missing: [] };
 }
 
 function stepReparacoesPercent(d: InspectionData) {
@@ -177,13 +173,11 @@ function step7Percent(d: InspectionData) {
 }
 
 function step8Percent(d: InspectionData) {
-  let filled = 0;
-  const missing: string[] = [];
-  if (has(d.responsavel)) filled++;
-  else missing.push('Técnico responsável');
-  if (has(d.signatureBase64)) filled++;
-  else missing.push('Assinatura do técnico');
-  return { percent: Math.round((filled / 2) * 100), missing };
+  // A assinatura do tecnico e opcional: quando nao existe (ou quando nao ha
+  // como assinar no dispositivo) nao pode bloquear a gravacao da inspecao nem
+  // a emissao do certificado. Fica apenas registada quando fornecida.
+  if (!has(d.responsavel)) return { percent: 0, missing: ['Técnico responsável'] };
+  return { percent: 100, missing: [] };
 }
 
 function step9Percent(d: InspectionData) {

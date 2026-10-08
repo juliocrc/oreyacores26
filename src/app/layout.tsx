@@ -16,10 +16,12 @@ import Script from "next/script";
 // Font imports removed to avoid external network dependency during build
 // Using system default fonts
 
+export const dynamic = "force-dynamic";
+
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const session = await getAuthSession();
   return (
-    <html lang="pt" data-theme={DEFAULT_APP_THEME} suppressHydrationWarning>
+    <html lang="pt" data-theme={DEFAULT_APP_THEME} data-scroll-behavior="smooth" suppressHydrationWarning>
       <head>
         <link rel="manifest" href="/manifest.json" />
         <link rel="icon" type="image/png" href="/icon-192x192.png" />

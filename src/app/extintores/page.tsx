@@ -248,7 +248,7 @@ export default function ExtintoresPage() {
       <div class="title">EXTINTOR</div>
       <div class="sub">Orey Técnica Açores, Lda.</div>
     </div>
-    <table>${rowsHtml}</table>
+    <div className="overflow-x-auto"><table>${rowsHtml}</table></div>
     ${obsHtml}
     <div class="foot">Documento gerado pelo Sistema de Gestão Orey · ${new Date().toLocaleDateString("pt-PT")}</div>
   </div>

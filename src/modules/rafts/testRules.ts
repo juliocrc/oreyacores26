@@ -356,3 +356,69 @@ export function getTestRecommendations(args: {
 
   return [wpRec, giRec, fsRec, napRec, dlRec];
 }
+
+export type GiDateContext = {
+  /** Ultimo ensaio GI conhecido, em YYYY-MM-DD. */
+  ultimaGiDate: string | null;
+  /** Proximo ensaio GI (ultimo + 5 anos), em YYYY-MM-DD. */
+  proximaGiDate: string | null;
+  /** Anos completos desde o ultimo ensaio GI. */
+  anosDesdeUltimaGi: number | null;
+  /** De onde veio a data: registada pelo utilizador, derivada do fabrico, ou nenhuma. */
+  origem: 'registada' | 'fabrico' | 'desconhecida';
+};
+
+function toIsoDateValue(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function addYears(date: Date, years: number) {
+  const result = new Date(date.getTime());
+  result.setFullYear(result.getFullYear() + years);
+  return result;
+}
+
+/**
+ * Resolve as datas do ensaio GI (gas inerte / inflacao a gas).
+ *
+ * O GI e due de 5 em 5 anos. A data registada pelo utilizador tem sempre
+ * prioridade; quando nao existe, deriva-se do fabrico tomando o ultimo
+ * multiplo de 5 anos ja decorrido. Serve de proposta no passo 6 (Testes) e
+ * nunca impede o utilizador de escrever outra data.
+ */
+export function getGiDateContext(args: {
+  dataFabrico?: string | null;
+  dataUltimoGi?: string | null;
+  referenceDate?: string | Date | null;
+}): GiDateContext {
+  const referencia = args.referenceDate instanceof Date
+    ? args.referenceDate
+    : parseFlexibleDate(args.referenceDate) || new Date();
+
+  const registada = parseFlexibleDate(args.dataUltimoGi);
+  if (registada) {
+    return {
+      ultimaGiDate: toIsoDateValue(registada),
+      proximaGiDate: toIsoDateValue(addYears(registada, 5)),
+      anosDesdeUltimaGi: calculateFullYears(registada, referencia),
+      origem: 'registada',
+    };
+  }
+
+  const fabrico = parseFlexibleDate(args.dataFabrico);
+  if (fabrico) {
+    const anos = calculateFullYears(fabrico, referencia) ?? 0;
+    const ultimoMultiplo = Math.floor(anos / 5) * 5;
+    if (ultimoMultiplo >= 5) {
+      const ultimaGi = addYears(fabrico, ultimoMultiplo);
+      return {
+        ultimaGiDate: toIsoDateValue(ultimaGi),
+        proximaGiDate: toIsoDateValue(addYears(ultimaGi, 5)),
+        anosDesdeUltimaGi: ultimoMultiplo,
+        origem: 'fabrico',
+      };
+    }
+  }
+
+  return { ultimaGiDate: null, proximaGiDate: null, anosDesdeUltimaGi: null, origem: 'desconhecida' };
+}

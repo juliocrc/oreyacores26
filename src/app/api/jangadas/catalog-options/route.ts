@@ -138,7 +138,7 @@ export async function GET() {
       return a.modelo.localeCompare(b.modelo, "pt-PT");
     });
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       options,
       sources: {
         catalogo: catalogRows.length,
@@ -146,6 +146,8 @@ export async function GET() {
         baseDados: dbRows.length,
       },
     });
+    response.headers.set("Cache-Control", "public, max-age=3600, s-maxage=86400");
+    return response;
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Erro ao carregar opções de catálogo de jangadas.";
     return buildDatabaseErrorResponse(error, message);

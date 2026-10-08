@@ -2,9 +2,10 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import ExcelJS from 'exceljs';
 import * as XLSX from 'xlsx';
-import { fileURLToPath } from 'node:url';
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { toDateKey } from '@/lib/date-utils';
+import { loadTemplateBuffer } from '@/lib/template-loader';
+
+type XlsxLoadArg = Parameters<ExcelJS.Xlsx['load']>[0];
 
 export type OreyCertificateTemplateInput = {
   certNumber?: string;
@@ -41,7 +42,6 @@ export type OreyCertificateTemplateInput = {
   checklist?: Record<string, unknown>;
 };
 
-const TEMPLATE_PATH = path.join(process.cwd(), 'templates', 'template certificado orey.xltx');
 const SERVICE_STATION_NAME = 'OREY TÉCNICA - SERVIÇOS NAVAIS, LDA       50937';
 
 function asString(value: unknown) {
@@ -58,86 +58,43 @@ function sanitizeFileNameSegment(value: unknown, fallback: string) {
 }
 
 function formatDateDDMMYYYY(value: unknown) {
-  const raw = asString(value);
-  if (!raw) return '';
-
-  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (isoMatch) {
-    return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
-  }
-
-  const ptMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (ptMatch) {
-    const day = String(Number(ptMatch[1])).padStart(2, '0');
-    const month = String(Number(ptMatch[2])).padStart(2, '0');
-    return `${day}/${month}/${ptMatch[3]}`;
-  }
-
-  const parsed = new Date(raw);
-  if (Number.isNaN(parsed.getTime())) return raw;
-
-  const day = String(parsed.getDate()).padStart(2, '0');
-  const month = String(parsed.getMonth() + 1).padStart(2, '0');
-  const year = String(parsed.getFullYear());
-  return `${day}/${month}/${year}`;
+  const iso = toDateKey(value);
+  if (!iso) return asString(value);
+  const [isoYear, isoMonth, isoDay] = iso.split('-');
+  return `${isoDay}/${isoMonth}/${isoYear}`;
 }
 
 function formatDateLabel(value: unknown) {
-  const raw = asString(value);
-  if (!raw) return '';
-  if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(raw) || /^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-    const parsed = new Date(raw);
-    if (!Number.isNaN(parsed.getTime())) return parsed.toLocaleDateString('pt-PT');
-    return raw;
-  }
-  const parsed = new Date(raw);
-  if (Number.isNaN(parsed.getTime())) return raw;
-  return parsed.toLocaleDateString('pt-PT');
+  const iso = toDateKey(value);
+  if (!iso) return asString(value);
+  const [year, month, day] = iso.split('-');
+  return `${day}/${month}/${year}`;
 }
 
 function formatMonthYear(value: unknown) {
-  const raw = asString(value);
-  if (!raw) return '';
-  if (/^\d{2}[/-]\d{4}$/.test(raw)) return raw.replace('/', '-');
-  if (/^\d{4}-\d{2}$/.test(raw)) {
-    const [year, month] = raw.split('-');
-    return `${month}-${year}`;
-  }
-  const parsed = new Date(raw);
-  if (Number.isNaN(parsed.getTime())) return raw;
-  return `${String(parsed.getMonth() + 1).padStart(2, '0')}-${parsed.getFullYear()}`;
+  // toDateKey normaliza Date/ISO para YYYY-MM-DD antes do fallback. Sem isto,
+  // um DateTime do Prisma chegava como "Mon Dec 26 2001 ... (Hora padrão dos
+  // Açores)", nenhuma regex casava e a célula saia com o texto em inglês.
+  const iso = toDateKey(value);
+  if (!iso) return '';
+  const [year, month] = iso.split('-');
+  return `${month}-${year}`;
 }
 
 // Returns MM/YYYY (slash) — used for manufacture date and cylinder hydro test
 function formatMonthYearSlash(value: unknown) {
-  const raw = asString(value);
-  if (!raw) return '';
-  if (/^\d{2}[/-]\d{4}$/.test(raw)) return raw.replace('-', '/');
-  if (/^\d{4}-\d{2}$/.test(raw)) {
-    const [year, month] = raw.split('-');
-    return `${month}/${year}`;
-  }
-  // Try full ISO date: pick month/year only
-  const match = raw.match(/^(\d{4})-(\d{2})(-\d{2})?/);
-  if (match) return `${match[2]}/${match[1]}`;
-  const parsed = new Date(raw);
-  if (Number.isNaN(parsed.getTime())) return raw;
-  return `${String(parsed.getMonth() + 1).padStart(2, '0')}/${parsed.getFullYear()}`;
+  const iso = toDateKey(value);
+  if (!iso) return '';
+  const [year, month] = iso.split('-');
+  return `${month}/${year}`;
 }
 
 // Returns MM/AA (two-digit year) — used in the tests section latest test date
 function formatMonthYearShort(value: unknown) {
-  const raw = asString(value);
-  if (!raw) return '';
-  // YYYY-MM or YYYY-MM-DD
-  const isoMatch = raw.match(/^(\d{4})-(\d{2})/);
-  if (isoMatch) return `${isoMatch[2]}/${isoMatch[1].slice(2)}`;
-  // MM/YYYY or MM-YYYY
-  const myMatch = raw.match(/^(\d{2})[/-](\d{4})$/);
-  if (myMatch) return `${myMatch[1]}/${myMatch[2].slice(2)}`;
-  const parsed = new Date(raw);
-  if (Number.isNaN(parsed.getTime())) return raw;
-  return `${String(parsed.getMonth() + 1).padStart(2, '0')}/${String(parsed.getFullYear()).slice(2)}`;
+  const iso = toDateKey(value);
+  if (!iso) return '';
+  const [year, month] = iso.split('-');
+  return `${month}/${year.slice(2)}`;
 }
 
 function asYesNo(value: unknown) {
@@ -516,7 +473,7 @@ function configureCertificatePrintLayout(worksheet: ExcelJS.Worksheet) {
 
 export async function buildOreyCertificateArtifacts(input: OreyCertificateTemplateInput) {
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.readFile(TEMPLATE_PATH);
+  await workbook.xlsx.load((await loadTemplateBuffer('template certificado orey.xltx')) as unknown as XlsxLoadArg);
 
   const worksheet = workbook.getWorksheet('CERTIFICADO') || workbook.worksheets[0];
   if (!worksheet) {

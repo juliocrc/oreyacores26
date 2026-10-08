@@ -69,10 +69,10 @@ export default function RelatorioValidadesPage() {
       const items = (d as unknown as Record<string, ValidityItem[] | undefined>)[s.key] || [];
       if (!items.length) return "";
       return `<div class="section">${s.label} — ${items.length} a expirar</div>
-      <table>
+      <div className="overflow-x-auto"><table>
         <thead><tr><th>Artigo</th><th>Detalhe</th><th class="c">Qtd</th><th class="c">Validade</th></tr></thead>
         <tbody>${items.map(renderRow).join("")}</tbody>
-      </table>`;
+      </table></div>`;
     }).join("");
 
     const totalCount = sections.reduce((acc, s) => acc + (((d as unknown as Record<string, ValidityItem[] | undefined>)[s.key])?.length || 0), 0);
@@ -125,7 +125,7 @@ export default function RelatorioValidadesPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 py-8">
-      <div className="mx-auto max-w-5xl px-4 space-y-6">
+      <div className="ds-page space-y-6">
         <div className="flex items-center gap-3">
           <AlertTriangle className="text-amber-500" size={28} />
           <div>

@@ -55,7 +55,7 @@ export default function FatoImersaoDetailPage() {
     try {
       const [res, navRes] = await Promise.all([
         fetch(`/api/fatos-imersao/${id}`),
-        fetch("/api/navios"),
+        fetch("/api/navios?lite=1"),
       ]);
       if (!res.ok) throw new Error("Não encontrado");
       const data = await res.json();

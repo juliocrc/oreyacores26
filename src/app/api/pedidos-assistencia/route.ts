@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getToken } from "next-auth/jwt";
-import { getAuthSecret } from "@/lib/auth";
 import { getAccessContext } from "@/lib/access-control";
+import { getApiSessionToken } from "@/lib/api-auth";
 import prisma from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
+import { parsePedidoAssistenciaJangadaIds } from "@/lib/pedido-assistencia";
 
 export const runtime = "nodejs";
 
@@ -45,13 +45,135 @@ function cleanOptionalString(value: unknown): string | undefined {
   return str ? str.slice(0, 500) : undefined;
 }
 
+function parsePositiveInteger(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+async function createInternalPedido(req: NextRequest, payload: Record<string, unknown>) {
+  const token = await getApiSessionToken(req);
+  if (!token?.sub && !token?.email) {
+    return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
+  }
+
+  const access = await getAccessContext();
+  if (!access) {
+    return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
+  }
+
+  const tokenRole = String(token?.role || "USER");
+  const role = tokenRole === "ADMIN" ? "ADMIN" : tokenRole === "CLIENTE" ? "CLIENTE" : "USER";
+  if (role === "CLIENTE") {
+    return NextResponse.json({ error: "Apenas utilizadores internos." }, { status: 403 });
+  }
+
+  const clienteId = parsePositiveInteger(payload.clienteId);
+  if (!clienteId) {
+    return NextResponse.json({ error: "Cliente obrigatório." }, { status: 400 });
+  }
+
+  const cliente = await prisma.cliente.findUnique({
+    where: { id: clienteId },
+    select: { id: true, nome: true, email: true, telefone: true, telmovel: true },
+  });
+  if (!cliente) {
+    return NextResponse.json({ error: "Cliente não encontrado." }, { status: 404 });
+  }
+
+  const navioId = parsePositiveInteger(payload.navioId);
+  if (!navioId) {
+    return NextResponse.json({ error: "Navio obrigatório." }, { status: 400 });
+  }
+
+  const navio = await prisma.navio.findUnique({
+    where: { id: navioId },
+    select: { id: true, nome: true, clienteId: true },
+  });
+  if (!navio) {
+    return NextResponse.json({ error: "Navio não encontrado." }, { status: 404 });
+  }
+  if (navio.clienteId !== clienteId) {
+    return NextResponse.json({ error: "O navio selecionado não pertence ao cliente escolhido." }, { status: 400 });
+  }
+
+  const jangadaIds = parsePedidoAssistenciaJangadaIds(
+    payload.jangadaIds ?? payload.jangadaIdsCsv ?? payload.jangadas ?? payload.jangadaId ?? payload.jangadaIdList,
+  );
+  if (jangadaIds.length === 0) {
+    return NextResponse.json({ error: "Selecione pelo menos uma jangada." }, { status: 400 });
+  }
+
+  const jangadas = await prisma.jangada.findMany({
+    where: { id: { in: jangadaIds }, shipId: navioId },
+    select: { id: true, serial: true, shipId: true },
+  });
+
+  if (jangadas.length !== new Set(jangadaIds).size) {
+    return NextResponse.json({ error: "Uma ou mais jangadas selecionadas não pertencem ao navio escolhido." }, { status: 400 });
+  }
+
+  const descricao = cleanString(payload.descricao ?? payload.mensagem ?? payload.message);
+  if (!descricao) {
+    return NextResponse.json({ error: "Descrição do pedido é obrigatória." }, { status: 400 });
+  }
+
+  const tipoAssistencia = cleanOptionalString(payload.tipoAssistencia ?? payload.tipo ?? payload.assistenciaTipo) || "outro";
+  const nome = cleanOptionalString(payload.nome ?? payload.contactName) || cliente.nome;
+  const email = cleanOptionalString(payload.email ?? payload.contactEmail) || cliente.email || undefined;
+  const telefone = cleanOptionalString(payload.telefone ?? payload.contactPhone ?? payload.contactMobile) || cliente.telmovel || cliente.telefone || undefined;
+  const dataPreferida = cleanOptionalString(payload.dataPreferida ?? payload.data);
+  const serviceStationId = parsePositiveInteger(payload.serviceStationId);
+
+  const metadados = {
+    clienteId,
+    navioId,
+    jangadaIds,
+    navioNome: navio.nome,
+    origemInterna: true,
+    requestSource: payload.requestSource ?? "interno",
+  };
+
+  const created = await prisma.pedidoAssistencia.create({
+    data: {
+      nome,
+      email,
+      telefone,
+      navio: navio.nome,
+      jangadaSerial: jangadas.map((jangada) => jangada.serial).filter(Boolean).join(", "),
+      tipoAssistencia,
+      descricao,
+      dataPreferida,
+      origem: "interno",
+      serviceStationId,
+      metadados: JSON.stringify(metadados),
+    },
+  });
+
+  return NextResponse.json(
+    {
+      success: true,
+      id: created.id,
+      pedido: {
+        id: created.id,
+        nome: created.nome,
+        email: created.email,
+        telefone: created.telefone,
+        navio: created.navio,
+        jangadaSerial: created.jangadaSerial,
+        tipoAssistencia: created.tipoAssistencia,
+        estado: created.estado,
+        createdAt: created.createdAt.toISOString(),
+      },
+    },
+    { status: 201 },
+  );
+}
+
 // POST /api/pedidos-assistencia
 // Webhook para receber pedidos de assistência vindos do Zapier Forms.
 // Autenticação: ?token=<ZAPIER_ASSISTENCIA_TOKEN> ou Authorization: Bearer <token>.
 export async function POST(req: NextRequest) {
-  const guard = authWebhook(req);
-  if (!guard.ok) return guard.error;
-
   let payload: Record<string, unknown>;
   try {
     const contentType = req.headers.get("content-type") || "";
@@ -69,6 +191,22 @@ export async function POST(req: NextRequest) {
   if (!payload || typeof payload !== "object") {
     return NextResponse.json({ error: "Corpo da requisição inválido." }, { status: 400 });
   }
+
+  const isInternalRequest =
+    payload.origem === "interno" ||
+    payload.internal === true ||
+    payload.requestSource === "interno" ||
+    payload.clienteId !== undefined ||
+    payload.navioId !== undefined ||
+    payload.jangadaIds !== undefined ||
+    payload.jangadaIdsCsv !== undefined;
+
+  if (isInternalRequest) {
+    return createInternalPedido(req, payload);
+  }
+
+  const guard = authWebhook(req);
+  if (!guard.ok) return guard.error;
 
   const descricao = cleanString(payload.descricao ?? payload.mensagem ?? payload.message);
   if (!descricao) {
@@ -149,7 +287,7 @@ export async function POST(req: NextRequest) {
 
 // GET /api/pedidos-assistencia (admin) — lista pedidos, ?estado=novo&limite=50
 export async function GET(req: NextRequest) {
-  const token = await getToken({ req, secret: getAuthSecret() });
+  const token = await getApiSessionToken(req);
   if (!token?.sub && !token?.email) {
     return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
   }
@@ -191,7 +329,7 @@ export async function GET(req: NextRequest) {
 
 // PATCH /api/pedidos-assistencia (admin) — atualizar estado/dados de um pedido.
 export async function PATCH(req: NextRequest) {
-  const token = await getToken({ req, secret: getAuthSecret() });
+  const token = await getApiSessionToken(req);
   if (!token?.sub && !token?.email) {
     return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
   }

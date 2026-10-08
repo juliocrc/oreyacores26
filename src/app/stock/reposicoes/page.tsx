@@ -467,7 +467,7 @@ function StockReposicoesPageInner() {
 
   return (
     <div className="min-h-screen bg-slate-50 py-6">
-      <div className="mx-auto flex max-w-[1500px] flex-col gap-5 px-4 sm:px-6 lg:px-8">
+      <div className="ds-page flex flex-col gap-5">
         {/* Header */}
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="app-hero-panel px-6 py-6 text-white">

@@ -1453,7 +1453,7 @@ export default function Inspections() {
           <div className="text-2xl font-bold uppercase tracking-tight">{section.title}</div>
           {section.englishTitle && <div className="text-xl text-gray-100">{section.englishTitle}</div>}
         </div>
-        <table className="w-full table-fixed border-collapse text-sm">
+        <div className="overflow-x-auto"><table className="w-full table-fixed border-collapse text-sm">
           <tbody>
             {visibleFields.map((field: ChecklistField) => {
               const value = checklistValues[field.name];
@@ -1518,7 +1518,7 @@ export default function Inspections() {
               );
             })}
           </tbody>
-        </table>
+        </table></div>
       </div>
     );
   };
@@ -2941,7 +2941,7 @@ export default function Inspections() {
       </div>
       <div className="mb-6 bg-white rounded-xl shadow-sm border border-gray-200 p-4">
         <h3 className="text-lg font-bold mb-2">Visualização do Relatório</h3>
-        <table className="min-w-full text-xs sm:text-sm">
+        <div className="overflow-x-auto"><table className="min-w-full text-xs sm:text-sm">
           <thead>
             <tr className="bg-blue-100">
               <th className="p-2 whitespace-nowrap">Navio</th>
@@ -2967,7 +2967,7 @@ export default function Inspections() {
               <tr><td colSpan={4} className="p-2 text-gray-400">Nenhum registro encontrado.</td></tr>
             )}
           </tbody>
-        </table>
+        </table></div>
       </div>
       </div>
 

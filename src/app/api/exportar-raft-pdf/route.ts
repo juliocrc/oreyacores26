@@ -9,17 +9,22 @@ export async function POST(request: Request) {
     const payload = await request.json();
     const { buffer, fileName } = await buildQuadroPDFArtifacts(payload);
 
-    // Guardar no folder organizado por navio (public/navios/{navio}/)
+    // Gravação no servidor é OPCIONAL (só quando CERTIFICADOS_SAVE_TO_PUBLIC=true)
+    // e nunca bloqueia o download. Na Vercel o filesystem é read-only.
     const shipName = (payload as Record<string, unknown>).shipName as string | undefined;
     const raftSerial = (payload as Record<string, unknown>).raftSerial as string | undefined;
     const inspectionDate = (payload as Record<string, unknown>).inspectionDate as string | undefined;
     let savedPath: string | undefined;
-    if (shipName && buffer) {
-      const saved = await saveQuadroToNavioFolder(shipName, fileName, buffer, {
-        serial: raftSerial,
-        date: inspectionDate ? new Date(inspectionDate) : undefined,
-      });
-      savedPath = saved.relativePath;
+    if (shipName && buffer && process.env.CERTIFICADOS_SAVE_TO_PUBLIC === 'true') {
+      try {
+        const saved = await saveQuadroToNavioFolder(shipName, fileName, buffer, {
+          serial: raftSerial,
+          date: inspectionDate ? new Date(inspectionDate) : undefined,
+        });
+        savedPath = saved.relativePath;
+      } catch (saveErr) {
+        console.warn('Gravação em public/ ignorada (não bloqueia o download):', saveErr);
+      }
     }
 
     return new NextResponse(new Uint8Array(buffer), {

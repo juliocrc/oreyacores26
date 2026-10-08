@@ -1,10 +1,11 @@
-"use client";
+﻿"use client";
 import React, { useEffect, useMemo, useState } from 'react';
 import { useJangadaWizardStore } from './store/useJangadaWizardStore';
-import { getTestRecommendations, type TestRecommendation } from '@/modules/rafts/testRules';
+import { getTestRecommendations, getGiDateContext, type TestRecommendation } from '@/modules/rafts/testRules';
 import { getDlLoadReference } from '@/modules/rafts/dlLoadReference';
 import { getStepNumberByKey } from './steps';
-import { Activity, Gauge, ArrowDownToLine, Droplet, Clock, Timer, Play, Pause, RotateCcw, AlertTriangle, Info, CheckCircle2, XCircle, HelpCircle, ShieldAlert } from 'lucide-react';
+import { parseFlexibleDateValue } from '@/lib/date-display';
+import { Activity, Gauge, ArrowDownToLine, Droplet, Clock, Timer, Play, Pause, RotateCcw, AlertTriangle, Info, CheckCircle2, XCircle, HelpCircle, ShieldAlert, CalendarClock } from 'lucide-react';
 
 const TEST_ICONS: Record<string, React.ElementType> = {
   testeWP: Gauge,
@@ -181,6 +182,44 @@ export default function Step6_Testes() {
     });
   };
 
+  // Data do ultimo ensaio GI. O store guarda o valor para o passo 8 o persistir
+  // no checklistSnapshot da inspecao.
+  const dataUltimoGi = inspectionData.dataUltimoGi || '';
+
+  const setDataUltimoGi = (value: string) => {
+    setInspectionData({ dataUltimoGi: value });
+  };
+
+  const giDateContext = useMemo(
+    () =>
+      getGiDateContext({
+        dataFabrico: inspectionData.dataFabrico,
+        dataUltimoGi,
+        referenceDate: inspectionData.dataInspecao,
+      }),
+    [inspectionData.dataFabrico, inspectionData.dataInspecao, dataUltimoGi],
+  );
+
+  const handleAutoFillGiDate = () => {
+    if (giDateContext.ultimaGiDate) {
+      setDataUltimoGi(giDateContext.ultimaGiDate);
+    }
+  };
+
+  // Se o utilizador escreveu uma data manualmente, o proximo GI e sempre essa
+  // data + 5 anos; caso contrario usa a data sugerida pela regra.
+  const formatGiDate = (suggested: string | null, registada: string) => {
+    if (registada) {
+      const registadaDate = parseFlexibleDateValue(registada);
+      if (registadaDate) {
+        const proxima = new Date(registadaDate.getTime());
+        proxima.setFullYear(proxima.getFullYear() + 5);
+        return proxima.toLocaleDateString('pt-PT');
+      }
+    }
+    return suggested ? parseFlexibleDateValue(suggested)?.toLocaleDateString('pt-PT') || suggested : '—';
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
       <div>
@@ -354,6 +393,72 @@ export default function Step6_Testes() {
                     ))}
                   </div>
                 </div>
+
+                {rec.testId === 'testeGI' && (
+                  <div className="mt-5 ml-[3.25rem] rounded-xl border border-indigo-200 bg-indigo-50 p-4">
+                    <div className="flex flex-wrap items-center gap-2 mb-3">
+                      <CalendarClock size={16} className="text-indigo-600" />
+                      <p className="text-sm font-bold text-indigo-900">Data do último teste GI</p>
+                      {giDateContext.origem === 'registada' && (
+                        <span className="inline-flex items-center rounded-full border border-indigo-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-indigo-800">
+                          Registada
+                        </span>
+                      )}
+                      {giDateContext.origem === 'fabrico' && (
+                        <span className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                          Sugerida (5 em 5 anos desde o fabrico)
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap items-end gap-3">
+                      <label className="text-xs font-semibold text-indigo-900">
+                        Último GI
+                        <input
+                          type="date"
+                          value={dataUltimoGi}
+                          onChange={(e) => setDataUltimoGi(e.target.value)}
+                          className="mt-1 block w-full px-3 py-2 border border-indigo-300 rounded-md text-sm bg-white"
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleAutoFillGiDate}
+                        disabled={!giDateContext.ultimaGiDate || dataUltimoGi === giDateContext.ultimaGiDate}
+                        className="px-3 py-2 rounded-md text-xs font-semibold bg-white border border-indigo-300 text-indigo-800 hover:bg-indigo-100 disabled:opacity-50"
+                      >
+                        Introduzir automaticamente
+                      </button>
+                      {dataUltimoGi && (
+                        <button
+                          type="button"
+                          onClick={() => setDataUltimoGi('')}
+                          className="px-3 py-2 rounded-md text-xs font-semibold text-indigo-700 underline underline-offset-2"
+                        >
+                          Limpar
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs text-indigo-900">
+                      <span>
+                        Próximo GI:{' '}
+                        <strong className="font-bold">
+                          {formatGiDate(giDateContext.proximaGiDate, dataUltimoGi)}
+                        </strong>
+                      </span>
+                      {giDateContext.anosDesdeUltimaGi !== null && (
+                        <span>
+                          {giDateContext.anosDesdeUltimaGi} ano(s) desde o último ensaio
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-2 text-[11px] text-indigo-700">
+                      O GI (insuflação por gás inerte) é devido de 5 em 5 anos. Confirme sempre a data com o
+                      certificado do fabricante.
+                    </p>
+                  </div>
+                )}
 
                 {rec.testId === 'testeDL' && isDavit && dlReference && (
                   <div className={`mt-5 ml-[3.25rem] rounded-xl border p-4 ${

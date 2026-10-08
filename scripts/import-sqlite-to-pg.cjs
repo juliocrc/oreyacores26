@@ -23,7 +23,7 @@ const sqlite = new PrismaClient({
 const pgPool = new Pool({
   connectionString: PG_URL,
   max: 5,
-  ssl: { rejectUnauthorized: false }
+  ssl: false
 });
 
 async function getSqliteColumns(table) {
@@ -57,21 +57,25 @@ async function importTable(label, table) {
     return;
   }
 
-  const common = pgCols.filter((c) => sqliteCols.includes(c));
-  if (common.length === 0) {
-    console.log(`  ${label}: SKIP (no common columns)`);
+  const validCommon = pgCols.filter((c) => sqliteCols.map(s => s.toLowerCase()).includes(c.toLowerCase()));
+  const sqliteColMap = {};
+  for (const sc of sqliteCols) {
+    sqliteColMap[sc.toLowerCase()] = sc;
+  }
+  if (validCommon.length === 0) {
+    console.log(`  ${label}: SKIP (no valid common columns)`);
     return;
   }
 
   const count = await getRowCount(table);
-  console.log(`  ${label}: ${count} rows, ${common.length} common cols`);
+  console.log(`  ${label}: ${count} rows, ${validCommon.length} common cols`);
   if (count === 0) return;
 
   const rows = await sqlite.$queryRawUnsafe(
     `SELECT * FROM "${table}"`
   );
 
-  const BATCH = 200;
+  const BATCH = 500;
   let inserted = 0;
   let errors = 0;
 
@@ -79,8 +83,9 @@ async function importTable(label, table) {
     const batch = rows.slice(i, i + BATCH);
 
     for (const row of batch) {
-      const vals = common.map((col) => {
-        const v = row[col];
+      const vals = validCommon.map((col) => {
+        const origKey = sqliteColMap[col.toLowerCase()];
+        const v = origKey ? row[origKey] : null;
         if (typeof v === "object" && v !== null && !(v instanceof Date)) {
           return JSON.stringify(v);
         }
@@ -88,8 +93,8 @@ async function importTable(label, table) {
       });
 
       try {
-        const cols = common.join(", ");
-        const ph = common.map((_, j) => `$${j + 1}`).join(", ");
+        const cols = validCommon.map(c => `"${c}"`).join(", ");
+        const ph = validCommon.map((_, j) => `$${j + 1}`).join(", ");
         await pgPool.query(
           `INSERT INTO "${table}" (${cols}) VALUES (${ph}) ON CONFLICT DO NOTHING`,
           vals
@@ -103,15 +108,15 @@ async function importTable(label, table) {
           !m.includes("foreign key") &&
           !m.includes("violates")
         ) {
-          console.error(`    ${label} row error: ${m.slice(0, 150)}`);
+          if (errors < 3) console.error(`    ${label} row error: ${m.slice(0, 150)}`);
         }
         errors++;
       }
     }
   }
 
-  if (errors > 0) {
-    console.log(`    (${inserted} ok, ${errors} errors)`);
+  if (inserted > 0 || errors > 0) {
+    console.log(`    -> ${inserted} inseridos, ${errors} ignorados/conflitos.`);
   }
 }
 

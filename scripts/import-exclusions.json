@@ -1,0 +1,9 @@
+{
+  "_nota": [
+    "Ids excluidos do import SQLite -> PostgreSQL por serem registos de demonstracao",
+    "(criados a mao para testar formularios, sem cliente, navio ou inspecao reais).",
+    "Override com IMPORT_EXCLUDE_FILE=<outro.json>, ou apague a entrada para importar tudo."
+  ],
+  "Cliente": [2],
+  "FatoImersao": [1, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]
+}

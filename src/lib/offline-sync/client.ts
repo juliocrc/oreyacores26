@@ -5,6 +5,7 @@ import type { OfflineSyncOperation, OfflineSyncPushResponse, OfflineSyncState } 
 const QUEUE_STORAGE_KEY = "offline-sync-queue-v1";
 const STATE_STORAGE_KEY = "offline-sync-state-v1";
 const DEVICE_ID_STORAGE_KEY = "offline-sync-device-id-v1";
+const WORK_MODE_STORAGE_KEY = "orey-work-mode-v1";
 const SNAPSHOT_PREFIX = "offline-sync-snapshot:";
 const UPDATE_EVENT = "offline-sync:update";
 const MAX_QUEUE_SIZE = 200;
@@ -66,7 +67,7 @@ function readStoredState() {
     ...DEFAULT_STATE,
     ...state,
     pendingCount: readStoredQueue().length,
-    online: navigator.onLine,
+    online: isEffectivelyOnline(),
   } satisfies OfflineSyncState;
 }
 
@@ -76,7 +77,7 @@ function writeStoredState(patch: Partial<OfflineSyncState>) {
     ...readStoredState(),
     ...patch,
     pendingCount: readStoredQueue().length,
-    online: navigator.onLine,
+    online: isEffectivelyOnline(),
   } satisfies OfflineSyncState;
   window.localStorage.setItem(STATE_STORAGE_KEY, JSON.stringify(nextState));
   dispatchUpdate();
@@ -97,6 +98,48 @@ export function getOfflineSyncDeviceId() {
   const next = `device-${randomId()}`;
   window.localStorage.setItem(DEVICE_ID_STORAGE_KEY, next);
   return next;
+}
+
+export function getForcedOfflineMode() {
+  if (!hasWindow()) return false;
+  try {
+    return window.localStorage.getItem(WORK_MODE_STORAGE_KEY) === "offline";
+  } catch {
+    return false;
+  }
+}
+
+export function isEffectivelyOnline() {
+  if (!hasWindow()) return true;
+  return navigator.onLine && !getForcedOfflineMode();
+}
+
+export function setForcedOfflineMode(forced: boolean) {
+  if (!hasWindow()) return;
+  try {
+    if (forced) {
+      window.localStorage.setItem(WORK_MODE_STORAGE_KEY, "offline");
+    } else {
+      window.localStorage.removeItem(WORK_MODE_STORAGE_KEY);
+    }
+  } catch {
+    // no-op
+  }
+  writeStoredState({ online: isEffectivelyOnline() });
+  if (!forced && navigator.onLine) {
+    void flushOfflineSyncQueue();
+  }
+}
+
+export function subscribeForcedOfflineMode(listener: () => void) {
+  if (!hasWindow()) return () => {};
+  const wrapped = () => listener();
+  window.addEventListener(UPDATE_EVENT, wrapped);
+  window.addEventListener("storage", wrapped);
+  return () => {
+    window.removeEventListener(UPDATE_EVENT, wrapped);
+    window.removeEventListener("storage", wrapped);
+  };
 }
 
 export function getOfflineSyncQueue() {
@@ -301,7 +344,7 @@ export async function performOfflineAwareJsonRequest<T>(options: {
     return { queued: true as const, data: null as T | null, queuedOperation: queued };
   };
 
-  if (hasWindow() && !navigator.onLine) {
+  if (hasWindow() && !isEffectivelyOnline()) {
     return queueFallback();
   }
 
@@ -360,7 +403,7 @@ function clearRetryTimer() {
 export async function flushOfflineSyncQueue() {
   if (!hasWindow()) return null;
   if (flushPromise) return flushPromise;
-  if (!navigator.onLine) {
+  if (!isEffectivelyOnline()) {
     writeStoredState({ online: false, syncing: false });
     return null;
   }

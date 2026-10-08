@@ -160,17 +160,13 @@ export function defaultPermissionsForRole(role: "ADMIN" | "USER" | "CLIENTE"): E
     };
   }
 
-  const isDeluxe = APP_CONFIG.theme === 'deluxe';
+  const defaultModules = ["dashboard", "jangadas", "estacao-servico"] as PermissionModuleKey[];
+  const defaultPages = ["/", "/", "/jangadas", "/estacao-servico"];
+
   return {
-    visibleModules: isDeluxe 
-      ? ["dashboard", "jangadas", "estacao-servico"] 
-      : ["dashboard", "jangadas"],
-    visiblePages: isDeluxe 
-      ? ["/", "/", "/jangadas", "/estacao-servico"] 
-      : ["/", "/", "/jangadas"],
-    editablePages: isDeluxe 
-      ? ["/estacao-servico"] 
-      : [],
+    visibleModules: defaultModules,
+    visiblePages: defaultPages,
+    editablePages: ["/estacao-servico"],
     editableFields: {
       "jangadas-detail": [],
     },

@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { Anchor } from "lucide-react";
 import prisma from "@/lib/prisma";
 import { APP_CONFIG } from "@/lib/app-config";
+import { listarTecnicosSelecionaveis } from "@/lib/selecao-tecnicos";
 import { getAuthSession } from "@/auth";
 import { SelecionarTecnicoForm } from "./SelecionarTecnicoForm";
 
@@ -25,33 +26,39 @@ export default async function SelecionarTecnicoPage({
       : "/";
 
   // Já existe sessão? Não volta a perguntar.
-  const session = await getAuthSession();
+  let session = null;
+  try {
+    session = await getAuthSession();
+  } catch (error) {
+    console.error("Failed to resolve auth session on technician selection page.", error);
+  }
+
   if (session?.user?.id) {
     redirect(destino);
   }
 
-  const estacao = await prisma.serviceStation.findFirst({
-    where: { codigo: APP_CONFIG.defaultServiceStationCode, ativo: true },
-    select: { id: true, codigo: true, nome: true },
-  });
+  let estacao: { id: number; codigo: string; nome: string } | null = null;
+  let databaseError: string | null = null;
 
-  const tecnicos = estacao
-    ? await prisma.tecnico.findMany({
-        where: { serviceStationId: estacao.id, ativo: true },
-        select: { id: true, nome: true, email: true },
-        orderBy: { nome: "asc" },
-      })
-    : [];
-
-  // Só entram os técnicos que já têm utilizador com sessão possível.
-  const disponiveis: Array<{ id: number; nome: string; email: string; userId: number }> = [];
-  for (const tecnico of tecnicos) {
-    if (!tecnico.email) continue;
-    const user = await prisma.user.findFirst({
-      where: { email: tecnico.email, NOT: { role: "CLIENTE" } },
-      select: { id: true },
+  try {
+    estacao = await prisma.serviceStation.findFirst({
+      where: { codigo: APP_CONFIG.defaultServiceStationCode, ativo: true },
+      select: { id: true, codigo: true, nome: true },
     });
-    if (user) disponiveis.push({ id: tecnico.id, nome: tecnico.nome, email: tecnico.email, userId: user.id });
+  } catch (error) {
+    console.error("Failed to load the default service station when rendering technician selector.", error);
+    databaseError = "A base de dados não está disponível neste momento.";
+  }
+
+  // Todos os técnicos activos entram na lista, mesmo os que ainda não têm
+  // utilizador criado — o utilizador é criado no momento em que clica no nome.
+  let disponiveis: Awaited<ReturnType<typeof listarTecnicosSelecionaveis>> = [];
+
+  try {
+    disponiveis = await listarTecnicosSelecionaveis();
+  } catch (error) {
+    console.error("Failed to load selectable technicians for the selection page.", error);
+    databaseError ??= "Não foi possível carregar a lista de técnicos.";
   }
 
   return (
@@ -73,17 +80,24 @@ export default async function SelecionarTecnicoPage({
             Quem está a inspecionar?
           </h1>
           <p className="mx-auto mt-3 max-w-sm text-[0.9375rem] text-ink-muted">
-            Escolhe o teu nome para começar. Só precisas de fazer isto uma vez — a aplicação
-            lembra-te.
+            Toca no teu nome para começar. Sem palavra-passe — a aplicação lembra-te
+            enquanto estiver aberta.
           </p>
         </header>
 
-        {disponiveis.length === 0 ? (
+        {databaseError ? (
+          <div className="ds-card border-warn-line bg-warn-soft p-6 text-center">
+            <p className="font-semibold text-warn">Não foi possível carregar a seleção.</p>
+            <p className="mt-2 text-sm text-ink-muted">{databaseError}</p>
+            <p className="mt-3 text-xs text-ink-subtle">
+              Verifica se a base de dados e as variáveis de ambiente estão configuradas.
+            </p>
+          </div>
+        ) : disponiveis.length === 0 ? (
           <div className="ds-card border-warn-line bg-warn-soft p-6 text-center">
             <p className="font-semibold text-warn">Nenhum técnico disponível.</p>
             <p className="mt-2 text-sm text-ink-muted">
-              A estação {APP_CONFIG.defaultServiceStationCode} não tem técnicos activos com
-              utilizador. Executa{" "}
+              Não há técnicos activos nesta instalação. Executa{" "}
               <code className="rounded bg-surface px-1.5 py-0.5 font-mono text-xs text-warn">
                 node scripts/garantir-tecnicos-deluxe.cjs
               </code>

@@ -1,91 +1,126 @@
 "use server";
 
-import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { signIn } from "@/auth";
 import prisma from "@/lib/prisma";
-import { APP_CONFIG } from "@/lib/app-config";
+import { normalizeEmail } from "@/lib/auth";
+import { ACTIVE_SERVICE_STATION_COOKIE } from "@/lib/station-selection";
 
-export type SelecaoState = { erro?: string };
+// Tem de coincidir com APP_SESSION_COOKIE em src/app/session-idle-timeout.tsx.
+// Sem este cookie o SessionIdleTimeout desloga a sessão no acto seguinte e
+// devolve o utilizador ao ecrã de arranque.
+const APP_SESSION_COOKIE = "orey_app_open";
+
+function clearAppSessionCookie(cookieStore: Awaited<ReturnType<typeof cookies>>) {
+  cookieStore.set(APP_SESSION_COOKIE, "", { path: "/", sameSite: "lax", maxAge: 0 });
+}
+
+export type SelecaoState = { erro?: string; ok?: boolean };
 
 /**
- * OREYACORESDELUXE — início de sessão sem palavra-passe.
+ * Início de sessão com palavra-passe.
  *
- * O técnico é escolhido uma vez no arranque. Validamos que pertence à
- * estação configurada e que está activo antes de criar a sessão, para que
- * ninguém possa abrir a sessão com um id forjado.
+ * O técnico é escolhido e é necessária a palavra-passe para autenticar.
  */
 export async function selecionarTecnico(
   _estadoAnterior: SelecaoState,
   formData: FormData,
 ): Promise<SelecaoState> {
   const tecnicoIdRaw = String(formData.get("tecnicoId") ?? "").trim();
-  const callbackUrlRaw = String(formData.get("callbackUrl") ?? "").trim();
+  const password = String(formData.get("password") ?? "");
 
   const tecnicoId = Number.parseInt(tecnicoIdRaw, 10);
   if (!Number.isInteger(tecnicoId) || tecnicoId <= 0) {
     return { erro: "Técnico não identificado." };
   }
 
-  // Só(callbackUrl) internas — evita open redirect.
-  const callbackUrl =
-    callbackUrlRaw.startsWith("/") && !callbackUrlRaw.startsWith("//")
-      ? callbackUrlRaw
-      : "/";
+  if (!password) {
+    return { erro: "Introduza a palavra-passe." };
+  }
+
+  // O callbackUrl é validado e normalizado na página e viaja num campo oculto
+  // só para o componente saber para onde navegar — a acção não faz redirect.
 
   try {
-    const estacao = await prisma.serviceStation.findFirst({
-      where: { codigo: APP_CONFIG.defaultServiceStationCode, ativo: true },
-      select: { id: true },
-    });
-
-    if (!estacao) {
-      return { erro: `Estação ${APP_CONFIG.defaultServiceStationCode} indisponível.` };
-    }
-
     const tecnico = await prisma.tecnico.findFirst({
-      where: { id: tecnicoId, serviceStationId: estacao.id, ativo: true },
-      select: { id: true, nome: true, email: true },
+      where: { id: tecnicoId, ativo: true },
+      select: { id: true, nome: true, email: true, serviceStationId: true },
     });
 
     if (!tecnico) {
-      return { erro: "Este técnico não pertence à estação ou está inactivo." };
+      return { erro: "Este técnico não existe ou está inactivo." };
     }
 
     if (!tecnico.email) {
       return { erro: "Este técnico não tem email associado. Contacta o administrador." };
     }
 
+    const email = normalizeEmail(tecnico.email);
+
     // O Tecnico e o User são modelos diferentes: liga-se sempre pelo email,
-    // nunca por id (os ids não têm qualquer relação entre si).
-    const user = await prisma.user.findFirst({
-      where: { email: tecnico.email, NOT: { role: "CLIENTE" } },
-      select: { id: true, name: true, role: true },
+    // nunca por id (os ids não têm qualquer relação entre si). Se o técnico
+    // ainda não tiver utilizador, criamos agora — assim ninguém fica bloqueado
+    // por causa de um script de manutenção que ninguém se lembra de correr.
+    const existente = await prisma.user.findFirst({
+      where: { email, NOT: { role: "CLIENTE" } },
+      select: { id: true },
     });
 
-    if (!user) {
-      return {
-        erro:
-          "Este técnico ainda não tem utilizador na Deluxe. Executa " +
-          "`node scripts/garantir-tecnicos-deluxe.cjs` uma vez.",
-      };
+    const user = existente
+      ? await prisma.user.update({
+          where: { id: existente.id },
+          data: { name: tecnico.nome, lastLoginAt: new Date() },
+          select: { id: true },
+        })
+      : await prisma.user.create({
+          data: {
+            email,
+            name: tecnico.nome,
+            role: "ADMIN",
+            passwordHash: null,
+            lastLoginAt: new Date(),
+          },
+          select: { id: true },
+        });
+
+    // Marca a aplicação como aberta. O SessionIdleTimeout usa este cookie para
+    // distinguir "a aplicação ficou aberta" de "o browser foi fechado"; sem ele
+    // a sessão acabada de criar era imediatamente terminada.
+    const cookieStore = await cookies();
+    cookieStore.set(APP_SESSION_COOKIE, "1", {
+      path: "/",
+      sameSite: "lax",
+      httpOnly: false,
+    });
+
+    // A estação segue a pessoa: não há selector de estação no arranque.
+    if (tecnico.serviceStationId) {
+      cookieStore.set(ACTIVE_SERVICE_STATION_COOKIE, String(tecnico.serviceStationId), {
+        path: "/",
+        sameSite: "lax",
+        httpOnly: false,
+        maxAge: 60 * 60 * 24 * 30,
+      });
     }
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { name: tecnico.nome, lastLoginAt: new Date() },
+    // Sessão com palavra-passe (loginType "credentials").
+    // `redirect: false` para não lançarmos um redirect de dentro da acção: quem
+    // navega é o componente, que depois de `ok` faz replace + refresh. Assim o
+    // clique leva sempre para o ecrã pedido, mesmo com o router já hidratado.
+    const resultado = await signIn("credentials", {
+      loginType: "credentials",
+      email, password,
+      redirect: false,
     });
 
-    // Sessão criada sem palavra-passe (loginType "passwordless").
-    await signIn("credentials", {
-      loginType: "passwordless",
-      userId: String(user.id),
-      redirectTo: callbackUrl,
-    });
+    if (resultado && typeof resultado === "object" && "error" in resultado && resultado.error) {
+      clearAppSessionCookie(cookieStore);
+      return { erro: "Não foi possível iniciar a sessão. Tenta novamente." };
+    }
   } catch (err) {
     console.error("[selecionar-tecnico] Falha ao iniciar sessão:", err);
     return { erro: "Não foi possível iniciar a sessão. Tenta novamente." };
   }
 
-  // `signIn` com redirectTo redirecciona; se não redireccionar, envia para o início.
-  redirect(callbackUrl);
+  return { ok: true };
 }

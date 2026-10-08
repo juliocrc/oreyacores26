@@ -163,7 +163,7 @@ export default function PublicOrcamentoPage({ params }: { params: Promise<{ id: 
           <div className="border border-slate-800 rounded-xl overflow-hidden">
             <table className="w-full text-left text-sm">
               <thead>
-                <tr className="bg-slate-800/80 text-xs font-semibold text-slate-300 uppercase">
+                <tr className="bg-slate-800/80 text-xs font-semibold text-slate-200 uppercase">
                   <th className="p-3">Descrição</th>
                   <th className="p-3 text-center">Qtd</th>
                   <th className="p-3 text-right">Valor</th>

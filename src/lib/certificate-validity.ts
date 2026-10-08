@@ -78,6 +78,15 @@ export const NON_EXPIRING_CERTIFICATE_ITEMS = [
   "rescue quoit and line",
   "quoit and line",
   "repair plugs",
+  // O kit de reparacao em si nao tem prazo de validade. A data que consta no
+  // certificado refere-se ao componente interno (cola, selante, massa de
+  // reparacao). O componente continua a ser rastreado como expiravel.
+  "repair kit",
+  "repair kits",
+  "kit de reparacao",
+  "kit de reparacao",
+  "kit de reparacoes",
+  "kit de reparacoes",
   "can openers",
   "can opener",
   "tin openers",

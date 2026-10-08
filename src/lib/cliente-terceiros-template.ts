@@ -1,6 +1,9 @@
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import ExcelJS from 'exceljs';
+import { loadTemplateBufferIfExists } from '@/lib/template-loader';
+
+type XlsxLoadArg = Parameters<ExcelJS.Xlsx['load']>[0];
 
 export type ClienteTerceirosTemplateInput = {
   id: number;
@@ -113,14 +116,18 @@ function buildNaviosResumo(input: ClienteTerceirosTemplateInput) {
     .join('\n');
 }
 
-async function resolveTemplatePath() {
+async function resolveTemplateBuffer(): Promise<Buffer> {
   for (const candidate of TEMPLATE_CANDIDATE_PATHS) {
     try {
-      await fs.access(candidate);
-      return candidate;
+      return await fs.readFile(candidate);
     } catch {
       continue;
     }
+  }
+
+  for (const candidate of TEMPLATE_CANDIDATE_PATHS) {
+    const embedded = await loadTemplateBufferIfExists(path.basename(candidate));
+    if (embedded) return embedded;
   }
 
   throw new Error('Template de ficha de cliente não encontrado em /templates. Coloque o ficheiro "terceiro template.xlsx" (preferencial) ou um template "CRIAÇÃO DE TERCEIROS" (.xlsx/.xltx).');
@@ -333,9 +340,9 @@ function appendFallbackSheet(workbook: ExcelJS.Workbook, input: ClienteTerceiros
 }
 
 export async function buildClienteTerceirosTemplateArtifacts(input: ClienteTerceirosTemplateInput) {
-  const templatePath = await resolveTemplatePath();
+  const templateBuffer = await resolveTemplateBuffer();
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.readFile(templatePath);
+  await workbook.xlsx.load(templateBuffer as unknown as XlsxLoadArg);
 
   if (workbook.worksheets[0]) {
     applyFixedCellMappings(workbook.worksheets[0], input);

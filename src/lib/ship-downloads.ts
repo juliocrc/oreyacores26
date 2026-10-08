@@ -160,17 +160,17 @@ export function triggerDownload(filename: string, blob: Blob): void {
 
 /**
  * Lê o header X-Orey-Saved-Path devolvido pelos endpoints de geração.
- * Se existir, o ficheiro já ficou gravado no projeto → mostra toast e devolve true
- * (sem descarregar para o browser). Caso contrário devolve false.
+ * A gravação no servidor é apenas informativa: o ficheiro é sempre entregue
+ * também ao browser (pasta de documentos configurada ou Downloads).
+ * Só emite o toast quando o header existe.
  */
 export function toastSavedPathIfPresent(
   res: Response,
   label?: string,
-): boolean {
+): void {
   const savedPath = res.headers.get("X-Orey-Saved-Path");
-  if (!savedPath) return false;
-  appToast.success(`${label ? label + " — " : ""}Guardado em ${savedPath}`);
-  return true;
+  if (!savedPath) return;
+  appToast.success(`${label ? label + " — " : ""}Guardado no servidor em ${savedPath}`);
 }
 
 async function ensurePermission(handle: OreyDirHandle): Promise<boolean> {
@@ -216,6 +216,24 @@ export async function chooseRootFolder(): Promise<string | null> {
   }
 }
 
+/**
+ * Garante autorização na pasta de documentos ENQUANTO o gesto do utilizador
+ * ainda está ativo.
+ *
+ * Isto tem de ser chamado no início do handler (antes de qualquer `fetch`).
+ * Depois da ida-e-volta à rede a user activation expira e
+ * `requestPermission` deixa de ser permitido — o `saveDocument` caía então em
+ * "denied" e o ficheiro ia para Downloads em vez de ser gravado na pasta.
+ */
+export async function ensureFolderPermissionNow(): Promise<
+  "granted" | "not-configured" | "denied"
+> {
+  if (!getDirectoryPicker()) return "not-configured";
+  const root = await idbGet<OreyDirHandle>(ROOT_KEY);
+  if (!root) return "not-configured";
+  return (await ensurePermission(root)) ? "granted" : "denied";
+}
+
 async function writeFileToFolder(
   parent: OreyDirHandle,
   segments: string[],
@@ -244,12 +262,19 @@ async function saveDocument(params: {
   blob: Blob;
   successMessage?: (path: string) => string;
   quiet?: boolean;
+  /**
+   * Quando `false`, o caller já fez ele próprio o download (ex.: gerar
+   * certificado/quadro) e o saveDocument não deve voltar a descarregar o
+   * ficheiro nas situações de fallback — grava apenas na pasta se for possível.
+   * Default: `true` (mantém o comportamento anterior).
+   */
+  downloadFallback?: boolean;
 }): Promise<SaveOutcome> {
-  const { segments, filename, blob, successMessage, quiet } = params;
+  const { segments, filename, blob, successMessage, quiet, downloadFallback = true } = params;
 
   const picker = getDirectoryPicker();
   if (!picker) {
-    triggerDownload(filename, blob);
+    if (downloadFallback) triggerDownload(filename, blob);
     return { saved: false, reason: "unsupported" };
   }
 
@@ -258,7 +283,7 @@ async function saveDocument(params: {
     // expirado. A pasta é definida no menu da conta. Só reutilizamos a já autorizada.
     const root = await idbGet<OreyDirHandle>(ROOT_KEY);
     if (!root) {
-      triggerDownload(filename, blob);
+      if (downloadFallback) triggerDownload(filename, blob);
       if (!quiet) {
         appToast.info(
           "Defina primeiro a pasta de documentos no menu da conta (canto superior direito). Ficheiro descarregado para Downloads.",
@@ -267,10 +292,10 @@ async function saveDocument(params: {
       return { saved: false, reason: "unsupported" };
     }
     if (!(await ensurePermission(root))) {
-      triggerDownload(filename, blob);
+      if (downloadFallback) triggerDownload(filename, blob);
       if (!quiet) {
         appToast.info(
-          "Sem autorização para a pasta de documentos. Ficheiro descarregado para Downloads. Defina novamente a pasta no menu da conta.",
+          "Sem autorização para a pasta de documentos. Ficheiro descarregado para Downloads. Autorize a pasta no menu da conta e repita.",
         );
       }
       return { saved: false, reason: "cancelled" };
@@ -280,12 +305,17 @@ async function saveDocument(params: {
     return { saved: true, path };
   } catch (error) {
     if ((error as DOMException)?.name === "AbortError") {
-      triggerDownload(filename, blob);
+      if (downloadFallback) triggerDownload(filename, blob);
       return { saved: false, reason: "cancelled" };
     }
-    triggerDownload(filename, blob);
+    if (downloadFallback) triggerDownload(filename, blob);
     const message = error instanceof Error ? error.message : String(error);
-    if (!quiet) appToast.warning(`Não foi possível guardar na pasta (${message}). Ficheiro descarregado para Downloads.`);
+    const name = (error as DOMException)?.name;
+    if (!quiet) {
+      appToast.warning(
+        `Não foi possível guardar na pasta${name ? ` [${name}]` : ""}: ${message}. Ficheiro descarregado para Downloads.`,
+      );
+    }
     return { saved: false, reason: "error", error: message };
   }
 }
@@ -296,12 +326,14 @@ export function saveShipDocument(params: {
   category: ShipDocCategory;
   filename: string;
   blob: Blob;
+  quiet?: boolean;
 }): Promise<SaveOutcome> {
   const ship = sanitizeSegment(params.shipName) || "Sem navio";
   return saveDocument({
     segments: [NAVIOS_FOLDER, ship, params.category],
     filename: params.filename,
     blob: params.blob,
+    quiet: params.quiet,
     successMessage: (path) => `Guardado em ${path}`,
   });
 }

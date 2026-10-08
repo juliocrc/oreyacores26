@@ -296,7 +296,7 @@ export default function ContactosInternosPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 py-8">
-      <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 sm:px-6 lg:px-8">
+      <div className="ds-page flex flex-col gap-6">
         <div className="app-hero-panel flex flex-col gap-4 rounded-2xl p-6 text-white">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>

@@ -1,13 +1,37 @@
-"use client";
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
+'use client';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
+import DataTable, { type ColumnDef } from '@/components/shared/DataTable';
 import { extrairPortoDeMatricula } from '@/utils/portosRegisto';
-import { NAVIO_TIPO_NAVIO_OPTIONS, NAVIO_TIPO_PESCA_OPTIONS, normalizeNavioTipoCategoria } from "@/lib/navio-legal-types";
-import { sortNaviosAlphabetically } from "@/lib/navios-sort";
-import type { Navio, JangadaItem, ColeteItem, EpirbItem, ClienteItem, ViewMode, NavioListColumnKey } from "@/types/navios-page";
-import { IS_AZORES_APP, LOCATION_COLUMN_KEY, LOCATION_COLUMN_LABEL, NAVIO_LIST_COLUMNS_KEY, NAVIO_LIST_COLUMNS, BANDEIRAS_OPCOES, AZORES_LOCATION_OPTIONS, INITIAL_NAVIO_FORM, navioEstadoBadge, NAVIO_ESTADO_LABELS } from "@/types/navios-page";
-import { buildDefaultNavioColumns, getNavioLocationLabel } from "@/lib/navios-page-helpers";
-import { getLocationOptionsForTerritorio, type TerritorioGrupo } from "@/lib/portos-regioes";
+import {
+  NAVIO_TIPO_NAVIO_OPTIONS,
+  NAVIO_TIPO_PESCA_OPTIONS,
+  normalizeNavioTipoCategoria,
+} from '@/lib/navio-legal-types';
+import { sortNaviosAlphabetically } from '@/lib/navios-sort';
+import type {
+  Navio,
+  JangadaItem,
+  ColeteItem,
+  EpirbItem,
+  ClienteItem,
+  ViewMode,
+  NavioListColumnKey,
+} from '@/types/navios-page';
+import {
+  IS_AZORES_APP,
+  LOCATION_COLUMN_KEY,
+  LOCATION_COLUMN_LABEL,
+  NAVIO_LIST_COLUMNS_KEY,
+  NAVIO_LIST_COLUMNS,
+  BANDEIRAS_OPCOES,
+  AZORES_LOCATION_OPTIONS,
+  INITIAL_NAVIO_FORM,
+  navioEstadoBadge,
+  NAVIO_ESTADO_LABELS,
+} from '@/types/navios-page';
+import { buildDefaultNavioColumns, getNavioLocationLabel } from '@/lib/navios-page-helpers';
+import { getLocationOptionsForTerritorio, type TerritorioGrupo } from '@/lib/portos-regioes';
 
 export default function NaviosWizard() {
   const [mounted, setMounted] = useState(false);
@@ -33,59 +57,46 @@ export default function NaviosWizard() {
   // Seleção em lote
   const [selectedNavios, setSelectedNavios] = useState<number[]>([]);
   const [deletingBatch, setDeletingBatch] = useState(false);
-  const [showColumnSelector, setShowColumnSelector] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<Record<NavioListColumnKey, boolean>>(
-    buildDefaultNavioColumns()
+    buildDefaultNavioColumns(),
   );
-    function handleSelectNavio(id: number, checked: boolean) {
-      setSelectedNavios(prev => checked ? [...prev, id] : prev.filter(nid => nid !== id));
-    }
-    function handleSelectAllNavios(checked: boolean) {
-      if (checked) {
-        setSelectedNavios(pagedNavios.map(n => n.id));
-      } else {
-        setSelectedNavios([]);
+  async function handleDeleteBatch() {
+    if (selectedNavios.length === 0) return;
+    if (!window.confirm(`Tem certeza que deseja excluir ${selectedNavios.length} navios?`)) return;
+    setDeletingBatch(true);
+    try {
+      const response = await fetch('/api/navios', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: selectedNavios }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error || 'Erro ao excluir navios.');
       }
+      setSelectedNavios([]);
+      await fetchNavios();
+      alert('Navios excluídos com sucesso.');
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Erro ao excluir navios.');
+    } finally {
+      setDeletingBatch(false);
     }
-    async function handleDeleteBatch() {
-      if (selectedNavios.length === 0) return;
-      if (!window.confirm(`Tem certeza que deseja excluir ${selectedNavios.length} navios?`)) return;
-      setDeletingBatch(true);
-      try {
-        const response = await fetch("/api/navios", {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ids: selectedNavios })
-        });
-        if (!response.ok) {
-          const payload = await response.json().catch(() => ({}));
-          throw new Error(payload?.error || "Erro ao excluir navios.");
-        }
-        setSelectedNavios([]);
-        await fetchNavios();
-        alert("Navios excluídos com sucesso.");
-      } catch (err) {
-        alert(err instanceof Error ? err.message : "Erro ao excluir navios.");
-      } finally {
-        setDeletingBatch(false);
-      }
-    }
-  const [tipoFilter, setTipoFilter] = useState<string>("");
-  const [nomeFilter, setNomeFilter] = useState<string>("");
-  const [cfrFilter, setCfrFilter] = useState<string>("");
-  const [ilhaFilter, setIlhaFilter] = useState<string>("");
-  const [clienteFilter, setClienteFilter] = useState<string>("");
-  const [portoFilter, setPortoFilter] = useState<string>("");
-  const [estadoFilter, setEstadoFilter] = useState<string>("");
-  const [territorioFilter, setTerritorioFilter] = useState<string>("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(100);
+  }
+  const [tipoFilter, setTipoFilter] = useState<string>('');
+  const [nomeFilter, setNomeFilter] = useState<string>('');
+  const [cfrFilter, setCfrFilter] = useState<string>('');
+  const [ilhaFilter, setIlhaFilter] = useState<string>('');
+  const [clienteFilter, setClienteFilter] = useState<string>('');
+  const [portoFilter, setPortoFilter] = useState<string>('');
+  const [estadoFilter, setEstadoFilter] = useState<string>('');
+  const [territorioFilter, setTerritorioFilter] = useState<string>('');
   const filterUrlSynced = useRef(false);
   const firstRender = useRef(true);
   const [form, setForm] = useState<Navio>(INITIAL_NAVIO_FORM);
   const [editId, setEditId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>("lista");
+  const [viewMode, setViewMode] = useState<ViewMode>('lista');
   const [isFormExpanded, setIsFormExpanded] = useState(false);
   const [jangadasDisponiveis, setJangadasDisponiveis] = useState<JangadaItem[]>([]);
   const [coletesDisponiveis, setColetesDisponiveis] = useState<ColeteItem[]>([]);
@@ -94,7 +105,7 @@ export default function NaviosWizard() {
   const [selectedJangadaIds, setSelectedJangadaIds] = useState<number[]>([]);
   const [selectedColeteIds, setSelectedColeteIds] = useState<number[]>([]);
   const [selectedEpirbIds, setSelectedEpirbIds] = useState<number[]>([]);
-  const [selectedClienteId, setSelectedClienteId] = useState<string>("");
+  const [selectedClienteId, setSelectedClienteId] = useState<string>('');
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- marcação de montagem no cliente.
@@ -103,41 +114,60 @@ export default function NaviosWizard() {
 
   // Sync filters from URL on mount
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === 'undefined') return;
     if (filterUrlSynced.current) return;
     filterUrlSynced.current = true;
     try {
       const params = new URLSearchParams(window.location.search);
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- restauro dos filtros a partir da URL no arranque.
-      const t = params.get("tipo"); if (t) setTipoFilter(t);
-      const n = params.get("nome"); if (n) setNomeFilter(n);
-      const cf = params.get("cfr"); if (cf) setCfrFilter(cf);
-      const i = params.get("ilha"); if (i) setIlhaFilter(i);
-      const c = params.get("cliente"); if (c) setClienteFilter(c);
-      const p = params.get("porto"); if (p) setPortoFilter(p);
-      const e = params.get("estado"); if (e) setEstadoFilter(e);
-      const te = params.get("territorio"); if (te) setTerritorioFilter(te);
+      const t = params.get('tipo');
+      if (t) setTipoFilter(t); // eslint-disable-line react-hooks/set-state-in-effect -- restauro dos filtros a partir da URL no arranque.
+      const n = params.get('nome');
+      if (n) setNomeFilter(n);
+      const cf = params.get('cfr');
+      if (cf) setCfrFilter(cf);
+      const i = params.get('ilha');
+      if (i) setIlhaFilter(i);
+      const c = params.get('cliente');
+      if (c) setClienteFilter(c);
+      const p = params.get('porto');
+      if (p) setPortoFilter(p);
+      const e = params.get('estado');
+      if (e) setEstadoFilter(e);
+      const te = params.get('territorio');
+      if (te) setTerritorioFilter(te);
     } catch {}
   }, []);
 
   // Sync filter changes to URL
   useEffect(() => {
-    if (firstRender.current) { firstRender.current = false; return; }
-    if (typeof window === "undefined") return;
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    if (typeof window === 'undefined') return;
     try {
       const params = new URLSearchParams();
-      if (tipoFilter) params.set("tipo", tipoFilter);
-      if (nomeFilter) params.set("nome", nomeFilter);
-      if (cfrFilter) params.set("cfr", cfrFilter);
-      if (ilhaFilter) params.set("ilha", ilhaFilter);
-      if (clienteFilter) params.set("cliente", clienteFilter);
-      if (portoFilter) params.set("porto", portoFilter);
-      if (estadoFilter) params.set("estado", estadoFilter);
-      if (territorioFilter) params.set("territorio", territorioFilter);
+      if (tipoFilter) params.set('tipo', tipoFilter);
+      if (nomeFilter) params.set('nome', nomeFilter);
+      if (cfrFilter) params.set('cfr', cfrFilter);
+      if (ilhaFilter) params.set('ilha', ilhaFilter);
+      if (clienteFilter) params.set('cliente', clienteFilter);
+      if (portoFilter) params.set('porto', portoFilter);
+      if (estadoFilter) params.set('estado', estadoFilter);
+      if (territorioFilter) params.set('territorio', territorioFilter);
       const qs = params.toString();
-      window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+      window.history.replaceState(null, '', qs ? `?${qs}` : window.location.pathname);
     } catch {}
-  }, [tipoFilter, nomeFilter, cfrFilter, ilhaFilter, clienteFilter, portoFilter, estadoFilter, territorioFilter]);
+  }, [
+    tipoFilter,
+    nomeFilter,
+    cfrFilter,
+    ilhaFilter,
+    clienteFilter,
+    portoFilter,
+    estadoFilter,
+    territorioFilter,
+  ]);
 
   useEffect(() => {
     let active = true;
@@ -145,10 +175,10 @@ export default function NaviosWizard() {
     async function loadAssociacoes() {
       try {
         const [jangadasRes, coletesRes, epirbsRes, clientesRes] = await Promise.all([
-          fetch("/api/jangadas?scope=all"),
-          fetch("/api/coletes"),
-          fetch("/api/epirbs"),
-          fetch("/api/clientes"),
+          fetch('/api/jangadas?scope=all'),
+          fetch('/api/coletes'),
+          fetch('/api/epirbs'),
+          fetch('/api/clientes'),
         ]);
 
         const jangadasData = await jangadasRes.json().catch(() => []);
@@ -165,27 +195,29 @@ export default function NaviosWizard() {
         const navioAtualId = editId;
 
         setJangadasDisponiveis(
-          allJangadas.filter((j) => !j.shipId || (navioAtualId !== null && j.shipId === navioAtualId))
+          allJangadas.filter(
+            j => !j.shipId || (navioAtualId !== null && j.shipId === navioAtualId),
+          ),
         );
         setColetesDisponiveis(
-          allColetes.filter((c) => !c.shipId || (navioAtualId !== null && c.shipId === navioAtualId))
+          allColetes.filter(c => !c.shipId || (navioAtualId !== null && c.shipId === navioAtualId)),
         );
         setEpirbsDisponiveis(
-          allEpirbs.filter((e) => !e.shipId || (navioAtualId !== null && e.shipId === navioAtualId))
+          allEpirbs.filter(e => !e.shipId || (navioAtualId !== null && e.shipId === navioAtualId)),
         );
         setClientesDisponiveis(allClientes);
 
         if (navioAtualId !== null) {
-          setSelectedJangadaIds(allJangadas.filter((j) => j.shipId === navioAtualId).map((j) => j.id));
-          setSelectedColeteIds(allColetes.filter((c) => c.shipId === navioAtualId).map((c) => c.id));
-          setSelectedEpirbIds(allEpirbs.filter((e) => e.shipId === navioAtualId).map((e) => e.id));
-          const navioAtual = navios.find((n) => n.id === navioAtualId);
-          setSelectedClienteId(navioAtual?.cliente?.id ? String(navioAtual.cliente.id) : "");
+          setSelectedJangadaIds(allJangadas.filter(j => j.shipId === navioAtualId).map(j => j.id));
+          setSelectedColeteIds(allColetes.filter(c => c.shipId === navioAtualId).map(c => c.id));
+          setSelectedEpirbIds(allEpirbs.filter(e => e.shipId === navioAtualId).map(e => e.id));
+          const navioAtual = navios.find(n => n.id === navioAtualId);
+          setSelectedClienteId(navioAtual?.cliente?.id ? String(navioAtual.cliente.id) : '');
         } else {
           setSelectedJangadaIds([]);
           setSelectedColeteIds([]);
           setSelectedEpirbIds([]);
-          setSelectedClienteId("");
+          setSelectedClienteId('');
         }
       } catch {
         if (!active) return;
@@ -206,10 +238,19 @@ export default function NaviosWizard() {
   useEffect(() => {
     fetchNavios();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- recarga server-side quando filtros/paginação mudam.
-  }, [tipoFilter, nomeFilter, cfrFilter, ilhaFilter, clienteFilter, portoFilter, estadoFilter, territorioFilter, page, pageSize]);
+  }, [
+    tipoFilter,
+    nomeFilter,
+    cfrFilter,
+    ilhaFilter,
+    clienteFilter,
+    portoFilter,
+    estadoFilter,
+    territorioFilter,
+  ]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === 'undefined') return;
     try {
       const raw = window.localStorage.getItem(NAVIO_LIST_COLUMNS_KEY);
       if (!raw) return;
@@ -217,7 +258,7 @@ export default function NaviosWizard() {
       const defaults = buildDefaultNavioColumns();
       const merged = { ...defaults };
       for (const col of NAVIO_LIST_COLUMNS) {
-        if (typeof parsed[col.key] === "boolean") {
+        if (typeof parsed[col.key] === 'boolean') {
           merged[col.key] = Boolean(parsed[col.key]);
         }
       }
@@ -227,51 +268,51 @@ export default function NaviosWizard() {
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === 'undefined') return;
     try {
       window.localStorage.setItem(NAVIO_LIST_COLUMNS_KEY, JSON.stringify(visibleColumns));
     } catch {}
   }, [visibleColumns]);
 
-  const isColumnVisible = (key: NavioListColumnKey) => Boolean(visibleColumns[key]);
+  const dataTableVisibleKeys = useMemo(
+    () =>
+      NAVIO_LIST_COLUMNS.filter(col => visibleColumns[col.key])
+        .map(col => col.key),
+    [visibleColumns],
+  );
 
-  const toggleColumn = (key: NavioListColumnKey) => {
-    setVisibleColumns((prev) => {
-      const next = { ...prev, [key]: !prev[key] };
-      const anyEnabled = Object.values(next).some(Boolean);
-      if (!anyEnabled) return { ...next, [key]: true };
-      return next;
-    });
-  };
-
-  const showAllColumns = () => setVisibleColumns(buildDefaultNavioColumns());
-
-  const hideAlmostAllColumns = () => {
-    const first = NAVIO_LIST_COLUMNS[0]?.key;
-    if (!first) return;
-    const next = NAVIO_LIST_COLUMNS.reduce((acc, col) => {
-      acc[col.key] = false;
-      return acc;
-    }, {} as Record<NavioListColumnKey, boolean>);
-    next[first] = true;
-    setVisibleColumns(next);
-  };
+  const handleDataTableColumnsChange = useCallback(
+    (keys: string[]) => {
+      setVisibleColumns(prev => {
+        const next = { ...prev };
+        for (const col of NAVIO_LIST_COLUMNS) {
+          next[col.key] = keys.includes(col.key);
+        }
+        const anyEnabled = Object.values(next).some(Boolean);
+        if (!anyEnabled) {
+          const first = NAVIO_LIST_COLUMNS[0]?.key;
+          if (first) next[first] = true;
+        }
+        return next;
+      });
+    },
+    [],
+  );
 
   async function fetchNavios() {
     const seq = ++naviosFetchSeq.current;
     setLoading(true);
     try {
-      const params = new URLSearchParams({ scope: "all" });
-      if (tipoFilter) params.set("tipoPesca", tipoFilter);
-      if (nomeFilter) params.set("nome", nomeFilter);
-      if (cfrFilter) params.set("matricula", cfrFilter);
-      if (ilhaFilter) params.set("ilha", ilhaFilter);
-      if (clienteFilter) params.set("cliente", clienteFilter);
-      if (portoFilter) params.set("porto", portoFilter);
-      if (estadoFilter) params.set("estado", estadoFilter);
-      if (territorioFilter) params.set("territorio", territorioFilter);
-      params.set("pagina", String(page));
-      params.set("limite", String(pageSize));
+      const params = new URLSearchParams({ scope: 'all' });
+      if (tipoFilter) params.set('tipoPesca', tipoFilter);
+      if (nomeFilter) params.set('nome', nomeFilter);
+      if (cfrFilter) params.set('matricula', cfrFilter);
+      if (ilhaFilter) params.set('ilha', ilhaFilter);
+      if (clienteFilter) params.set('cliente', clienteFilter);
+      if (portoFilter) params.set('porto', portoFilter);
+      if (estadoFilter) params.set('estado', estadoFilter);
+      if (territorioFilter) params.set('territorio', territorioFilter);
+      params.set('limite', '10000');
       const res = await fetch(`/api/navios?${params.toString()}`);
       const response = await res.json();
       const data = response.data ?? response;
@@ -291,7 +332,7 @@ export default function NaviosWizard() {
         setTotalNavios(0);
       }
     } catch (err) {
-      console.error("Error fetching navios:", err);
+      console.error('Error fetching navios:', err);
       if (seq !== naviosFetchSeq.current) return;
       setNavios([]);
       setTotalNavios(0);
@@ -301,34 +342,108 @@ export default function NaviosWizard() {
   }
 
   const ilhaOptions = useMemo(
-    () => getLocationOptionsForTerritorio(territorioFilter as TerritorioGrupo | ""),
-    [territorioFilter]
+    () => getLocationOptionsForTerritorio(territorioFilter as TerritorioGrupo | ''),
+    [territorioFilter],
   );
   const uniqueClientes = clienteOptions;
   const uniquePortos = portoOptions;
   const uniqueTipos = NAVIO_TIPO_PESCA_OPTIONS;
 
   const filteredNavios = navios;
-  const totalPages = Math.max(1, Math.ceil(totalNavios / pageSize));
   const pagedNavios = navios;
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset da paginação quando os filtros mudam.
-    setPage(1);
-  }, [tipoFilter, nomeFilter, cfrFilter, ilhaFilter, clienteFilter, portoFilter, estadoFilter, territorioFilter, pageSize]);
+  const navioListColumns: ColumnDef<Navio>[] = [
+    {
+      key: 'nome',
+      header: 'Nome',
+      sortable: true,
+      filterable: true,
+      render: n => (
+        <Link
+          href={`/navios/${n.id}`}
+          className="text-blue-700 hover:underline font-semibold"
+          title="Ver detalhes do navio"
+        >
+          {n.nome}
+        </Link>
+      ),
+    },
+    {
+      key: 'matricula',
+      header: 'Matrícula',
+      sortable: true,
+      render: n => n.matricula || '—',
+    },
+    {
+      key: 'cliente',
+      header: 'Cliente',
+      sortable: true,
+      filterable: true,
+      filterType: 'select',
+      filterOptions: uniqueClientes.map(c => ({ label: c, value: c })),
+      accessor: n => n.cliente?.nome ?? '',
+      render: n => n.cliente?.nome ?? '—',
+    },
+    {
+      key: 'portoRegisto',
+      header: 'Porto de Registo',
+      sortable: true,
+      filterable: true,
+      filterType: 'select',
+      filterOptions: uniquePortos.map(p => ({ label: p, value: p })),
+      accessor: n => n.portoRegisto || '',
+      render: n => n.portoRegisto || '-',
+    },
+    {
+      key: 'tipo',
+      header: 'Tipo de Navio',
+      sortable: true,
+      accessor: n => normalizeNavioTipoCategoria(n.tipoPesca, n.matricula, n.tipoNavio),
+      render: n => normalizeNavioTipoCategoria(n.tipoPesca, n.matricula, n.tipoNavio),
+    },
+    {
+      key: 'estado',
+      header: 'Estado',
+      sortable: true,
+      filterable: true,
+      filterType: 'select',
+      filterOptions: Object.entries(NAVIO_ESTADO_LABELS).map(([key, { label }]) => ({
+        label,
+        value: key,
+      })),
+      accessor: n => n.estadoNavio ?? '',
+      render: n => {
+        const badge = navioEstadoBadge(n.estadoNavio);
+        return (
+          <span
+            className={`inline-block rounded-md border px-2 py-0.5 text-xs ${badge.cls}`}
+          >
+            {badge.label}
+          </span>
+        );
+      },
+    },
+    {
+      key: LOCATION_COLUMN_KEY,
+      header: LOCATION_COLUMN_LABEL,
+      sortable: true,
+      accessor: n => getNavioLocationLabel(n),
+      render: n => getNavioLocationLabel(n),
+    },
+  ];
 
   function handleTerritorioChange(value: string) {
     setTerritorioFilter(value);
-    const options = getLocationOptionsForTerritorio(value as TerritorioGrupo | "");
+    const options = getLocationOptionsForTerritorio(value as TerritorioGrupo | '');
     if (ilhaFilter && !options.includes(ilhaFilter)) {
-      setIlhaFilter("");
+      setIlhaFilter('');
     }
   }
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const { name, value } = e.target;
     const updates: Partial<Navio> = { [name]: value };
-    
+
     // Se estiver alterando a matrícula, extrai automaticamente o porto de registo
     if (name === 'matricula') {
       const porto = extrairPortoDeMatricula(value);
@@ -336,7 +451,7 @@ export default function NaviosWizard() {
         updates.portoRegisto = porto;
       }
     }
-    
+
     setForm(f => ({ ...f, ...updates }));
   }
 
@@ -346,19 +461,19 @@ export default function NaviosWizard() {
     setLoading(true);
     const payload = {
       nome: form.nome,
-      matricula: form.matricula || "",
-      ilha: form.ilha || "",
-      tipoPesca: form.tipoPesca || "",
-      tipoNavio: form.tipoNavio || "",
-      comprimentoMetros: String(form.comprimentoMetros ?? "").trim(),
-      lotacao: String(form.lotacao ?? "").trim(),
-      proprietario: form.proprietario || "",
-      bandeira: form.bandeira || "Portugal",
-      mmsi: form.mmsi || "",
-      imo: form.imo || "",
-      callSignal: form.callSignal || "",
-      portoRegisto: form.portoRegisto || "",
-      cfr: form.cfr || "",
+      matricula: form.matricula || '',
+      ilha: form.ilha || '',
+      tipoPesca: form.tipoPesca || '',
+      tipoNavio: form.tipoNavio || '',
+      comprimentoMetros: String(form.comprimentoMetros ?? '').trim(),
+      lotacao: String(form.lotacao ?? '').trim(),
+      proprietario: form.proprietario || '',
+      bandeira: form.bandeira || 'Portugal',
+      mmsi: form.mmsi || '',
+      imo: form.imo || '',
+      callSignal: form.callSignal || '',
+      portoRegisto: form.portoRegisto || '',
+      cfr: form.cfr || '',
       clienteId: selectedClienteId ? Number(selectedClienteId) : null,
     };
 
@@ -366,21 +481,21 @@ export default function NaviosWizard() {
     let response: Response;
     if (navioEmEdicaoId) {
       response = await fetch(`/api/navios/${navioEmEdicaoId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
     } else {
-      response = await fetch("/api/navios", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      response = await fetch('/api/navios', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
     }
 
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      alert(data?.error || "Não foi possível salvar o navio.");
+      alert(data?.error || 'Não foi possível salvar o navio.');
       setLoading(false);
       return;
     }
@@ -391,83 +506,87 @@ export default function NaviosWizard() {
     try {
       if (Number.isFinite(savedNavioId) && savedNavioId > 0) {
         const currentJangadasDoNavio = jangadasDisponiveis
-          .filter((j) => j.shipId === savedNavioId)
-          .map((j) => j.id);
+          .filter(j => j.shipId === savedNavioId)
+          .map(j => j.id);
 
-        const nextJangadaIds = selectedJangadaIds.filter((jangadaId) => Number.isFinite(jangadaId));
+        const nextJangadaIds = selectedJangadaIds.filter(jangadaId => Number.isFinite(jangadaId));
 
-        const desassociarJangadas = currentJangadasDoNavio.filter((id) => !nextJangadaIds.includes(id));
+        const desassociarJangadas = currentJangadasDoNavio.filter(
+          id => !nextJangadaIds.includes(id),
+        );
         await Promise.all(
-          desassociarJangadas.map((id) =>
+          desassociarJangadas.map(id =>
             fetch(`/api/jangadas/${id}`, {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ shipId: null }),
-            })
-          )
+            }),
+          ),
         );
 
-        const jangadasToLink = nextJangadaIds.filter((jangadaId) => !currentJangadasDoNavio.includes(jangadaId));
+        const jangadasToLink = nextJangadaIds.filter(
+          jangadaId => !currentJangadasDoNavio.includes(jangadaId),
+        );
         await Promise.all(
-          jangadasToLink.map((jangadaId) =>
+          jangadasToLink.map(jangadaId =>
             fetch(`/api/jangadas/${jangadaId}`, {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ shipId: savedNavioId }),
-            })
-          )
+            }),
+          ),
         );
 
         const currentColeteIds = coletesDisponiveis
-          .filter((c) => c.shipId === savedNavioId)
-          .map((c) => c.id);
+          .filter(c => c.shipId === savedNavioId)
+          .map(c => c.id);
 
-        const toUnlink = currentColeteIds.filter((id) => !selectedColeteIds.includes(id));
-        const toLink = selectedColeteIds.filter((id) => !currentColeteIds.includes(id));
+        const toUnlink = currentColeteIds.filter(id => !selectedColeteIds.includes(id));
+        const toLink = selectedColeteIds.filter(id => !currentColeteIds.includes(id));
 
         await Promise.all([
-          ...toUnlink.map((id) =>
+          ...toUnlink.map(id =>
             fetch(`/api/coletes/${id}`, {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ shipId: null }),
-            })
+            }),
           ),
-          ...toLink.map((id) =>
+          ...toLink.map(id =>
             fetch(`/api/coletes/${id}`, {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ shipId: savedNavioId }),
-            })
+            }),
           ),
         ]);
 
         const currentEpirbIds = epirbsDisponiveis
-          .filter((e) => e.shipId === savedNavioId)
-          .map((e) => e.id);
+          .filter(e => e.shipId === savedNavioId)
+          .map(e => e.id);
 
-        const epirbsToUnlink = currentEpirbIds.filter((id) => !selectedEpirbIds.includes(id));
-        const epirbsToLink = selectedEpirbIds.filter((id) => !currentEpirbIds.includes(id));
+        const epirbsToUnlink = currentEpirbIds.filter(id => !selectedEpirbIds.includes(id));
+        const epirbsToLink = selectedEpirbIds.filter(id => !currentEpirbIds.includes(id));
 
         await Promise.all([
-          ...epirbsToUnlink.map((id) =>
+          ...epirbsToUnlink.map(id =>
             fetch(`/api/epirbs/${id}`, {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ shipId: null }),
-            })
+            }),
           ),
-          ...epirbsToLink.map((id) =>
+          ...epirbsToLink.map(id =>
             fetch(`/api/epirbs/${id}`, {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ shipId: savedNavioId }),
-            })
+            }),
           ),
         ]);
       }
     } catch {
-      alert("Navio salvo, mas ocorreu um erro ao associar jangadas/coletes/EPIRBs.");
+      alert('Navio salvo, mas ocorreu um erro ao associar jangadas/coletes/EPIRBs.');
     }
 
     setEditId(null);
@@ -478,22 +597,22 @@ export default function NaviosWizard() {
   }
 
   async function handleEdit(navio: Navio) {
-    setForm({ ...navio, bandeira: navio.bandeira || "Portugal" });
+    setForm({ ...navio, bandeira: navio.bandeira || 'Portugal' });
     setEditId(navio.id);
     setIsFormExpanded(true);
-    setSelectedClienteId(navio.cliente?.id ? String(navio.cliente.id) : "");
-    if (typeof window !== "undefined") {
-      document.getElementById("navio-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setSelectedClienteId(navio.cliente?.id ? String(navio.cliente.id) : '');
+    if (typeof window !== 'undefined') {
+      document.getElementById('navio-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }
 
   async function handleDelete(id: number) {
-    if (!window.confirm("Tem certeza que deseja excluir este navio?")) return;
+    if (!window.confirm('Tem certeza que deseja excluir este navio?')) return;
     setLoading(true);
-    const response = await fetch(`/api/navios/${id}`, { method: "DELETE" });
+    const response = await fetch(`/api/navios/${id}`, { method: 'DELETE' });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      alert(data?.error || "Não foi possível excluir o navio.");
+      alert(data?.error || 'Não foi possível excluir o navio.');
       setLoading(false);
       return;
     }
@@ -506,11 +625,11 @@ export default function NaviosWizard() {
     setSelectedJangadaIds([]);
     setSelectedColeteIds([]);
     setSelectedEpirbIds([]);
-    setSelectedClienteId("");
+    setSelectedClienteId('');
     setEditId(null);
     setIsFormExpanded(true);
-    if (typeof window !== "undefined") {
-      document.getElementById("navio-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (typeof window !== 'undefined') {
+      document.getElementById('navio-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }
 
@@ -530,33 +649,33 @@ export default function NaviosWizard() {
   };
 
   const dashboardCards = [
-    { label: "Total em vista", value: totalNavios },
-    { label: "Navios totais", value: stats.total },
-    { label: "Com cliente", value: stats.comCliente },
-    { label: "Sem cliente", value: stats.semCliente },
-    { label: "Sem matrícula", value: stats.semMatricula },
+    { label: 'Total em vista', value: totalNavios },
+    { label: 'Navios totais', value: stats.total },
+    { label: 'Com cliente', value: stats.comCliente },
+    { label: 'Sem cliente', value: stats.semCliente },
+    { label: 'Sem matrícula', value: stats.semMatricula },
   ];
 
   const dashboardHighlights = [
     {
-      label: "Ilhas ativas",
+      label: 'Ilhas ativas',
       value: stats.ilhasAtivas,
-      helper: "Número de ilhas/regiões canónicas com navios registados.",
+      helper: 'Número de ilhas/regiões canónicas com navios registados.',
     },
     {
-      label: "Ilha com mais navios",
-      value: stats.topIlha?.nome || "—",
-      helper: stats.topIlha ? `${stats.topIlha.total} navio(s)` : "Sem distribuição por ilha.",
+      label: 'Ilha com mais navios',
+      value: stats.topIlha?.nome || '—',
+      helper: stats.topIlha ? `${stats.topIlha.total} navio(s)` : 'Sem distribuição por ilha.',
     },
     {
-      label: "Com porto de registo",
+      label: 'Com porto de registo',
       value: stats.comPortoRegisto,
-      helper: "Navios com porto de registo preenchido.",
+      helper: 'Navios com porto de registo preenchido.',
     },
     {
-      label: "Sem ilha/região válida",
+      label: 'Sem ilha/região válida',
       value: stats.semIlha,
-      helper: "Navios sem ilha ou região reconhecida na ficha do navio ou no cliente.",
+      helper: 'Navios sem ilha ou região reconhecida na ficha do navio ou no cliente.',
     },
   ];
 
@@ -566,14 +685,17 @@ export default function NaviosWizard() {
 
   return (
     <div className="min-h-screen bg-slate-50 py-8" suppressHydrationWarning>
-      <div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 sm:px-6 lg:px-8">
+      <div className="ds-page flex flex-col gap-5">
         <div className="app-hero-panel flex flex-col gap-3 rounded-2xl p-4 text-white lg:p-5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-100">Orey Técnica</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-100">
+                Orey Técnica
+              </p>
               <h1 className="mt-1 text-2xl font-bold lg:text-3xl">Registo de navios</h1>
               <p className="mt-1 max-w-3xl text-xs text-sky-100/95 lg:text-sm">
-                Diretório operacional das embarcações com associações a cliente, jangada e coletes, seguindo o mesmo padrão visual dos clientes e contactos internos.
+                Diretório operacional das embarcações com associações a cliente, jangada e coletes,
+                seguindo o mesmo padrão visual dos clientes e contactos internos.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -587,7 +709,7 @@ export default function NaviosWizard() {
                   openCreateWizard();
                 }}
               >
-                {isFormExpanded ? "Recolher formulário" : "+ Novo navio"}
+                {isFormExpanded ? 'Recolher formulário' : '+ Novo navio'}
               </button>
               <button
                 className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700 sm:px-4 sm:text-sm"
@@ -598,7 +720,7 @@ export default function NaviosWizard() {
             </div>
           </div>
           <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
-            {dashboardCards.map((item) => (
+            {dashboardCards.map(item => (
               <div key={item.label} className="app-hero-card rounded-xl p-3">
                 <p className="text-xs uppercase tracking-[0.2em] text-sky-100">{item.label}</p>
                 <p className="mt-1 text-xl font-bold sm:text-2xl">{item.value}</p>
@@ -606,7 +728,7 @@ export default function NaviosWizard() {
             ))}
           </div>
           <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-            {dashboardHighlights.map((item) => (
+            {dashboardHighlights.map(item => (
               <div key={item.label} className="app-hero-card rounded-xl p-3">
                 <p className="text-xs uppercase tracking-[0.2em] text-sky-100">{item.label}</p>
                 <p className="mt-1 text-lg font-bold text-white sm:text-xl">{item.value}</p>
@@ -616,11 +738,11 @@ export default function NaviosWizard() {
           </div>
           <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
             {[
-              { label: "Pesca local", value: stats.pescaLocal },
-              { label: "Pesca costeira", value: stats.pescaCosteira },
-              { label: "Marítimo turística", value: stats.maritimoTuristica },
-              { label: "Outras tipologias", value: stats.outrasTipologias },
-            ].map((item) => (
+              { label: 'Pesca local', value: stats.pescaLocal },
+              { label: 'Pesca costeira', value: stats.pescaCosteira },
+              { label: 'Marítimo turística', value: stats.maritimoTuristica },
+              { label: 'Outras tipologias', value: stats.outrasTipologias },
+            ].map(item => (
               <div key={item.label} className="app-hero-card-soft rounded-xl p-3">
                 <p className="text-xs uppercase tracking-[0.2em] text-sky-100">{item.label}</p>
                 <p className="mt-1 text-lg font-bold text-white sm:text-xl">{item.value}</p>
@@ -629,26 +751,31 @@ export default function NaviosWizard() {
           </div>
         </div>
 
-        <section id="navio-form" className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <section
+          id="navio-form"
+          className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+        >
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">{editId ? "Editar navio" : "Novo navio"}</h2>
+              <h2 className="text-lg font-semibold text-slate-900">
+                {editId ? 'Editar navio' : 'Novo navio'}
+              </h2>
               <p className="text-sm text-slate-500">
                 {isFormExpanded
-                  ? "Ficha rápida para criar ou corrigir a embarcação e respetivas associações."
-                  : "Formulário recolhido para dar mais espaço ao diretório."}
+                  ? 'Ficha rápida para criar ou corrigir a embarcação e respetivas associações.'
+                  : 'Formulário recolhido para dar mais espaço ao diretório.'}
               </p>
             </div>
             <div className="flex items-center gap-2">
               <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                {editId ? "Edição" : isFormExpanded ? "Manual" : "Recolhido"}
+                {editId ? 'Edição' : isFormExpanded ? 'Manual' : 'Recolhido'}
               </span>
               <button
                 type="button"
-                onClick={() => setIsFormExpanded((prev) => !prev)}
+                onClick={() => setIsFormExpanded(prev => !prev)}
                 className="inline-flex items-center rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
               >
-                {isFormExpanded ? "Recolher formulário" : "Expandir formulário"}
+                {isFormExpanded ? 'Recolher formulário' : 'Expandir formulário'}
               </button>
             </div>
           </div>
@@ -670,7 +797,7 @@ export default function NaviosWizard() {
                 <label className="block text-xs mb-1 text-gray-600">Matrícula</label>
                 <input
                   name="matricula"
-                  value={form.matricula || ""}
+                  value={form.matricula || ''}
                   onChange={handleChange}
                   placeholder="Ex: PTHOR-1234567"
                   className="border rounded-lg px-3 py-2 w-full"
@@ -680,7 +807,7 @@ export default function NaviosWizard() {
                 <label className="block text-xs mb-1 text-gray-600">Porto de Registo</label>
                 <input
                   name="portoRegisto"
-                  value={form.portoRegisto || ""}
+                  value={form.portoRegisto || ''}
                   onChange={handleChange}
                   placeholder="Preenchido automaticamente pela matrícula"
                   className="border rounded-lg px-3 py-2 w-full bg-gray-50"
@@ -690,14 +817,14 @@ export default function NaviosWizard() {
                 <label className="block text-xs mb-1 text-gray-600">Ilha</label>
                 <input
                   name="ilha"
-                  value={form.ilha || ""}
+                  value={form.ilha || ''}
                   onChange={handleChange}
                   placeholder="Ilha / região"
                   className="border rounded-lg px-3 py-2 w-full"
                   list="navio-ilhas-opcoes"
                 />
                 <datalist id="navio-ilhas-opcoes">
-                  {AZORES_LOCATION_OPTIONS.map((ilha) => (
+                  {AZORES_LOCATION_OPTIONS.map(ilha => (
                     <option key={ilha} value={ilha} />
                   ))}
                 </datalist>
@@ -706,14 +833,14 @@ export default function NaviosWizard() {
                 <label className="block text-xs mb-1 text-gray-600">Enquadramento legal</label>
                 <input
                   name="tipoPesca"
-                  value={form.tipoPesca || ""}
+                  value={form.tipoPesca || ''}
                   onChange={handleChange}
                   placeholder="Ex.: Pesca Local"
                   className="border rounded-lg px-3 py-2 w-full"
                   list="navio-tipo-pesca-opcoes"
                 />
                 <datalist id="navio-tipo-pesca-opcoes">
-                  {NAVIO_TIPO_PESCA_OPTIONS.map((tipo) => (
+                  {NAVIO_TIPO_PESCA_OPTIONS.map(tipo => (
                     <option key={tipo} value={tipo} />
                   ))}
                 </datalist>
@@ -722,14 +849,14 @@ export default function NaviosWizard() {
                 <label className="block text-xs mb-1 text-gray-600">Tipo de embarcação</label>
                 <input
                   name="tipoNavio"
-                  value={form.tipoNavio || ""}
+                  value={form.tipoNavio || ''}
                   onChange={handleChange}
                   placeholder="Ex.: Marítimo-Turística"
                   className="border rounded-lg px-3 py-2 w-full"
                   list="navio-tipo-navio-opcoes"
                 />
                 <datalist id="navio-tipo-navio-opcoes">
-                  {NAVIO_TIPO_NAVIO_OPTIONS.map((tipo) => (
+                  {NAVIO_TIPO_NAVIO_OPTIONS.map(tipo => (
                     <option key={tipo} value={tipo} />
                   ))}
                 </datalist>
@@ -741,7 +868,7 @@ export default function NaviosWizard() {
                   min="0"
                   step="0.01"
                   name="comprimentoMetros"
-                  value={String(form.comprimentoMetros ?? "")}
+                  value={String(form.comprimentoMetros ?? '')}
                   onChange={handleChange}
                   placeholder="Opcional · útil para pesca costeira"
                   className="border rounded-lg px-3 py-2 w-full"
@@ -751,7 +878,7 @@ export default function NaviosWizard() {
                 <label className="block text-xs mb-1 text-gray-600">Proprietário</label>
                 <input
                   name="proprietario"
-                  value={form.proprietario || ""}
+                  value={form.proprietario || ''}
                   onChange={handleChange}
                   placeholder="Proprietário"
                   className="border rounded-lg px-3 py-2 w-full"
@@ -761,14 +888,14 @@ export default function NaviosWizard() {
                 <label className="block text-xs mb-1 text-gray-600">Bandeira</label>
                 <input
                   name="bandeira"
-                  value={form.bandeira || ""}
+                  value={form.bandeira || ''}
                   onChange={handleChange}
                   placeholder="Bandeira"
                   className="border rounded-lg px-3 py-2 w-full"
                   list="bandeiras-opcoes"
                 />
                 <datalist id="bandeiras-opcoes">
-                  {BANDEIRAS_OPCOES.map((flag) => (
+                  {BANDEIRAS_OPCOES.map(flag => (
                     <option key={flag} value={flag} />
                   ))}
                 </datalist>
@@ -777,7 +904,7 @@ export default function NaviosWizard() {
                 <label className="block text-xs mb-1 text-gray-600">MMSI</label>
                 <input
                   name="mmsi"
-                  value={form.mmsi || ""}
+                  value={form.mmsi || ''}
                   onChange={handleChange}
                   placeholder="MMSI"
                   className="border rounded-lg px-3 py-2 w-full"
@@ -787,7 +914,7 @@ export default function NaviosWizard() {
                 <label className="block text-xs mb-1 text-gray-600">IMO</label>
                 <input
                   name="imo"
-                  value={form.imo || ""}
+                  value={form.imo || ''}
                   onChange={handleChange}
                   placeholder="IMO"
                   className="border rounded-lg px-3 py-2 w-full"
@@ -797,7 +924,7 @@ export default function NaviosWizard() {
                 <label className="block text-xs mb-1 text-gray-600">CALL SIGNAL</label>
                 <input
                   name="callSignal"
-                  value={form.callSignal || ""}
+                  value={form.callSignal || ''}
                   onChange={handleChange}
                   placeholder="CALL SIGNAL"
                   className="border rounded-lg px-3 py-2 w-full"
@@ -811,16 +938,19 @@ export default function NaviosWizard() {
                 <label className="block text-xs mb-1 text-gray-600">Cliente / Armador</label>
                 <select
                   value={selectedClienteId}
-                  onChange={(e) => setSelectedClienteId(e.target.value)}
+                  onChange={e => setSelectedClienteId(e.target.value)}
                   className="border rounded-lg px-3 py-2 w-full"
                 >
                   <option value="">Sem cliente associado</option>
                   {clientesDisponiveis
                     .slice()
-                    .sort((a, b) => (a.nome || "").localeCompare(b.nome || "", "pt", { sensitivity: "base" }))
-                    .map((cliente) => (
+                    .sort((a, b) =>
+                      (a.nome || '').localeCompare(b.nome || '', 'pt', { sensitivity: 'base' }),
+                    )
+                    .map(cliente => (
                       <option key={cliente.id} value={cliente.id}>
-                        {cliente.nome} {cliente.ilha ? `(${cliente.ilha})` : ""} {cliente.numeroCliente ? `[${cliente.numeroCliente}]` : ""}
+                        {cliente.nome} {cliente.ilha ? `(${cliente.ilha})` : ''}{' '}
+                        {cliente.numeroCliente ? `[${cliente.numeroCliente}]` : ''}
                       </option>
                     ))}
                 </select>
@@ -831,10 +961,10 @@ export default function NaviosWizard() {
                 <select
                   multiple
                   value={selectedJangadaIds.map(String)}
-                  onChange={(e) => {
+                  onChange={e => {
                     const selected = Array.from(e.target.selectedOptions)
-                      .map((opt) => Number(opt.value))
-                      .filter((id) => Number.isFinite(id));
+                      .map(opt => Number(opt.value))
+                      .filter(id => Number.isFinite(id));
                     setSelectedJangadaIds(selected);
                   }}
                   className="border rounded-lg px-3 py-2 w-full"
@@ -842,14 +972,19 @@ export default function NaviosWizard() {
                 >
                   {jangadasDisponiveis
                     .slice()
-                    .sort((a, b) => (a.serial || "").localeCompare(b.serial || ""))
-                    .map((jangada) => (
+                    .sort((a, b) => (a.serial || '').localeCompare(b.serial || ''))
+                    .map(jangada => (
                       <option key={jangada.id} value={jangada.id}>
-                        {jangada.serial} {jangada.brand || jangada.model ? `- ${[jangada.brand, jangada.model].filter(Boolean).join(" ")}` : ""}
+                        {jangada.serial}{' '}
+                        {jangada.brand || jangada.model
+                          ? `- ${[jangada.brand, jangada.model].filter(Boolean).join(' ')}`
+                          : ''}
                       </option>
                     ))}
                 </select>
-                <p className="text-[11px] text-gray-500 mt-1">Dica: mantenha Ctrl pressionado para selecionar várias jangadas.</p>
+                <p className="text-[11px] text-gray-500 mt-1">
+                  Dica: mantenha Ctrl pressionado para selecionar várias jangadas.
+                </p>
               </div>
 
               <div>
@@ -857,10 +992,10 @@ export default function NaviosWizard() {
                 <select
                   multiple
                   value={selectedColeteIds.map(String)}
-                  onChange={(e) => {
+                  onChange={e => {
                     const selected = Array.from(e.target.selectedOptions)
-                      .map((opt) => Number(opt.value))
-                      .filter((id) => Number.isFinite(id));
+                      .map(opt => Number(opt.value))
+                      .filter(id => Number.isFinite(id));
                     setSelectedColeteIds(selected);
                   }}
                   className="border rounded-lg px-3 py-2 w-full"
@@ -868,15 +1003,20 @@ export default function NaviosWizard() {
                 >
                   {coletesDisponiveis
                     .slice()
-                    .sort((a, b) => (a.serial || "").localeCompare(b.serial || ""))
-                    .map((colete) => (
+                    .sort((a, b) => (a.serial || '').localeCompare(b.serial || ''))
+                    .map(colete => (
                       <option key={colete.id} value={colete.id}>
-                        {colete.serial} {colete.marca || colete.modelo ? `- ${[colete.marca, colete.modelo].filter(Boolean).join(" ")}` : ""}
-                        {colete.estado ? ` (${colete.estado})` : ""}
+                        {colete.serial}{' '}
+                        {colete.marca || colete.modelo
+                          ? `- ${[colete.marca, colete.modelo].filter(Boolean).join(' ')}`
+                          : ''}
+                        {colete.estado ? ` (${colete.estado})` : ''}
                       </option>
                     ))}
                 </select>
-                <p className="text-[11px] text-gray-500 mt-1">Dica: mantenha Ctrl pressionado para selecionar vários coletes.</p>
+                <p className="text-[11px] text-gray-500 mt-1">
+                  Dica: mantenha Ctrl pressionado para selecionar vários coletes.
+                </p>
               </div>
 
               <div>
@@ -884,10 +1024,10 @@ export default function NaviosWizard() {
                 <select
                   multiple
                   value={selectedEpirbIds.map(String)}
-                  onChange={(e) => {
+                  onChange={e => {
                     const selected = Array.from(e.target.selectedOptions)
-                      .map((opt) => Number(opt.value))
-                      .filter((id) => Number.isFinite(id));
+                      .map(opt => Number(opt.value))
+                      .filter(id => Number.isFinite(id));
                     setSelectedEpirbIds(selected);
                   }}
                   className="border rounded-lg px-3 py-2 w-full"
@@ -895,28 +1035,54 @@ export default function NaviosWizard() {
                 >
                   {epirbsDisponiveis
                     .slice()
-                    .sort((a, b) => (a.serial || "").localeCompare(b.serial || ""))
-                    .map((epirb) => (
+                    .sort((a, b) => (a.serial || '').localeCompare(b.serial || ''))
+                    .map(epirb => (
                       <option key={epirb.id} value={epirb.id}>
-                        {epirb.serial} {epirb.marca || epirb.modelo ? `- ${[epirb.marca, epirb.modelo].filter(Boolean).join(" ")}` : ""}
-                        {epirb.estado ? ` (${epirb.estado})` : ""}
+                        {epirb.serial}{' '}
+                        {epirb.marca || epirb.modelo
+                          ? `- ${[epirb.marca, epirb.modelo].filter(Boolean).join(' ')}`
+                          : ''}
+                        {epirb.estado ? ` (${epirb.estado})` : ''}
                       </option>
                     ))}
                 </select>
-                <p className="text-[11px] text-gray-500 mt-1">Dica: mantenha Ctrl pressionado para selecionar vários EPIRBs.</p>
+                <p className="text-[11px] text-gray-500 mt-1">
+                  Dica: mantenha Ctrl pressionado para selecionar vários EPIRBs.
+                </p>
               </div>
               <div className="flex gap-2 justify-end">
-                <button type="button" className="px-4 py-2 bg-gray-200 rounded-lg" onClick={() => { setEditId(null); setForm(INITIAL_NAVIO_FORM); setSelectedClienteId(""); setSelectedColeteIds([]); setSelectedJangadaIds([]); setSelectedEpirbIds([]); setIsFormExpanded(false); }}>Cancelar</button>
-                <button type="submit" className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">Salvar</button>
+                <button
+                  type="button"
+                  className="px-4 py-2 bg-gray-200 rounded-lg"
+                  onClick={() => {
+                    setEditId(null);
+                    setForm(INITIAL_NAVIO_FORM);
+                    setSelectedClienteId('');
+                    setSelectedColeteIds([]);
+                    setSelectedJangadaIds([]);
+                    setSelectedEpirbIds([]);
+                    setIsFormExpanded(false);
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
+                >
+                  Salvar
+                </button>
               </div>
             </form>
           ) : (
             <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-600">
-              O formulário está recolhido para libertar espaço ao diretório. Abra-o quando precisar de criar ou editar um navio.
+              O formulário está recolhido para libertar espaço ao diretório. Abra-o quando precisar
+              de criar ou editar um navio.
             </div>
           )}
           <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-            Navios sem matrícula: <b>{stats.semMatricula}</b>. O porto de registo continua a ser sugerido automaticamente a partir da matrícula.
+            Navios sem matrícula: <b>{stats.semMatricula}</b>. O porto de registo continua a ser
+            sugerido automaticamente a partir da matrícula.
           </div>
         </section>
 
@@ -925,279 +1091,352 @@ export default function NaviosWizard() {
             <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-slate-900">Diretório</h2>
-                <p className="text-sm text-slate-500">Pesquisa, filtros e vistas da frota com ações rápidas para abrir ficha, editar ou excluir.</p>
+                <p className="text-sm text-slate-500">
+                  Pesquisa, filtros e vistas da frota com ações rápidas para abrir ficha, editar ou
+                  excluir.
+                </p>
               </div>
-                  <div className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
-                    {stats.ilhasAtivas} {IS_AZORES_APP ? "ilha(s)" : "localização(ões)"}
+              <div className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
+                {stats.ilhasAtivas} {IS_AZORES_APP ? 'ilha(s)' : 'localização(ões)'}
               </div>
             </div>
 
-          <div className="flex gap-2 mb-3">
-            {([
-              { key: "quadros", label: "Quadros" },
-              { key: "lista", label: "Lista" },
-              { key: "detalhes", label: "Detalhes" }
-            ] as const).map((mode) => (
-              <button
-                key={mode.key}
-                type="button"
-                onClick={() => setViewMode(mode.key)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${viewMode === mode.key ? "bg-blue-700 text-white border-blue-700" : "bg-white text-gray-700 border-gray-300"}`}
+            <div className="flex gap-2 mb-3">
+              {(
+                [
+                  { key: 'quadros', label: 'Quadros' },
+                  { key: 'lista', label: 'Lista' },
+                  { key: 'detalhes', label: 'Detalhes' },
+                ] as const
+              ).map(mode => (
+                <button
+                  key={mode.key}
+                  type="button"
+                  onClick={() => setViewMode(mode.key)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${viewMode === mode.key ? 'bg-blue-700 text-white border-blue-700' : 'bg-white text-gray-700 border-gray-300'}`}
+                >
+                  {mode.label}
+                </button>
+              ))}
+            </div>
+            <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div
+                className={`grid grid-cols-1 gap-2 ${IS_AZORES_APP ? 'md:grid-cols-8' : 'md:grid-cols-7'}`}
               >
-                {mode.label}
-              </button>
-            ))}
-          </div>
-          <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
-            <div className={`grid grid-cols-1 gap-2 ${IS_AZORES_APP ? "md:grid-cols-8" : "md:grid-cols-7"}`}>
-            <div className={IS_AZORES_APP ? "md:col-span-2" : "md:col-span-2"}>
-              <label className="block text-xs mb-1 text-gray-600">Nome do Navio</label>
-              <input value={nomeFilter} onChange={e => setNomeFilter(e.target.value)} placeholder="Procurar por nome do navio" className="border rounded-lg bg-white px-3 py-2 w-full" />
-            </div>
-            <div>
-              <label className="block text-xs mb-1 text-gray-600">CFR / Matrícula</label>
-              <input value={cfrFilter} onChange={e => setCfrFilter(e.target.value)} placeholder="Ex: FN-715-L" className="border rounded-lg bg-white px-3 py-2 w-full" />
-            </div>
-            {IS_AZORES_APP && (
-            <div>
-              <label className="block text-xs mb-1 text-gray-600">Ilha / Região</label>
-              <select value={ilhaFilter} onChange={e => setIlhaFilter(e.target.value)} className="border rounded-lg bg-white px-3 py-2 w-full">
-                <option value="">Todas</option>
-                {ilhaOptions.map((ilha) => <option key={ilha} value={ilha}>{ilha}</option>)}
-              </select>
-            </div>
-            )}
-            <div>
-              <label className="block text-xs mb-1 text-gray-600">Tipo</label>
-              <select value={tipoFilter} onChange={e => setTipoFilter(e.target.value)} className="border rounded-lg bg-white px-3 py-2 w-full">
-                <option value="">Todos</option>
-                {uniqueTipos.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs mb-1 text-gray-600">Cliente</label>
-              <select value={clienteFilter} onChange={e => setClienteFilter(e.target.value)} className="border rounded-lg bg-white px-3 py-2 w-full">
-                <option value="">Todos</option>
-                {uniqueClientes.map((cliente) => <option key={cliente} value={cliente}>{cliente}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs mb-1 text-gray-600">Porto de registo</label>
-              <select value={portoFilter} onChange={e => setPortoFilter(e.target.value)} className="border rounded-lg bg-white px-3 py-2 w-full">
-                <option value="">Todos</option>
-                {uniquePortos.map((porto) => <option key={porto} value={porto}>{porto}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs mb-1 text-gray-600">Estado</label>
-              <select value={estadoFilter} onChange={e => setEstadoFilter(e.target.value)} className="border rounded-lg bg-white px-3 py-2 w-full">
-                <option value="">Todos</option>
-                {Object.entries(NAVIO_ESTADO_LABELS).map(([key, { label }]) => <option key={key} value={key}>{label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs mb-1 text-gray-600">Território</label>
-              <select value={territorioFilter} onChange={e => handleTerritorioChange(e.target.value)} className="border rounded-lg bg-white px-3 py-2 w-full">
-                <option value="">Todos</option>
-                <option value="AÇORES">Açores</option>
-                <option value="MADEIRA">Madeira</option>
-                <option value="CONTINENTE">Continente</option>
-              </select>
-            </div>
-            <div className={`${IS_AZORES_APP ? "md:col-span-6" : "md:col-span-5"} flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:justify-between`}>
-              <div className="text-xs text-slate-500">
-                {totalNavios} navio(s) encontrados com os filtros atuais.
+                <div className={IS_AZORES_APP ? 'md:col-span-2' : 'md:col-span-2'}>
+                  <label className="block text-xs mb-1 text-gray-600">Nome do Navio</label>
+                  <input
+                    value={nomeFilter}
+                    onChange={e => setNomeFilter(e.target.value)}
+                    placeholder="Procurar por nome do navio"
+                    className="border rounded-lg bg-white px-3 py-2 w-full"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs mb-1 text-gray-600">CFR / Matrícula</label>
+                  <input
+                    value={cfrFilter}
+                    onChange={e => setCfrFilter(e.target.value)}
+                    placeholder="Ex: FN-715-L"
+                    className="border rounded-lg bg-white px-3 py-2 w-full"
+                  />
+                </div>
+                {IS_AZORES_APP && (
+                  <div>
+                    <label className="block text-xs mb-1 text-gray-600">Ilha / Região</label>
+                    <select
+                      value={ilhaFilter}
+                      onChange={e => setIlhaFilter(e.target.value)}
+                      className="border rounded-lg bg-white px-3 py-2 w-full"
+                    >
+                      <option value="">Todas</option>
+                      {ilhaOptions.map(ilha => (
+                        <option key={ilha} value={ilha}>
+                          {ilha}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <div>
+                  <label className="block text-xs mb-1 text-gray-600">Tipo</label>
+                  <select
+                    value={tipoFilter}
+                    onChange={e => setTipoFilter(e.target.value)}
+                    className="border rounded-lg bg-white px-3 py-2 w-full"
+                  >
+                    <option value="">Todos</option>
+                    {uniqueTipos.map(t => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs mb-1 text-gray-600">Cliente</label>
+                  <select
+                    value={clienteFilter}
+                    onChange={e => setClienteFilter(e.target.value)}
+                    className="border rounded-lg bg-white px-3 py-2 w-full"
+                  >
+                    <option value="">Todos</option>
+                    {uniqueClientes.map(cliente => (
+                      <option key={cliente} value={cliente}>
+                        {cliente}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs mb-1 text-gray-600">Porto de registo</label>
+                  <select
+                    value={portoFilter}
+                    onChange={e => setPortoFilter(e.target.value)}
+                    className="border rounded-lg bg-white px-3 py-2 w-full"
+                  >
+                    <option value="">Todos</option>
+                    {uniquePortos.map(porto => (
+                      <option key={porto} value={porto}>
+                        {porto}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs mb-1 text-gray-600">Estado</label>
+                  <select
+                    value={estadoFilter}
+                    onChange={e => setEstadoFilter(e.target.value)}
+                    className="border rounded-lg bg-white px-3 py-2 w-full"
+                  >
+                    <option value="">Todos</option>
+                    {Object.entries(NAVIO_ESTADO_LABELS).map(([key, { label }]) => (
+                      <option key={key} value={key}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs mb-1 text-gray-600">Território</label>
+                  <select
+                    value={territorioFilter}
+                    onChange={e => handleTerritorioChange(e.target.value)}
+                    className="border rounded-lg bg-white px-3 py-2 w-full"
+                  >
+                    <option value="">Todos</option>
+                    <option value="AÇORES">Açores</option>
+                    <option value="MADEIRA">Madeira</option>
+                    <option value="CONTINENTE">Continente</option>
+                  </select>
+                </div>
+                <div
+                  className={`${IS_AZORES_APP ? 'md:col-span-6' : 'md:col-span-5'} flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:justify-between`}
+                >
+                  <div className="text-xs text-slate-500">
+                    {totalNavios} navio(s) encontrados com os filtros atuais.
+                  </div>
+                  <button
+                    className="self-start rounded-lg bg-gray-200 px-3 py-2 text-xs font-medium text-slate-700 sm:self-auto"
+                    onClick={() => {
+                      setTipoFilter('');
+                      setNomeFilter('');
+                      setIlhaFilter('');
+                      setClienteFilter('');
+                      setPortoFilter('');
+                      setEstadoFilter('');
+                    }}
+                  >
+                    Limpar filtros
+                  </button>
+                </div>
               </div>
-              <button className="self-start rounded-lg bg-gray-200 px-3 py-2 text-xs font-medium text-slate-700 sm:self-auto" onClick={() => { setTipoFilter(''); setNomeFilter(''); setIlhaFilter(''); setClienteFilter(''); setPortoFilter(''); setEstadoFilter(''); setPage(1); }}>Limpar filtros</button>
             </div>
-          </div>
-          </div>
-          {loading ? (
-            <div className="text-center py-8 text-gray-600">Carregando...</div>
-          ) : viewMode === "lista" ? (
-            <div className="overflow-auto">
-              <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
+            {loading ? (
+              <div className="text-center py-8 text-gray-600">Carregando...</div>
+            ) : viewMode === 'lista' ? (
+              <DataTable<Navio>
+                data={navios}
+                columns={navioListColumns}
+                keyExtractor={n => n.id}
+                onRowClick={n => {
+                  window.location.href = `/navios/${n.id}`;
+                }}
+                searchPlaceholder="Pesquisar navios..."
+                searchKeys={['nome', 'matricula', 'cliente', 'portoRegisto']}
+                pageSize={50}
+                pageSizeOptions={[25, 50, 100, 250]}
+                emptyMessage="Nenhum navio encontrado"
+                exportFileName="navios"
+                compact
+                selectable
+                onSelectionChange={rows => setSelectedNavios(rows.map(r => r.id))}
+                bulkActions={rows => (
                   <button
                     type="button"
-                    className="rounded border border-gray-300 bg-gray-50 px-3 py-1.5 text-xs font-medium"
-                    onClick={() => setShowColumnSelector((prev) => !prev)}
+                    className="px-3 py-1.5 rounded bg-red-600 text-white text-xs font-semibold disabled:opacity-50"
+                    disabled={deletingBatch}
+                    onClick={handleDeleteBatch}
                   >
-                    {showColumnSelector ? "Ocultar seletor de colunas" : "Mostrar seletor de colunas"}
+                    {deletingBatch
+                      ? 'A eliminar...'
+                      : `Excluir selecionados (${rows.length})`}
                   </button>
-                  <div className="flex gap-2">
-                    <button type="button" className="rounded border border-gray-300 bg-white px-2 py-1 text-xs" onClick={showAllColumns}>
-                      Mostrar todas
+                )}
+                visibleColumnsKeys={dataTableVisibleKeys}
+                onVisibleColumnsChange={handleDataTableColumnsChange}
+                rowActions={n => (
+                  <div className="flex gap-1.5" onClick={e => e.stopPropagation()}>
+                    <Link
+                      href={`/navios/${n.id}`}
+                      className="bg-blue-500 px-2 py-1 rounded text-xs text-white"
+                    >
+                      Ver ficha
+                    </Link>
+                    <button
+                      type="button"
+                      className="bg-yellow-400 px-2 py-1 rounded text-xs"
+                      onClick={() => handleEdit(n)}
+                    >
+                      Editar
                     </button>
-                    <button type="button" className="rounded border border-gray-300 bg-white px-2 py-1 text-xs" onClick={hideAlmostAllColumns}>
-                      Ocultar quase todas
+                    <button
+                      type="button"
+                      className="bg-red-500 px-2 py-1 rounded text-xs text-white"
+                      onClick={() => handleDelete(n.id)}
+                    >
+                      Excluir
                     </button>
                   </div>
-                </div>
-                {showColumnSelector && (
-                  <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
-                    {NAVIO_LIST_COLUMNS.map((col) => (
-                      <label key={col.key} className="inline-flex items-center gap-2 rounded border border-gray-200 px-2 py-1">
-                        <input type="checkbox" checked={isColumnVisible(col.key)} onChange={() => toggleColumn(col.key)} />
-                        {col.label}
-                      </label>
-                    ))}
+                )}
+              />
+            ) : viewMode === 'quadros' ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {pagedNavios.map(n => (
+                  <div key={n.id} className="border border-gray-200 rounded-lg bg-gray-50 p-4">
+                    <Link
+                      href={`/navios/${n.id}`}
+                      className="font-semibold text-gray-900 hover:text-blue-700 hover:underline"
+                    >
+                      {n.nome}
+                    </Link>
+                    <p className="text-xs text-gray-600 mt-1">Matrícula: {n.matricula || '-'}</p>
+                    <p className="text-xs text-gray-600">
+                      {LOCATION_COLUMN_LABEL}: {getNavioLocationLabel(n)}
+                    </p>
+                    <p className="text-xs text-gray-600">
+                      Tipo: {normalizeNavioTipoCategoria(n.tipoPesca, n.matricula, n.tipoNavio)}
+                    </p>
+                    <div className="mt-3 flex gap-2">
+                      <a
+                        href={`/navios/${n.id}`}
+                        className="bg-blue-500 px-2 py-1 rounded text-xs text-white"
+                      >
+                        Ver ficha
+                      </a>
+                      <button
+                        className="bg-yellow-400 px-2 py-1 rounded text-xs"
+                        onClick={() => handleEdit(n)}
+                      >
+                        Editar
+                      </button>
+                      <button
+                        className="bg-red-500 px-2 py-1 rounded text-xs text-white"
+                        onClick={() => handleDelete(n.id)}
+                      >
+                        Excluir
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {filteredNavios.length === 0 && (
+                  <div className="md:col-span-2 xl:col-span-3 border border-dashed border-gray-300 rounded-lg bg-gray-50 p-6 text-center">
+                    <p className="text-sm text-gray-500 mb-3">
+                      Nenhum navio encontrado com os filtros aplicados.
+                    </p>
+                    <button
+                      type="button"
+                      className="bg-blue-700 text-white rounded-lg px-3 py-1.5 text-xs font-medium"
+                      onClick={openCreateWizard}
+                    >
+                      + Novo navio
+                    </button>
                   </div>
                 )}
               </div>
-              <div className="flex items-center gap-2 mb-2">
-                <button
-                  className="px-3 py-1.5 rounded bg-red-600 text-white text-xs font-semibold disabled:opacity-50"
-                  disabled={selectedNavios.length === 0 || deletingBatch}
-                  onClick={handleDeleteBatch}
-                >
-                  {deletingBatch ? "A eliminar..." : `Excluir selecionados (${selectedNavios.length})`}
-                </button>
-                <span className="text-xs text-gray-500">Selecionados: {selectedNavios.length}</span>
-              </div>
-              <table className="min-w-full text-xs sm:text-sm">
-                <thead>
-                  <tr className="bg-blue-100">
-                    <th className="p-2"><input type="checkbox" onChange={e => handleSelectAllNavios(e.target.checked)} checked={selectedNavios.length > 0 && selectedNavios.length === pagedNavios.length} /></th>
-                    {isColumnVisible("nome") && <th className="p-2">Nome</th>}
-                    {isColumnVisible("matricula") && <th className="p-2">Matrícula</th>}
-                    {isColumnVisible("cliente") && <th className="p-2">Cliente</th>}
-                    {isColumnVisible("portoRegisto") && <th className="p-2">Porto de Registo</th>}
-                    {isColumnVisible("tipo") && <th className="p-2">Tipo de Navio</th>}
-                    {isColumnVisible("estado") && <th className="p-2">Estado</th>}
-                    {isColumnVisible(LOCATION_COLUMN_KEY) && <th className="p-2">{LOCATION_COLUMN_LABEL}</th>}
-                    <th className="p-2">Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pagedNavios.map(n => (
-                    <tr key={n.id} className="border-t align-top">
-                      <td className="p-2"><input type="checkbox" checked={selectedNavios.includes(n.id)} onChange={e => handleSelectNavio(n.id, e.target.checked)} /></td>
-                      {isColumnVisible("nome") && <td className="p-2">
-                        <a href={`/navios/${n.id}`} className="text-blue-700 hover:underline font-semibold" title="Ver detalhes do navio">{n.nome}</a>
-                      </td>}
-                      {isColumnVisible("matricula") && <td className="p-2">{n.matricula}</td>}
-                      {isColumnVisible("cliente") && <td className="p-2">{n.cliente?.nome ?? '—'}</td>}
-                      {isColumnVisible("portoRegisto") && <td className="p-2">{n.portoRegisto || '-'}</td>}
-                      {isColumnVisible("tipo") && <td className="p-2">{normalizeNavioTipoCategoria(n.tipoPesca, n.matricula, n.tipoNavio)}</td>}
-                      {isColumnVisible("estado") && <td className="p-2"><span className={`inline-block rounded-md border px-2 py-0.5 text-xs ${navioEstadoBadge(n.estadoNavio).cls}`}>{navioEstadoBadge(n.estadoNavio).label}</span></td>}
-                      {isColumnVisible(LOCATION_COLUMN_KEY) && <td className="p-2">{getNavioLocationLabel(n)}</td>}
-                      <td className="p-2 flex gap-2">
-                        <a href={`/navios/${n.id}`} className="bg-blue-500 px-2 py-1 rounded text-xs text-white">Ver ficha</a>
-                        <button className="bg-yellow-400 px-2 py-1 rounded text-xs" onClick={() => handleEdit(n)}>Editar</button>
-                        <button className="bg-red-500 px-2 py-1 rounded text-xs text-white" onClick={() => handleDelete(n.id)}>Excluir</button>
-                      </td>
-                    </tr>
-                  ))}
-                  {filteredNavios.length === 0 && (
-                    <tr>
-                      <td colSpan={Object.values(visibleColumns).filter(Boolean).length + 2} className="p-6 text-center text-gray-500">
-                        <div className="flex flex-col items-center gap-3">
-                          <span>Nenhum navio encontrado com os filtros aplicados.</span>
-                          <button
-                            type="button"
-                            className="bg-blue-700 text-white rounded-lg px-3 py-1.5 text-xs font-medium"
-                            onClick={openCreateWizard}
-                          >
-                            + Novo navio
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          ) : viewMode === "quadros" ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {pagedNavios.map((n) => (
-                <div key={n.id} className="border border-gray-200 rounded-lg bg-gray-50 p-4">
-                  <Link href={`/navios/${n.id}`} className="font-semibold text-gray-900 hover:text-blue-700 hover:underline">
-                    {n.nome}
-                  </Link>
-                  <p className="text-xs text-gray-600 mt-1">Matrícula: {n.matricula || "-"}</p>
-                  <p className="text-xs text-gray-600">{LOCATION_COLUMN_LABEL}: {getNavioLocationLabel(n)}</p>
-                  <p className="text-xs text-gray-600">Tipo: {normalizeNavioTipoCategoria(n.tipoPesca, n.matricula, n.tipoNavio)}</p>
-                  <div className="mt-3 flex gap-2">
-                    <a href={`/navios/${n.id}`} className="bg-blue-500 px-2 py-1 rounded text-xs text-white">Ver ficha</a>
-                    <button className="bg-yellow-400 px-2 py-1 rounded text-xs" onClick={() => handleEdit(n)}>Editar</button>
-                    <button className="bg-red-500 px-2 py-1 rounded text-xs text-white" onClick={() => handleDelete(n.id)}>Excluir</button>
-                  </div>
-                </div>
-              ))}
-              {filteredNavios.length === 0 && (
-                <div className="md:col-span-2 xl:col-span-3 border border-dashed border-gray-300 rounded-lg bg-gray-50 p-6 text-center">
-                  <p className="text-sm text-gray-500 mb-3">Nenhum navio encontrado com os filtros aplicados.</p>
-                  <button
-                    type="button"
-                    className="bg-blue-700 text-white rounded-lg px-3 py-1.5 text-xs font-medium"
-                    onClick={openCreateWizard}
-                  >
-                    + Novo navio
-                  </button>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {pagedNavios.map((n) => (
-                <div key={n.id} className="border border-gray-200 rounded-lg bg-white p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <Link href={`/navios/${n.id}`} className="font-semibold text-gray-900 hover:text-blue-700 hover:underline">
-                      {n.nome}
-                    </Link>
-                    <div className="flex gap-2">
-                      <a href={`/navios/${n.id}`} className="bg-blue-500 px-2 py-1 rounded text-xs text-white">Ver ficha</a>
-                      <button className="bg-yellow-400 px-2 py-1 rounded text-xs" onClick={() => handleEdit(n)}>Editar</button>
-                      <button className="bg-red-500 px-2 py-1 rounded text-xs text-white" onClick={() => handleDelete(n.id)}>Excluir</button>
+            ) : (
+              <div className="space-y-3">
+                {pagedNavios.map(n => (
+                  <div key={n.id} className="border border-gray-200 rounded-lg bg-white p-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <Link
+                        href={`/navios/${n.id}`}
+                        className="font-semibold text-gray-900 hover:text-blue-700 hover:underline"
+                      >
+                        {n.nome}
+                      </Link>
+                      <div className="flex gap-2">
+                        <a
+                          href={`/navios/${n.id}`}
+                          className="bg-blue-500 px-2 py-1 rounded text-xs text-white"
+                        >
+                          Ver ficha
+                        </a>
+                        <button
+                          className="bg-yellow-400 px-2 py-1 rounded text-xs"
+                          onClick={() => handleEdit(n)}
+                        >
+                          Editar
+                        </button>
+                        <button
+                          className="bg-red-500 px-2 py-1 rounded text-xs text-white"
+                          onClick={() => handleDelete(n.id)}
+                        >
+                          Excluir
+                        </button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3 text-xs">
+                      <p>
+                        <b>Matrícula:</b> {n.matricula || '-'}
+                      </p>
+                      <p>
+                        <b>Cliente:</b> {n.cliente?.nome ?? '—'}
+                      </p>
+                      <p>
+                        <b>{LOCATION_COLUMN_LABEL}:</b> {getNavioLocationLabel(n)}
+                      </p>
+                      <p>
+                        <b>Tipo de Navio:</b>{' '}
+                        {normalizeNavioTipoCategoria(n.tipoPesca, n.matricula, n.tipoNavio)}
+                      </p>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3 text-xs">
-                    <p><b>Matrícula:</b> {n.matricula || "-"}</p>
-                    <p><b>Cliente:</b> {n.cliente?.nome ?? "—"}</p>
-                    <p><b>{LOCATION_COLUMN_LABEL}:</b> {getNavioLocationLabel(n)}</p>
-                    <p><b>Tipo de Navio:</b> {normalizeNavioTipoCategoria(n.tipoPesca, n.matricula, n.tipoNavio)}</p>
+                ))}
+                {filteredNavios.length === 0 && (
+                  <div className="border border-dashed border-gray-300 rounded-lg bg-gray-50 p-6 text-center">
+                    <p className="text-sm text-gray-500 mb-3">
+                      Nenhum navio encontrado com os filtros aplicados.
+                    </p>
+                    <button
+                      type="button"
+                      className="bg-blue-700 text-white rounded-lg px-3 py-1.5 text-xs font-medium"
+                      onClick={openCreateWizard}
+                    >
+                      + Novo navio
+                    </button>
                   </div>
-                </div>
-              ))}
-              {filteredNavios.length === 0 && (
-                <div className="border border-dashed border-gray-300 rounded-lg bg-gray-50 p-6 text-center">
-                  <p className="text-sm text-gray-500 mb-3">Nenhum navio encontrado com os filtros aplicados.</p>
-                  <button
-                    type="button"
-                    className="bg-blue-700 text-white rounded-lg px-3 py-1.5 text-xs font-medium"
-                    onClick={openCreateWizard}
-                  >
-                    + Novo navio
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {totalPages > 1 && (
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 pt-4">
-              <div className="text-xs text-gray-600">
-                Página {page} de {totalPages} — {totalNavios} navio(s) encontrados.
+                )}
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <label className="text-xs text-gray-600">Por página</label>
-                <select value={pageSize} onChange={e => setPageSize(Number(e.target.value))} className="border rounded-lg bg-white px-2 py-1 text-xs">
-                  {[50, 100, 250, 500].map((n) => <option key={n} value={n}>{n}</option>)}
-                </select>
-                <button className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium disabled:opacity-40" disabled={page <= 1} onClick={() => setPage(page - 1)}>Anterior</button>
-                <button className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium disabled:opacity-40" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>Próxima</button>
-              </div>
-            </div>
-          )}
+            )}
 
-          <div className="mt-4">
-            <p className="text-xs text-gray-500">Navios carregados: {totalNavios}</p>
-          </div>
+            <div className="mt-4">
+              <p className="text-xs text-gray-500">Navios carregados: {totalNavios}</p>
+            </div>
           </section>
         </div>
       </div>
     </div>
   );
 }
-

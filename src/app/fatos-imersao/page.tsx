@@ -32,7 +32,7 @@ export default function FatosImersaoPage() {
 
   useEffect(() => {
     fetchItems();
-    fetch("/api/navios")
+    fetch("/api/navios?lite=1")
       .then((res) => res.json())
       .then((data) => setNavios(Array.isArray(data) ? data : []))
       .catch(() => setNavios([]));

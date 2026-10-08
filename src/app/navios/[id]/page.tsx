@@ -1,10 +1,12 @@
 "use client";
-import React, { useEffect, useState } from 'react';
+import React, { Fragment, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { extrairPortoDeMatricula } from '@/utils/portosRegisto';
 import { formatCoordinate } from '@/lib/coordinates';
+import { formatValidityDisplay, parseFlexibleDateValue, toLocalIsoDateValue } from '@/lib/date-display';
+import { appToast } from '@/lib/app-toast';
 import { APP_CONFIG } from '@/lib/app-config';
 import { NAVIO_TIPO_NAVIO_OPTIONS, NAVIO_TIPO_PESCA_OPTIONS, normalizeNavioTipoCategoria } from '@/lib/navio-legal-types';
 import { getNavioLegalProfile } from '@/modules/navios/legalRequirements';
@@ -17,6 +19,24 @@ const ShipMap = dynamic(() => import('@/app/components/ShipMap'), { ssr: false }
 const IS_AZORES_APP = APP_CONFIG.presetKey === 'ACORES';
 const LOCATION_LABEL = IS_AZORES_APP ? 'Ilha' : 'Localização';
 const EDITABLE_LOCATION_LABEL = LOCATION_LABEL;
+
+type ColeteFichaEditavel = {
+  id: number;
+  serial?: string | null;
+  dataInspecao?: string | null;
+  dataProxInspecao?: string | null;
+};
+
+// Realce a proxima inspecao quando a data ja passou ou esta a terminar, para
+// a lista da ficha do navio dar sinal do que esta em atraso.
+function coleteProxInspecaoVence(value?: string | null) {
+  if (!value) return false;
+  const parsed = parseFlexibleDateValue(value);
+  if (!parsed) return false;
+  const limite = new Date();
+  limite.setDate(limite.getDate() + 30);
+  return parsed.getTime() <= limite.getTime();
+}
 
 function getNavioLocationLabel(data: any) {
   const island = normalizeManualNavioIsland(data?.ilha || '');
@@ -460,6 +480,15 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
   const [generatingColeteCertificate, setGeneratingColeteCertificate] = useState(false);
   const [generatingColeteVerificationSheet, setGeneratingColeteVerificationSheet] = useState(false);
   const [legalTab, setLegalTab] = useState<'legal' | 'mandatory'>('legal');
+
+  // Edicao inline dos dados do colete directamente na lista da ficha do navio.
+  const [editingColeteId, setEditingColeteId] = useState<number | null>(null);
+  const [savingColeteId, setSavingColeteId] = useState<number | null>(null);
+  const [coleteDraft, setColeteDraft] = useState<{ serial: string; dataInspecao: string; dataProxInspecao: string }>({
+    serial: '',
+    dataInspecao: '',
+    dataProxInspecao: '',
+  });
   const [activeTab, setActiveTab] = useState<'dossier' | 'equipment' | 'technical' | 'inspections' | 'mapa'>('dossier');
   const [aisPosition, setAisPosition] = useState<any>(null);
   const [aisLoading, setAisLoading] = useState(false);
@@ -809,6 +838,55 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
 
     await Promise.all([loadNavio(), loadJangadas(), loadColetes(), loadEpirbs(), loadFatosImersao()]);
     setAssociating(false);
+  };
+
+  const startEditColete = (colete: ColeteFichaEditavel) => {
+    setEditingColeteId(colete.id);
+    setColeteDraft({
+      serial: colete.serial || '',
+      dataInspecao: toLocalIsoDateValue(colete.dataInspecao),
+      dataProxInspecao: toLocalIsoDateValue(colete.dataProxInspecao),
+    });
+  };
+
+  const cancelEditColete = () => {
+    setEditingColeteId(null);
+    setColeteDraft({ serial: '', dataInspecao: '', dataProxInspecao: '' });
+  };
+
+  const saveColeteEdit = async (coleteId: number) => {
+    const serial = coleteDraft.serial.trim();
+    if (!serial) {
+      appToast.error('O numero de serie e obrigatorio.');
+      return;
+    }
+
+    setSavingColeteId(coleteId);
+    try {
+      const response = await fetch(`/api/coletes/${coleteId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          serial,
+          dataInspecao: coleteDraft.dataInspecao || null,
+          dataProxInspecao: coleteDraft.dataProxInspecao || null,
+        }),
+      });
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        appToast.error(payload?.error || 'Nao foi possivel guardar as alteracoes do colete.');
+        return;
+      }
+
+      await Promise.all([loadNavio(), loadColetes()]);
+      cancelEditColete();
+      appToast.success('Colete atualizado com sucesso.');
+    } catch {
+      appToast.error('Nao foi possivel guardar as alteracoes do colete.');
+    } finally {
+      setSavingColeteId(null);
+    }
   };
 
   const handleAssociarFatoImersao = async () => {
@@ -1247,8 +1325,10 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
   const jangadasListaGeral = allJangadas
     .sort((a: any, b: any) => String(a?.serial || '').localeCompare(String(b?.serial || ''), 'pt-PT'));
   const jangadasFiltradas = jangadasListaGeral.filter((j: any) => {
+    const term = jangadaSearch.trim().toLowerCase();
+    if (!term) return true;
     const text = `${j?.serial || ''} ${j?.brand || ''} ${j?.model || ''}`.toLowerCase();
-    return text.includes(jangadaSearch.toLowerCase());
+    return text.includes(term);
   });
 
   const coletesListaGeral = allColetes
@@ -2924,39 +3004,108 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
                   <th className="p-3 font-semibold">Serial</th>
                   <th className="p-3 font-semibold">Marca</th>
                   <th className="p-3 font-semibold">Modelo</th>
+                  <th className="p-3 font-semibold">Inspecao</th>
+                  <th className="p-3 font-semibold">Prox. Inspecao</th>
                   <th className="p-3 font-semibold">Estado</th>
-                  <th className="p-3 font-semibold">Ações</th>
+                  <th className="p-3 font-semibold">Acoes</th>
                 </tr>
               </thead>
               <tbody>
                 {data.coletes.map((c: any) => (
-                  <tr
-                    key={c.id}
-                    className="border-b last:border-0 hover:bg-cyan-100 transition cursor-pointer"
-                    onClick={() => window.location.href = `/equipamentos/${c.id}`}
-                    title="Ver ficha do colete"
-                  >
-                    <td className="p-3 font-mono text-blue-900 underline hover:text-cyan-700">{c.serial || '-'}</td>
-                    <td className="p-3">{c.marca || '-'}</td>
-                    <td className="p-3">{c.modelo || '-'}</td>
-                    <td className="p-3">{c.estado || '-'}</td>
-                    <td className="p-3" onClick={(e) => e.stopPropagation()}>
-                      <Link
-                        href={`/equipamentos/${c.id}`}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs mr-2 inline-block"
-                      >
-                        Ficha
-                      </Link>
-                      <button
-                        type="button"
-                        className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-xs"
-                        onClick={() => handleDesassociarColete(c.id)}
-                        disabled={associating}
-                      >
-                        Desassociar
-                      </button>
-                    </td>
-                  </tr>
+                  <Fragment key={c.id}>
+                    <tr
+                      className="border-b last:border-0 hover:bg-cyan-100 transition cursor-pointer"
+                      onClick={() => window.location.href = `/equipamentos/${c.id}`}
+                      title="Ver ficha do colete"
+                    >
+                      <td className="p-3 font-mono text-blue-900 underline hover:text-cyan-700">{c.serial || '-'}</td>
+                      <td className="p-3">{c.marca || '-'}</td>
+                      <td className="p-3">{c.modelo || '-'}</td>
+                      <td className="p-3 whitespace-nowrap">{formatValidityDisplay(c.dataInspecao)}</td>
+                      <td className="p-3 whitespace-nowrap">
+                        <span className={coleteProxInspecaoVence(c.dataProxInspecao) ? 'text-red-600 font-semibold' : ''}>
+                          {formatValidityDisplay(c.dataProxInspecao)}
+                        </span>
+                      </td>
+                      <td className="p-3">{c.estado || '-'}</td>
+                      <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                        <Link
+                          href={`/equipamentos/${c.id}`}
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs mr-2 inline-block"
+                        >
+                          Ficha
+                        </Link>
+                        <button
+                          type="button"
+                          className="bg-yellow-400 hover:bg-yellow-500 text-black px-2 py-1 rounded text-xs mr-2"
+                          onClick={() => (editingColeteId === c.id ? cancelEditColete() : startEditColete(c))}
+                        >
+                          {editingColeteId === c.id ? 'Fechar' : 'Editar'}
+                        </button>
+                        <button
+                          type="button"
+                          className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-xs"
+                          onClick={() => handleDesassociarColete(c.id)}
+                          disabled={associating}
+                        >
+                          Desassociar
+                        </button>
+                      </td>
+                    </tr>
+                    {editingColeteId === c.id && (
+                      <tr className="border-b bg-cyan-50">
+                        <td colSpan={7} className="p-4" onClick={(e) => e.stopPropagation()}>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                            <label className="text-xs font-semibold text-slate-700">
+                              Numero de serie
+                              <input
+                                type="text"
+                                value={coleteDraft.serial}
+                                onChange={(e) => setColeteDraft((d) => ({ ...d, serial: e.target.value }))}
+                                className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-md text-sm font-mono"
+                              />
+                            </label>
+                            <label className="text-xs font-semibold text-slate-700">
+                              Data da inspecao
+                              <input
+                                type="date"
+                                value={coleteDraft.dataInspecao}
+                                onChange={(e) => setColeteDraft((d) => ({ ...d, dataInspecao: e.target.value }))}
+                                className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-md text-sm"
+                              />
+                            </label>
+                            <label className="text-xs font-semibold text-slate-700">
+                              Proxima inspecao
+                              <input
+                                type="date"
+                                value={coleteDraft.dataProxInspecao}
+                                onChange={(e) => setColeteDraft((d) => ({ ...d, dataProxInspecao: e.target.value }))}
+                                className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-md text-sm"
+                              />
+                            </label>
+                          </div>
+                          <div className="flex gap-2 mt-3">
+                            <button
+                              type="button"
+                              onClick={() => saveColeteEdit(c.id)}
+                              disabled={savingColeteId === c.id}
+                              className="bg-cyan-700 hover:bg-cyan-800 disabled:opacity-50 text-white px-4 py-2 rounded-md text-sm font-semibold"
+                            >
+                              {savingColeteId === c.id ? 'A guardar...' : 'Guardar alteracoes'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={cancelEditColete}
+                              disabled={savingColeteId === c.id}
+                              className="bg-white hover:bg-slate-100 disabled:opacity-50 border border-slate-300 px-4 py-2 rounded-md text-sm"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>

@@ -1,10 +1,9 @@
 "use client";
 import React from 'react';
 import { useJangadaWizardStore } from './store/useJangadaWizardStore';
-import { Plus, Trash2, Tag, Calendar, Hash, Info, Search, AlertTriangle, ShieldCheck, BatteryFull } from 'lucide-react';
-import { raftModelData } from '../rafts/raftModelData';
+import { Plus, Trash2, Tag, Calendar, Hash, Search, AlertTriangle, ShieldCheck, BatteryFull } from 'lucide-react';
 import { getInspectionIntervalYears, getInspectionIntervalLabel, getSubstitutionMaxValidityDays } from '../rafts/inspectionInterval';
-import { parseMonthYearValue, toMonthYearString, maskMonthYearInput } from '@/lib/date-utils';
+import { parseMonthYearValue, toMonthYearString, maskMonthYearInput, formatMonthPt } from '@/lib/date-utils';
 import { getStepNumberByKey } from './steps';
 
 const checkValidityWarning = (validadeStr: string, dataProxInspecao: string, dataInspecao: string, brand: string, shipDetails: any) => {
@@ -55,61 +54,10 @@ export default function Step3_Componentes() {
 
   const componentes = inspectionData.componentes || [];
 
-  React.useEffect(() => {
-    if (componentes.length === 0 && inspectionData.brand && inspectionData.model && !inspectionData.hasAutoFilledComponents) {
-      const brandKey = inspectionData.brand.toUpperCase();
-      const brandData = raftModelData[brandKey];
-      
-      if (brandData) {
-        const modelData = brandData.find(m => 
-          m.name.toUpperCase() === inspectionData.model.toUpperCase() ||
-          m.aliases?.map(a => a.toUpperCase()).includes(inspectionData.model.toUpperCase())
-        );
-
-        if (modelData && (modelData.serviceItems || modelData.spareParts)) {
-          const autoComponents: any[] = [];
-          let idCounter = Date.now();
-          
-          if (modelData.serviceItems) {
-            modelData.serviceItems.forEach(item => {
-              autoComponents.push({
-                id: (idCounter++).toString(),
-                type: item.name,
-                reference: item.reference || '',
-                serialLote: '',
-                validade: '',
-                isAuto: true,
-                category: item.category || 'SERVIÇO',
-                notes: item.notes
-              });
-            });
-          }
-          
-          if (modelData.spareParts) {
-            modelData.spareParts.forEach(item => {
-              autoComponents.push({
-                id: (idCounter++).toString(),
-                type: item.name,
-                reference: item.reference || '',
-                serialLote: '',
-                validade: '',
-                isAuto: true,
-                category: item.category || 'SPARE',
-                notes: item.notes
-              });
-            });
-          }
-          
-          if (autoComponents.length > 0) {
-            setInspectionData({ 
-              componentes: autoComponents,
-              hasAutoFilledComponents: true 
-            });
-          }
-        }
-      }
-    }
-  }, [inspectionData.brand, inspectionData.model, componentes.length, inspectionData.hasAutoFilledComponents, setInspectionData]);
+  // A lista de componentes comeca vazia: o tecnico confirma e adiciona cada
+  // componente durante a inspecao. Nao se pre-preenche a partir da ficha do
+  // modelo (raftModelData) porque obriga a confirmar e remover o que nao
+  // exista a bordo. A aplicabilidade da HRU e definida apenas neste passo.
 
   const addComponent = () => {
     setInspectionData({
@@ -377,10 +325,24 @@ export default function Step3_Componentes() {
           </div>
           <div>
             <h3 className="text-lg font-bold text-slate-800">HRU — Libertador Hidrostático</h3>
-            <p className="text-xs text-slate-500">Referência e validade também constam no passo 1 (Identificação).</p>
+            <p className="text-xs text-slate-500">Confirmar se a jangada tem libertador hidrostático instalado.</p>
           </div>
         </div>
 
+        <div className="space-y-1.5 mb-5 max-w-xs">
+          <label className="text-xs font-bold uppercase tracking-wider text-slate-500">HRU Aplicável</label>
+          <select
+            value={inspectionData.hruAplicavel || 'NAO'}
+            onChange={(e) => updateHruField('hruAplicavel', e.target.value)}
+            className="w-full border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50 focus:bg-white text-sm transition-colors font-medium"
+          >
+            <option value="NAO">Não</option>
+            <option value="SIM">Sim</option>
+          </select>
+        </div>
+
+        {inspectionData.hruAplicavel === 'SIM' && (
+        <>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div className="space-y-1.5">
             <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Tipo de HRU</label>
@@ -462,21 +424,41 @@ export default function Step3_Componentes() {
                 />
               </div>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Tag size={14} className="text-slate-400" />
-                </div>
-                <select
-                  value={inspectionData.hruStockId || ""}
-                  onChange={(e) => { handleHruStockSelect(e.target.value); setStockSearch((prev) => ({ ...prev, hru: '' })); }}
-                  className="w-full border-slate-200 rounded-xl pl-9 pr-3 py-2.5 bg-slate-50 focus:bg-white text-sm transition-colors"
-                >
-                  <option value="">Selecionar HRU do armazém...</option>
-                  {searchFilteredStock('hru', hruStock).map((s: any) => (
-                    <option key={s.id} value={s.id}>
-                      {s.referencia} - {s.descricao} {s.validade ? `(Val: ${toMonthYearString(s.validade)})` : ''} {s.quantidade > 0 ? `(Qtd: ${s.quantidade})` : '(Sem Stock)'}
-                    </option>
-                  ))}
-                </select>
+                {searchFilteredStock('hru', hruStock).length === 0 ? (
+                  <>
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Tag size={14} className="text-slate-400" />
+                    </div>
+                    <div className="w-full border border-amber-200 bg-amber-50 rounded-xl pl-9 pr-3 py-2.5 text-xs text-amber-800">
+                      Nenhum artigo corresponde à pesquisa &quot;{stockSearch['hru'] || ''}&quot;.
+                      <button
+                        type="button"
+                        onClick={() => setStockSearch((prev) => ({ ...prev, hru: '' }))}
+                        className="ml-1 font-semibold underline"
+                      >
+                        Limpar pesquisa
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Tag size={14} className="text-slate-400" />
+                    </div>
+                    <select
+                      value={inspectionData.hruStockId || ""}
+                      onChange={(e) => { handleHruStockSelect(e.target.value); setStockSearch((prev) => ({ ...prev, hru: '' })); }}
+                      className="w-full border-slate-200 rounded-xl pl-9 pr-3 py-2.5 bg-slate-50 focus:bg-white text-sm transition-colors"
+                    >
+                      <option value="">Selecionar HRU do armazém...</option>
+                      {searchFilteredStock('hru', hruStock).map((s: any) => (
+                        <option key={s.id} value={s.id}>
+                          {s.referencia} - {s.descricao} {s.validade ? `(Val: ${toMonthYearString(s.validade)})` : ''} {s.quantidade > 0 ? `(Qtd: ${s.quantidade})` : '(Sem Stock)'}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                )}
               </div>
             </>
           ) : (
@@ -514,6 +496,8 @@ export default function Step3_Componentes() {
             <p>Confirme o tipo de HRU e a ponta fracável (weak link) do painter — 2,2 ± 0,4 kN (LSA Code 4.1.6.2).</p>
           )}
         </div>
+        </>
+        )}
       </div>
 
       {/* Luzes do Coberto & Baterias */}
@@ -584,21 +568,41 @@ export default function Step3_Componentes() {
                       />
                     </div>
                     <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <Tag size={14} className="text-slate-400" />
-                      </div>
-                      <select
-                        value={item.stockId || ""}
-                        onChange={(e) => { handleLightStockSelect(itemId, e.target.value); setStockSearch((prev) => ({ ...prev, [itemId]: '' })); }}
-                        className="w-full border-slate-200 rounded-xl pl-9 pr-3 py-2.5 bg-slate-50 focus:bg-white text-sm transition-colors"
-                      >
-                        <option value="">Selecionar luz/bateria do armazém...</option>
-                        {searchFilteredStock(itemId, lightStock).map((s: any) => (
-                          <option key={s.id} value={s.id}>
-                            {s.referencia} - {s.descricao} {s.validade ? `(Val: ${toMonthYearString(s.validade)})` : ''} {s.quantidade > 0 ? `(Qtd: ${s.quantidade})` : '(Sem Stock)'}
-                          </option>
-                        ))}
-                      </select>
+                      {searchFilteredStock(itemId, lightStock).length === 0 ? (
+                        <>
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <Tag size={14} className="text-slate-400" />
+                          </div>
+                          <div className="w-full border border-amber-200 bg-amber-50 rounded-xl pl-9 pr-3 py-2.5 text-xs text-amber-800">
+                            Nenhum artigo corresponde à pesquisa &quot;{stockSearch[itemId] || ''}&quot;.
+                            <button
+                              type="button"
+                              onClick={() => setStockSearch((prev) => ({ ...prev, [itemId]: '' }))}
+                              className="ml-1 font-semibold underline"
+                            >
+                              Limpar pesquisa
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <Tag size={14} className="text-slate-400" />
+                          </div>
+                          <select
+                            value={item.stockId || ""}
+                            onChange={(e) => { handleLightStockSelect(itemId, e.target.value); setStockSearch((prev) => ({ ...prev, [itemId]: '' })); }}
+                            className="w-full border-slate-200 rounded-xl pl-9 pr-3 py-2.5 bg-slate-50 focus:bg-white text-sm transition-colors"
+                          >
+                            <option value="">Selecionar luz/bateria do armazém...</option>
+                            {searchFilteredStock(itemId, lightStock).map((s: any) => (
+                              <option key={s.id} value={s.id}>
+                                {s.referencia} - {s.descricao} {s.validade ? `(Val: ${toMonthYearString(s.validade)})` : ''} {s.quantidade > 0 ? `(Qtd: ${s.quantidade})` : '(Sem Stock)'}
+                              </option>
+                            ))}
+                          </select>
+                        </>
+                      )}
                     </div>
                   </>
                 ) : (
@@ -645,7 +649,7 @@ export default function Step3_Componentes() {
               {statusCheck === 'expired' && (
                 <p className="text-[11px] font-semibold text-red-700 flex items-center gap-1.5 bg-red-50 border border-red-200 rounded-lg px-2 py-1.5">
                   <AlertTriangle size={13} className="shrink-0 text-red-500" />
-                  Bateria expirada ({item.validade}) — substituir.
+                  Bateria expirada ({formatMonthPt(item.validade)}) — substituir.
                 </p>
               )}
               </>)}
@@ -724,26 +728,44 @@ export default function Step3_Componentes() {
                     </div>
                   )}
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Tag size={14} className="text-slate-400" />
-                    </div>
-                    {componentStock.length > 0 ? (
-                    <select 
-                      value={comp.stockId || ""}
-                      onChange={(e) => handleStockSelect(comp.id, e.target.value)}
-                      className="w-full border-slate-200 rounded-xl pl-9 pr-3 py-2.5 bg-slate-50 focus:bg-white text-sm transition-colors"
-                    >
-                      <option value="" disabled>Selecionar peça do armazém...</option>
-                      {searchFilteredStock(comp.id, componentStock).map((s: any) => (
-                        <option key={s.id} value={s.id}>
-                          {s.referencia} - {s.descricao} {s.quantidade > 0 ? `(Qtd: ${s.quantidade})` : '(Sem Stock)'}
-                        </option>
-                      ))}
-                    </select>
-                    ) : (
+                    {componentStock.length === 0 ? (
                     <div className="w-full border border-dashed border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50 text-xs text-slate-400 italic">
                       Nenhum artigo de stock disponível para esta categoria
                     </div>
+                    ) : searchFilteredStock(comp.id, componentStock).length === 0 ? (
+                    <>
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Tag size={14} className="text-slate-400" />
+                      </div>
+                      <div className="w-full border border-amber-200 bg-amber-50 rounded-xl pl-9 pr-3 py-2.5 text-xs text-amber-800">
+                        Nenhum artigo corresponde à pesquisa &quot;{stockSearch[comp.id] || ''}&quot;.
+                        <button
+                          type="button"
+                          onClick={() => setStockSearch((prev) => ({ ...prev, [comp.id]: '' }))}
+                          className="ml-1 font-semibold underline"
+                        >
+                          Limpar pesquisa
+                        </button>
+                      </div>
+                    </>
+                    ) : (
+                    <>
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Tag size={14} className="text-slate-400" />
+                      </div>
+                      <select 
+                        value={comp.stockId || ""}
+                        onChange={(e) => handleStockSelect(comp.id, e.target.value)}
+                        className="w-full border-slate-200 rounded-xl pl-9 pr-3 py-2.5 bg-slate-50 focus:bg-white text-sm transition-colors"
+                      >
+                        <option value="" disabled>Selecionar peça do armazém...</option>
+                        {searchFilteredStock(comp.id, componentStock).map((s: any) => (
+                          <option key={s.id} value={s.id}>
+                            {s.referencia} - {s.descricao} {s.quantidade > 0 ? `(Qtd: ${s.quantidade})` : '(Sem Stock)'}
+                          </option>
+                        ))}
+                      </select>
+                    </>
                     )}
                   </div>
                 </div>

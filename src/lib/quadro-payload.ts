@@ -1,4 +1,5 @@
 import { dedupeRaftArticles } from "@/modules/rafts/mandatoryPack";
+import { toDateKey } from "@/lib/date-utils";
 
 // =============================================================
 // Helpers de cálculo do teste de WP (partilhados entre dossier
@@ -161,10 +162,21 @@ export function buildQuadroChecklistPayload(source: QuadroChecklistSource): Reco
 
   const findArticle = (tokens: string[]) => {
     const dedupedArticles = dedupeRaftArticles(arts as any);
-    return dedupedArticles.find((art: any) => {
+    const matches = (art: any, test: (nameNorm: string) => boolean) => {
       const nameNorm = normalizeText(art.name || '');
-      return tokens.every(token => nameNorm.includes(normalizeText(token)));
-    });
+      return nameNorm ? test(nameNorm) : false;
+    };
+
+    // Correspondencia exacta primeiro. Sem isto, mapArticle(['lanterna']) ia
+    // buscar "Pilhas para Lanterna" (contem "lanterna") em vez de "Lanterna",
+    // e a referencia e a validade da lanterna ficavam na linha das pilhas.
+    const tokenNorms = tokens.map(normalizeText).filter(Boolean);
+    const exact = dedupedArticles.find((art: any) => matches(art, (n) => n === tokenNorms.join(' ')));
+    if (exact) return exact;
+
+    return dedupedArticles.find((art: any) =>
+      matches(art, (n) => tokenNorms.every((token) => n.includes(token)))
+    );
   };
 
   const mapArticle = (tokens: string[], refKey?: string, valKey?: string, qtyKey?: string, statusKey?: string, explicitReplacementKey?: string) => {
@@ -172,12 +184,12 @@ export function buildQuadroChecklistPayload(source: QuadroChecklistSource): Reco
     if (art) {
       if (refKey && art.referencia) checklist[refKey] = art.referencia;
       if (valKey && art.validade) {
-        const valStr = String(art.validade);
-        if (valStr.includes('T')) {
-          checklist[valKey] = valStr.slice(0, 7);
-        } else {
-          checklist[valKey] = valStr;
-        }
+        // art.validade e um DateTime do Prisma. String(date) produz
+        // "Wed Sep 01 2027 00:00:00 GMT+0000 (...)", que nao contem 'T' e
+        // passava inteiro para a celula — dai o "Wed Sep" no quadro.
+        // toDateKey devolve sempre YYYY-MM-DD.
+        const valIso = toDateKey(art.validade);
+        if (valIso) checklist[valKey] = valIso;
       }
       if (qtyKey && art.quantidade !== undefined) checklist[qtyKey] = art.quantidade;
       if (statusKey) checklist[statusKey] = 'YES';

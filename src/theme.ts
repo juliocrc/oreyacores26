@@ -1,9 +1,9 @@
 import { createTheme } from '@mui/material/styles';
 import { APP_CONFIG } from './lib/app-config';
 
-export type AppThemeName = 'azores' | 'noturno' | 'escuro' | 'vermelho' | 'oceano' | 'deluxe' | 'altoContraste';
+export type AppThemeName = 'azores' | 'altoContraste';
 
-export const DEFAULT_APP_THEME: AppThemeName = (APP_CONFIG?.theme as AppThemeName) || 'escuro';
+export const DEFAULT_APP_THEME: AppThemeName = 'azores';
 
 type ThemePreset = {
   label: string;
@@ -20,90 +20,28 @@ type ThemePreset = {
 
 const THEME_PRESETS: Record<AppThemeName, ThemePreset> = {
   azores: {
-    label: 'Azores (padrão)',
-    mode: 'light',
-    primaryMain: '#7c3aed',
-    primaryDark: '#4c1d95',
-    primaryLight: '#ede9fe',
-    secondaryMain: '#ec4899',
-    backgroundDefault: '#f6f7ff',
-    backgroundPaper: '#ffffff',
-    textPrimary: '#111827',
-    textSecondary: '#374151',
+    label: "Azores (padrão)",
+    mode: "light",
+    primaryMain: "#7c3aed",
+    primaryDark: "#4c1d95",
+    primaryLight: "#ede9fe",
+    secondaryMain: "#ec4899",
+    backgroundDefault: "#f6f7ff",
+    backgroundPaper: "#ffffff",
+    textPrimary: "#111827",
+    textSecondary: "#374151",
   },
-  noturno: {
-    label: 'Noturno',
-    mode: 'light',
-    primaryMain: '#0f172a',
-    primaryDark: '#020617',
-    primaryLight: '#dbeafe',
-    secondaryMain: '#8b5cf6',
-    backgroundDefault: '#f5f7ff',
-    backgroundPaper: '#ffffff',
-    textPrimary: '#111827',
-    textSecondary: '#334155',
-  },
-  escuro: {
-    label: 'Escuro',
-    mode: 'light',
-    primaryMain: '#334155',
-    primaryDark: '#0f172a',
-    primaryLight: '#e2e8f0',
-    secondaryMain: '#c026d3',
-    backgroundDefault: '#f8fafc',
-    backgroundPaper: '#ffffff',
-    textPrimary: '#111827',
-    textSecondary: '#374151',
-  },
-  vermelho: {
-    label: 'Vermelho',
-    mode: 'light',
-    primaryMain: '#b91c1c',
-    primaryDark: '#7f1d1d',
-    primaryLight: '#fee2e2',
-    secondaryMain: '#ea580c',
-    backgroundDefault: '#fff7f7',
-    backgroundPaper: '#ffffff',
-    textPrimary: '#3f0f0f',
-    textSecondary: '#7f1d1d',
-  },
-  oceano: {
-    label: 'Oceano',
-    mode: 'light',
-    primaryMain: '#0369a1',
-    primaryDark: '#075985',
-    primaryLight: '#bae6fd',
-    secondaryMain: '#0e7490',
-    backgroundDefault: '#f0f9ff',
-    backgroundPaper: '#ffffff',
-    textPrimary: '#082f49',
-    textSecondary: '#155e75',
-  },
-  deluxe: {
-    label: 'Deluxe (Premium)',
-    mode: 'dark',
-    primaryMain: '#d4af37',
-    primaryDark: '#aa8417',
-    primaryLight: '#fde047',
-    secondaryMain: '#c5a059',
-    backgroundDefault: '#0b0f19',
-    backgroundPaper: '#0f172a',
-    textPrimary: '#ffffff',
-    textSecondary: '#9ca3af',
-  },
-  // Postos de inspeção e decks com sol directo: traços mais grossos,
-  // texto mais escuro e cores saturadas para se ler à distância.
   altoContraste: {
-    label: 'Alto contraste (Oficina)',
-    mode: 'light',
-    primaryMain: '#0b3ba8',
-    primaryDark: '#062a7d',
-    primaryLight: '#dbe6ff',
-    secondaryMain: '#8a1f00',
-    backgroundDefault: '#ffffff',
-    backgroundPaper: '#ffffff',
-    textPrimary: '#000000',
-    textSecondary: '#1f2937',
+    label: "Alto contraste (Oficina)",
+    mode: "light",
+    primaryMain: "#0b3ba8",
+    primaryDark: "#062a7d",
+    primaryLight: "#dbe6ff",
+    secondaryMain: "#8a1f00",
+    backgroundDefault: "#ffffff",
+    backgroundPaper: "#ffffff",
+    textPrimary: "#000000",
+    textSecondary: "#1f2937",
   },
 };
 
@@ -197,11 +135,11 @@ export function createAppTheme(themeName: AppThemeName) {
       MuiAppBar: {
         styleOverrides: {
           root: {
-            boxShadow: themeName === 'deluxe'
+            boxShadow: themeName === 'azores'
               ? '0 4px 20px rgba(0, 0, 0, 0.4), inset 0 -1px 0 rgba(255, 255, 255, 0.05)'
               : (darkMode ? '0 18px 40px rgba(2, 6, 23, 0.52)' : '0 20px 44px rgba(124, 58, 237, 0.24)'),
             backdropFilter: 'blur(16px)',
-            borderBottom: themeName === 'deluxe' ? '1px solid rgba(212, 175, 55, 0.15)' : 'none',
+            borderBottom: themeName === 'azores' ? '1px solid rgba(212, 175, 55, 0.15)' : 'none',
           },
         },
       },
@@ -215,19 +153,19 @@ export function createAppTheme(themeName: AppThemeName) {
       MuiButton: {
         styleOverrides: {
           root: {
-            borderRadius: themeName === 'deluxe' ? 10 : 12,
+            borderRadius: themeName === 'azores' ? 10 : 12,
             paddingInline: 16,
             paddingBlock: 8,
             minHeight: 40,
             transition: 'background-color 160ms ease, box-shadow 160ms ease, transform 160ms ease',
-            boxShadow: themeName === 'deluxe'
+            boxShadow: themeName === 'azores'
               ? '0 2px 8px rgba(212, 175, 55, 0.12)'
               : (darkMode ? '0 4px 12px rgba(2, 6, 23, 0.2)' : '0 4px 12px rgba(15, 23, 42, 0.08)'),
-            border: themeName === 'deluxe'
+            border: themeName === 'azores'
               ? '1px solid rgba(212, 175, 55, 0.3)'
               : (darkMode ? '1px solid rgba(148,163,184,0.14)' : '1px solid rgba(124,58,237,0.08)'),
             '&:hover': {
-              boxShadow: themeName === 'deluxe'
+              boxShadow: themeName === 'azores'
                 ? '0 4px 12px rgba(212, 175, 55, 0.18)'
                 : '0 6px 16px rgba(15, 23, 42, 0.12)',
             },
@@ -237,15 +175,15 @@ export function createAppTheme(themeName: AppThemeName) {
       MuiPaper: {
         styleOverrides: {
           root: {
-            boxShadow: themeName === 'deluxe'
+            boxShadow: themeName === 'azores'
               ? '0 12px 40px rgba(0, 0, 0, 0.5)'
               : (darkMode ? '0 18px 38px rgba(2, 6, 23, 0.46)' : '0 18px 38px rgba(76, 29, 149, 0.1)'),
-            backgroundImage: themeName === 'deluxe'
+            backgroundImage: themeName === 'azores'
               ? 'linear-gradient(180deg, rgba(15, 23, 42, 0.75) 0%, rgba(11, 15, 25, 0.85) 100%)'
               : (darkMode
                 ? 'linear-gradient(180deg, rgba(17,24,39,0.98) 0%, rgba(15,23,42,0.98) 100%)'
                 : 'linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(250,250,255,1) 100%)'),
-            backdropFilter: themeName === 'deluxe' ? 'blur(16px)' : undefined,
+            backdropFilter: themeName === 'azores' ? 'blur(16px)' : undefined,
           },
         },
       },
@@ -269,13 +207,13 @@ export function createAppTheme(themeName: AppThemeName) {
       MuiOutlinedInput: {
         styleOverrides: {
           root: {
-            borderRadius: themeName === 'deluxe' ? 12 : 16,
-            backgroundColor: themeName === 'deluxe' ? 'rgba(15,23,42,0.6)' : (darkMode ? '#111827' : 'rgba(255,255,255,0.94)'),
-            boxShadow: themeName === 'deluxe'
+            borderRadius: themeName === 'azores' ? 12 : 16,
+            backgroundColor: themeName === 'azores' ? 'rgba(15,23,42,0.6)' : (darkMode ? '#111827' : 'rgba(255,255,255,0.94)'),
+            boxShadow: themeName === 'azores'
               ? 'inset 0 1px 1px rgba(0,0,0,0.2)'
               : (darkMode ? 'inset 0 1px 0 rgba(255,255,255,0.03)' : '0 10px 20px rgba(15,23,42,0.05)'),
-            border: themeName === 'deluxe' ? '1px solid rgba(212, 175, 55, 0.15)' : undefined,
-            backdropFilter: themeName === 'deluxe' ? 'blur(8px)' : undefined,
+            border: themeName === 'azores' ? '1px solid rgba(212, 175, 55, 0.15)' : undefined,
+            backdropFilter: themeName === 'azores' ? 'blur(8px)' : undefined,
           },
           input: {
             fontSize: '1rem',
@@ -287,18 +225,18 @@ export function createAppTheme(themeName: AppThemeName) {
       MuiCard: {
         styleOverrides: {
           root: {
-            borderRadius: themeName === 'deluxe' ? 16 : 18,
+            borderRadius: themeName === 'azores' ? 16 : 18,
             overflow: 'hidden',
-            border: themeName === 'deluxe'
+            border: themeName === 'azores'
               ? '1px solid rgba(212, 175, 55, 0.15)'
               : (darkMode ? '1px solid rgba(148,163,184,0.08)' : '1px solid rgba(124,58,237,0.08)'),
-            boxShadow: themeName === 'deluxe'
+            boxShadow: themeName === 'azores'
               ? '0 12px 40px -10px rgba(0, 0, 0, 0.5)'
               : (darkMode ? '0 10px 24px rgba(2,6,23,0.28)' : '0 10px 24px rgba(15,23,42,0.08)'),
-            backgroundImage: themeName === 'deluxe'
+            backgroundImage: themeName === 'azores'
               ? 'linear-gradient(180deg, rgba(15, 23, 42, 0.75) 0%, rgba(11, 15, 25, 0.85) 100%)'
               : undefined,
-            backdropFilter: themeName === 'deluxe' ? 'blur(16px)' : undefined,
+            backdropFilter: themeName === 'azores' ? 'blur(16px)' : undefined,
           },
         },
       },
@@ -341,4 +279,3 @@ export function createAppTheme(themeName: AppThemeName) {
 
 const theme = createAppTheme(DEFAULT_APP_THEME);
 
-export default theme;

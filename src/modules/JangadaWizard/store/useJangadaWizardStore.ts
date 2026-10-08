@@ -167,6 +167,7 @@ export const useJangadaWizardStore = create<WizardState>()(
              }
              return '';
            })(),
+          dataUltimoGi: (draftData?.checklistSnapshot as { _dataUltimoGi?: string } | null)?._dataUltimoGi || '',
           shipName: draftData?.navioNome || raftData?.shipNameManual || raftData?.shipDetails?.nome || '',
           
           owner: raftData?.shipDetails?.proprietario || raftData?.ownerDisplay || raftData?.owner || '',

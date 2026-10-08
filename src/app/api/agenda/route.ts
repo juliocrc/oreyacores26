@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { getToken } from "next-auth/jwt";
-import { getAuthSecret } from "@/lib/auth";
 import { getAccessContext } from "@/lib/access-control";
 import { resolveActiveServiceStationId } from "@/lib/station-selection";
 import {
@@ -140,16 +138,20 @@ function getRolledAgendaDate(date: Date, todayStart: Date) {
   return rolled;
 }
 
-async function requireSession(req: NextRequest) {
-  const token = await getToken({ req, secret: getAuthSecret() });
-  if (!token?.sub && !token?.email) {
+async function requireSession() {
+  // Refere-se a getAccessContext() (Auth.js v5, auth()) e não ao getToken() do
+  // next-auth/jwt: em produção o Auth.js assina o cookie como
+  // "__Secure-authjs.session-token" e o getToken() sem secureCookie/cookieName
+  // procura "authjs.session-token" e devolve null — 401 falso em cada pedido.
+  const access = await getAccessContext();
+  if (!access) {
     return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
   }
   return null;
 }
 
 export async function GET(req: NextRequest) {
-  const unauthorized = await requireSession(req);
+  const unauthorized = await requireSession();
   if (unauthorized) return unauthorized;
 
   const access = await getAccessContext();
@@ -284,7 +286,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const unauthorized = await requireSession(req);
+  const unauthorized = await requireSession();
   if (unauthorized) return unauthorized;
 
   try {
@@ -357,7 +359,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  const unauthorized = await requireSession(req);
+  const unauthorized = await requireSession();
   if (unauthorized) return unauthorized;
 
   try {
@@ -429,7 +431,7 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const unauthorized = await requireSession(req);
+  const unauthorized = await requireSession();
   if (unauthorized) return unauthorized;
 
   try {

@@ -155,7 +155,7 @@ export default function Reports() {
       {loading ? (
         <div className="text-center text-gray-400 py-8">A carregar dados da base de dados...</div>
       ) : (
-        <table className="min-w-full text-xs border mb-4">
+        <div className="overflow-x-auto"><table className="min-w-full text-xs border mb-4">
           <thead>
             <tr className="bg-gray-100">
               <th className="p-2 text-left">Artigo</th>
@@ -177,7 +177,7 @@ export default function Reports() {
               <tr><td colSpan={3} className="text-center text-gray-400 p-2">Nenhum consumo encontrado.</td></tr>
             )}
           </tbody>
-        </table>
+        </table></div>
       )}
     </div>
   );

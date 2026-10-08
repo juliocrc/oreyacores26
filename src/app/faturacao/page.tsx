@@ -836,7 +836,7 @@ export default function FaturacaoConsolePage() {
                 <div className="text-center py-6 text-slate-500 text-sm">Sem valores em dívida. Todas as faturas emitidas estão pagas.</div>
               ) : (
                 <div className="rounded-xl border border-slate-200 overflow-hidden">
-                  <table className="w-full text-left text-xs">
+                  <div className="overflow-x-auto"><table className="w-full text-left text-xs">
                     <thead>
                       <tr className="bg-slate-100/80 text-slate-700 uppercase tracking-wider">
                         <th className="p-3">Ordem</th>
@@ -859,7 +859,7 @@ export default function FaturacaoConsolePage() {
                         </tr>
                       ))}
                     </tbody>
-                  </table>
+                  </table></div>
                 </div>
               )}
             </div>
@@ -1477,7 +1477,7 @@ export default function FaturacaoConsolePage() {
 
                     {linhas.length > 0 && (
                       <div className="rounded-xl border border-slate-200 overflow-hidden">
-                        <table className="w-full text-left border-collapse text-sm">
+                        <div className="overflow-x-auto"><table className="w-full text-left border-collapse text-sm">
                           <thead>
                             <tr className="bg-slate-50 text-xs font-semibold text-slate-600 uppercase tracking-wider">
                               <th className="p-3">Descrição</th>
@@ -1547,7 +1547,7 @@ export default function FaturacaoConsolePage() {
                               </tr>
                             ))}
                           </tbody>
-                        </table>
+                        </table></div>
                       </div>
                     )}
 
@@ -1694,7 +1694,7 @@ export default function FaturacaoConsolePage() {
 
                   {/* Line items table */}
                   <div className="rounded-xl border border-slate-200 overflow-hidden">
-                    <table className="w-full text-left border-collapse text-sm">
+                    <div className="overflow-x-auto"><table className="w-full text-left border-collapse text-sm">
                       <thead>
                         <tr className="bg-slate-100/80 text-xs font-semibold text-slate-700 uppercase tracking-wider">
                           <th className="p-3">Descrição do Serviço / Artigo</th>
@@ -1731,7 +1731,7 @@ export default function FaturacaoConsolePage() {
                           </tr>
                         )}
                       </tbody>
-                    </table>
+                    </table></div>
                   </div>
 
                   {/* Totals box */}

@@ -1,8 +1,8 @@
-import path from 'node:path';
 import ExcelJS from 'exceljs';
-import { fileURLToPath } from 'node:url';
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { toDateKey } from '@/lib/date-utils';
+import { loadTemplateBuffer } from '@/lib/template-loader';
+
+type XlsxLoadArg = Parameters<ExcelJS.Xlsx['load']>[0];
 
 export type QuadroSubstitutedArticle = {
   label: string;
@@ -68,7 +68,6 @@ export type QuadroTemplateInput = {
   }>;
 };
 
-const TEMPLATE_PATH = path.join(process.cwd(), 'templates', 'template quadro.xlsx');
 const SERVICE_STATION_NAME = 'OREY TÉCNICA – 50937';
 const QUADRO_PRINT_AREA_MAX_ROW = 84;
 const QUADRO_PRINT_AREA_MAX_COLUMN = 10;
@@ -172,46 +171,27 @@ function asString(value: unknown) {
 }
 
 function formatDateDDMMYYYY(value: unknown) {
-  const raw = asString(value);
-  if (!raw) return '';
-
-  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (isoMatch) return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
-
-  const ptMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (ptMatch) {
-    const day = String(Number(ptMatch[1])).padStart(2, '0');
-    const month = String(Number(ptMatch[2])).padStart(2, '0');
-    return `${day}/${month}/${ptMatch[3]}`;
-  }
-
-  const parsed = new Date(raw);
-  if (Number.isNaN(parsed.getTime())) return raw;
-  return `${String(parsed.getDate()).padStart(2, '0')}/${String(parsed.getMonth() + 1).padStart(2, '0')}/${parsed.getFullYear()}`;
+  const iso = toDateKey(value);
+  if (!iso) return '';
+  const [year, month, day] = iso.split('-');
+  return `${day}/${month}/${year}`;
 }
 
 function formatMonthYear(value: unknown) {
-  const raw = asString(value);
-  if (!raw) return '';
-  const match = raw.match(/^(\d{4})-(\d{2})(?:-(\d{2}))?$/);
-  if (match) return `${match[2]}-${match[1]}`;
-  const mmYYYY = raw.match(/^(\d{2})\/(\d{4})$/);
-  if (mmYYYY) return `${mmYYYY[1]}-${mmYYYY[2]}`;
-  return raw;
+  // toDateKey normaliza Date/ISO. Sem isto um DateTime do Prisma chegava como
+  // "Wed Sep 01 2027 ... (Hora de verão dos Açores)" e nenhuma regex casava,
+  // deixando o texto em inglês na célula.
+  const iso = toDateKey(value);
+  if (!iso) return '';
+  const [year, month] = iso.split('-');
+  return `${month}-${year}`;
 }
 
 function formatMonthYearSlash(value: unknown) {
-  const raw = asString(value);
-  if (!raw) return '';
-  const match = raw.match(/^(\d{4})-(\d{2})(?:-(\d{2}))?$/);
-  if (match) return `${match[2]}-${match[1]}`;
-  const ptDate = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (ptDate) return `${String(Number(ptDate[2])).padStart(2, '0')}-${ptDate[3]}`;
-  const mmYYYY = raw.match(/^(\d{2})[\/-](\d{4})$/);
-  if (mmYYYY) return `${mmYYYY[1]}-${mmYYYY[2]}`;
-  const parsed = new Date(raw);
-  if (Number.isNaN(parsed.getTime())) return raw;
-  return `${String(parsed.getMonth() + 1).padStart(2, '0')}-${parsed.getFullYear()}`;
+  const iso = toDateKey(value);
+  if (!iso) return '';
+  const [year, month] = iso.split('-');
+  return `${month}-${year}`;
 }
 
 function formatCapacityForFileName(value: unknown) {
@@ -229,26 +209,15 @@ function formatCapacityForFileName(value: unknown) {
 }
 
 function formatMonthYearSpace(value: unknown) {
-  const raw = asString(value);
-  if (!raw) return '';
-  const match = raw.match(/^(\d{4})-(\d{2})(?:-(\d{2}))?$/);
-  if (match) return `${match[2]} ${match[1]}`;
-  const ptDate = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (ptDate) return `${String(Number(ptDate[2])).padStart(2, '0')} ${ptDate[3]}`;
-  const mmYYYY = raw.match(/^(\d{2})[\/-](\d{4})$/);
-  if (mmYYYY) return `${mmYYYY[1]} ${mmYYYY[2]}`;
-  const parsed = new Date(raw);
-  if (Number.isNaN(parsed.getTime())) return raw.replace(/[\/-]/g, ' ');
-  return `${String(parsed.getMonth() + 1).padStart(2, '0')} ${parsed.getFullYear()}`;
+  const iso = toDateKey(value);
+  if (!iso) return '';
+  const [year, month] = iso.split('-');
+  return `${month} ${year}`;
 }
 
 function anoDaInspecao(value: unknown) {
-  const raw = asString(value);
-  if (!raw) return '';
-  const isoMatch = raw.match(/^(\d{4})-/);
-  if (isoMatch) return isoMatch[1];
-  const parsed = new Date(raw);
-  return Number.isNaN(parsed.getTime()) ? '' : String(parsed.getFullYear());
+  const iso = toDateKey(value);
+  return iso ? iso.slice(0, 4) : '';
 }
 
 /**
@@ -654,6 +623,9 @@ function fillTemplate(ws: ExcelJS.Worksheet, input: QuadroTemplateInput) {
     ['hru_days', 'L33'],
   ];
 
+  // formatReferenceWithQuantity ja faz o filtro: so devolve valor quando o
+  // artigo foi efetivamente substituido (>0 em substituicao_explicita__*) e
+  // escreve "(quantidade) referencia". Referencia sem substituicao fica vazia.
   const referenceWithQuantityMappings: Array<[string, string, string, number]> = [
     ['ref_farmacia', 'qtd_farmacia', 'I13', 1],
     ['ref_comprimidos', 'qtd_comprimidos', 'I15', 1],
@@ -675,10 +647,13 @@ function fillTemplate(ws: ExcelJS.Worksheet, input: QuadroTemplateInput) {
     setCell(ws.getCell(cellAddress), value);
   });
 
-  // Bateria de lítio — linha própria (D24/E24), independente das pilhas (G24/I25/J25).
-  const bateriaLitioRef = formatReferenceWithQuantity(checklist, 'ref_bateria_litio', 'qtd_bateria_litio', 1);
-  if (bateriaLitioRef) setCell(ws.getCell('F25'), bateriaLitioRef);
-  setCell(ws.getCell('F26'), formatMonthYear(checklist.validade_bateria));
+  // Bateria de lítio: a CELULA F25 leva a VALIDADE (MM-AAAA), não a referência.
+  // A validade da lanterna fica em J23 e a das pilhas em J25 — linhas distintas.
+  setCell(ws.getCell('F25'), formatMonthYear(checklist.validade_bateria));
+  const bateriaLitioPresente = checklist.ref_bateria_litio
+    ? formatReferenceWithQuantity(checklist, 'ref_bateria_litio', 'qtd_bateria_litio', 1)
+    : '';
+  if (bateriaLitioPresente) setCell(ws.getCell('F26'), bateriaLitioPresente);
 
   setCell(ws.getCell('F23'), batteryModel);
   setCell(ws.getCell('F37'), input.contentorClosureText);
@@ -708,7 +683,7 @@ function configureQuadroPrintLayout(ws: ExcelJS.Worksheet) {
 
 export async function buildQuadroInspectionArtifacts(input: QuadroTemplateInput) {
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.readFile(TEMPLATE_PATH);
+  await workbook.xlsx.load((await loadTemplateBuffer('template quadro.xlsx')) as unknown as XlsxLoadArg);
 
   const worksheet = workbook.getWorksheet('QUADRO') || workbook.worksheets[0];
 

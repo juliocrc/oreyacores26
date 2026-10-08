@@ -1,9 +1,8 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 import JSZip from "jszip";
 import { DOMParser, XMLSerializer } from "@xmldom/xmldom";
 import type { Document, Element, Node } from "@xmldom/xmldom";
 import { formatValidityDisplay } from "@/lib/date-display";
+import { loadTemplateBuffer } from "@/lib/template-loader";
 
 const WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 const ROWS_PER_PAGE = 14;
@@ -173,8 +172,7 @@ function fillPageContent(pageNodes: Element[], input: NavioColetesCertificateInp
 }
 
 export async function generateNavioColetesCertificateDocx(input: NavioColetesCertificateInput) {
-  const templatePath = path.join(process.cwd(), "templates", "template certificado coletes.docx");
-  const templateBuffer = await readFile(templatePath);
+  const templateBuffer = await loadTemplateBuffer("template certificado coletes.docx");
   const zip = await JSZip.loadAsync(templateBuffer);
   const documentXmlFile = zip.file("word/document.xml");
 

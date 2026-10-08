@@ -1,10 +1,37 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { APP_CONFIG } from "@/lib/app-config";
 import prisma from "@/lib/prisma";
 
 function buildGeneratedCertificateNumber(coleteId: number, date = new Date()) {
   const dateStr = date.toISOString().slice(0, 10).replace(/-/g, "");
   return `CERT-${dateStr}-${coleteId}`;
+}
+
+type CertificadoBody = {
+  numeroCertificado?: string | null;
+  dataCertificado?: string | null;
+  dataValidade?: string | null;
+  resultado?: string | null;
+  emitidoPor?: string | null;
+  observacoes?: string | null;
+};
+
+// O wizard emite o certificado com `body: undefined`, ou seja, um pedido sem
+// corpo nenhum. Todos os campos sao opcionais e tem valor por omissao, logo um
+// corpo vazio e legitimo aqui -- mas `await req.json()` lancaria SyntaxError e
+// a rota responderia 500 em vez de criar o certificado.
+async function readJsonBody<T>(req: Request): Promise<T> {
+  const raw = await req.text();
+  if (!raw.trim()) return {} as T;
+  const parsed: unknown = JSON.parse(raw);
+  return parsed && typeof parsed === "object" ? (parsed as T) : ({} as T);
+}
+
+function invalidJsonResponse() {
+  return NextResponse.json(
+    { error: "Corpo do pedido invalido.", message: "Corpo do pedido invalido." },
+    { status: 400 }
+  );
 }
 
 export async function GET(
@@ -59,7 +86,13 @@ export async function POST(
   try {
     const { id } = await context.params;
     const coleteId = parseInt(id, 10);
-    const body = await req.json();
+
+    let body: CertificadoBody;
+    try {
+      body = await readJsonBody<CertificadoBody>(req);
+    } catch {
+      return invalidJsonResponse();
+    }
 
     // Check if colete exists and has verification records
     const colete = await prisma.colete.findUnique({
@@ -76,14 +109,14 @@ export async function POST(
 
     if (!colete) {
       return NextResponse.json(
-        { message: "Colete not found" },
+        { error: "Colete not found", message: "Colete not found" },
         { status: 404 }
       );
     }
 
     if (!colete.verificacoes || colete.verificacoes.length === 0) {
       return NextResponse.json(
-        { message: "Colete must have at least one inspection record" },
+        { error: "Colete must have at least one inspection record", message: "Colete must have at least one inspection record" },
         { status: 400 }
       );
     }
@@ -125,7 +158,7 @@ export async function POST(
   } catch (error) {
     console.error("Error creating certificado:", error);
     return NextResponse.json(
-      { message: "Error creating certificado" },
+      { error: "Error creating certificado", message: "Error creating certificado" },
       { status: 500 }
     );
   }
@@ -138,7 +171,13 @@ export async function PUT(
   try {
     const { id } = await context.params;
     const coleteId = parseInt(id, 10);
-    const body = await req.json();
+
+    let body: CertificadoBody;
+    try {
+      body = await readJsonBody<CertificadoBody>(req);
+    } catch {
+      return invalidJsonResponse();
+    }
 
     const existing = await prisma.certificadoColete.findUnique({
       where: { coleteId },
@@ -146,7 +185,7 @@ export async function PUT(
 
     if (!existing) {
       return NextResponse.json(
-        { message: "Certificate not found" },
+        { error: "Certificate not found", message: "Certificate not found" },
         { status: 404 }
       );
     }
@@ -169,7 +208,7 @@ export async function PUT(
   } catch (error) {
     console.error("Error updating certificado:", error);
     return NextResponse.json(
-      { message: "Error updating certificado" },
+      { error: "Error updating certificado", message: "Error updating certificado" },
       { status: 500 }
     );
   }
@@ -189,7 +228,7 @@ export async function DELETE(
 
     if (!certificado) {
       return NextResponse.json(
-        { message: "Certificate not found" },
+        { error: "Certificate not found", message: "Certificate not found" },
         { status: 404 }
       );
     }
@@ -202,7 +241,7 @@ export async function DELETE(
   } catch (error) {
     console.error("Error deleting certificado:", error);
     return NextResponse.json(
-      { message: "Error deleting certificado" },
+      { error: "Error deleting certificado", message: "Error deleting certificado" },
       { status: 500 }
     );
   }

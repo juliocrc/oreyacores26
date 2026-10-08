@@ -6,7 +6,7 @@ import { logAuditoria } from "@/lib/auditoria";
 import { syncNextInspectionAgenda } from "@/lib/agenda-sync";
 import { clearEntregaAgendaEvent, syncEntregaAgendaEvent } from "@/lib/agenda-entrega";
 import { APP_CONFIG } from "@/lib/app-config";
-import { notifyJangadaRececionada, notifyJangadaProntaEntrega, tryNotifySms } from "@/lib/notify-jangada-sms";
+import { notifyJangadaEnviada, notifyJangadaRececionada, notifyJangadaProntaEntrega, tryNotifySms } from "@/lib/notify-jangada-sms";
 import {
   appendWorkflowTransition,
   ensureOrderForServiceStation,
@@ -197,6 +197,10 @@ async function resolveJangadaIdFromBody(body: Record<string, unknown>) {
   return raft?.id ?? null;
 }
 
+function isQueueRowDelivered(row: { observacoes?: string | null }) {
+  return Boolean(parseQueueMeta(row?.observacoes).deliveredAt);
+}
+
 async function resolveQueueTarget(body: Record<string, unknown>) {
   const directId = Number(body?.id);
   if (Number.isFinite(directId) && directId > 0) {
@@ -206,23 +210,12 @@ async function resolveQueueTarget(body: Record<string, unknown>) {
   const jangadaId = await resolveJangadaIdFromBody(body);
   if (!jangadaId) return null;
 
-  const active = await prisma.serviceStationQueue.findFirst({
-    where: {
-      jangadaId,
-      OR: [
-        { status: { not: "finalizada" } },
-        { observacoes: { contains: '"deliveredAt":""' } },
-      ],
-    },
-    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
-  });
-
-  if (active) return active;
-
-  return prisma.serviceStationQueue.findFirst({
+  const rows = await prisma.serviceStationQueue.findMany({
     where: { jangadaId },
     orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
   });
+
+  return rows.find((row) => !isQueueRowDelivered(row)) || rows[0] || null;
 }
 
 async function listQueue(
@@ -564,6 +557,32 @@ export async function PUT(req: NextRequest) {
         ? false
         : undefined;
 
+    const wasDeliveredBefore = isQueueRowDelivered(before);
+    const hasDeliveredFlag = Object.prototype.hasOwnProperty.call(body, "delivered")
+      || Object.prototype.hasOwnProperty.call(body, "deliveredAt");
+    const requestedDelivered = Object.prototype.hasOwnProperty.call(body, "delivered")
+      ? parseBoolean(body?.delivered, false)
+      : Object.prototype.hasOwnProperty.call(body, "deliveredAt")
+        ? Boolean(String(body?.deliveredAt || "").trim())
+        : wasDeliveredBefore;
+
+    if (requestedDelivered && !wasDeliveredBefore && !wasFinalizedBefore) {
+      return NextResponse.json(
+        { error: "Só é possível entregar jangadas que estejam em 'Pronta para entrega'." },
+        { status: 400 },
+      );
+    }
+
+    const deliveredAtValue = requestedDelivered
+      ? (Object.prototype.hasOwnProperty.call(body, "deliveredAt")
+        ? String(body?.deliveredAt || "").trim()
+        : "") || previousMeta.deliveredAt || new Date().toISOString()
+      : "";
+
+    const nextDeliveryMethod = Object.prototype.hasOwnProperty.call(body, "deliveryMethod")
+      ? normalizeDeliveryMethod(body?.deliveryMethod)
+      : previousMeta.deliveryMethod;
+
     const nextMeta = appendWorkflowTransition({
       tecnico: Object.prototype.hasOwnProperty.call(body, "tecnico") ? String(body?.tecnico || "").trim() || undefined : previousMeta.tecnico,
       observacao: Object.prototype.hasOwnProperty.call(body, "observacao") ? String(body?.observacao || "").trim() || undefined : previousMeta.observacao,
@@ -585,17 +604,20 @@ export async function PUT(req: NextRequest) {
       readyForDelivery: Object.prototype.hasOwnProperty.call(body, "readyForDelivery")
         ? parseBoolean(body?.readyForDelivery, false)
         : autoReadyForDelivery ?? Boolean(previousMeta.readyForDelivery),
-      deliveryMethod: Object.prototype.hasOwnProperty.call(body, "deliveryMethod")
-        ? normalizeDeliveryMethod(body?.deliveryMethod)
-        : previousMeta.deliveryMethod,
+      deliveryMethod: nextDeliveryMethod,
       saoMiguelPortCall: Object.prototype.hasOwnProperty.call(body, "saoMiguelPortCall")
         ? normalizeSaoMiguelPortCall(body?.saoMiguelPortCall)
         : previousMeta.saoMiguelPortCall,
+      deliveredAt: deliveredAtValue || undefined,
       workflowTransitions: previousMeta.workflowTransitions,
       workflowStatus: previousMeta.workflowStatus,
     }, requestedWorkflowStatus, {
       origin: "queue",
-      message: `Workflow da estação atualizado para ${requestedWorkflowStatus}.`,
+      message: hasDeliveredFlag
+        ? (requestedDelivered
+          ? `Jangada marcada como entregue (${nextDeliveryMethod || "método por definir"}).`
+          : "Entrega anulada; jangada voltou a estar pendente de entrega.")
+        : `Workflow da estação atualizado para ${requestedWorkflowStatus}.`,
       user: (Object.prototype.hasOwnProperty.call(body, "tecnico") ? String(body?.tecnico || "").trim() : previousMeta.tecnico) || "sistema",
     }) satisfies QueueMeta;
 
@@ -724,7 +746,14 @@ export async function PUT(req: NextRequest) {
       });
     }
 
-    if (status === "finalizada") {
+    if (requestedDelivered) {
+      await clearEntregaAgendaEvent({ jangadaId: before.jangadaId });
+    } else if (hasDeliveredFlag && wasDeliveredBefore && expectedDeliveryDate) {
+      await syncEntregaAgendaEvent({
+        jangadaId: before.jangadaId,
+        dataPrevistaEntrega: expectedDeliveryDate,
+      });
+    } else if (status === "finalizada") {
       await clearEntregaAgendaEvent({ jangadaId: before.jangadaId });
     } else if (expectedDeliveryDate) {
       await syncEntregaAgendaEvent({
@@ -748,10 +777,21 @@ export async function PUT(req: NextRequest) {
       tabela: "ServiceStationQueue",
       tipoOperacao: "UPDATE",
       idRegisto: id,
-      descricao: `Atualização da estação de serviço (status=${status})`,
+      descricao: hasDeliveredFlag
+        ? `Entrega ${requestedDelivered ? "registada" : "anulada"} na estação de serviço (status=${status})`
+        : `Atualização da estação de serviço (status=${status})`,
       dadosAntes: before,
       dadosDepois: updated,
     });
+
+    if (requestedDelivered && !wasDeliveredBefore) {
+      await tryNotifySms(() =>
+        notifyJangadaEnviada(before.jangadaId, {
+          transitario: nextMeta.transitario,
+          trackingCode: nextMeta.trackingCode,
+        }),
+      );
+    }
 
     if (status === "finalizada" && !wasFinalizedBefore) {
       await tryNotifySms(() =>
@@ -792,6 +832,19 @@ export async function DELETE(req: NextRequest) {
 
     if (!activeStationId && !access.isAdmin && !access.allowedStationIds.includes(Number(before.serviceStationId || 0))) {
       return NextResponse.json({ error: "Sem permissão para remover esta entrada." }, { status: 403 });
+    }
+
+    // Uma entrega registada e registo contabilistico: remove-la destroys o
+    // historico de entrega e a data de saida. obriga-se a anular a entrega
+    // primeiro, que e o unico caminho que preserva o rasto.
+    if (isQueueRowDelivered(before)) {
+      return NextResponse.json(
+        {
+          error: "Não é possível remover uma jangada já entregue. Anule primeiro a entrega.",
+          delivered: true,
+        },
+        { status: 409 },
+      );
     }
 
     const targetId = before.id;

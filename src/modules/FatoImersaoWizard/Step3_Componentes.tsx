@@ -3,6 +3,7 @@
 import React, { useEffect } from "react";
 import { ArrowLeft, ChevronRight, Package } from "lucide-react";
 import { useFatoImersaoWizardStore } from "./store/useFatoImersaoWizardStore";
+import { toStorageValidade, toDisplayValidade } from "@/lib/fato-date-utils";
 
 type Props = { onNext: () => void; onPrev: () => void };
 
@@ -59,6 +60,15 @@ export default function Step3_Componentes({ onNext, onPrev }: Props) {
       </div>
 
       <div className="space-y-4">
+        {inspectionData.componentes.length === 0 ? (
+          <div className="border-2 border-dashed border-slate-200 bg-slate-50 rounded-2xl p-12 flex flex-col items-center justify-center text-center">
+            <Package size={48} className="w-12 h-12 text-slate-300 mb-3" />
+            <h3 className="text-lg font-semibold text-slate-700 mb-1">Nenhum componente registado</h3>
+            <p className="text-sm text-slate-500 max-w-md">
+              Clique no seletor acima para associar o artigo de stock substituído (luz, apito, luvas, fitas).
+            </p>
+          </div>
+        ) : null}
         {inspectionData.componentes.map((c) => (
           <div key={c.id} className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
             <div className="flex items-center gap-2 mb-3">
@@ -77,7 +87,7 @@ export default function Step3_Componentes({ onNext, onPrev }: Props) {
                       stockId: sid,
                       reference: st?.referencia || c.reference,
                       lote: st?.lote || c.lote,
-                      validade: st?.validade || c.validade,
+                      validade: st?.validade ? toStorageValidade(st.validade) : c.validade,
                       substituido: !!sid,
                     });
                   }}
@@ -110,8 +120,8 @@ export default function Step3_Componentes({ onNext, onPrev }: Props) {
               <label className="text-xs">
                 <span className="font-semibold text-slate-500 uppercase">Validade</span>
                 <input
-                  value={c.validade}
-                  onChange={(e) => updateComp(c.id, { validade: e.target.value })}
+                  value={toDisplayValidade(c.validade)}
+                  onChange={(e) => updateComp(c.id, { validade: toStorageValidade(e.target.value) })}
                   placeholder="MM/AAAA"
                   className="mt-1 w-full border rounded-xl px-3 py-2 bg-slate-50 text-sm"
                 />

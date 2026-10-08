@@ -229,7 +229,7 @@ export default function OrcamentosPage() {
 
   return (
     <div className="min-h-screen bg-slate-100 p-6">
-      <div className="mx-auto max-w-6xl">
+      <div className="ds-page">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold text-slate-800">Orçamentos</h1>

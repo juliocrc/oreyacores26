@@ -435,10 +435,11 @@ export default function Step8_ResumoFinal() {
        clienteAssinaturaBase64: inspectionData.clienteAssinaturaBase64 || null,
        clienteNomeAssinatura: inspectionData.clienteNomeAssinatura || null,
        guiaTransporteUrl: inspectionData.guiaTransporteUrl || null,
-       checklistSnapshot: {
-         ...(inspectionData.checklist || {}),
-         _hruAplicavel: inspectionData.hruAplicavel || 'NAO',
-       },
+      checklistSnapshot: {
+        ...(inspectionData.checklist || {}),
+        _hruAplicavel: inspectionData.hruAplicavel || 'NAO',
+        _dataUltimoGi: inspectionData.dataUltimoGi || '',
+      },
       artigosSubstituidos,
       orcamento: {
         linhas: (inspectionData.orcamento?.linhas || []).map((linha) => ({

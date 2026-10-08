@@ -1,0 +1,1479 @@
+model ArtigoJangada {
+  id               Int       @id @default(autoincrement())
+  name             String
+  quantidade       Int
+  validade         DateTime?
+  referencia       String?
+  codigoFabricante String?
+  jangadaId        Int
+  Jangada          Jangada   @relation(fields: [jangadaId], references: [id])
+  stockId          Int?
+  stock            Stock?    @relation(fields: [stockId], references: [id], onDelete: SetNull)
+  inspecaoId       Int?
+  inspecao         Inspecao? @relation(fields: [inspecaoId], references: [id])
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([stockId])
+  @@index([jangadaId])
+}
+
+model Artigo {
+  id         Int      @id @default(autoincrement())
+  name       String
+  descricao  String?
+  referencia String?
+  unit       String?  @default("un")
+  stock      Int      @default(0)
+  minStock   Int      @default(1)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([name])
+  @@index([referencia])
+}
+
+model Colete {
+  id               Int     @id @default(autoincrement())
+  shipId           Int?
+  serial           String  @unique
+  marca            String?
+  modelo           String?
+  tamanho          String?
+  estado           String  @default("Ativo")
+  dataFabrico      String?
+  dataInspecao     String?
+  dataProxInspecao String?
+  observacoes      String?
+
+  // Testes recentes (atualizados pela Inspeção Wizard)
+  testePressao    String?
+  testeInsuflacao String?
+  testeVazamento  String?
+
+  // Componentes Atuais
+  cilindroRef       String?
+  cilindroLote      String?
+  cilindroValidade  String?
+  pastilhaRef       String?
+  pastilhaLote      String?
+  pastilhaValidade  String?
+  temLuz            Boolean?
+  luzRef            String?
+  luzLote           String?
+  luzValidade       String?
+  apitoRef          String?
+  apitoLote         String?
+  apitoValidade     String?
+  mecanismoInflacao String?
+  mecanismoValidade String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  verificacoes VerificacaoColete[]
+  certificado  CertificadoColete?
+
+  @@index([shipId])
+  @@index([estado])
+  @@index([dataProxInspecao])
+}
+
+model ColeteComponentHistory {
+  id            Int      @id @default(autoincrement())
+  coleteId      Int
+  fieldName     String // e.g., "cilindroRef", "pastilhaValidade", "mecanismoInflacao"
+  oldValue      String?
+  newValue      String?
+  changedById   Int? // User ID who made the change
+  changedByName String? // User name for display
+  createdAt     DateTime @default(now())
+
+  @@index([coleteId])
+  @@index([fieldName])
+  @@index([createdAt])
+}
+
+model Epirb {
+  id                     Int      @id @default(autoincrement())
+  shipId                 Int?
+  serial                 String   @unique
+  marca                  String?
+  modelo                 String?
+  tipo                   String?
+  hexId                  String?
+  estado                 String   @default("Ativo")
+  dataInspecao           String?
+  dataProxInspecao       String?
+  dataValidadeBateria    String?
+  ownerName              String?
+  ownerAddress           String?
+  ownerPhone             String?
+  emergencyContact1Name  String?
+  emergencyContact1Phone String?
+  emergencyContact2Name  String?
+  emergencyContact2Phone String?
+  observacoes            String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([shipId])
+  @@index([estado])
+  @@index([tipo])
+  @@index([dataProxInspecao])
+  @@index([marca, modelo])
+}
+
+model VerificacaoColete {
+  id       Int    @id @default(autoincrement())
+  coleteId Int
+  colete   Colete @relation(fields: [coleteId], references: [id], onDelete: Cascade)
+
+  // Inspecção Visual Fields
+  tecidoExterior    String? // OK, F, S, R
+  colagens          String? // OK, F, S, R
+  zataosVelcro      String? // OK, F, S, R, or specific type
+  fitasReflectoras  String? // OK, F, S, R
+  sistemaInflacao   String? // OK, F, S, R
+  mecanismoInflacao String? // HR, HM, SEC, LZ, UML, CREW, PL
+  camaras           String? // OK, F, S, R
+  garrafaCO2        String? // OK, F, S, R
+  tuboInflador      String? // OK, F, S, R
+
+  // Additional inspection fields
+  dataVerificacao DateTime @default(now())
+  inspectorNome   String?
+  observacoes     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([coleteId])
+  @@index([dataVerificacao])
+}
+
+model CertificadoColete {
+  id       Int    @id @default(autoincrement())
+  coleteId Int    @unique
+  colete   Colete @relation(fields: [coleteId], references: [id], onDelete: Cascade)
+
+  // Certificate Info
+  numeroCertificado String    @unique
+  dataCertificado   DateTime  @default(now())
+  dataValidade      DateTime?
+
+  // Approval Info
+  resultado   String  @default("Aprovado") // Aprovado, Reprovado, Condicional
+  emitidoPor  String?
+  observacoes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([coleteId])
+  @@index([dataCertificado])
+}
+
+model FatoImersao {
+  id                    Int     @id @default(autoincrement())
+  shipId                Int?
+  serial                String  @unique
+  marca                 String?
+  modelo                String?
+  designNo              String?
+  tamanho               String?
+  tipo                  String?
+  material              String?
+  estado                String  @default("Ativo")
+  dataFabrico           String?
+  dataInspecao          String?
+  dataProxInspecao      String?
+  intervaloServicoMeses Int?
+  observacoes           String?
+
+  // Componentes / acessórios atuais
+  luzRef             String?
+  luzLote            String?
+  luzValidade        String?
+  apitoRef           String?
+  apitoLote          String?
+  apitoValidade      String?
+  fechoTipo          String?
+  fechoEstado        String?
+  botasEstado        String?
+  luvasEstado        String?
+  capuzEstado        String?
+  wristSealsEstado   String?
+  buddyLineEstado    String?
+  liftingStropEstado String?
+  buoyancyEstado     String?
+
+  // Testes recentes
+  testeImpermeabilidade String?
+  testeFlutuabilidade   String?
+  testeFecho            String?
+  leakMetodo            String?
+  leakPressaoKpa        String?
+  leakResultado         String?
+  codigoBER             String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  verificacoes VerificacaoFatoImersao[]
+  certificado  CertificadoFatoImersao?
+
+  @@index([shipId])
+  @@index([estado])
+  @@index([dataProxInspecao])
+}
+
+model Extintor {
+  id                      Int     @id @default(autoincrement())
+  shipId                  Int?
+  serial                  String?
+  marca                   String?
+  modelo                  String?
+  capacidadeKg            Int?
+  tipoAgente              String?
+  estado                  String  @default("Ativo")
+  localizacao             String?
+  dataFabrico             String?
+  dataUltimaRecarga       String?
+  dataProxRecarga         String?
+  dataTesteHidraulico     String?
+  dataProxTesteHidraulico String?
+  observacoes             String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([shipId])
+  @@index([estado])
+  @@index([dataProxRecarga])
+}
+
+model FatoImersaoComponentHistory {
+  id            Int      @id @default(autoincrement())
+  fatoImersaoId Int
+  fieldName     String
+  oldValue      String?
+  newValue      String?
+  changedById   Int?
+  changedByName String?
+  createdAt     DateTime @default(now())
+
+  @@index([fatoImersaoId])
+  @@index([fieldName])
+  @@index([createdAt])
+}
+
+model VerificacaoFatoImersao {
+  id            Int         @id @default(autoincrement())
+  fatoImersaoId Int
+  fatoImersao   FatoImersao @relation(fields: [fatoImersaoId], references: [id], onDelete: Cascade)
+
+  tecidoExterior   String?
+  costuras         String?
+  fecho            String?
+  fitasReflectoras String?
+  capuz            String?
+  botas            String?
+  luvas            String?
+  luz              String?
+  apito            String?
+  impermeabilidade String?
+
+  // Checklist completa (JSON) + leak test MSC/Circ.1114
+  checklistJson      String?
+  leakMetodo         String?
+  leakPressaoInicial String?
+  leakPressaoFinal   String?
+  leakDeltaP         String?
+  leakUnidade        String? @default("kPa")
+  leakDuracaoMin     String?
+  leakResultado      String?
+  leakReTest         String?
+  zonasFugaJson      String?
+  resultadoGeral     String?
+  codigoBER          String?
+  motivoBER          String?
+
+  dataVerificacao DateTime @default(now())
+  inspectorNome   String?
+  observacoes     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([fatoImersaoId])
+  @@index([dataVerificacao])
+  @@index([resultadoGeral])
+}
+
+model CertificadoFatoImersao {
+  id            Int         @id @default(autoincrement())
+  fatoImersaoId Int         @unique
+  fatoImersao   FatoImersao @relation(fields: [fatoImersaoId], references: [id], onDelete: Cascade)
+
+  numeroCertificado String    @unique
+  dataCertificado   DateTime  @default(now())
+  dataValidade      DateTime?
+  resultado         String    @default("Aprovado")
+  emitidoPor        String?
+  observacoes       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([fatoImersaoId])
+  @@index([dataCertificado])
+}
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/sqlite-client"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum ServiceStationTerritoryType {
+  AZORES
+  MAINLAND
+  MADEIRA
+}
+
+enum MainlandRegion {
+  NORTE
+  CENTRO
+  SUL
+  MADEIRA
+}
+
+model Cliente {
+  id                      Int             @id @default(autoincrement())
+  serviceStationId        Int?
+  nome                    String
+  numeroCliente           String?         @unique
+  nif                     String?         @unique
+  email                   String?
+  telefone                String?
+  telmovel                String?
+  morada                  String?
+  modoPagamento           String?
+  moradaNumero            String?
+  codigoPostal            String?
+  localidade              String?
+  ilha                    String?
+  tipoCliente             String? // "armador", "operador", etc
+  observacoes             String? // RNAAT, website, objeto social, etc.
+  agendas                 Agenda[]        @relation("ClienteAgenda")
+  navios                  Navio[]         @relation("ClienteNavios")
+  ordensServico           OrdemServico[]
+  faturas                 Fatura[]
+  serviceStation          ServiceStation? @relation(fields: [serviceStationId], references: [id])
+  users                   User[]
+  verificationCode        String?
+  verificationCodeExpires DateTime?
+
+  @@index([serviceStationId])
+  @@index([ilha])
+  @@index([nome])
+  @@index([nif])
+  @@index([codigoPostal])
+}
+
+model ContactoInterno {
+  id               Int      @id @default(autoincrement())
+  categoria        String   @default("Colaborador")
+  empresa          String?
+  localizacao      String?
+  nome             String
+  email            String?
+  telemovel        String?
+  telefoneFixo     String?
+  extensaoNos      String?
+  extensaoVodafone String?
+  observacoes      String?
+  ativo            Boolean  @default(true)
+  fonte            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([categoria])
+  @@index([empresa])
+  @@index([localizacao])
+  @@index([nome])
+  @@index([ativo])
+  @@index([fonte])
+}
+
+model ServiceStation {
+  id                   Int                         @id @default(autoincrement())
+  codigo               String                      @unique
+  nome                 String
+  empresa              String?
+  localizacao          String?
+  territorioTipo       ServiceStationTerritoryType @default(MAINLAND)
+  regiaoOperacional    MainlandRegion?
+  ativo                Boolean                     @default(true)
+  observacoes          String?
+  createdAt            DateTime                    @default(now())
+  updatedAt            DateTime                    @updatedAt
+  clientes             Cliente[]
+  navios               Navio[]
+  jangadas             Jangada[]
+  tecnicos             Tecnico[]
+  ordensServico        OrdemServico[]
+  serviceStationQueues ServiceStationQueue[]
+  stocks               Stock[]
+  agendas              Agenda[]
+  agendaEventos        AgendaEvento[]
+
+  @@index([ativo])
+  @@index([territorioTipo])
+  @@index([regiaoOperacional])
+  @@index([nome])
+}
+
+model Navio {
+  id                     Int             @id @default(autoincrement())
+  serviceStationId       Int?
+  nome                   String
+  matricula              String
+  ilha                   String
+  tipoPesca              String
+  tipoNavio              String? // "pesca", "turistico", etc
+  comprimentoMetros      Float?
+  anoConstrucao          Int?
+  potenciaMotorKw        Float?
+  lotacao                Int?
+  zonaNavegacao          String?
+  estadoNavio            String? // "ativo", "inativo", "abatido", "naufragado"
+  dataEstado             DateTime?
+  proprietario           String?
+  bandeira               String?
+  mmsi                   String?
+  imo                    String?
+  callSignal             String?
+  lat                    Float?
+  lng                    Float?
+  hruReferencia          String?
+  hruValidade            String?
+  pirotecnicosBordoJson  String?
+  radarReflector         String?
+  radarReflectorValidade String?
+  portoRegisto           String?
+  cfr                    String?
+  territorioGrupo        String?
+  ativo                  Boolean         @default(true)
+  clienteId              Int?
+  cliente                Cliente?        @relation("ClienteNavios", fields: [clienteId], references: [id])
+  serviceStation         ServiceStation? @relation(fields: [serviceStationId], references: [id])
+
+  @@index([serviceStationId])
+  @@index([clienteId])
+  @@index([ilha])
+  @@index([territorioGrupo])
+  @@index([tipoPesca])
+  @@index([matricula])
+  @@index([portoRegisto])
+  @@index([mmsi])
+  @@index([imo])
+  @@index([lat])
+  @@index([lng])
+}
+
+model Agenda {
+  id                 Int             @id @default(autoincrement())
+  serviceStationId   Int?
+  serviceStation     ServiceStation? @relation(fields: [serviceStationId], references: [id])
+  nome               String
+  matricula          String
+  embarcacoesDePesca String
+  tipoPesca          String
+  lotacao            Int
+  bandeira           String
+  clienteId          Int?
+  cliente            Cliente?        @relation("ClienteAgenda", fields: [clienteId], references: [id])
+
+  @@index([serviceStationId])
+}
+
+model AgendaEvento {
+  id                  Int             @id @default(autoincrement())
+  serviceStationId    Int?
+  serviceStation      ServiceStation? @relation(fields: [serviceStationId], references: [id])
+  title               String
+  date                DateTime
+  raftSerial          String
+  responsavel         String?
+  status              String          @default("scheduled")
+  type                String          @default("Inspeção")
+  inspectionType      String          @default("outro")
+  durationMinutes     Int             @default(210)
+  bufferBeforeMinutes Int             @default(15)
+  bufferAfterMinutes  Int             @default(15)
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  @@index([raftSerial])
+  @@index([date])
+  @@index([serviceStationId])
+  @@index([status])
+  @@index([responsavel, date])
+  @@index([serviceStationId, date])
+}
+
+model PedidoAssistencia {
+  id               Int            @id @default(autoincrement())
+  serviceStationId Int?
+  nome             String?
+  email            String?
+  telefone         String?
+  navio            String?
+  jangadaSerial    String?
+  tipoAssistencia  String?
+  descricao        String
+  dataPreferida    String?
+  origem           String         @default("zapier")
+  estado           String         @default("novo")
+  metadados        String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  ordensServico    OrdemServico[]
+
+  @@index([jangadaSerial])
+  @@index([estado])
+  @@index([serviceStationId])
+}
+
+enum UserRole {
+  ADMIN
+  USER
+  CLIENTE
+}
+
+enum CatalogTipoEquipamento {
+  COLETE
+  JANGADA
+  FATO_IMERSAO
+}
+
+model CatalogMarcaModelo {
+  id         Int                    @id @default(autoincrement())
+  tipo       CatalogTipoEquipamento
+  marca      String
+  modelo     String
+  marcaKey   String
+  modeloKey  String
+  fabricante String?
+  origem     String?
+  createdAt  DateTime               @default(now())
+  updatedAt  DateTime               @updatedAt
+
+  @@unique([tipo, marcaKey, modeloKey])
+  @@index([tipo, marca])
+  @@index([tipo, modelo])
+}
+
+model User {
+  id                      Int              @id @default(autoincrement())
+  email                   String           @unique
+  name                    String?
+  passwordHash            String?
+  role                    UserRole         @default(USER)
+  permissionsOverrideJson String?
+  googleId                String?          @unique
+  image                   String?
+  lastLoginAt             DateTime?
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime         @default(now()) @updatedAt
+  posts                   Post[]
+  customPackTypesCreated  CustomPackType[] @relation("CustomPackTypeCreatedBy")
+  customPackTypesUpdated  CustomPackType[] @relation("CustomPackTypeUpdatedBy")
+  clienteId               Int?
+  cliente                 Cliente?         @relation(fields: [clienteId], references: [id])
+
+  @@index([role])
+}
+
+model Post {
+  id        Int     @id @default(autoincrement())
+  title     String
+  content   String?
+  published Boolean @default(false)
+  authorId  Int
+  author    User    @relation(fields: [authorId], references: [id])
+}
+
+model Jangada {
+  serviceStationQueues                 ServiceStationQueue[]
+  ordensServicoPrimarias               OrdemServico[]        @relation("PrimaryOrdemServicoJangada")
+  ordemServicoLinks                    OrdemServicoJangada[]
+  id                                   Int                   @id @default(autoincrement())
+  serviceStationId                     Int?
+  brand                                String
+  model                                String
+  serial                               String                @unique
+  launchType                           String?
+  painterLength                        String?
+  maxStowageHeight                     String?
+  dataFabrico                          String
+  packType                             String
+  containerModel                       String?
+  containerSize                        String?
+  closureStrapsJson                    String?
+  capacity                             Int
+  owner                                String
+  shipId                               Int?
+  shipNameManual                       String?
+  dataInspecao                         String?
+  dataProxInspecao                     String?
+  ultimoCertificadoNumero              String?
+  certificadoExternoNumero             String?
+  certificadoExternoUrl                String?
+  certificadoNumeroOriginal            String?
+  cylinderSerial                       String?
+  cylinderTara                         String?
+  cylinderPesoBruto                    String?
+  cylinderCo2                          String?
+  cylinderN2                           String?
+  cylinderDataTeste                    String?
+  cylinderDataProxTeste                String?
+  cylinderSistema                      String?
+  cylinderCabecaDisparoRef             String?
+  cylinderCabecaDisparoSerial          String?
+  fabricType                           String? // PU, NR, or PVC
+  cylinderCabecaDisparoDescricao       String?
+  cylinderTuboCamaraSuperiorRef        String?
+  cylinderTuboCamaraSuperiorDescricao  String?
+  cylinderTuboCamaraInferiorRef        String?
+  cylinderTuboCamaraInferiorDescricao  String?
+  cylinderAcessoriosCamaraSuperiorJson String?
+  cylinderAcessoriosCamaraInferiorJson String?
+  valvulasAlivio                       String?
+  valvulasAtestar                      String?
+  hruReferencia                        String?
+  hruDataInstalacao                    String?
+  hruValidade                          String?
+  hruSerial                            String?
+  radarReflector                       String?
+  radarReflectorValidade               String?
+  artigos                              ArtigoJangada[]
+  tuboIdentificacao                    String?
+  numeroObra                           String?
+  testeWP                              String?
+  testeNAP                             String?
+  testeFS                              String?
+  testeGI                              String?
+  testeDL                              String?
+  testeTemperaturaCamaraSuperior       String?
+  testeTemperaturaCamaraInferior       String?
+  testePressaoCamaraSuperior           String?
+  testePressaoCamaraInferior           String?
+  testeWPUnidadePressao                String?
+  testeWPInstrumento                   String?
+  testeWPHoraInicio                    String?
+  testeWPHoraFim                       String?
+  testeWPTemperaturaInicial            String?
+  testeWPTemperaturaFinal              String?
+  testeWPPressaoAtmosfericaInicial     String?
+  testeWPPressaoAtmosfericaFinal       String?
+  testeWPCamaraSuperiorInicio          String?
+  testeWPCamaraSuperiorFim             String?
+  testeWPCamaraSuperiorQueda           String?
+  testeWPCamaraInferiorInicio          String?
+  testeWPCamaraInferiorFim             String?
+  testeWPCamaraInferiorQueda           String?
+  oficinaTemperatura                   String?
+  oficinaHumidade                      String?
+  serviceBulletinsAppliedJson          String?
+  createdAt                            DateTime              @default(now())
+  updatedAt                            DateTime              @updatedAt
+  certificadoAtivoId                   Int?
+  certificadosExtraidos                CertificadoExtraido[] @relation("JangadaCertificadosExtraidos")
+  certificadoAtivo                     CertificadoExtraido?  @relation("JangadaCertificadoAtivo", fields: [certificadoAtivoId], references: [id])
+  serviceStation                       ServiceStation?       @relation(fields: [serviceStationId], references: [id])
+  signatureBase64                      String?
+  syncSnapshot                         String?
+
+  @@index([serviceStationId])
+  @@index([certificadoAtivoId])
+  @@index([shipId])
+  @@index([brand])
+  @@index([model])
+  @@index([owner])
+  @@index([packType])
+  @@index([dataProxInspecao])
+  @@index([serviceStationId, dataProxInspecao])
+}
+
+model CertificadoExtraido {
+  id                Int                   @id @default(autoincrement())
+  fileName          String                @unique
+  certificadoNumero String?
+  sourceYear        Int                   @default(2025)
+  raftSerial        String?
+  shipName          String?
+  dataInspecao      String?
+  dataProxInspecao  String?
+  emergencyPackType String?
+  hasQuadro         Boolean               @default(false)
+  validitiesCount   Int                   @default(0)
+  isMaisRecente     Boolean               @default(false)
+  aplicadoComoAtivo Boolean               @default(false)
+  cylinderData      Json?
+  shipOwner         String?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  jangada           Jangada?              @relation("JangadaCertificadosExtraidos", fields: [raftSerial], references: [serial])
+  validities        CertificadoValidade[]
+  jangadasAtivas    Jangada[]             @relation("JangadaCertificadoAtivo")
+
+  @@index([raftSerial])
+  @@index([shipName])
+  @@index([dataInspecao])
+  @@index([isMaisRecente])
+}
+
+model CertificadoValidade {
+  id            Int                 @id @default(autoincrement())
+  certificadoId Int
+  item          String
+  validade      String
+  rowNumber     Int?
+  createdAt     DateTime            @default(now())
+  certificado   CertificadoExtraido @relation(fields: [certificadoId], references: [id], onDelete: Cascade)
+
+  @@unique([certificadoId, item, validade, rowNumber])
+  @@index([certificadoId])
+  @@index([item])
+  @@index([validade])
+}
+
+model Stock {
+  id                     Int                    @id @default(autoincrement())
+  referencia             String
+  serviceStationId       Int?
+  serviceStation         ServiceStation?        @relation(fields: [serviceStationId], references: [id])
+  descricao              String
+  estadoArtigo           String                 @default("ATIVO")
+  referenciaSubstituta   String?
+  categoria              String?
+  associavelJangada      Boolean                @default(false)
+  aplicavelMarcaJangada  String?
+  aplicavelModeloJangada String?
+  precoCompra            Float?
+  codigoFabricante       String?
+  inventario             String?
+  lote                   String?
+  validade               String?
+  testeHidraulico        String?
+  estadoCargaCilindro    String?
+  precoVenda             Float
+  quantidade             Int                    @default(0)
+  quantidadeMinima       Int?
+  quantidadeReservada    Int                    @default(0)
+  leadTimeDias           Int?
+  foto                   String?
+  localizacao            String?
+  unit                   String?                @default("un")
+  observacoes            String?
+  codigoBarras           String?                @unique
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+  movimentacoes          MovimentacaoStock[]
+  customPackItems        CustomPackTypeItem[]
+  jangadaArtigos         ArtigoJangada[]
+  pedidoReposicaoLinhas  PedidoReposicaoLinha[]
+  ordensCompraLinha      OrdemCompraLinha[]
+
+  @@unique([referencia, serviceStationId])
+  @@index([categoria])
+  @@index([associavelJangada])
+  @@index([aplicavelMarcaJangada])
+  @@index([aplicavelModeloJangada])
+  @@index([estadoCargaCilindro])
+  @@index([serviceStationId])
+  @@index([estadoArtigo])
+  @@index([validade])
+  @@index([quantidade])
+}
+
+model CustomPackType {
+  id              Int                  @id @default(autoincrement())
+  name            String               @unique
+  description     String?
+  isActive        Boolean              @default(true)
+  createdByUserId Int?
+  updatedByUserId Int?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  items           CustomPackTypeItem[]
+  createdByUser   User?                @relation("CustomPackTypeCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  updatedByUser   User?                @relation("CustomPackTypeUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([isActive])
+  @@index([name])
+}
+
+model CustomPackTypeItem {
+  id               Int            @id @default(autoincrement())
+  customPackTypeId Int
+  stockId          Int?
+  stockReference   String
+  stockDescription String
+  stockCategory    String?
+  quantity         Int
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  customPackType   CustomPackType @relation(fields: [customPackTypeId], references: [id], onDelete: Cascade)
+  stock            Stock?         @relation(fields: [stockId], references: [id], onDelete: SetNull)
+
+  @@unique([customPackTypeId, stockReference])
+  @@index([customPackTypeId])
+  @@index([stockId])
+}
+
+model MovimentacaoStock {
+  id                Int              @id @default(autoincrement())
+  stockId           Int
+  stock             Stock            @relation(fields: [stockId], references: [id], onDelete: Cascade)
+  tipo              String // "entrada" | "saida" | "reserva" | "libertar_reserva" | "ajuste"
+  quantidade        Int
+  quantidadeAntes   Int
+  quantidadeDepois  Int
+  motivo            String?
+  usuario           String?
+  ordemServicoId    Int?
+  inspecaoId        Int?
+  pedidoReposicaoId Int?
+  createdAt         DateTime         @default(now())
+  ordemServico      OrdemServico?    @relation(fields: [ordemServicoId], references: [id], onDelete: SetNull)
+  inspecao          Inspecao?        @relation(fields: [inspecaoId], references: [id], onDelete: SetNull)
+  pedidoReposicao   PedidoReposicao? @relation(fields: [pedidoReposicaoId], references: [id], onDelete: SetNull)
+
+  @@index([stockId])
+  @@index([createdAt])
+  @@index([tipo])
+  @@index([tipo, createdAt])
+  @@index([ordemServicoId])
+  @@index([inspecaoId])
+  @@index([pedidoReposicaoId])
+}
+
+model PedidoReposicao {
+  id               Int                    @id @default(autoincrement())
+  numero           String                 @unique
+  status           String                 @default("rascunho") // rascunho | encomendado | parcial | recebido | cancelado
+  fornecedor       String?
+  notas            String?
+  criadoPor        String?
+  serviceStationId Int?
+  totalEstimado    Float                  @default(0)
+  encomendadoEm    DateTime?
+  recebidoEm       DateTime?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  linhas           PedidoReposicaoLinha[]
+  movimentacoes    MovimentacaoStock[]
+
+  @@index([status])
+  @@index([fornecedor])
+  @@index([createdAt])
+  @@index([serviceStationId])
+}
+
+model PedidoReposicaoLinha {
+  id                 Int             @id @default(autoincrement())
+  pedidoId           Int
+  stockId            Int?
+  referencia         String?
+  descricao          String
+  fornecedor         String?
+  quantidadePedida   Int
+  quantidadeRecebida Int             @default(0)
+  precoUnitario      Float           @default(0)
+  status             String          @default("pendente") // pendente | parcial | recebido | cancelado
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  pedido             PedidoReposicao @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  stock              Stock?          @relation(fields: [stockId], references: [id], onDelete: SetNull)
+
+  @@index([pedidoId])
+  @@index([stockId])
+  @@index([status])
+  @@index([referencia])
+}
+
+model Inspecao {
+  id                               Int                 @id @default(autoincrement())
+  certificadoNumero                String              @unique
+  navioNome                        String
+  navioId                          Int?
+  jangadaId                        Int?
+  jangadaSerial                    String?
+  coleteId                         Int?
+  coleteSerial                     String?
+  dataInspecao                     String
+  dataProxInspecao                 String?
+  status                           String              @default("Concluída")
+  sourceFile                       String?
+  signatureBase64                  String?
+  clienteAssinaturaBase64          String?
+  clienteNomeAssinatura            String?
+  guiaTransporteUrl                String?
+  createdAt                        DateTime            @default(now())
+  updatedAt                        DateTime            @updatedAt
+  artigos                          ArtigoJangada[]
+  ordensServico                    OrdemServico[]
+  movimentacoesStock               MovimentacaoStock[]
+  numeroObra                       String?
+  testeWP                          String?
+  testeNAP                         String?
+  testeFS                          String?
+  testeGI                          String?
+  testeDL                          String?
+  testeWPUnidadePressao            String?
+  testeWPInstrumento               String?
+  testeWPHoraInicio                String?
+  testeWPHoraFim                   String?
+  testeWPTemperaturaInicial        String?
+  testeWPTemperaturaFinal          String?
+  testeWPPressaoAtmosfericaInicial String?
+  testeWPPressaoAtmosfericaFinal   String?
+  testeWPCamaraSuperiorInicio      String?
+  testeWPCamaraSuperiorFim         String?
+  testeWPCamaraSuperiorQueda       String?
+  testeWPCamaraInferiorInicio      String?
+  testeWPCamaraInferiorFim         String?
+  testeWPCamaraInferiorQueda       String?
+  oficinaTemperatura               String?
+  oficinaHumidade                  String?
+  orcamento                        Json?
+  checklistSnapshot                Json?
+
+  integrityHash      String?
+  integrityTimestamp DateTime?
+  integrityVersion   Int?
+
+  @@index([numeroObra])
+  @@index([navioNome])
+  @@index([navioId])
+  @@index([jangadaId])
+  @@index([jangadaSerial])
+  @@index([coleteId])
+  @@index([coleteSerial])
+  @@index([dataInspecao])
+  @@index([status])
+  @@index([dataInspecao, status])
+}
+
+model OrdemServico {
+  id                  Int       @id @default(autoincrement())
+  numeroOrdem         String    @unique
+  serviceStationId    Int?
+  jangadaId           Int?
+  shipId              Int?
+  clienteId           Int?
+  tecnicoId           Int?
+  inspecaoId          Int?
+  pedidoAssistenciaId Int?
+  tipo                String    @default("inspecao")
+  prioridade          String    @default("normal")
+  status              String    @default("pendente")
+  descricao           String?
+  tecnicoResponsavel  String?
+  slaHoras            Int?
+  dataPlaneadaInicio  DateTime?
+  dataPlaneadaFim     DateTime?
+  dataAbertura        DateTime  @default(now())
+  dataPrevista        DateTime?
+  dataInicio          DateTime?
+  dataConclusao       DateTime?
+  durationMinutes     Int       @default(210)
+
+  // Orçamentação e Faturação
+  orcamentoStatus  String  @default("Rascunho")
+  isPesca          Boolean @default(false)
+  isIsentoIva      Boolean @default(false)
+  codigoIsencaoIva String?
+  valorPecas       Float   @default(0)
+  valorMaoObra     Float   @default(0)
+  valorDesconto    Float   @default(0)
+  valorTotal       Float   @default(0)
+
+  metadados            String?
+  createdAt            DateTime                    @default(now())
+  updatedAt            DateTime                    @updatedAt
+  jangada              Jangada?                    @relation("PrimaryOrdemServicoJangada", fields: [jangadaId], references: [id])
+  ordemJangadas        OrdemServicoJangada[]
+  cliente              Cliente?                    @relation(fields: [clienteId], references: [id])
+  faturaOrdemServicos  FaturaOrdemServico[]
+  tecnico              Tecnico?                    @relation(fields: [tecnicoId], references: [id])
+  inspecao             Inspecao?                   @relation(fields: [inspecaoId], references: [id])
+  serviceStation       ServiceStation?             @relation(fields: [serviceStationId], references: [id])
+  pedidoAssistencia    PedidoAssistencia?          @relation(fields: [pedidoAssistenciaId], references: [id])
+  serviceStationQueues ServiceStationQueue[]
+  checklistItems       OrdemServicoChecklistItem[]
+  logs                 OrdemServicoLog[]
+  ordemServicoTempos   OrdemServicoTempo[]
+  movimentacoesStock   MovimentacaoStock[]
+
+  @@index([serviceStationId])
+  @@index([jangadaId])
+  @@index([shipId])
+  @@index([clienteId])
+  @@index([tecnicoId])
+  @@index([inspecaoId])
+  @@index([pedidoAssistenciaId])
+  @@index([status])
+  @@index([tipo])
+  @@index([prioridade])
+  @@index([dataAbertura])
+  @@index([dataPlaneadaInicio])
+  @@index([dataPlaneadaFim])
+  @@index([dataPrevista])
+  @@index([serviceStationId, status])
+  @@index([orcamentoStatus])
+}
+
+model OrdemServicoJangada {
+  id             Int          @id @default(autoincrement())
+  ordemServicoId Int
+  jangadaId      Int
+  addedAt        DateTime     @default(now())
+  ordemServico   OrdemServico @relation(fields: [ordemServicoId], references: [id], onDelete: Cascade)
+  jangada        Jangada      @relation(fields: [jangadaId], references: [id], onDelete: Cascade)
+
+  @@unique([ordemServicoId, jangadaId])
+  @@index([ordemServicoId])
+  @@index([jangadaId])
+}
+
+model Tecnico {
+  id               Int                             @id @default(autoincrement())
+  serviceStationId Int?
+  nome             String
+  email            String?                         @unique
+  ativo            Boolean                         @default(true)
+  observacoes      String?
+  createdAt        DateTime                        @default(now())
+  updatedAt        DateTime                        @updatedAt
+  ordensServico    OrdemServico[]
+  tempos           OrdemServicoTempo[]
+  checklistUpdates OrdemServicoChecklistItem[]     @relation("ChecklistUpdatedByTecnico")
+  logs             OrdemServicoLog[]
+  serviceStation   ServiceStation?                 @relation(fields: [serviceStationId], references: [id])
+  ausencias        TecnicoAusencia[]
+  certificacoes    CertificacaoFabricanteTecnico[]
+
+  @@index([serviceStationId])
+  @@index([nome])
+  @@index([ativo])
+}
+
+model TecnicoAusencia {
+  id         Int      @id @default(autoincrement())
+  /// Key do técnico (ex: 'julio-correia', 'alex-santos'; corresponde ao id em AZORES_TECHNICIANS)
+  tecnicoKey String
+  tipo       String // 'ferias' | 'ausencia'
+  dataInicio DateTime
+  dataFim    DateTime
+  motivo     String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  /// Relação opcional ao registo Tecnico se existir na BD
+  tecnicoId  Int?
+  tecnico    Tecnico? @relation(fields: [tecnicoId], references: [id], onDelete: SetNull)
+
+  @@index([tecnicoKey])
+  @@index([dataInicio])
+  @@index([dataFim])
+  @@index([tecnicoId])
+}
+
+model OrdemServicoChecklistItem {
+  id             Int     @id @default(autoincrement())
+  ordemServicoId Int
+  phase          String  @default("pre") // pre, intervencao, fechamento
+  category       String? // e.g., "valves", "tubes", "heads", "equipment"
+  label          String
+  done           Boolean @default(false)
+
+  // Formato Checklist Digital
+  barcode            String? // Para suporte de scan de código de barras
+  scannedAt          DateTime?
+  photoUrl           String? // Imagem tirada ao estado do item (ex: válvulas)
+  notes              String? // Observações do técnico // Em caso de exceção/defeito
+  isDefect           Boolean   @default(false) // Se o técnico marcou com defeito ou não-conforme
+  originalDiagramRef String? // Referência do override do manual (ex: diagrama B, P/N)
+
+  updatedAt        DateTime     @default(now())
+  updatedBy        String?
+  updatedById      Int?
+  createdAt        DateTime     @default(now())
+  ordemServico     OrdemServico @relation(fields: [ordemServicoId], references: [id], onDelete: Cascade)
+  updatedByTecnico Tecnico?     @relation("ChecklistUpdatedByTecnico", fields: [updatedById], references: [id])
+
+  @@index([ordemServicoId])
+  @@index([phase])
+  @@index([category])
+  @@index([updatedById])
+}
+
+model OrdemServicoTempo {
+  id              Int          @id @default(autoincrement())
+  ordemServicoId  Int
+  tecnicoId       Int?
+  tecnico         String?
+  startedAt       DateTime
+  endedAt         DateTime?
+  durationMinutes Int          @default(0)
+  notes           String?
+  createdAt       DateTime     @default(now())
+  ordemServico    OrdemServico @relation(fields: [ordemServicoId], references: [id], onDelete: Cascade)
+  tecnicoRef      Tecnico?     @relation(fields: [tecnicoId], references: [id])
+
+  @@index([ordemServicoId])
+  @@index([tecnicoId])
+  @@index([startedAt])
+}
+
+model OrdemServicoLog {
+  id             Int          @id @default(autoincrement())
+  ordemServicoId Int
+  at             DateTime     @default(now())
+  type           String       @default("EVENT")
+  message        String
+  user           String?
+  tecnicoId      Int?
+  createdAt      DateTime     @default(now())
+  ordemServico   OrdemServico @relation(fields: [ordemServicoId], references: [id], onDelete: Cascade)
+  tecnico        Tecnico?     @relation(fields: [tecnicoId], references: [id])
+
+  @@index([ordemServicoId])
+  @@index([at])
+  @@index([type])
+  @@index([tecnicoId])
+}
+
+model Fatura {
+  id                 Int       @id @default(autoincrement())
+  numeroFatura       String    @unique
+  clienteId          Int?
+  shipId             Int?
+  valorSubtotal      Float     @default(0)
+  valorIva           Float     @default(0)
+  valorTotal         Float     @default(0)
+  isIsentoIva        Boolean   @default(false)
+  codigoIsencaoIva   String?
+  pagamentoStatus    String    @default("Pendente")
+  dataEmissao        DateTime  @default(now())
+  emitidaPor         String?
+  metadados          String?
+  cancelada          Boolean   @default(false)
+  dataCancelamento   DateTime?
+  motivoCancelamento String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ordemServicos FaturaOrdemServico[]
+  notaCredito   NotaCredito?
+  recibos       Recibo[]
+  cliente       Cliente?             @relation(fields: [clienteId], references: [id])
+
+  @@index([clienteId])
+  @@index([dataEmissao])
+  @@index([pagamentoStatus])
+  @@index([cancelada])
+}
+
+model FaturaOrdemServico {
+  id             Int      @id @default(autoincrement())
+  faturaId       Int
+  ordemServicoId Int      @unique
+  createdAt      DateTime @default(now())
+
+  fatura       Fatura       @relation(fields: [faturaId], references: [id], onDelete: Cascade)
+  ordemServico OrdemServico @relation(fields: [ordemServicoId], references: [id], onDelete: Cascade)
+
+  @@unique([faturaId, ordemServicoId])
+  @@index([faturaId])
+}
+
+model NotaCredito {
+  id                Int      @id @default(autoincrement())
+  numeroNotaCredito String   @unique
+  faturaId          Int      @unique
+  valorTotal        Float    @default(0)
+  dataEmissao       DateTime @default(now())
+  emitidaPor        String?
+  motivo            String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  fatura Fatura @relation(fields: [faturaId], references: [id], onDelete: Cascade)
+}
+
+model Recibo {
+  id              Int      @id @default(autoincrement())
+  numeroRecibo    String   @unique
+  faturaId        Int
+  valorPago       Float    @default(0)
+  pagamentoStatus String   @default("Pago")
+  dataEmissao     DateTime @default(now())
+  emitidaPor      String?
+  metadados       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  fatura Fatura @relation(fields: [faturaId], references: [id], onDelete: Cascade)
+
+  @@index([faturaId])
+}
+
+model Equipamento {
+  id          Int      @id @default(autoincrement())
+  nome        String
+  tipo        String?
+  marca       String?
+  modelo      String?
+  serial      String?  @unique
+  estado      String   @default("Ativo")
+  observacoes String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([nome])
+  @@index([estado])
+}
+
+model ServiceStationQueue {
+  id                  Int             @id @default(autoincrement())
+  serviceStationId    Int?
+  jangadaId           Int
+  ordemServicoId      Int?
+  dataChegada         DateTime        @default(now())
+  dataPrevistaEntrega DateTime?
+  status              String          @default("Aguardando") // Aguardando, EmInspecao, Concluida, etc
+  observacoes         String?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  jangada             Jangada         @relation(fields: [jangadaId], references: [id])
+  ordemServico        OrdemServico?   @relation(fields: [ordemServicoId], references: [id])
+  serviceStation      ServiceStation? @relation(fields: [serviceStationId], references: [id])
+
+  @@index([serviceStationId])
+  @@index([jangadaId])
+  @@index([ordemServicoId])
+  @@index([status])
+  @@index([serviceStationId, status])
+}
+
+model Auditoria {
+  id           Int      @id @default(autoincrement())
+  tabela       String // Nome da tabela modificada
+  tipoOperacao String // CREATE, UPDATE, DELETE
+  idRegisto    Int // ID do registo modificado
+  descricao    String? // Descrição da mudança
+  usuario      String? // Quem fez a alteração
+  dadosAntes   String? // JSON dos dados antes
+  dadosDepois  String? // JSON dos dados depois
+  createdAt    DateTime @default(now())
+
+  @@index([tabela])
+  @@index([tipoOperacao])
+  @@index([createdAt])
+  @@index([usuario])
+}
+
+model CertificacaoFabricanteTecnico {
+  id                Int      @id @default(autoincrement())
+  tecnicoId         Int
+  tecnico           Tecnico  @relation(fields: [tecnicoId], references: [id], onDelete: Cascade)
+  fabricante        String // ex: "RFD", "Zodiac", "Plastimo"
+  numeroCertificado String?
+  dataEmissao       DateTime
+  dataValidade      DateTime
+  ativo             Boolean  @default(true)
+  observacoes       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tecnicoId])
+  @@index([fabricante])
+}
+
+model CalibracaoEquipamento {
+  id                 Int      @id @default(autoincrement())
+  nome               String // ex: "Barómetro Digital Testo 511"
+  referencia         String   @unique // ex: "BAR-01", "MAN-02"
+  tipo               String // "barometro" | "manometro"
+  dataCalibracao     DateTime
+  dataProxCalibracao DateTime
+  certificadoNum     String?
+  certificadoUrl     String?
+  ativo              Boolean  @default(true)
+  observacoes        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([referencia])
+}
+
+model MovimentoEquipamento {
+  id              Int      @id @default(autoincrement())
+  tipoEquipamento String // "Colete", "Jangada", "Epirb"
+  equipamentoId   Int
+  serial          String
+  origemShipId    Int?
+  origemShipNome  String?
+  destinoShipId   Int?
+  destinoShipNome String?
+  data            DateTime @default(now())
+  motivo          String? // "Alteração de Navio", "Nova Alocação", "Remoção"
+
+  @@index([equipamentoId])
+  @@index([data])
+  @@index([tipoEquipamento, equipamentoId])
+}
+
+model Recall {
+  id             Int      @id @default(autoincrement())
+  fabricante     String // ex: "RFD", "ZODIAC", "LALIZAS"
+  modeloPattern  String? // ex: "ISO-9650", "COMPACT"
+  serialPattern  String? // ex: "*" ou limites
+  titulo         String
+  descricao      String
+  acaoRequerida  String
+  gravidade      String // "ALTA" | "MEDIA" | "BAIXA"
+  dataPublicacao DateTime @default(now())
+  ativo          Boolean  @default(true)
+}
+
+model Custo {
+  id               Int      @id @default(autoincrement())
+  tipo             String // "Inspeção", "Manutenção", "Material", "Transporte", "Certificação", "Outro"
+  descricao        String
+  valor            Float
+  data             String
+  entidade         String // Navio/Jangada vinculada
+  serviceStationId Int?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([tipo])
+  @@index([data])
+  @@index([serviceStationId])
+}
+
+model Fornecedor {
+  id           Int           @id @default(autoincrement())
+  nome         String
+  codigo       String?       @unique
+  contacto     String?
+  email        String?
+  morada       String?
+  pais         String?       @default("Portugal")
+  observacoes  String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  ordensCompra OrdemCompra[]
+}
+
+model OrdemCompra {
+  id               Int                @id @default(autoincrement())
+  numero           String             @unique
+  fornecedorId     Int
+  fornecedor       Fornecedor         @relation(fields: [fornecedorId], references: [id], onDelete: Cascade)
+  status           String             @default("Rascunho") // Rascunho, Enviado, Recebido, Cancelado
+  dataEncomenda    DateTime           @default(now())
+  dataPrevista     DateTime?
+  dataRecebimento  DateTime?
+  valorTotal       Float              @default(0)
+  observacoes      String?
+  serviceStationId Int?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  linhas           OrdemCompraLinha[]
+
+  @@index([fornecedorId])
+  @@index([status])
+}
+
+model OrdemCompraLinha {
+  id                    Int         @id @default(autoincrement())
+  ordemCompraId         Int
+  ordemCompra           OrdemCompra @relation(fields: [ordemCompraId], references: [id], onDelete: Cascade)
+  stockId               Int?
+  stock                 Stock?      @relation(fields: [stockId], references: [id], onDelete: SetNull)
+  referencia            String?
+  descricao             String
+  quantidadeEncomendada Int
+  quantidadeRecebida    Int         @default(0)
+  precoUnitario         Float       @default(0)
+  total                 Float       @default(0)
+
+  @@index([ordemCompraId])
+  @@index([stockId])
+}
+
+model Comunicacao {
+  id               Int       @id @default(autoincrement())
+  tipo             String // SMS | WHATSAPP | EMAIL
+  canal            String? // textbee | wa.me | email
+  destinatario     String? // telemóvel, número WhatsApp ou email
+  assunto          String?
+  mensagem         String
+  status           String    @default("enviado") // enviado | falhou | pendente | rascunho
+  erro             String?
+  providerId       String? // wamid devolvido pela WhatsApp Cloud API
+  tentativas       Int       @default(1)
+  proximaTentativa DateTime?
+  respondidoEm     DateTime?
+  refTipo          String? // Jangada | Cliente | OrdemServico | OrdemCompra | Generic
+  refId            Int?
+  clienteId        Int?
+  jangadaId        Int?
+  ordemServicoId   Int?
+  enviadoPor       String?
+  enviadoEm        DateTime  @default(now())
+  createdAt        DateTime  @default(now())
+
+  @@index([clienteId])
+  @@index([jangadaId])
+  @@index([ordemServicoId])
+  @@index([tipo])
+  @@index([status])
+  @@index([enviadoEm])
+}
+
+model DeclaracaoIsencaoIva {
+  id               Int      @id @default(autoincrement())
+  numeroSequencial Int // sequência do ano (1, 2, 3, ...)
+  ano              Int
+  numeroCompleto   String   @unique // "0001/2026"
+  clienteNome      String?
+  clienteNif       String?
+  navioNome        String?
+  navioMatricula   String?
+  codigoIsencaoIva String?
+  origem           String? // "cliente" | "relatorios"
+  emitidoPorId     String?
+  dataEmissao      DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([ano])
+  @@index([numeroSequencial])
+}

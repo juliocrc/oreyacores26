@@ -1,9 +1,10 @@
-import path from 'node:path';
 import ExcelJS from 'exceljs';
+import { loadTemplateBuffer } from '@/lib/template-loader';
 import { APP_CONFIG } from '@/lib/app-config';
 import { lifejacketModelData, type LifejacketBrandCatalog, type LifejacketModel } from '@/modules/lifejackets/lifejacketModelData';
 
-const TEMPLATE_PATH = path.join(process.cwd(), 'templates', 'template Ficha de Verif. Múltipla.xlsx');
+const TEMPLATE_NAME = 'template Ficha de Verif. Múltipla.xlsx';
+type XlsxLoadArg = Parameters<ExcelJS.Xlsx['load']>[0];
 const SHEET_NAME = 'IM.022 - Ficha Verif. Múltipla';
 const ROWS_PER_SHEET = 15;
 const MANUAL_BLOCK_MARKER = '[SISTEMA DE INSUFLAÇÃO - MANUAL]';
@@ -386,7 +387,7 @@ function clearUnusedRows(worksheet: ExcelJS.Worksheet, usedCount: number) {
 
 export async function buildNavioColetesVerificationSheet(input: NavioColetesVerificationSheetInput) {
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.readFile(TEMPLATE_PATH);
+  await workbook.xlsx.load((await loadTemplateBuffer(TEMPLATE_NAME)) as unknown as XlsxLoadArg);
 
   const templateSheet = workbook.getWorksheet(SHEET_NAME) || workbook.worksheets[0];
   if (!templateSheet) {

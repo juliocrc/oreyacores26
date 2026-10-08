@@ -1,6 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getToken } from "next-auth/jwt";
+import { getAuthSecret } from "@/lib/auth";
+import { getIsSecureUrl } from "@/auth";
 import { getAccessContext, type AccessContext } from "@/lib/access-control";
 import { canEditPath } from "@/lib/user-permissions";
+
+/**
+ * Lê o JWT da sessão com o mesmo nome/flag de cookie que o Auth.js usou ao
+ * assinar. Sem `secureCookie`/`cookieName`, o getToken() assume sempre
+ * `secureCookie: false` e procura "authjs.session-token" mesmo quando o
+ * Auth.js emitiu "__Secure-authjs.session-token" (produção/HTTPS) — devolve
+ * null e qualquer rota que confie nele responde 401 falso.
+ */
+export async function getApiSessionToken(req: NextRequest) {
+  const secureCookie = getIsSecureUrl();
+  const cookieName = (secureCookie ? "__Secure-" : "") + "authjs.session-token";
+  return getToken({ req, secret: getAuthSecret(), secureCookie, cookieName });
+}
 
 type AuthenticatedHandler = (
   req: NextRequest,

@@ -177,6 +177,9 @@ export type InspectionData = {
   dataFabrico: string;
   dataInspecao: string;
   dataProxInspecao: string;
+  // Data do ultimo ensaio GI (gas inerte). Preenchida no passo 6 (Testes);
+  // quando vazia, a app deriva a partir da data de fabrico.
+  dataUltimoGi?: string;
   shipName: string;
   shipNameManual?: string;
   owner: string;

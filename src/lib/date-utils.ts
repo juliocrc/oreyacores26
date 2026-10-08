@@ -65,12 +65,84 @@ export function toLocalISO(date: Date): string {
 }
 
 /**
+ * Normaliza qualquer valor de data (Date do Prisma, string ISO, MM/AAAA,
+ * AAAA-MM...) para uma string YYYY-MM-DD em horário dos Açores.
+ *
+ * Porque existe: os campos `validade` são DateTime no Prisma. Quando um
+ * Date chega a `String(value)` vem "Mon Dec 26 2001 00:00:00 GMT-0100 (Hora
+ * padrão dos Açores)", e nenhuma das regex `^\d{4}-\d{2}$` dos formatadores
+ * casa — o fallback devolvia o texto em inglês para a célula ("Wed Sep",
+ * "Mon Dec"). Passar sempre por aqui antes de formatar.
+ *
+ * Devolve string vazia quando não há data interpretável.
+ */
+export function toDateKey(value: unknown): string {
+  if (value === null || value === undefined || value === '') return '';
+
+  // Date (inclui os DateTime do Prisma) — converte em horário dos Açores para
+  // não escorregar um dia quando o valor UTC cai noutro dia local.
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return '';
+    return value.toLocaleDateString('sv-SE', { timeZone: AZORES_TIMEZONE });
+  }
+
+  if (typeof value === 'number') {
+    const fromNumber = new Date(value);
+    return Number.isNaN(fromNumber.getTime())
+      ? ''
+      : fromNumber.toLocaleDateString('sv-SE', { timeZone: AZORES_TIMEZONE });
+  }
+
+  const raw = String(value).trim();
+  if (!raw) return '';
+
+  // Já está em YYYY-MM-DD (ou YYYY-MM) — não repassar por Date.
+  const isoLike = raw.match(/^(\d{4})-(\d{2})(?:-(\d{2}))?/);
+  if (isoLike) return `${isoLike[1]}-${isoLike[2]}-${isoLike[3] ?? '01'}`;
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return parsed.toLocaleDateString('sv-SE', { timeZone: AZORES_TIMEZONE });
+}
+
+/**
  * Parse a date string and return a Date adjusted to Azores local midnight.
  * Useful when comparing YYYY-MM-DD strings from the database against "today".
  */
 export function parseAsLocalDate(dateStr: string | Date | null | undefined): Date | null {
   if (dateStr instanceof Date) return Number.isNaN(dateStr.getTime()) ? null : dateStr;
   return parseFlexibleDate(dateStr);
+}
+
+/** Data civil (ano/mes/dia) de um instante num fuso horario dado. */
+function civilDateInTimeZone(instant: Date, timeZone: string) {
+  const parts = instant.toLocaleDateString('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).split('-');
+  return { ano: Number(parts[0]), mes: Number(parts[1]), dia: Number(parts[2]) };
+}
+
+/**
+ * Instante UTC que corresponde a meia-noite civil nos Acores.
+ *
+ * Os Acores alternam entre UTC-1 (inverno) e UTC+0 (verao), pelo que o offset
+ * depende da data. Resolve-se por iteracao a partir de uma estimativa, para que
+ * o resultado nao dependa do fuso configurado na maquina que executa a aplicacao
+ * (relevante porque o launcher tambem corre noutros PCs).
+ */
+function azoresMidnightInstant(ano: number, mes: number, dia: number): Date {
+  const alvo = Date.UTC(ano, mes - 1, dia);
+  let guess = alvo;
+  for (let i = 0; i < 4; i++) {
+    const civil = civilDateInTimeZone(new Date(guess), AZORES_TIMEZONE);
+    const delta = alvo - Date.UTC(civil.ano, civil.mes - 1, civil.dia);
+    if (delta === 0) break;
+    guess += delta;
+  }
+  return new Date(guess);
 }
 
 /**
@@ -107,23 +179,50 @@ export function parseFlexibleDate(value: string | Date | null | undefined): Date
     }
   }
 
-  const normalized = raw.replace(/\//g, "-");
+  const normalized = raw.replace(/\//g, '-');
+
+  // Datas ISO apenas com dia (YYYY-MM-DD) sao interpretadas como meia-noite UTC
+  // pela especificacao, o que nos Acores (UTC-1 no inverno) recua um dia e chega
+  // a mudar o mes. Constroi-se o instante que corresponde a meia-noite civil nos
+  // Acores, para o calendario apresentado coincidir com a data guardada.
+  const isoDateOnly = normalized.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (isoDateOnly) {
+    const ano = Number(isoDateOnly[1]);
+    const mes = Number(isoDateOnly[2]);
+    const dia = Number(isoDateOnly[3]);
+    const candidato = azoresMidnightInstant(ano, mes, dia);
+    // Rejeita datas inexistentes (2029-02-31): o construtor de Date faria a
+    // data rodar para o mes seguinte em vez de falhar.
+    const civil = civilDateInTimeZone(candidato, AZORES_TIMEZONE);
+    if (civil.ano === ano && civil.mes === mes && civil.dia === dia) return candidato;
+    return null;
+  }
+
   const directNormalized = new Date(normalized);
   if (!Number.isNaN(directNormalized.getTime())) return directNormalized;
 
   const dayFirstMatch = normalized.match(/^(\d{1,2})-(\d{1,2})-(\d{4})(?:\s+(\d{1,2}):(\d{2}))?$/);
   if (dayFirstMatch) {
     const [, dayText, monthText, yearText, hourText, minuteText] = dayFirstMatch;
-    const parsed = new Date(
-      Number(yearText),
-      Number(monthText) - 1,
-      Number(dayText),
-      Number(hourText || 0),
-      Number(minuteText || 0),
-      0,
-      0,
-    );
-    if (!Number.isNaN(parsed.getTime())) return parsed;
+    const ano = Number(yearText);
+    const mes = Number(monthText);
+    const dia = Number(dayText);
+    if (hourText || minuteText) {
+      const parsed = new Date(
+        ano,
+        mes - 1,
+        dia,
+        Number(hourText || 0),
+        Number(minuteText || 0),
+        0,
+        0,
+      );
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+    const candidato = azoresMidnightInstant(ano, mes, dia);
+    const civil = civilDateInTimeZone(candidato, AZORES_TIMEZONE);
+    if (civil.ano === ano && civil.mes === mes && civil.dia === dia) return candidato;
+    return null;
   }
 
   const isoDayMatch = normalized.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
@@ -239,6 +338,7 @@ export function formatDate(value: unknown): string {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
+    timeZone: AZORES_TIMEZONE,
   });
 }
 
@@ -256,6 +356,7 @@ export function formatDateCompact(value: unknown): string {
   return d.toLocaleDateString(PT_LOCALE, {
     day: '2-digit',
     month: '2-digit',
+    timeZone: AZORES_TIMEZONE,
   });
 }
 
@@ -274,11 +375,13 @@ export function formatDateTime(value: unknown): string {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
+    timeZone: AZORES_TIMEZONE,
   });
   const timeStr = d.toLocaleTimeString(PT_LOCALE, {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
+    timeZone: AZORES_TIMEZONE,
   });
   return `${dateStr} às ${timeStr}`;
 }
@@ -296,6 +399,7 @@ export function formatDateTimeShort(value: unknown): string {
   return d.toLocaleString(PT_LOCALE, {
     dateStyle: 'short',
     timeStyle: 'short',
+    timeZone: AZORES_TIMEZONE,
   });
 }
 
@@ -313,6 +417,7 @@ export function formatTime(value: unknown): string {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
+    timeZone: AZORES_TIMEZONE,
   });
 }
 

@@ -97,13 +97,12 @@ export default function Step7_Orcamento() {
   };
 
   const buildServiceLines = (): OrcamentoLinha[] => {
-    const testes = inspectionData.testes || {};
-    const refs: string[] = ["L-JD", "L-CER", "L-LIM", "L-MAR"];
-    if (["PASSOU", "REPROVOU", "APROVOU"].includes(testes.testeFS)) refs.push("L-FS");
-    if (["PASSOU", "REPROVOU", "APROVOU"].includes(testes.testeNAP)) refs.push("L-NAP");
-    if (["PASSOU", "REPROVOU", "APROVOU"].includes(testes.testeGI)) refs.push("L-GI");
-    if (["PASSOU", "REPROVOU", "APROVOU"].includes(testes.testeDL) || inspectionData.cylinder?.dataTeste) refs.push("L-TH");
-    if (inspectionData.cylinder?.serial) refs.push("L-CO2");
+    // Por defeito entram apenas os dois serviços base da inspeção.
+    // Testes (FS/NAP/GI/TH), carga de CO2, limpeza e marcação deixam de ser
+    // sugeridos automaticamente: só entram no orçamento se o técnico os
+    // adicionar, para não faturar artigos que não foram pedidos. Todos
+    // continuam disponíveis na secção de serviços.
+    const refs: string[] = ["L-JD", "L-CER"];
 
     return refs.map((ref) => {
       const stock = globalStock.find((s) => s.referencia === ref);

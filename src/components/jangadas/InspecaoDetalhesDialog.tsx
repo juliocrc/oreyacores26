@@ -355,7 +355,9 @@ export function InspecaoDetalhesDialog({
 
       if (!res.ok) throw new Error('Falha ao gerar o certificado');
 
-      if (toastSavedPathIfPresent(res, 'Certificado')) return;
+      // A cópia no servidor é apenas informativa; prossegue-se sempre para
+      // gravar na pasta de documentos ou descarregar para o browser.
+      toastSavedPathIfPresent(res, 'Certificado');
 
       const blob = await res.blob();
       await saveCertificateDocument({
@@ -442,7 +444,9 @@ export function InspecaoDetalhesDialog({
 
       if (!res.ok) throw new Error('Falha ao gerar o quadro');
 
-      if (toastSavedPathIfPresent(res, 'Quadro')) return;
+      // A cópia no servidor é apenas informativa; prossegue-se sempre para
+      // gravar na pasta de documentos ou descarregar para o browser.
+      toastSavedPathIfPresent(res, 'Quadro');
 
       const blob = await res.blob();
       const inspectionDate = new Date(payload.inspectionDate);
@@ -534,7 +538,9 @@ export function InspecaoDetalhesDialog({
 
       if (!res.ok) throw new Error('Falha ao gerar o PDF');
 
-      if (toastSavedPathIfPresent(res, 'Quadro PDF')) return;
+      // A cópia no servidor é apenas informativa; prossegue-se sempre para
+      // gravar na pasta de documentos ou descarregar para o browser.
+      toastSavedPathIfPresent(res, 'Quadro PDF');
 
       const blob = await res.blob();
       const inspectionDate = new Date(payload.inspectionDate);

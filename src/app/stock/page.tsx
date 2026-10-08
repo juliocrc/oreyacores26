@@ -1,22 +1,24 @@
 
 "use client";
 
-import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import JsBarcode from "jsbarcode";
 import QRCode from "qrcode";
 import { useSession } from "next-auth/react";
 import { stockItemSupportsValidity } from "@/lib/stock-validity";
 import {
-  getStockCategoryLabel,
-  getStockCategoryOptions,
+    getStockCategoryLabel,
+    getStockCategoryOptions,
 } from "@/lib/stock-categories";
+import { STOCK_UNIT_OPTIONS, inferStockUnitSuggestion, isKnownStockUnit, normalizeStockUnit } from "@/lib/stock-unit";
 import { hasEditablePathPermission, hasVisiblePathPermission } from "@/lib/permission-access";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import WarehouseMapDialog from "@/components/stock/WarehouseMapDialog";
 import BarcodeScanner from "@/components/shared/BarcodeScanner";
-import { MapPin, ScanLine } from "lucide-react";
-import type { ItemStock, ViewMode, MonthlyNeed, StockNeedRow, MonthlyArticleNeed, NeedsSummary, StockPriorityGroupKey, StockScope, StockPrioritySection, StockListColumnKey } from "@/types/stock-page";
+import { MapPin, ScanLine, Download } from "lucide-react";
+import DataTable, { type ColumnDef } from "@/components/shared/DataTable";
+import type { ItemStock, ViewMode, MonthlyNeed, StockNeedRow, NeedsSummary, StockPriorityGroupKey, StockScope, StockPrioritySection, StockListColumnKey } from "@/types/stock-page";
 import { STOCK_NEW_ITEM_DRAFT_KEY, STOCK_LIST_COLUMNS_KEY, STOCK_CATEGORY_ACCORDIONS_KEY, STOCK_SCOPE_KEY, STOCK_LIST_COLUMNS, INITIAL_STOCK_FORM, CRITICAL_VALIDITY_CATEGORY_KEYWORDS, STOCK_LIST_DENSITY_KEY } from "@/types/stock-page";
 import { buildDefaultStockListColumns, escapeHtml, parseMonthYearToDate, normalizeStockLabelText } from "@/lib/stock-page-helpers";
 import {
@@ -81,7 +83,6 @@ function StockPageContent() {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [bulkDeleteConfirmText, setBulkDeleteConfirmText] = useState("");
-  const [showColumnSelector, setShowColumnSelector] = useState(false);
   const [listDensity, setListDensity] = useState<"default" | "compact">(() => {
     if (typeof window === "undefined") return "default";
     try {
@@ -89,6 +90,7 @@ function StockPageContent() {
       return raw === "compact" || raw === "default" ? raw : "default";
     } catch { return "default"; }
   });
+  const [showShelves, setShowShelves] = useState(false);
   const [expandedStockCategories, setExpandedStockCategories] = useState<Record<string, boolean>>({});
   const [showScanner, setShowScanner] = useState(false);
   const [scanStep, setScanStep] = useState<"item" | "jangada" | null>(null);
@@ -881,32 +883,6 @@ function StockPageContent() {
     return Boolean(visibleStockColumns[key]);
   }
 
-  function toggleStockColumn(key: StockListColumnKey) {
-    setVisibleStockColumns((prev) => {
-      const next = { ...prev, [key]: !prev[key] };
-      const anyEnabled = Object.values(next).some(Boolean);
-      if (!anyEnabled) {
-        return { ...next, [key]: true };
-      }
-      return next;
-    });
-  }
-
-  function showAllStockColumns() {
-    setVisibleStockColumns(buildDefaultStockListColumns());
-  }
-
-  function hideAllStockColumns() {
-    const first = STOCK_LIST_COLUMNS[0]?.key;
-    if (!first) return;
-    const allHidden = STOCK_LIST_COLUMNS.reduce((acc, col) => {
-      acc[col.key] = false;
-      return acc;
-    }, {} as Record<StockListColumnKey, boolean>);
-    allHidden[first] = true;
-    setVisibleStockColumns(allHidden);
-  }
-
   async function exportStockExcel() {
     if (!itensFiltrados.length) return;
     try {
@@ -1460,46 +1436,253 @@ function StockPageContent() {
     return acc;
   }, {});
 
-  const monthlyArticlesByMonth = useMemo<Record<string, MonthlyArticleNeed[]>>(() => {
-    const aggregateByMonth = new Map<string, Map<string, MonthlyArticleNeed>>();
+  const sectionKeyLabels: Record<StockPriorityGroupKey, string> = {
+    validade: "Com validade",
+    jangadas: "Jangadas",
+    restantes: "Restantes",
+  };
 
-    for (const row of stockNeeds) {
-      const nome = String(row.nome || "").trim();
-      if (!nome) continue;
+  const dataTableVisibleKeys = useMemo(
+    () => [
+      "check",
+      "seccao",
+      ...STOCK_LIST_COLUMNS.filter((col) => visibleStockColumns[col.key]).map((col) => col.key),
+    ],
+    [visibleStockColumns]
+  );
 
-      for (const monthly of row.mensal || []) {
-        const month = String(monthly.month || "").trim();
-        const quantidade = Number(monthly.quantidade || 0);
-        if (!month || !Number.isFinite(quantidade) || quantidade <= 0) continue;
-
-        const monthMap = aggregateByMonth.get(month) || new Map<string, MonthlyArticleNeed>();
-        const key = `${nome.toLowerCase()}::${String(row.referencia || "").toLowerCase()}`;
-        const existing = monthMap.get(key);
-
-        if (existing) {
-          existing.quantidade += quantidade;
-        } else {
-          monthMap.set(key, {
-            nome,
-            referencia: String(row.referencia || "").trim() || undefined,
-            quantidade,
-          });
-        }
-
-        aggregateByMonth.set(month, monthMap);
+  const handleDataTableColumnsChange = useCallback(
+    (keys: string[]) => {
+      const next = { ...visibleStockColumns };
+      for (const col of STOCK_LIST_COLUMNS) {
+        next[col.key] = keys.includes(col.key);
       }
-    }
+      setVisibleStockColumns(next);
+    },
+    [visibleStockColumns]
+  );
 
-    const result: Record<string, MonthlyArticleNeed[]> = {};
-    for (const [month, monthMap] of aggregateByMonth.entries()) {
-      result[month] = Array.from(monthMap.values()).sort((a, b) => {
-        if (a.quantidade !== b.quantidade) return b.quantidade - a.quantidade;
-        return a.nome.localeCompare(b.nome, "pt", { sensitivity: "base" });
-      });
-    }
-
-    return result;
-  }, [stockNeeds]);
+  const stockListColumns: ColumnDef<ItemStock>[] = [
+    {
+      key: "check",
+      header: (
+        <input
+          type="checkbox"
+          checked={itensFiltrados.length > 0 && itensFiltrados.every((item) => selectedIds.includes(item.id))}
+          onChange={(e) => {
+            if (e.target.checked) {
+              setSelectedIds((prev) => Array.from(new Set([...prev, ...itensFiltrados.map((item) => item.id)])));
+            } else {
+              setSelectedIds((prev) => prev.filter((id) => !itensFiltrados.some((item) => item.id === id)));
+            }
+          }}
+          aria-label="Selecionar todos os artigos filtrados"
+          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+        />
+      ),
+      render: (item) => (
+        <input
+          type="checkbox"
+          checked={selectedIds.includes(item.id)}
+          onClick={(e) => e.stopPropagation()}
+          onChange={() => toggleSelectItem(item.id)}
+          aria-label={`Selecionar artigo ${item.nome || item.descricao || item.referencia || item.id}`}
+          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+        />
+      ),
+      width: "40px",
+      sortable: false,
+      filterable: false,
+      className: "text-center",
+    },
+    {
+      key: "seccao",
+      header: "Secção",
+      sortable: true,
+      filterable: true,
+      filterType: "select",
+      filterOptions: [
+        { label: "Com validade", value: "validade" },
+        { label: "Jangadas", value: "jangadas" },
+        { label: "Restantes", value: "restantes" },
+      ],
+      accessor: (item) => getPrioritySectionKey(item),
+      render: (item) => {
+        const sectionKey = getPrioritySectionKey(item);
+        const cls =
+          sectionKey === "validade" ? "bg-red-100 text-red-800 border border-red-200" :
+          sectionKey === "jangadas" ? "bg-indigo-100 text-indigo-800 border border-indigo-200" :
+          "bg-slate-200 text-slate-700";
+        return (
+          <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${cls}`}>
+            {sectionKeyLabels[sectionKey]}
+          </span>
+        );
+      },
+    },
+    {
+      key: "foto",
+      header: "Foto",
+      filterable: false,
+      render: (item) => <div className="relative group">{renderStockThumb(item)}</div>,
+    },
+    {
+      key: "nome",
+      header: "Nome",
+      sortable: true,
+      render: (item) => (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-semibold text-slate-800">{item.nome || item.descricao || "-"}</span>
+          {getApplicableRaftModelBadge(item) && (
+            <span className="inline-flex rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
+              {getApplicableRaftModelBadge(item)}
+            </span>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "referencia",
+      header: "Referência",
+      sortable: true,
+      render: (item) => (
+        <Link
+          href={`/stock/${item.id}`}
+          className="inline-flex rounded bg-indigo-50 px-2 py-0.5 font-medium text-indigo-700 hover:underline"
+          title="Abrir ficha do produto"
+        >
+          {item.referencia || "-"}
+        </Link>
+      ),
+    },
+    { key: "estado", header: "Estado", sortable: true, accessor: (item) => item.estadoArtigo || "ATIVO", render: (item) => item.estadoArtigo || "ATIVO" },
+    { key: "referenciaSubstituta", header: "Ref. Substituta", sortable: true, accessor: (item) => item.referenciaSubstituta || "-", render: (item) => item.referenciaSubstituta || "-" },
+    {
+      key: "codigoFabricante",
+      header: "Cód. Fabricante",
+      sortable: true,
+      accessor: (item) => item.codigoFabricante || "-",
+      render: (item) => (
+        <span className="inline-flex rounded bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700">
+          {item.codigoFabricante || "-"}
+        </span>
+      ),
+    },
+    {
+      key: "quantidade",
+      header: "Quantidade",
+      sortable: true,
+      render: (item) => (
+        <div className="flex items-center gap-1">
+          <span className={isStockBaixo(item) ? "font-bold text-red-700" : "font-semibold"}>{item.quantidade}</span>
+          {isStockBaixo(item) && (
+            <span className="bg-red-100 text-red-700 px-1.5 py-0.5 rounded text-[10px] font-semibold" title={`Mínimo: ${item.quantidadeMinima}`}>
+              🔻 Baixo
+            </span>
+          )}
+          {isVencido(item) && (
+            <span className="bg-red-600 text-white px-1.5 py-0.5 rounded text-[10px] font-semibold">❌ Vencido</span>
+          )}
+          {!isVencido(item) && isValidadeProxima(item, 30) && (
+            <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded text-[10px] font-semibold">⚠️ 30d</span>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "quantidadeMinima",
+      header: "Qtd. mínima",
+      sortable: true,
+      accessor: (item) => item.quantidadeMinima ?? 0,
+      render: (item) => item.quantidadeMinima ?? "-",
+    },
+    {
+      key: "precoVenda",
+      header: "Preço de venda",
+      sortable: true,
+      accessor: (item) => Number(item.precoVenda ?? 0),
+      render: (_item, value) => (
+        <span className={Number(value ?? 0) === 0 ? "text-amber-700" : ""}>
+          {Number(value ?? 0).toFixed(2)} €
+        </span>
+      ),
+    },
+    {
+      key: "marcaModelo",
+      header: "Marca/Modelo Jangada",
+      sortable: true,
+      hideOnMobile: true,
+      accessor: (item) => `${item.aplicavelMarcaJangada || ""} / ${item.aplicavelModeloJangada || ""}`.trim().replace(/^\/\s*/, "").replace(/\/\s*$/, "") || "—",
+      render: (item) => <span className="max-w-[140px] truncate block">{item.aplicavelMarcaJangada || "-"} / {item.aplicavelModeloJangada || "-"}</span>,
+    },
+    {
+      key: "categoria",
+      header: "Categoria",
+      sortable: true,
+      filterable: true,
+      filterType: "select",
+      filterOptions: categoriasDisponiveis.map((categoria) => ({ label: categoria, value: categoria })),
+      hideOnMobile: true,
+      render: (item) => <span className="text-slate-600">{item.categoria || "DIVERSOS"}</span>,
+    },
+    {
+      key: "prateleira",
+      header: "Prateleira",
+      sortable: true,
+      filterable: true,
+      filterType: "text",
+      accessor: (item) => resolveShelfCode(item.localizacao) || item.localizacao || "-",
+      render: (item) => {
+        const code = resolveShelfCode(item.localizacao);
+        return code ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setFiltroPrateleira(code);
+            }}
+            className="inline-flex rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-bold text-indigo-800 hover:bg-indigo-100"
+            title={item.localizacao || ""}
+          >
+            {code}
+          </button>
+        ) : (
+          <span className="text-[11px] text-rose-600" title={item.localizacao || ""}>
+            {item.localizacao ? String(item.localizacao) : "—"}
+          </span>
+        );
+      },
+    },
+    { key: "descricao", header: "Descrição", sortable: true, accessor: (item) => item.descricao || "-", render: (item) => item.descricao || "-" },
+    {
+      key: "packs",
+      header: "Packs",
+      sortable: true,
+      accessor: (item) => (item.tiposPackAssociados && item.tiposPackAssociados.length > 0) ? item.tiposPackAssociados.join(", ") : "-",
+      render: (item) => (item.tiposPackAssociados && item.tiposPackAssociados.length > 0) ? item.tiposPackAssociados.join(", ") : "-",
+    },
+    {
+      key: "necessidade12m",
+      header: "Necess. 12m",
+      sortable: true,
+      render: (item) => <span className="font-semibold">{stockNeedsById[item.id]?.necessidade12m ?? 0}</span>,
+    },
+    {
+      key: "saldoProjetado12m",
+      header: "Saldo proj. 12m",
+      sortable: true,
+      render: (item) => {
+        const val = stockNeedsById[item.id]?.saldoProjetado12m ?? item.quantidade;
+        return <span className={`font-semibold ${Number(val) < 0 ? "text-red-700" : "text-emerald-700"}`}>{val}</span>;
+      },
+    },
+    {
+      key: "necessidadeMensal",
+      header: "Necessidade mensal",
+      hideOnMobile: true,
+      render: (item) => <div className="max-w-[320px] text-[11px] leading-4">{renderMonthlyPlan(stockNeedsById[item.id]?.mensal || [])}</div>,
+    },
+  ];
 
   const selectedItems = itens.filter((item) => selectedIds.includes(item.id));
   const formSupportsValidity = stockItemSupportsValidity({
@@ -1566,7 +1749,7 @@ function StockPageContent() {
 
   return (
     <div className="min-h-screen bg-slate-50 py-8">
-      <div className="mx-auto flex max-w-[1500px] flex-col gap-6 px-4 sm:px-6 lg:px-8">
+      <div className="ds-page flex flex-col gap-6">
         <div className="app-hero-panel flex flex-col gap-4 rounded-2xl p-6 text-white">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
@@ -1792,6 +1975,41 @@ function StockPageContent() {
                         <option key={categoria} value={categoria}>{categoria}</option>
                       ))}
                     </select>
+                  </label>
+                  <label className="block text-xs font-semibold text-gray-700">
+                    <span className="flex items-center justify-between gap-2">
+                      <span>Unidade</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const sugestao = inferStockUnitSuggestion(form.descricao, form.nome, form.referencia);
+                          setForm((prev) => ({ ...prev, unit: sugestao }));
+                        }}
+                        className="text-[10px] font-semibold text-blue-700 underline hover:text-blue-900"
+                        title="Sugere uma unidade a partir da descricao. Nao altera as unidades ja gravadas noutros artigos."
+                      >
+                        Sugerir
+                      </button>
+                    </span>
+                    <select
+                      name="unit"
+                      value={normalizeStockUnit(form.unit) ?? ""}
+                      onChange={(e) => handleChange(e as any)}
+                      className="mt-1 border rounded px-2 py-1 w-full"
+                    >
+                      <option value="">Sem unidade</option>
+                      {normalizeStockUnit(form.unit) && !isKnownStockUnit(form.unit) ? (
+                        <option value={normalizeStockUnit(form.unit) ?? ""}>
+                          {normalizeStockUnit(form.unit)} (personalizada)
+                        </option>
+                      ) : null}
+                      {STOCK_UNIT_OPTIONS.map((unit) => (
+                        <option key={unit} value={unit}>{unit}</option>
+                      ))}
+                    </select>
+                    <span className="mt-1 block text-[10px] font-normal text-gray-500">
+                      Como se conta este artigo. Embalagens contam-se por unidade (ex.: 1 saco = 1 un).
+                    </span>
                   </label>
                   <label className="block text-xs font-semibold text-gray-700">
                     Descrição
@@ -2332,82 +2550,54 @@ function StockPageContent() {
             </div>
           </div>
           {needsSummary.necessidadesMensaisTotais?.length > 0 && (
-            <div className="rounded-lg border border-sky-100 bg-sky-50/70 p-3 text-xs">
-              <div className="mb-2 flex flex-wrap items-center justify-between gap-2 font-semibold text-sky-800">
-                <div className="flex items-center gap-2">
-                  <span>Reposições mensais previstas</span>
-                <span
-                  className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-sky-300 bg-white text-[11px] font-bold text-sky-700 cursor-help"
-                  title="Inclui artigos com validade gerida e reposição prevista, como água, rações, pirotecnia, luzes, farmácia, comprimidos, válvulas OTS65 e tubos de alta pressão."
-                  aria-label="Inclui artigos com validade gerida e reposição prevista, como água, rações, pirotecnia, luzes, farmácia, comprimidos, válvulas OTS65 e tubos de alta pressão."
-                >
-                  i
-                </span>
-                </div>
-                <Link
-                  href="/stock/reposicoes"
-                  className="inline-flex items-center rounded-md border border-sky-300 bg-white px-2 py-1 text-[11px] font-semibold text-sky-800 transition hover:bg-sky-100"
-                >
-                  Abrir controlo de reposições
-                </Link>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {needsSummary.necessidadesMensaisTotais.map((item) => (
-                  <Link
-                    key={`summary-${item.month}`}
-                    href={`/stock/reposicoes?month=${encodeURIComponent(item.month)}`}
-                    className="rounded-md border border-sky-200 bg-white px-2 py-1"
-                    title={
-                      (monthlyArticlesByMonth[item.month] || []).length > 0
-                        ? `${formatMonth(item.month)} · ${item.quantidade} unidade(s)\n` +
-                          (monthlyArticlesByMonth[item.month] || [])
-                            .map((article) => `${article.nome}${article.referencia ? ` (${article.referencia})` : ""}: ${article.quantidade}`)
-                            .join("\n")
-                        : `${formatMonth(item.month)} · ${item.quantidade} unidade(s)`
-                    }
-                  >
-                    <div className="inline-flex items-center gap-1 text-[11px] font-medium text-sky-800">
-                      <span>{formatMonth(item.month)}</span>
-                      <span className="rounded-full bg-sky-100 px-1.5 py-0.5 text-[10px] font-semibold text-sky-900">
-                        {item.quantidade}
-                      </span>
-                    </div>
-                    {(monthlyArticlesByMonth[item.month] || []).length > 0 && (
-                      <div className="mt-1 max-w-[240px] truncate text-[10px] text-sky-700">
-                        {(monthlyArticlesByMonth[item.month] || [])
-                          .slice(0, 3)
-                          .map((article) => `${article.nome} (${article.quantidade})`)
-                          .join(", ")}
-                        {(monthlyArticlesByMonth[item.month] || []).length > 3
-                          ? ` +${(monthlyArticlesByMonth[item.month] || []).length - 3}`
-                          : ""}
-                      </div>
-                    )}
-                  </Link>
-                ))}
-              </div>
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-sky-100 bg-sky-50/70 p-3 text-xs">
+              <span className="font-semibold text-sky-800">Reposições mensais previstas</span>
+              <Link
+                href="/stock/necessidades"
+                className="inline-flex items-center rounded-md border border-sky-300 bg-white px-2 py-1 text-[11px] font-semibold text-sky-800 transition hover:bg-sky-100"
+              >
+                Abrir necessidades por inspecção
+              </Link>
             </div>
           )}
           </div>
         )}
         <div className="mb-3 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wide text-indigo-800">Prateleiras (20)</p>
-              <p className="text-[11px] text-indigo-700/80">
-                {shelfSummary.shelves.filter((s) => s.occupied).length}/20 ocupadas
-                {shelfSummary.unassignedCount > 0 ? ` · ${shelfSummary.unassignedCount} sem prateleira` : ""}
-                {filtroPrateleira ? ` · filtro: ${filtroPrateleira === "__NONE__" ? "sem prateleira" : filtroPrateleira}` : ""}
-              </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowShelves((prev) => !prev)}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold uppercase tracking-wide transition ${
+                  filtroPrateleira ? "bg-indigo-700 text-white" : "bg-transparent text-indigo-800 hover:bg-indigo-100"
+                }`}
+                title={showShelves ? "Ocultar prateleiras" : "Mostrar prateleiras"}
+              >
+                {showShelves ? "▾" : "▸"} Prateleiras (20)
+                <span className="ml-1 rounded-full bg-white/70 px-1.5 py-0.5 text-[10px] font-bold text-indigo-800">
+                  {shelfSummary.shelves.filter((s) => s.occupied).length}/20 ocupadas
+                </span>
+              </button>
+              {filtroPrateleira ? (
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                  filtro: {filtroPrateleira === "__NONE__" ? "sem prateleira" : filtroPrateleira}
+                </span>
+              ) : null}
+              {shelfSummary.unassignedCount > 0 ? (
+                <span className="text-[11px] text-indigo-700/80">{shelfSummary.unassignedCount} sem prateleira</span>
+              ) : null}
             </div>
-            <button
-              type="button"
-              onClick={() => setFiltroPrateleira("")}
-              className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${!filtroPrateleira ? "bg-indigo-700 text-white" : "border border-indigo-200 bg-white text-indigo-800"}`}
-            >
-              Todas
-            </button>
+            {showShelves || filtroPrateleira ? (
+              <button
+                type="button"
+                onClick={() => setFiltroPrateleira("")}
+                className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${!filtroPrateleira ? "bg-indigo-700 text-white" : "border border-indigo-200 bg-white text-indigo-800"}`}
+              >
+                Todas
+              </button>
+            ) : null}
           </div>
+          {(showShelves || filtroPrateleira) && (
           <div className="flex flex-wrap gap-1.5">
             {STOCK_SHELVES.map((shelf) => {
               const stats = shelfSummary.shelves.find((s) => s.code === shelf.code);
@@ -2444,6 +2634,7 @@ function StockPageContent() {
               <span>{shelfSummary.unassignedCount}</span>
             </button>
           </div>
+          )}
         </div>
 
         <button
@@ -2623,88 +2814,26 @@ Limpar todos os filtros
               {mode.label}
             </button>
           ))}
-          <button
-            type="button"
-            onClick={expandAllStockCategories}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium border bg-white text-gray-700 border-gray-300"
-          >
-            Expandir tudo
-          </button>
-          <button
-            type="button"
-            onClick={collapseAllStockCategories}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium border bg-white text-gray-700 border-gray-300"
-          >
-            Recolher tudo
-          </button>
+          {viewMode !== "lista" && (
+            <>
+              <button
+                type="button"
+                onClick={expandAllStockCategories}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium border bg-white text-gray-700 border-gray-300"
+              >
+                Expandir tudo
+              </button>
+              <button
+                type="button"
+                onClick={collapseAllStockCategories}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium border bg-white text-gray-700 border-gray-300"
+              >
+                Recolher tudo
+              </button>
+            </>
+          )}
         </div>
-        {viewMode === "lista" && (
-          <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                className="rounded border border-gray-300 bg-gray-50 px-3 py-1.5 text-xs font-medium"
-                onClick={() => setShowColumnSelector((prev) => !prev)}
-              >
-                {showColumnSelector ? "Ocultar seletor de colunas" : "Mostrar seletor de colunas"}
-              </button>
-              {STOCK_LIST_COLUMNS.length - Object.values(visibleStockColumns).filter(Boolean).length > 0 && (
-                <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-1 text-[11px] font-semibold text-amber-800">
-                  {STOCK_LIST_COLUMNS.length - Object.values(visibleStockColumns).filter(Boolean).length} coluna(s) oculta(s)
-                </span>
-              )}
-              <button
-                type="button"
-                className={`rounded border px-3 py-1.5 text-xs font-medium ${listDensity === "compact" ? "border-blue-700 bg-blue-700 text-white" : "border-gray-300 bg-white text-gray-700"}`}
-                onClick={() => setListDensity((prev) => (prev === "compact" ? "default" : "compact"))}
-              >
-                {listDensity === "compact" ? "Densidade: Compacta" : "Densidade: Normal"}
-              </button>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => void exportStockExcel()}
-                  disabled={itensFiltrados.length === 0}
-                  className="inline-flex items-center gap-1.5 rounded border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
-                  title="Exportar as linhas atualmente visíveis para Excel (.xlsx)"
-                >
-                  ⬇ Exportar Excel
-                </button>
-                <button
-                  type="button"
-                  className="rounded border border-gray-300 bg-white px-2 py-1 text-xs"
-                  onClick={showAllStockColumns}
-                >
-                  Mostrar todas
-                </button>
-                <button
-                  type="button"
-                  className="rounded border border-gray-300 bg-white px-2 py-1 text-xs"
-                  onClick={hideAllStockColumns}
-                >
-                  Ocultar quase todas
-                </button>
-              </div>
-            </div>
-            {showColumnSelector && (
-              <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-                {STOCK_LIST_COLUMNS.map((col) => (
-                  <label key={col.key} className="inline-flex items-center gap-2 rounded border border-gray-200 px-2 py-1">
-                    <input
-                      type="checkbox"
-                      checked={isColumnVisible(col.key)}
-                      onChange={() => toggleStockColumn(col.key)}
-                    />
-                    {col.label}
-                  </label>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-        {canEditStock ? (
+        {canEditStock && selectedIds.length > 0 ? (
           <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs">
             <span className="font-semibold text-gray-700">Selecionados: {selectedIds.length}</span>
             <button
@@ -2737,281 +2866,96 @@ Limpar todos os filtros
           <div className="text-center py-4">Carregando...</div>
         ) : viewMode === "lista" ? (
           <div className="space-y-4">
-            {stockPrioritySections.map((section) => (
-              <div key={section.key} className="rounded-xl border border-gray-200 bg-white shadow-sm">
-                <div className="app-soft-blue-strip px-4 py-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div>
-                      <h3 className="text-sm font-bold text-gray-900">{section.label}</h3>
-                      <p className="text-xs text-gray-600">{section.description}</p>
-                      {section.key === "validade" && (() => {
-                        const summary = getValidityUrgencySummary(section.items);
-                        return (
-                          <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
-                            {summary.vencidos > 0 && <span className="inline-flex rounded-full bg-red-100 px-2 py-0.5 font-semibold text-red-700">❌ {summary.vencidos} vencido(s)</span>}
-                            {summary.ate30 > 0 && <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-700">⚠️ {summary.ate30} até 30 dias</span>}
-                            {summary.ate90 > 0 && <span className="inline-flex rounded-full bg-blue-100 px-2 py-0.5 font-semibold text-blue-700">📅 {summary.ate90} até 90 dias</span>}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                    <span className="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-[11px] font-semibold text-blue-800">
-                      {section.items.length} artigo(s)
-                    {(() => {
-                      const totalQtd = section.items.reduce((acc2, item2) => acc2 + Number(item2.quantidade ?? 0), 0);
-                      const totalValor = section.items.reduce((acc2, item2) => acc2 + Number(item2.quantidade ?? 0) * Number(item2.precoVenda ?? 0), 0);
-                      return (
-                        <div className="mt-1 flex flex-wrap gap-2 text-[11px]">
-                          <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 font-semibold text-emerald-800">{totalQtd} un.</span>
-                          <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-700">{new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(totalValor)}</span>
-                        </div>
-                      );
-                    })()}
+            <div className="flex flex-wrap gap-2">
+              {stockPrioritySections.map((section) => (
+                <span
+                  key={section.key}
+                  className="inline-flex flex-col rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px]"
+                  title={section.description}
+                >
+                  <span>
+                    <b>{section.label}</b>: {section.items.length} artigo(s)
+                  </span>
+                  <span className="flex gap-2 text-slate-600">
+                    <span>
+                      {section.items.reduce((acc, item) => acc + Number(item.quantidade ?? 0), 0)} un.
                     </span>
-                  </div>
-                </div>
-                <div className="max-h-[75vh] overflow-auto">
-                <table className={`min-w-full text-xs sm:text-sm ${listDensity === "compact" ? "[&_td]:!p-1 [&_th]:!p-1 [&_td]:!text-[11px] [&_td]:!leading-tight" : ""}`}>
-                  <thead>
-                    <tr className="bg-blue-100">
-                      <th className="sticky top-0 z-30 bg-blue-100 left-0 w-10 border-r border-gray-200 p-2">
-                        {canEditStock ? (
-                          <input
-                            type="checkbox"
-                            checked={section.items.length > 0 && section.items.every((item) => selectedIds.includes(item.id))}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedIds((prev) => Array.from(new Set([...prev, ...section.items.map((item) => item.id)])));
-                              } else {
-                                setSelectedIds((prev) => prev.filter((id) => !section.items.some((item) => item.id === id)));
-                              }
-                            }}
-                            aria-label={`Selecionar artigos da secção ${section.label}`}
-                          />
-                        ) : null}
-                      </th>
-                      {isColumnVisible("foto") && <th className="sticky top-0 z-20 bg-blue-100 p-2">Foto</th>}
-                      {isColumnVisible("nome") && <th className="sticky top-0 z-30 bg-blue-100 left-10 border-r border-gray-200 p-2">Nome</th>}
-                      {isColumnVisible("referencia") && <th className="sticky top-0 z-20 bg-blue-100 p-2">Referência</th>}
-                      {isColumnVisible("estado") && <th className="sticky top-0 z-20 bg-blue-100 p-2">Estado</th>}
-                      {isColumnVisible("referenciaSubstituta") && <th className="sticky top-0 z-20 bg-blue-100 p-2">Ref. Substituta</th>}
-                      {isColumnVisible("codigoFabricante") && <th className="sticky top-0 z-20 bg-blue-100 p-2">Cód. Fabricante</th>}
-                      {isColumnVisible("quantidade") && <th className="sticky top-0 z-20 bg-blue-100 p-2">Quantidade</th>}
-                      {isColumnVisible("quantidadeMinima") && <th className="sticky top-0 z-20 bg-blue-100 p-2">Qtd. mínima</th>}
-                      {isColumnVisible("precoVenda") && <th className="sticky top-0 z-20 bg-blue-100 p-2">Preço de venda</th>}
-                      {isColumnVisible("marcaModelo") && <th className="sticky top-0 z-20 bg-blue-100 p-2">Marca/Modelo Jangada</th>}
-                      {isColumnVisible("categoria") && <th className="sticky top-0 z-20 bg-blue-100 p-2">Categoria</th>}
-                      {isColumnVisible("prateleira") && <th className="sticky top-0 z-20 bg-blue-100 p-2">Prateleira</th>}
-                      {isColumnVisible("descricao") && <th className="sticky top-0 z-20 bg-blue-100 p-2">Descrição</th>}
-                      {isColumnVisible("packs") && <th className="sticky top-0 z-20 bg-blue-100 p-2">Packs</th>}
-                      {isColumnVisible("necessidade12m") && <th className="sticky top-0 z-20 bg-blue-100 p-2">Necess. 12m</th>}
-                      {isColumnVisible("saldoProjetado12m") && <th className="sticky top-0 z-20 bg-blue-100 p-2">Saldo proj. 12m</th>}
-                      {isColumnVisible("necessidadeMensal") && <th className="sticky top-0 z-20 bg-blue-100 p-2">Necessidade mensal</th>}
-                      <th className="sticky top-0 z-30 bg-blue-100 right-0 border-l border-gray-200 p-2">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {section.categories.map((categoryGroup) => (
-                      <React.Fragment key={`${section.key}-${categoryGroup.category}`}>
-                        <tr className="bg-slate-50">
-                          <td
-                            colSpan={Object.values(visibleStockColumns).filter(Boolean).length + 2}
-                            className="border-t border-slate-200 px-3 py-2"
-                          >
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <button
-                                  type="button"
-                                  className="rounded border border-gray-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-gray-700"
-                                  onClick={() => toggleCategoryExpanded(section.key, categoryGroup.category)}
-                                >
-                                  {isCategoryExpanded(section.key, categoryGroup.category) ? "▾" : "▸"}
-                                </button>
-                                <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${getCategoryBadgeClasses(section.key, categoryGroup.category)}`}>
-                                  {categoryGroup.category}
-                                </span>
-                                {section.key === "validade" && isCriticalValidityCategory(categoryGroup.category) && (
-                                  <span className="inline-flex rounded-full border border-red-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-red-700">
-                                    Categoria crítica
-                                  </span>
-                                )}
-                                <span className="text-[11px] text-gray-500">{categoryGroup.items.length} artigo(s)</span>
-                                {section.key === "validade" && (() => {
-                                  const summary = getValidityUrgencySummary(categoryGroup.items);
-                                  return (
-                                    <>
-                                      {summary.vencidos > 0 && <span className="text-[11px] font-semibold text-red-700">{summary.vencidos} vencido(s)</span>}
-                                      {summary.ate30 > 0 && <span className="text-[11px] font-semibold text-amber-700">{summary.ate30} até 30 dias</span>}
-                                      {summary.ate90 > 0 && <span className="text-[11px] font-semibold text-blue-700">{summary.ate90} até 90 dias</span>}
-                                    </>
-                                  );
-                                })()}
-                              </div>
-                              {canEditStock ? (
-                                <button
-                                  type="button"
-                                  className="rounded border border-gray-300 bg-white px-2 py-1 text-[11px]"
-                                  onClick={() => {
-                                    setSelectedIds((prev) => Array.from(new Set([...prev, ...categoryGroup.items.map((item) => item.id)])));
-                                  }}
-                                >
-                                  Selecionar categoria
-                                </button>
-                              ) : null}
-                            </div>
-                          </td>
-                        </tr>
-                        {isCategoryExpanded(section.key, categoryGroup.category) && categoryGroup.items.map(item => (
-                <tr key={item.id} className={`border-t align-top ${(!item.precoVenda || Number(item.precoVenda) === 0) ? "bg-amber-50 hover:bg-amber-100" : "bg-white hover:bg-slate-50"}`}>
-                  {(() => {
-                    const need = stockNeedsById[item.id];
-                    const isSelected = selectedIds.includes(item.id);
-                    return (
-                      <>
-                  <td className="sticky left-0 z-10 w-10 border-r border-gray-200 bg-inherit p-2">
-                    {canEditStock ? (
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleSelectItem(item.id)}
-                        aria-label={`Selecionar artigo ${item.nome || item.descricao || item.referencia || item.id}`}
-                      />
-                    ) : null}
-                  </td>
-                  {isColumnVisible("foto") && <td className="p-2">
-                    <div className="relative group">
-                      {renderStockThumb(item)}
-                    </div>
-                  </td>}
-                  {isColumnVisible("nome") && <td className="sticky left-10 z-10 border-r border-gray-200 bg-inherit p-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span>{item.nome || item.descricao || "-"}</span>
-                      {getApplicableRaftModelBadge(item) && (
-                        <span className="inline-flex rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
-                          {getApplicableRaftModelBadge(item)}
-                        </span>
+                    <span>
+                      {new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(
+                        section.items.reduce((acc, item) => acc + Number(item.quantidade ?? 0) * Number(item.precoVenda ?? 0), 0)
                       )}
-                    </div>
-                  </td>}
-                  {isColumnVisible("referencia") && <td className="p-2">
-                    <a
-                      href={`/stock/${item.id}`}
-                      className="inline-flex rounded bg-indigo-50 px-2 py-0.5 font-medium text-indigo-700 hover:underline"
-                      title="Abrir ficha do produto"
-                    >
-                      {item.referencia || "-"}
-                    </a>
-                  </td>}
-                  {isColumnVisible("estado") && <td className="p-2">{item.estadoArtigo || "ATIVO"}</td>}
-                  {isColumnVisible("referenciaSubstituta") && <td className="p-2">{item.referenciaSubstituta || "-"}</td>}
-                  {isColumnVisible("codigoFabricante") && <td className="p-2">
-                    <span className="inline-flex rounded bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700">
-                      {item.codigoFabricante || "-"}
                     </span>
-                  </td>}
-                  {isColumnVisible("quantidade") && <td className="p-2">
-                    <div className="flex items-center gap-1">
-                      <span className={isStockBaixo(item) ? "font-bold text-red-700" : ""}>{item.quantidade}</span>
-                      {isStockBaixo(item) && (
-                        <span className="bg-red-100 text-red-700 px-1.5 py-0.5 rounded text-[10px] font-semibold" title={`Mínimo: ${item.quantidadeMinima}`}>
-                          🔻 Baixo
-                        </span>
-                      )}
-                      {isVencido(item) && (
-                        <span className="bg-red-600 text-white px-1.5 py-0.5 rounded text-[10px] font-semibold">
-                          ❌ Vencido
-                        </span>
-                      )}
-                      {!isVencido(item) && isValidadeProxima(item, 30) && (
-                        <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded text-[10px] font-semibold">
-                          ⚠️ 30d
-                        </span>
-                      )}
-                    </div>
-                  </td>}
-                  {isColumnVisible("quantidadeMinima") && <td className="p-2">{item.quantidadeMinima ?? "-"}</td>}
-                  {isColumnVisible("precoVenda") && <td className="p-2">{Number(item.precoVenda ?? 0).toFixed(2)} €</td>}
-                  {isColumnVisible("marcaModelo") && <td className="p-2">{item.aplicavelMarcaJangada || "-"} / {item.aplicavelModeloJangada || "-"}</td>}
-                  {isColumnVisible("categoria") && <td className="p-2">{item.categoria}</td>}
-                  {isColumnVisible("prateleira") && (
-                    <td className="p-2">
-                      {resolveShelfCode(item.localizacao) ? (
+                  </span>
+                </span>
+              ))}
+            </div>
+            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="overflow-x-auto">
+                <DataTable<ItemStock>
+                  data={itensFiltrados}
+                  columns={stockListColumns}
+                  keyExtractor={(r) => r.id}
+                  onRowClick={(r) => openViewItem(r)}
+                  searchPlaceholder="Pesquisar artigos..."
+                  searchKeys={["nome", "descricao", "referencia", "codigoFabricante", "categoria", "estadoArtigo", "marcaModelo"]}
+                  pageSize={50}
+                  pageSizeOptions={[10, 25, 50, 100]}
+                  emptyMessage="Nenhum item de stock encontrado."
+                  exportFileName="stock"
+                  compact
+                  visibleColumnsKeys={dataTableVisibleKeys}
+                  onVisibleColumnsChange={(keys) => handleDataTableColumnsChange(keys)}
+                  headerActions={
+                    <>
+                      <div className="flex items-center gap-2">
                         <button
                           type="button"
-                          onClick={() => setFiltroPrateleira(resolveShelfCode(item.localizacao) || "")}
-                          className="inline-flex rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-bold text-indigo-800 hover:bg-indigo-100"
-                          title={item.localizacao || ""}
+                          onClick={() => setListDensity((prev) => (prev === "compact" ? "default" : "compact"))}
+                          className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${listDensity === "compact" ? "bg-indigo-50 border-indigo-200 text-indigo-700" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+                          title="Alternar densidade da lista"
                         >
-                          {resolveShelfCode(item.localizacao)}
+                          {listDensity === "compact" ? "Densidade: Compacta" : "Densidade: Normal"}
                         </button>
-                      ) : (
-                        <span className="text-[11px] text-rose-600" title={item.localizacao || ""}>
-                          {item.localizacao ? String(item.localizacao) : "—"}
-                        </span>
-                      )}
-                    </td>
+                        <button
+                          type="button"
+                          onClick={() => void exportStockExcel()}
+                          disabled={itensFiltrados.length === 0}
+                          className="inline-flex items-center gap-1.5 rounded px-3 py-2 text-xs font-semibold border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 transition-all"
+                          title="Exportar as linhas atualmente visíveis para Excel (.xlsx)"
+                        >
+                          <Download size={14} />
+                          Excel
+                        </button>
+                      </div>
+                    </>
+                  }
+                  rowActions={(item) => (
+                    <div className="flex gap-1">
+                      {canEditStock ? (
+                        <>
+                          <button className="bg-green-600 px-1.5 py-0.5 rounded text-[10px] text-white" onClick={() => handleStockOperation(item.id, "entrada")}>+1</button>
+                          <button className="bg-orange-500 px-1.5 py-0.5 rounded text-[10px] text-white" onClick={() => handleStockOperation(item.id, "saida")}>-1</button>
+                          {isStockBaixo(item) && (
+                            <button
+                              className="bg-rose-600 px-1.5 py-0.5 rounded text-[10px] text-white"
+                              onClick={() => handleReporAteMinimo(item)}
+                              title="Repõe quantidade até ao mínimo definido"
+                            >
+                              Repôr
+                            </button>
+                          )}
+                        </>
+                      ) : null}
+                      <button className="bg-blue-500 px-1.5 py-0.5 rounded text-[10px] text-white" onClick={() => openViewItem(item)}>Ficha</button>
+                      <button className="bg-indigo-600 px-1.5 py-0.5 rounded text-[10px] text-white" onClick={() => void printLabels([item])}>Etiqueta</button>
+                      {canEditStock ? (
+                        <button className="bg-red-500 px-1.5 py-0.5 rounded text-[10px] text-white" onClick={() => handleDelete(item.id)}>Excluir</button>
+                      ) : null}
+                    </div>
                   )}
-                  {isColumnVisible("descricao") && <td className="p-2">
-                    {item.descricao || "-"}
-                  </td>}
-                  {isColumnVisible("packs") && <td className="p-2">
-                    {(item.tiposPackAssociados && item.tiposPackAssociados.length > 0)
-                      ? item.tiposPackAssociados.join(", ")
-                      : "-"}
-                  </td>}
-                  {isColumnVisible("necessidade12m") && <td className="p-2 font-semibold">{need?.necessidade12m ?? 0}</td>}
-                  {isColumnVisible("saldoProjetado12m") && <td className={`p-2 font-semibold ${(need?.saldoProjetado12m ?? 0) < 0 ? "text-red-700" : "text-emerald-700"}`}>
-                    {need?.saldoProjetado12m ?? item.quantidade}
-                  </td>}
-                  {isColumnVisible("necessidadeMensal") && <td className="p-2 text-[11px] leading-4 max-w-[320px]">
-                    {renderMonthlyPlan(need?.mensal || [])}
-                  </td>}
-                  <td className="sticky right-0 z-10 flex gap-2 border-l border-gray-200 bg-inherit p-2">
-                    {canEditStock ? (
-                      <>
-                        <button className="bg-green-600 px-2 py-1 rounded text-xs text-white" onClick={() => handleStockOperation(item.id, "entrada")}>+1</button>
-                        <button className="bg-orange-500 px-2 py-1 rounded text-xs text-white" onClick={() => handleStockOperation(item.id, "saida")}>-1</button>
-                        {isStockBaixo(item) && (
-                          <button
-                            className="bg-rose-600 px-2 py-1 rounded text-xs text-white"
-                            onClick={() => handleReporAteMinimo(item)}
-                            title="Repõe quantidade até ao mínimo definido"
-                          >
-                            Repôr mínimo
-                          </button>
-                        )}
-                        <button className="bg-blue-500 px-2 py-1 rounded text-xs text-white" onClick={() => openViewItem(item)}>Ver ficha</button>
-                        <button className="bg-indigo-600 px-2 py-1 rounded text-xs text-white" onClick={() => void printLabels([item])}>Etiqueta</button>
-                        <button className="bg-red-500 px-2 py-1 rounded text-xs text-white" onClick={() => handleDelete(item.id)}>Excluir</button>
-                      </>
-                    ) : (
-                      <button className="bg-blue-500 px-2 py-1 rounded text-xs text-white" onClick={() => openViewItem(item)}>Ver ficha</button>
-                    )}
-                  </td>
-                      </>
-                    );
-                  })()}
-                </tr>
-                        ))}
-                      </React.Fragment>
-                    ))}
-                  </tbody>
-                </table>
-                </div>
+                />
               </div>
-            ))}
-            {itensFiltrados.length === 0 && (
-              <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-6 text-center text-gray-500">
-                <div className="flex flex-col items-center gap-3">
-                  <span>Nenhum item de stock encontrado.</span>
-                  {canEditStock ? (
-                    <button type="button" onClick={openCreateItem} className="bg-blue-700 text-white rounded-lg px-3 py-1.5 text-xs font-medium">
-                      + Adicionar item
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-            )}
+            </section>
           </div>
         ) : viewMode === "quadros" ? (
           <div className="space-y-5">
@@ -3077,11 +3021,11 @@ Limpar todos os filtros
                       })()}
                     </div>
                     {isCategoryExpanded(section.key, categoryGroup.category) && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                       {categoryGroup.items.map((item) => (
                         <div
                           key={item.id}
-                          className="border border-gray-200 rounded-lg bg-gray-50 p-4 cursor-pointer hover:border-blue-300 hover:bg-blue-50 transition"
+                          className="border border-gray-200 rounded-lg bg-gray-50 p-3 cursor-pointer hover:border-blue-300 hover:bg-blue-50 transition"
                           role="button"
                           tabIndex={0}
                           onClick={() => openViewItem(item)}
@@ -3092,8 +3036,29 @@ Limpar todos os filtros
                             }
                           }}
                         >
-                          <div className="mb-2 flex items-start justify-between gap-2">
-                            {renderStockThumb(item)}
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-start gap-2 min-w-0">
+                              {renderStockThumb(item)}
+                              <div className="min-w-0">
+                                <h3 className="text-[13px] font-semibold leading-snug text-gray-900">{item.nome || item.descricao || "-"}</h3>
+                                <div className="mt-0.5 flex flex-wrap items-center gap-1">
+                                  {getApplicableRaftModelBadge(item) && (
+                                    <span className="inline-flex rounded-full border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700">
+                                      {getApplicableRaftModelBadge(item)}
+                                    </span>
+                                  )}
+                                  {isStockBaixo(item) && (
+                                    <span className="inline-flex rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">🔻 Baixo</span>
+                                  )}
+                                  {isVencido(item) && (
+                                    <span className="inline-flex rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">❌ Vencido</span>
+                                  )}
+                                  {!isVencido(item) && isValidadeProxima(item, 30) && (
+                                    <span className="inline-flex rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">⚠️ 30d</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
                             {canEditStock ? (
                               <input
                                 type="checkbox"
@@ -3101,41 +3066,42 @@ Limpar todos os filtros
                                 onClick={(e) => e.stopPropagation()}
                                 onChange={() => toggleSelectItem(item.id)}
                                 aria-label={`Selecionar artigo ${item.nome || item.descricao || item.referencia || item.id}`}
+                                className="shrink-0"
                               />
                             ) : null}
                           </div>
-                          <h3 className="font-semibold text-gray-900">{item.nome || item.descricao || "-"}</h3>
-                          {getApplicableRaftModelBadge(item) && (
-                            <p className="mt-1 inline-flex rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
-                              {getApplicableRaftModelBadge(item)}
+                          <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 mt-2 text-xs text-gray-600">
+                            <p>
+                              <b>Quantidade:</b> {item.quantidade}
+                              {item.quantidadeMinima != null && (
+                                <span className={isStockBaixo(item) ? "ml-1 font-semibold text-red-700" : "ml-1 text-gray-500"}>
+                                  (mín: {item.quantidadeMinima})
+                                </span>
+                              )}
                             </p>
-                          )}
-                          <p className="text-xs text-gray-600 mt-1">
-                            Quantidade: {item.quantidade}
-                            {item.quantidadeMinima != null && (
-                              <span className={isStockBaixo(item) ? "ml-1 font-semibold text-red-700" : "ml-1 text-gray-500"}>
-                                (mín: {item.quantidadeMinima})
-                              </span>
-                            )}
-                          </p>
-                          {isStockBaixo(item) && (
-                            <p className="text-[11px] font-semibold text-red-700">🔻 Abaixo do stock mínimo</p>
-                          )}
-                          <p className="text-xs text-gray-600">
-                            Referência: <span className="font-medium text-indigo-700">{item.referencia || "-"}</span>
-                          </p>
-                          <p className="text-xs text-gray-600">Preço de venda: {Number(item.precoVenda ?? 0).toFixed(2)} €</p>
-                          <p className="text-xs text-gray-600">Associável a jangada: {item.associavelJangada ? "Sim" : "Não"}</p>
-                          <p className="text-xs text-gray-600">Marca/Modelo: {item.aplicavelMarcaJangada || "-"} / {item.aplicavelModeloJangada || "-"}</p>
-                          <p className="text-xs text-gray-600">Categoria: {item.categoria || "-"}</p>
-                          <div className="mt-3 flex gap-2" onClick={(e) => e.stopPropagation()}>
-                            <button className="bg-blue-500 px-2 py-1 rounded text-xs text-white" onClick={() => openViewItem(item)}>Ver ficha</button>
+                            <p><b>Referência:</b> <span className="font-medium text-indigo-700">{item.referencia || "-"}</span></p>
+                            <p><b>Preço:</b> {Number(item.precoVenda ?? 0).toFixed(2)} €</p>
+                            <p><b>Jangada:</b> {item.associavelJangada ? "Sim" : "Não"}</p>
+                            <p className="col-span-2"><b>Marca/Modelo:</b> {item.aplicavelMarcaJangada || "-"} / {item.aplicavelModeloJangada || "-"}</p>
+                            <p className="col-span-2"><b>Categoria:</b> {item.categoria || "-"}</p>
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-1" onClick={(e) => e.stopPropagation()}>
+                            <button className="bg-blue-500 px-1.5 py-0.5 rounded text-[11px] text-white" onClick={() => openViewItem(item)}>Ficha</button>
                             {canEditStock ? (
                               <>
-                                <button className="bg-green-600 px-2 py-1 rounded text-xs text-white" onClick={() => handleStockOperation(item.id, "entrada")}>+1</button>
-                                <button className="bg-orange-500 px-2 py-1 rounded text-xs text-white" onClick={() => handleStockOperation(item.id, "saida")}>-1</button>
-                                <button className="bg-indigo-600 px-2 py-1 rounded text-xs text-white" onClick={() => void printLabels([item])}>Etiqueta</button>
-                                <button className="bg-red-500 px-2 py-1 rounded text-xs text-white" onClick={() => handleDelete(item.id)}>Excluir</button>
+                                <button className="bg-green-600 px-1.5 py-0.5 rounded text-[11px] text-white" onClick={() => handleStockOperation(item.id, "entrada")}>+1</button>
+                                <button className="bg-orange-500 px-1.5 py-0.5 rounded text-[11px] text-white" onClick={() => handleStockOperation(item.id, "saida")}>-1</button>
+                                {isStockBaixo(item) && (
+                                  <button
+                                    className="bg-rose-600 px-1.5 py-0.5 rounded text-[11px] text-white"
+                                    onClick={() => handleReporAteMinimo(item)}
+                                    title="Repõe quantidade até ao mínimo definido"
+                                  >
+                                    Repôr
+                                  </button>
+                                )}
+                                <button className="bg-indigo-600 px-1.5 py-0.5 rounded text-[11px] text-white" onClick={() => void printLabels([item])}>Etiqueta</button>
+                                <button className="bg-red-500 px-1.5 py-0.5 rounded text-[11px] text-white" onClick={() => handleDelete(item.id)}>Excluir</button>
                               </>
                             ) : null}
                           </div>
@@ -3222,18 +3188,24 @@ Limpar todos os filtros
                       })()}
                     </div>
                     {isCategoryExpanded(section.key, categoryGroup.category) && categoryGroup.items.map((item) => (
-                      <div key={item.id} className="border border-gray-200 rounded-lg bg-white p-4">
+                      <div key={item.id} className="border border-gray-200 rounded-lg bg-white p-3">
                 <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
                     {renderStockThumb(item)}
-                    <h3 className="font-semibold text-gray-900">{item.nome || item.descricao || "-"}</h3>
+                    <h3 className="text-[13px] font-semibold leading-snug text-gray-900">{item.nome || item.descricao || "-"}</h3>
                     {getApplicableRaftModelBadge(item) && (
-                      <span className="inline-flex rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
+                      <span className="inline-flex rounded-full border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700">
                         {getApplicableRaftModelBadge(item)}
                       </span>
                     )}
+                    {isStockBaixo(item) && (
+                      <span className="inline-flex rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">🔻 Baixo</span>
+                    )}
+                    {isVencido(item) && (
+                      <span className="inline-flex rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">❌ Vencido</span>
+                    )}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 shrink-0">
                     {canEditStock ? (
                       <input
                         type="checkbox"
@@ -3242,18 +3214,27 @@ Limpar todos os filtros
                         aria-label={`Selecionar artigo ${item.nome || item.descricao || item.referencia || item.id}`}
                       />
                     ) : null}
-                    <button className="bg-blue-500 px-2 py-1 rounded text-xs text-white" onClick={() => openViewItem(item)}>Ver ficha</button>
+                    <button className="bg-blue-500 px-1.5 py-0.5 rounded text-[11px] text-white" onClick={() => openViewItem(item)}>Ficha</button>
                     {canEditStock ? (
                       <>
-                        <button className="bg-green-600 px-2 py-1 rounded text-xs text-white" onClick={() => handleStockOperation(item.id, "entrada")}>+1</button>
-                        <button className="bg-orange-500 px-2 py-1 rounded text-xs text-white" onClick={() => handleStockOperation(item.id, "saida")}>-1</button>
-                        <button className="bg-indigo-600 px-2 py-1 rounded text-xs text-white" onClick={() => void printLabels([item])}>Etiqueta</button>
-                        <button className="bg-red-500 px-2 py-1 rounded text-xs text-white" onClick={() => handleDelete(item.id)}>Excluir</button>
+                        <button className="bg-green-600 px-1.5 py-0.5 rounded text-[11px] text-white" onClick={() => handleStockOperation(item.id, "entrada")}>+1</button>
+                        <button className="bg-orange-500 px-1.5 py-0.5 rounded text-[11px] text-white" onClick={() => handleStockOperation(item.id, "saida")}>-1</button>
+                        {isStockBaixo(item) && (
+                          <button
+                            className="bg-rose-600 px-1.5 py-0.5 rounded text-[11px] text-white"
+                            onClick={() => handleReporAteMinimo(item)}
+                            title="Repõe quantidade até ao mínimo definido"
+                          >
+                            Repôr
+                          </button>
+                        )}
+                        <button className="bg-indigo-600 px-1.5 py-0.5 rounded text-[11px] text-white" onClick={() => void printLabels([item])}>Etiqueta</button>
+                        <button className="bg-red-500 px-1.5 py-0.5 rounded text-[11px] text-white" onClick={() => handleDelete(item.id)}>Excluir</button>
                       </>
                     ) : null}
                   </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-3 text-xs">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-x-3 gap-y-1 mt-2 text-xs">
                   <p>
                     <b>Quantidade:</b> {item.quantidade}
                     {item.quantidadeMinima != null && (
@@ -3267,7 +3248,7 @@ Limpar todos os filtros
                   <p><b>Associável a jangada:</b> {item.associavelJangada ? "Sim" : "Não"}</p>
                   <p><b>Marca/Modelo:</b> {item.aplicavelMarcaJangada || "-"} / {item.aplicavelModeloJangada || "-"}</p>
                   <p><b>Categoria:</b> {item.categoria || "-"}</p>
-                  <p><b>Descrição:</b> {item.descricao || "-"}</p>
+                  <p className="md:col-span-4"><b>Descrição:</b> {item.descricao || "-"}</p>
                 </div>
                       </div>
                     ))}

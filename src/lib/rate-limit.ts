@@ -1,30 +1,25 @@
-const buckets = new Map<string, { count: number; resetAt: number }>();
+/**
+ * OREYACORESDELUXE - Simple In-Memory Rate Limiter for Sensitive API Routes
+ */
 
-export function checkRateLimit(
-  key: string,
-  maxRequests: number,
-  windowMs: number,
-): { allowed: boolean; retryAfterMs: number } {
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+
+export function checkRateLimit(identifier: string, limit = 20, windowMs = 60000): { success: boolean; allowed: boolean; remaining: number; retryAfterMs: number } {
   const now = Date.now();
-  const entry = buckets.get(key);
+  let record = rateLimitMap.get(identifier);
 
-  if (!entry || now > entry.resetAt) {
-    buckets.set(key, { count: 1, resetAt: now + windowMs });
-    return { allowed: true, retryAfterMs: 0 };
+  if (!record || now > record.resetTime) {
+    record = { count: 1, resetTime: now + windowMs };
+    rateLimitMap.set(identifier, record);
+    return { success: true, allowed: true, remaining: limit - 1, retryAfterMs: 0 };
   }
 
-  entry.count += 1;
-
-  if (entry.count > maxRequests) {
-    return { allowed: false, retryAfterMs: entry.resetAt - now };
+  if (record.count >= limit) {
+    const retryAfterMs = record.resetTime - now;
+    return { success: false, allowed: false, remaining: 0, retryAfterMs };
   }
 
-  return { allowed: true, retryAfterMs: 0 };
+  record.count += 1;
+  rateLimitMap.set(identifier, record);
+  return { success: true, allowed: true, remaining: limit - record.count, retryAfterMs: 0 };
 }
-
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, entry] of buckets) {
-    if (now > entry.resetAt) buckets.delete(key);
-  }
-}, 60_000);

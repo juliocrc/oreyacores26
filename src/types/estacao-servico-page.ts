@@ -66,6 +66,7 @@ export type ServiceStationQueueItem = {
   arrivalDate?: string;
   readyForDelivery?: boolean;
   deliveryMethod?: DeliveryMethod | null;
+  transitario?: string | null;
   saoMiguelPortCall?: string | null;
   delivered?: boolean;
   deliveredAt?: string | null;

@@ -135,7 +135,9 @@ export default function ClientesPage() {
     try {
       const [clientesRes, naviosRes] = await Promise.all([
         fetch("/api/clientes"),
-        fetch("/api/navios")
+        // A pagina so precisa de id/nome/matricula/ilha + o nome do cliente para o
+        // <select> por linha. Sem lite=1 baixava os ~2,4 MB de todos os navios.
+        fetch("/api/navios?lite=1")
       ]);
 
       if (!clientesRes.ok || !naviosRes.ok) {
@@ -598,7 +600,7 @@ export default function ClientesPage() {
   if (loadError) {
     return (
       <div className="min-h-screen bg-slate-50 py-8">
-        <div className="mx-auto max-w-[1500px] px-4 sm:px-6 lg:px-8">
+        <div className="ds-page">
           <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center">
             <p className="text-lg font-medium text-red-700">{loadError}</p>
             <button onClick={() => window.location.reload()} className="mt-3 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">Tentar novamente</button>
@@ -611,14 +613,14 @@ export default function ClientesPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 py-8">
-        <div className="mx-auto max-w-[1500px] px-4 sm:px-6 lg:px-8 text-base text-slate-700">A carregar clientes...</div>
+        <div className="ds-page text-base text-slate-700">A carregar clientes...</div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-slate-50 py-8">
-      <div className="mx-auto flex max-w-[1500px] flex-col gap-6 px-4 sm:px-6 lg:px-8">
+      <div className="ds-page flex flex-col gap-6">
         <div className="app-hero-panel flex flex-col gap-4 rounded-2xl p-6 text-white">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>

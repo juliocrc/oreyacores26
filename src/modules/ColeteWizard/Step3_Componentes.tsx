@@ -95,6 +95,17 @@ export default function Step3_Componentes({ onNext, onPrev }: Props) {
       </div>
 
       <div className="space-y-4">
+        {visibleComponentes.length === 0 ? (
+          <div className="border-2 border-dashed border-slate-200 bg-slate-50 rounded-2xl p-12 flex flex-col items-center justify-center text-center">
+            <Package size={48} className="w-12 h-12 text-slate-300 mb-3" />
+            <h3 className="text-lg font-semibold text-slate-700 mb-1">Nenhum componente registado</h3>
+            <p className="text-sm text-slate-500 max-w-md">
+              {componentes.length > 0
+                ? "Todos os componentes deste colete estão ocultos pela configuração atual. Altere a resposta sobre a luz de emergência para os voltar a listar."
+                : "Clique em “Substituir” no componente pretendido para associar o artigo do Stock Global."}
+            </p>
+          </div>
+        ) : null}
         {visibleComponentes.map((comp) => {
           const availableStock = getFilteredStock(comp.id);
           const isEditing = editingId === comp.id;

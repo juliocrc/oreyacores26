@@ -323,7 +323,10 @@ function buildSavePayload(inspectionData: any, inspecaoId: number | null, isFina
     clienteAssinaturaBase64: inspectionData.clienteAssinaturaBase64 || null,
     clienteNomeAssinatura: inspectionData.clienteNomeAssinatura || null,
     guiaTransporteUrl: inspectionData.guiaTransporteUrl || null,
-    checklistSnapshot: inspectionData.checklist || {},
+    checklistSnapshot: {
+      ...(inspectionData.checklist || {}),
+      _dataUltimoGi: inspectionData.dataUltimoGi || '',
+    },
     artigosSubstituidos,
     orcamento: {
       linhas: (inspectionData.orcamento?.linhas || []).map((linha: any) => ({

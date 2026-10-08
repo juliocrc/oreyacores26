@@ -7,21 +7,13 @@ import {
   Box,
   Button,
   CircularProgress,
-  FormControl,
-  FormHelperText,
-  IconButton,
-  InputAdornment,
-  InputLabel,
-  MenuItem,
   Paper,
-  Select,
   Stack,
   Tab,
   Tabs,
   TextField,
   Typography,
 } from "@mui/material";
-import { Visibility, VisibilityOff } from "@mui/icons-material";
 import { signIn, useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { APP_CONFIG } from "@/lib/app-config";
@@ -41,30 +33,6 @@ function resolveCallbackUrl(rawCallbackUrl: string | null) {
   return decodedCallbackUrl;
 }
 
-interface Collaborator {
-  id: number;
-  name: string | null;
-  email: string;
-  image: string | null;
-  role: string;
-}
-
-interface ServiceStationOption {
-  id: number;
-  codigo: string | null;
-  nome: string | null;
-  empresa: string | null;
-  localizacao: string | null;
-  territorioTipo: string | null;
-  regiaoOperacional: string | null;
-}
-
-const ACTIVE_SERVICE_STATION_COOKIE = "active_service_station_id";
-
-function setActiveStationCookie(stationId: number) {
-  document.cookie = `${ACTIVE_SERVICE_STATION_COOKIE}=${stationId}; path=/; max-age=${60 * 60 * 24 * 30}; samesite=lax`;
-}
-
 export default function LoginPage() {
   return (
     <Suspense fallback={<Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" }}><CircularProgress /></Box>}>
@@ -80,17 +48,6 @@ function LoginPageContent() {
 
   const [tab, setTab] = React.useState(0);
 
-  const [usePasswordLogin, setUsePasswordLogin] = React.useState(false);
-  const [collaborators, setCollaborators] = React.useState<Collaborator[]>([]);
-  const [selectedColab, setSelectedColab] = React.useState<Collaborator | null>(null);
-
-  const [stations, setStations] = React.useState<ServiceStationOption[]>([]);
-  const [selectedStationId, setSelectedStationId] = React.useState<number | "">("");
-
-  const [email, setEmail] = React.useState("");
-  const [password, setPassword] = React.useState("");
-  const [showPassword, setShowPassword] = React.useState(false);
-
   const [clientTel, setClientTel] = React.useState("");
   const [clientNif, setClientNif] = React.useState("");
   const [clientEmail, setClientEmail] = React.useState("");
@@ -101,44 +58,39 @@ function LoginPageContent() {
   const [clientSuccess, setClientSuccess] = React.useState<string | null>(null);
   const [whatsappUrl, setWhatsappUrl] = React.useState<string | null>(null);
 
-  const [error, setError] = React.useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+
+  const [teamEmail, setTeamEmail] = React.useState("");
+  const [teamPassword, setTeamPassword] = React.useState("");
+  const [teamError, setTeamError] = React.useState<string | null>(null);
+  const [teamMode, setTeamMode] = React.useState<"select" | "password">("select");
+
+  const handleTeamPasswordLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTeamError(null);
+    setIsSubmitting(true);
+    try {
+      const result = await signIn("credentials", {
+        email: teamEmail,
+        password: teamPassword,
+        callbackUrl,
+        redirect: false,
+      });
+      if (result?.error) {
+        setTeamError("Email ou palavra-passe incorretos.");
+        return;
+      }
+      markAppSessionOpen();
+      window.location.href = callbackUrl;
+    } catch {
+      setTeamError("Erro de rede. Tente novamente.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const callbackUrl = React.useMemo(() => resolveCallbackUrl(searchParams.get("callbackUrl")), [searchParams]);
   const authError = searchParams.get("error");
-
-  React.useEffect(() => {
-    async function loadCollaborators() {
-      try {
-        const res = await fetch("/api/auth/collaborators");
-        const data = await res.json();
-        if (Array.isArray(data.users)) {
-          setCollaborators(data.users);
-          if (data.users.length > 0) setSelectedColab(data.users[0]);
-        }
-      } catch (err) {
-        console.error("Erro ao carregar colaboradores:", err);
-      } finally {
-      }
-    }
-    loadCollaborators();
-  }, []);
-
-  React.useEffect(() => {
-    async function loadStations() {
-      try {
-        const res = await fetch("/api/service-stations/public", { cache: "no-store" });
-        const data = await res.json();
-        if (Array.isArray(data.stations)) {
-          setStations(data.stations);
-          if (data.stations.length === 1) setSelectedStationId(data.stations[0].id);
-        }
-      } catch (err) {
-        console.error("Erro ao carregar estações de serviço:", err);
-      }
-    }
-    loadStations();
-  }, []);
 
   React.useEffect(() => {
     if (status === "authenticated") {
@@ -150,39 +102,6 @@ function LoginPageContent() {
       }
     }
   }, [callbackUrl, router, status, session]);
-
-  const handleStaffLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setIsSubmitting(true);
-    try {
-      const result = await signIn("credentials", { email, password, callbackUrl, redirect: false });
-      if (result?.error) { setError("Email ou password incorretos."); return; }
-      if (selectedStationId) setActiveStationCookie(Number(selectedStationId));
-      markAppSessionOpen();
-      window.location.href = callbackUrl;
-    } catch (err) {
-      console.error("Login error:", err);
-      setError("Erro de rede. Tente novamente.");
-    } finally { setIsSubmitting(false); }
-  };
-
-  const handlePasswordlessLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedColab) return;
-    setError(null);
-    setIsSubmitting(true);
-    try {
-      const result = await signIn("credentials", { loginType: "passwordless", userId: String(selectedColab.id), callbackUrl, redirect: false });
-      if (result?.error) { setError("Não foi possível iniciar sessão."); return; }
-      if (selectedStationId) setActiveStationCookie(Number(selectedStationId));
-      markAppSessionOpen();
-      window.location.href = callbackUrl;
-    } catch (err) {
-      console.error("Login error:", err);
-      setError("Erro de rede. Tente novamente.");
-    } finally { setIsSubmitting(false); }
-  };
 
   const handleRequestCode = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -257,7 +176,7 @@ function LoginPageContent() {
 
           <Tabs
             value={tab}
-            onChange={(_, v) => { setTab(v); setError(null); setClientError(null); setClientSuccess(null); setClientStep("form"); setWhatsappUrl(null); }}
+            onChange={(_, v) => { setTab(v); setClientError(null); setClientSuccess(null); setClientStep("form"); setWhatsappUrl(null); }}
             variant="fullWidth"
             sx={{
               minHeight: 40,
@@ -270,49 +189,80 @@ function LoginPageContent() {
           </Tabs>
 
           {authError && <Alert severity="error">Não foi possível iniciar sessão. Tente novamente.</Alert>}
-          {error && <Alert severity="error">{error}</Alert>}
 
           {tab === 0 && (
-            <Stack spacing={3} component="form" onSubmit={handleStaffLogin} autoComplete="off">
-              <TextField label="Endereço de Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-                required fullWidth autoComplete="off" name="orey-email"
-                sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 } }} />
-              <TextField label="Password" type={showPassword ? "text" : "password"} value={password}
-                onChange={(e) => setPassword(e.target.value)} required fullWidth
-                autoComplete="new-password" name="orey-password"
-                sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 } }}
-                InputProps={{
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton onClick={() => setShowPassword((c) => !c)} edge="end">
-                        {showPassword ? <VisibilityOff /> : <Visibility />}
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                }} />
-              {stations.length > 1 && (
-                <FormControl fullWidth required>
-                  <InputLabel>Estação de serviço</InputLabel>
-                  <Select
-                    value={selectedStationId}
-                    label="Estação de serviço"
-                    onChange={(e) => setSelectedStationId(e.target.value as number)}
-                    sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 } }}
+            <Stack spacing={2.5}>
+              {teamError && <Alert severity="error">{teamError}</Alert>}
+              {teamMode === "select" ? (
+                <Stack spacing={2.5} alignItems="center">
+                  <Typography variant="body2" color="text.secondary" textAlign="center">
+                    Acesso rápido da equipa: escolha o seu nome ou entre com palavra-passe.
+                  </Typography>
+                  <Button
+                    variant="contained"
+                    size="large"
+                    fullWidth
+                    onClick={() => {
+                      window.location.href = `/selecionar-tecnico?callbackUrl=${encodeURIComponent(callbackUrl)}`;
+                    }}
+                    sx={{ py: 1.5, textTransform: "none", fontWeight: 700, borderRadius: 4, fontSize: 16, boxShadow: "0 4px 12px rgba(37, 99, 235, 0.2)" }}
                   >
-                    {stations.map((station) => (
-                      <MenuItem key={station.id} value={station.id}>
-                        {station.nome || station.codigo || station.empresa}
-                        {station.localizacao ? ` — ${station.localizacao}` : ""}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                  <FormHelperText>Escolha a estação de serviço onde pretende entrar.</FormHelperText>
-                </FormControl>
+                    Escolher o meu nome
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="large"
+                    fullWidth
+                    onClick={() => { setTeamMode("password"); setTeamError(null); }}
+                    sx={{ py: 1.5, textTransform: "none", fontWeight: 700, borderRadius: 4, fontSize: 16 }}
+                  >
+                    Entrar com Palavra-passe
+                  </Button>
+                </Stack>
+              ) : (
+                <Stack spacing={2.5} component="form" onSubmit={handleTeamPasswordLogin}>
+                  <Typography variant="body2" color="text.secondary" textAlign="center">
+                    Introduza o seu email e palavra-passe de acesso.
+                  </Typography>
+                  <TextField
+                    label="Email"
+                    type="email"
+                    value={teamEmail}
+                    onChange={(e) => setTeamEmail(e.target.value)}
+                    required
+                    fullWidth
+                    placeholder="admin@oreyazores.com"
+                    sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 } }}
+                  />
+                  <TextField
+                    label="Palavra-passe"
+                    type="password"
+                    value={teamPassword}
+                    onChange={(e) => setTeamPassword(e.target.value)}
+                    required
+                    fullWidth
+                    placeholder="••••••••"
+                    sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 } }}
+                  />
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    size="large"
+                    fullWidth
+                    disabled={isSubmitting}
+                    sx={{ py: 1.5, textTransform: "none", fontWeight: 700, borderRadius: 4, fontSize: 16, boxShadow: "0 4px 12px rgba(37, 99, 235, 0.2)" }}
+                  >
+                    {isSubmitting ? <CircularProgress size={22} color="inherit" /> : "Entrar"}
+                  </Button>
+                  <Button
+                    variant="text"
+                    onClick={() => { setTeamMode("select"); setTeamError(null); }}
+                    sx={{ textTransform: "none", fontWeight: 700, fontSize: "0.85rem", color: "text.secondary" }}
+                  >
+                    Voltar ao acesso rápido
+                  </Button>
+                </Stack>
               )}
-              <Button type="submit" variant="contained" size="large" fullWidth disabled={isSubmitting}
-                sx={{ py: 1.5, textTransform: "none", fontWeight: 700, borderRadius: 4, fontSize: 16, boxShadow: "0 4px 12px rgba(37, 99, 235, 0.2)" }}>
-                {isSubmitting ? <CircularProgress size={22} color="inherit" /> : "Entrar"}
-              </Button>
             </Stack>
           )}
 

@@ -297,9 +297,21 @@ export async function POST(req: NextRequest) {
       if (!isValidPackType) {
         return NextResponse.json({ error: "Tipo de pack inválido." }, { status: 400 });
       }
-      if(data.serial) {
-        const existingJangada = await prisma.jangada.findUnique({ where: { serial: data.serial } });
-        if (existingJangada) return NextResponse.json({ error: "Já existe uma jangada com esse número de série registada." }, { status: 400 });
+      if (data.serial) {
+        const cleanSerial = String(data.serial).trim();
+        if (cleanSerial) {
+          const existingJangada = await prisma.jangada.findFirst({
+            where: {
+              OR: [
+                { serial: cleanSerial },
+                { serial: { equals: cleanSerial, mode: 'insensitive' } }
+              ]
+            }
+          });
+          if (existingJangada) {
+            return NextResponse.json({ error: `Já existe uma jangada com o número de série "${cleanSerial}" registada.` }, { status: 400 });
+          }
+        }
       }
       const cylinderDataProxTeste = data.cylinderDataTeste ? addFiveYears(String(data.cylinderDataTeste)) : data.cylinderDataProxTeste;
       const hruRules = applyHruBusinessRulesForCreate(data || {});
@@ -351,12 +363,14 @@ export async function POST(req: NextRequest) {
   } catch (error: unknown) {
     if (error instanceof Error && "code" in error && (error as { code?: string }).code === "P2002") {
       const target = (error as { meta?: { target?: unknown } }).meta?.target;
-      if (Array.isArray(target) && target.includes("serial")) {
-        return NextResponse.json({ error: "Já existe uma jangada com esse número de série registada." }, { status: 409 });
+      const targetStr = JSON.stringify(target || error);
+      console.error("Prisma P2002 error creating jangada:", error);
+      if (Array.isArray(target) && target.includes("serial") || targetStr.includes("serial")) {
+        return NextResponse.json({ error: "Já existe uma jangada com esse número de série registada." }, { status: 400 });
       }
-      return NextResponse.json({ error: "Violação de unicidade na base de dados." }, { status: 409 });
+      return NextResponse.json({ error: `Violação de unicidade na base de dados (${targetStr}).` }, { status: 400 });
     }
-    return buildDatabaseErrorResponse(error, error instanceof Error ? error.message : "Erro ao criar jangada");
+    console.error("Erro desconhecido ao criar jangada:", error);
   }
 }
 
@@ -402,7 +416,7 @@ export async function GET(req: NextRequest) {
     */
 
     const wantsPage = searchParams.has("page") || searchParams.get("paginated") === "1";
-    const pageParams = parsePageParams(searchParams, { pageSize: 50, maxPageSize: 200 });
+    const pageParams = parsePageParams(searchParams, { pageSize: 5000, maxPageSize: 10000 });
 
     const jangadas = await prisma.jangada.findMany({
       where,

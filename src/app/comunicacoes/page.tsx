@@ -162,7 +162,7 @@ export default function ComunicacoesPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 py-8">
-      <div className="mx-auto max-w-6xl px-4 space-y-6">
+      <div className="ds-page space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <MessageSquare className="text-indigo-600" size={28} />

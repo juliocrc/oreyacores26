@@ -64,7 +64,7 @@ export default function Documents() {
         <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded">Salvar</button>
       </form>
       <h3 className="text-lg font-bold mb-2">Documentos cadastrados</h3>
-      <table className="min-w-full bg-white rounded shadow mb-2 text-xs sm:text-sm">
+      <div className="overflow-x-auto"><table className="min-w-full bg-white rounded shadow mb-2 text-xs sm:text-sm">
         <thead>
           <tr className="bg-blue-100">
             <th className="p-2">Tipo</th>
@@ -88,7 +88,7 @@ export default function Documents() {
             <tr><td colSpan={4} className="p-2 text-gray-400">Nenhum documento cadastrado.</td></tr>
           )}
         </tbody>
-      </table>
+      </table></div>
     </div>
   );
 }

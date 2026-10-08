@@ -21,19 +21,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run Prisma DB push
+      - name: Generate PostgreSQL Prisma client and build
+        run: npm run build:vercel
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          npx prisma db push --schema=prisma/schema.prisma --accept-data-loss --url="$DATABASE_URL"
-
-      - name: Generate Prisma client
-        run: npx prisma generate
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-
-      - name: Build
-        run: npm run build
 
       - name: Deploy to Vercel
         uses: amondnet/vercel-action@v25

@@ -209,7 +209,86 @@ function pickDataDir() {
   }
 }
 
-const DB = pickDataDir();
+// =============================================
+// BASE DE DADOS REMOTA (PostgreSQL / Supabase)
+// =============================================
+// Por omissao o standalone corre em SQLite (prisma/local.db) para funcionar
+// offline. Quando existe uma connection string PostgreSQL no .env
+// (SUPABASE_DATABASE_URL, DIRECT_URL, POSTGRES_URL, ...), essa passa a ser a BD
+// ativa: e exatamente a mesma que o deploy na Vercel usa, por isso o standalone
+// e o Vercel leem e escrevem no mesmo sitio (sincronia real, sem copias).
+// OREY_DB_MODE=sqlite|postgres forca um dos lados, util para voltar ao modo
+// offline mesmo com a connection string configurada.
+const POSTGRES_ENV_KEYS = [
+  'SUPABASE_DATABASE_URL',
+  'DIRECT_URL',
+  'POSTGRES_PRISMA_URL',
+  'VERCEL_POSTGRES_PRISMA_URL',
+  'POSTGRES_URL',
+  'VERCEL_POSTGRES_URL',
+  'POSTGRES_URL_NON_POOLING',
+  'NEON_DATABASE_URL',
+  'DATABASE_URL',
+];
+
+function isPostgresUrl(value) {
+  return typeof value === 'string' && /^postgres(ql)?:\/\//i.test(value.trim());
+}
+
+function resolveRemoteDatabase() {
+  for (const key of POSTGRES_ENV_KEYS) {
+    const value = readEnvValue(key);
+    if (isPostgresUrl(value)) {
+      return { url: value.trim(), source: key };
+    }
+  }
+  return { url: null, source: null };
+}
+
+function envFlagEnabled(value) {
+  return ['1', 'true', 'yes', 'on'].includes(String(value == null ? '' : value).trim().toLowerCase());
+}
+
+function maskConnectionString(url) {
+  try {
+    const parsed = new URL(url);
+    const auth = parsed.username ? `${parsed.username}:***@` : '';
+    return `${parsed.protocol}//${auth}${parsed.host}${parsed.pathname}`;
+  } catch (e) {
+    return 'postgresql://***';
+  }
+}
+
+const REMOTE_DB = resolveRemoteDatabase();
+const DB_MODE_PREFERENCE = String(readEnvValue('OREY_DB_MODE') || '').trim().toLowerCase();
+const FORCE_LOCAL_DB =
+  DB_MODE_PREFERENCE === 'sqlite' ||
+  envFlagEnabled(readEnvValue('OREY_FORCE_LOCAL_DB')) ||
+  envFlagEnabled(process.env.OREY_FORCE_LOCAL_DB);
+const REMOTE_DB_MODE =
+  DB_MODE_PREFERENCE === 'postgres' || (!FORCE_LOCAL_DB && Boolean(REMOTE_DB.url));
+
+if (DB_MODE_PREFERENCE && !['sqlite', 'postgres'].includes(DB_MODE_PREFERENCE)) {
+  log(`[DB] OREY_DB_MODE invalido ("${DB_MODE_PREFERENCE}") — a usar deteccao automatica.`, 'ERRO');
+}
+if (DB_MODE_PREFERENCE === 'postgres' && !REMOTE_DB.url) {
+  log('[DB] ERRO: OREY_DB_MODE=postgres mas nao existe nenhuma connection string PostgreSQL.', 'ERRO');
+  log('[DB] Define SUPABASE_DATABASE_URL no .env (ou nas variaveis de ambiente).', 'ERRO');
+  process.exit(1);
+}
+
+function remoteDbDescriptor() {
+  return {
+    dir: path.join(APP_DIR, 'prisma'),
+    dbPath: null,
+    usedFallback: false,
+    remote: true,
+    source: REMOTE_DB.source,
+    url: REMOTE_DB.url,
+  };
+}
+
+const DB = REMOTE_DB_MODE ? remoteDbDescriptor() : pickDataDir();
 const BACKUPS_DIR = DB.usedFallback ? path.join(DB.dir, '..', 'backups')
   : (isWritable(path.join(APP_DIR, 'backups')) ? path.join(APP_DIR, 'backups') : DB.dir);
 
@@ -255,7 +334,12 @@ console.log('================================================');
 log(`Diretorio: ${APP_DIR}`);
 log(`Node.js: ${process.version}`);
 log(`Plataforma: ${process.platform} ${process.arch}`);
-log(`Base de dados: ${DB.dbPath}${DB.usedFallback ? ' (fallback do utilizador)' : ''}`);
+if (REMOTE_DB_MODE) {
+  log(`Base de dados: PostgreSQL remota ${maskConnectionString(REMOTE_DB.url)} (via ${REMOTE_DB.source})`);
+  log('Modo: BD partilhada com o Vercel — os dados sao os mesmos nos dois lados.');
+} else {
+  log(`Base de dados: ${DB.dbPath}${DB.usedFallback ? ' (fallback do utilizador)' : ''}`);
+}
 log(`Backups: ${BACKUPS_DIR}`);
 log(`Log: ${LOG_FILE}`);
 checkDiskSpace();
@@ -275,6 +359,7 @@ process.on('unhandledRejection', (reason) => {
 // BACKUP AUTOMATICO
 // =============================================
 function backupDatabase(maxKeepFloor = 10) {
+  if (!DB.dbPath) return;
   if (!fs.existsSync(DB.dbPath)) return;
   ensureBackupsDir();
   try {
@@ -314,6 +399,7 @@ backupDatabase();
 // TESTE DE RESTAURO DO BACKUP (valida que os dados voltam)
 // =============================================
 function verifyLatestBackup() {
+  if (REMOTE_DB_MODE) return;
   const testScript = path.join(APP_DIR, 'scripts', 'test_restore_backup.cjs');
   if (!fs.existsSync(testScript)) return;
   try {
@@ -372,6 +458,9 @@ function loadRcloneBinNameFromEnv() {
 // push periódico e push no fecho). A BD continua a funcionar apenas em local.
 // GDRIVE_SILENT=1 mantém-se aceite por compatibilidade.
 function isGdriveSyncDisabled() {
+  // Em modo BD remota nao ha ficheiro SQLite local para sincronizar: o
+  // "sync" e a propria BD partilhada com o Vercel.
+  if (REMOTE_DB_MODE) return true;
   const flag = readEnvValue('OREY_GDRIVE_SYNC').toLowerCase();
   if (['0', 'false', 'off', 'no', 'disabled'].includes(flag)) return true;
   if (readEnvValue('GDRIVE_SILENT') === '1') return true;
@@ -379,7 +468,9 @@ function isGdriveSyncDisabled() {
 }
 
 const GDRIVE_SYNC_DISABLED = isGdriveSyncDisabled();
-if (GDRIVE_SYNC_DISABLED) {
+if (REMOTE_DB_MODE) {
+  log('[Drive] Sync do Google Drive ignorado — a BD ativa e a PostgreSQL partilhada com o Vercel.');
+} else if (GDRIVE_SYNC_DISABLED) {
   log('[Drive] Sync com o Google Drive DESACTIVADO (OREY_GDRIVE_SYNC=0). A trabalhar apenas em local.');
 }
 
@@ -545,10 +636,50 @@ if (!process.env.XDG_DATA_HOME) {
 process.env.NODE_ENV = 'production';
 
 // =============================================
-// DATABASE_URL - CAMINHO ABSOLUTO
+// DATABASE_URL - PostgreSQL remota ou ficheiro SQLite local
 // =============================================
-process.env.DATABASE_URL = 'file:' + DB.dbPath.replace(/\\/g, '/');
-log(`DATABASE_URL: ${process.env.DATABASE_URL}`);
+// Probe TCP simples: falhar aqui significa DNS/rede/bloqueio de firewall, e
+// ajuda a distinguir "sem Internet" de "password errada" nos diagnosticos.
+function checkRemoteDatabaseReachability(url) {
+  let host = null;
+  let port = 5432;
+  try {
+    const parsed = new URL(url);
+    host = parsed.hostname;
+    if (parsed.port) port = parseInt(parsed.port, 10);
+  } catch (e) {
+    return;
+  }
+  if (!host) return;
+  const socket = new net.Socket();
+  let settled = false;
+  const done = (ok, message) => {
+    if (settled) return;
+    settled = true;
+    try { socket.destroy(); } catch (e) {}
+    if (ok) log(`[DB] Servidor PostgreSQL alcancavel em ${host}:${port}.`);
+    else log(`[DB] Nao foi possivel ligar a ${host}:${port} — ${message}`, 'ERRO');
+  };
+  socket.setTimeout(5000);
+  socket.once('connect', () => done(true));
+  socket.once('timeout', () => done(false, 'tempo esgotado'));
+  socket.once('error', (err) => done(false, err.message));
+  try {
+    socket.connect(port, host);
+  } catch (e) {
+    done(false, e.message);
+  }
+}
+
+if (REMOTE_DB_MODE) {
+  process.env.DATABASE_URL = REMOTE_DB.url;
+  if (!process.env.SUPABASE_DATABASE_URL) process.env.SUPABASE_DATABASE_URL = REMOTE_DB.url;
+  log(`DATABASE_URL: ${maskConnectionString(REMOTE_DB.url)} (via ${REMOTE_DB.source})`);
+  checkRemoteDatabaseReachability(REMOTE_DB.url);
+} else {
+  process.env.DATABASE_URL = 'file:' + DB.dbPath.replace(/\\/g, '/');
+  log(`DATABASE_URL: ${process.env.DATABASE_URL}`);
+}
 log('Prisma engine: OK');
 
 // =============================================
@@ -627,7 +758,12 @@ try { fs.writeFileSync(path.join(LOG_DIR, 'server.port'), String(PORT)); } catch
 if (CHECK_MODE) {
   console.log('');
   console.log('== RESUMO DE VERIFICACAO ==');
-  console.log('Base de dados     :', DB.dbPath);
+  console.log('Modo BD            :', REMOTE_DB_MODE ? 'PostgreSQL remota (Supabase/Vercel)' : 'SQLite local (offline)');
+  if (REMOTE_DB_MODE) {
+    console.log('Origem da ligacao  :', REMOTE_DB.source);
+    console.log('Servidor BD        :', maskConnectionString(REMOTE_DB.url));
+  }
+  console.log('Base de dados     :', DB.dbPath || '(n/a — BD remota)');
   console.log('Fallback utilizar :', DB.usedFallback);
   console.log('Modo portatil     :', PORTABLE_MODE ? 'SIM (BD local + sync pen)' : 'NAO');
   console.log('Diretoria backups :', BACKUPS_DIR);
@@ -635,10 +771,16 @@ if (CHECK_MODE) {
   console.log('Porta             :', PORT);
   console.log('DB dir gravavel   :', isWritable(DB.dir));
   console.log('App dir gravavel  :', isWritable(APP_DIR));
-  console.log('local.db existe   :', fs.existsSync(DB.dbPath));
+  console.log('local.db existe   :', DB.dbPath ? fs.existsSync(DB.dbPath) : 'n/a');
   console.log('node_modules      :', fs.existsSync(path.join(APP_DIR, 'node_modules')));
   console.log('server.js (raiz)  :', fs.existsSync(path.join(APP_DIR, 'server.js')));
   console.log('standalone server :', fs.existsSync(path.join(APP_DIR, '.next', 'standalone', 'server.js')));
+  console.log('Prisma engine     :', (() => {
+    const dir = path.join(APP_DIR, 'node_modules', '.prisma', 'client');
+    try {
+      return fs.readdirSync(dir).filter((f) => f.startsWith('query_engine') && f.endsWith('.node')).join(', ') || 'nao encontrado';
+    } catch (e) { return 'nao encontrado'; }
+  })());
   console.log('bin\\node.exe      :', fs.existsSync(path.join(APP_DIR, 'bin', 'node.exe')));
   console.log('Node.js sistema   :', (() => { try { return require('child_process').execSync('node --version', { encoding: 'utf8' }).trim(); } catch(e) { return 'nao encontrado'; } })());
   try {

@@ -1,6 +1,8 @@
 "use client";
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { Html5Qrcode } from "html5-qrcode";
+// Import apenas de tipo: a lib (com ZXing) pesa ~280 KB e só é precisa quando o
+// utilizador abre a câmara. Carregá-la aqui forçava o download em todas as páginas.
+import type { Html5Qrcode } from "html5-qrcode";
 import { X, Camera, ScanLine, Bluetooth, Clock } from "lucide-react";
 
 const HISTORY_KEY = "orey-scan-history";
@@ -79,13 +81,14 @@ export default function BarcodeScanner({ onScan, onClose, placeholder = "Ex: D50
   }, [lastKey, mode]);
 
   // ── Camera scanner mode ──
-  const startCamera = useCallback(() => {
+  const startCamera = useCallback(async () => {
     const id = "barcode-camera-" + Math.random().toString(36).slice(2);
     if (containerRef.current) containerRef.current.id = id;
 
+    const { Html5Qrcode } = await import("html5-qrcode");
     const scanner = new Html5Qrcode(id);
     scannerRef.current = scanner;
-    scanner
+    await scanner
       .start(
         { facingMode: "environment" },
         { fps: 10, qrbox: { width: 250, height: 150 } },

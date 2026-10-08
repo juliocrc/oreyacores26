@@ -3,8 +3,19 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { APP_CONFIG } from "@/lib/app-config";
-import type { TecnicosPayload, AusenciasPayload, AusenciaItem, CertificacaoItem } from "@/types/tecnicos-page";
+import type { TecnicosPayload, AusenciasPayload, AusenciaItem, CertificacaoItem, TecnicoRow } from "@/types/tecnicos-page";
 import { toDateInput, emptyPayload } from "@/lib/tecnicos-page-helpers";
+import { TecnicoFormModal } from "@/components/tecnicos/TecnicoFormModal";
+import { TecnicoTabela } from "@/components/tecnicos/TecnicoTabela";
+import type { TecnicoFormState } from "@/components/tecnicos/TecnicoFormModal";
+
+const EMPTY_TECNICO_FORM: TecnicoFormState = {
+  nome: "",
+  email: "",
+  serviceStationId: "",
+  ativo: true,
+  observacoes: "",
+};
 
 type ProductividadeRow = {
   id: number;
@@ -50,6 +61,124 @@ export default function TecnicosPage() {
   const [productivityData, setProductivityData] = useState<ProductividadeRow[]>([]);
   const [prodLoading, setProdLoading] = useState(false);
   const [prodError, setProdError] = useState("");
+
+  const [showTecnicoModal, setShowTecnicoModal] = useState(false);
+  const [tecnicoForm, setTecnicoForm] = useState<TecnicoFormState>(EMPTY_TECNICO_FORM);
+  const [editingTecnicoId, setEditingTecnicoId] = useState<number | null>(null);
+  const [savingTecnico, setSavingTecnico] = useState(false);
+  const [tecnicoErro, setTecnicoErro] = useState("");
+
+  const podeGerirTecnicos = payload.canViewAllStations;
+
+  const estacoesParaAtribuir = useMemo(
+    () =>
+      payload.stations.map((station) => ({
+        id: station.id,
+        nome: station.nome,
+        codigo: station.codigo,
+      })),
+    [payload.stations],
+  );
+
+  function openNovoTecnico() {
+    setTecnicoForm({ ...EMPTY_TECNICO_FORM });
+    setEditingTecnicoId(null);
+    setTecnicoErro("");
+    setShowTecnicoModal(true);
+  }
+
+  function openEditarTecnico(tecnico: TecnicoRow) {
+    setTecnicoForm({
+      nome: tecnico.nome,
+      email: tecnico.email || "",
+      serviceStationId: tecnico.serviceStationId ? String(tecnico.serviceStationId) : "",
+      ativo: tecnico.ativo,
+      observacoes: tecnico.observacoes || "",
+    });
+    setEditingTecnicoId(tecnico.id);
+    setTecnicoErro("");
+    setShowTecnicoModal(true);
+  }
+
+  async function submitTecnico(event: React.FormEvent) {
+    event.preventDefault();
+    if (!tecnicoForm.nome.trim()) {
+      setTecnicoErro("Nome é obrigatório.");
+      return;
+    }
+
+    setSavingTecnico(true);
+    setTecnicoErro("");
+    try {
+      const url = editingTecnicoId ? `/api/tecnicos?id=${editingTecnicoId}` : "/api/tecnicos";
+      const res = await fetch(url, {
+        method: editingTecnicoId ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nome: tecnicoForm.nome,
+          email: tecnicoForm.email,
+          serviceStationId: tecnicoForm.serviceStationId || null,
+          ativo: tecnicoForm.ativo,
+          observacoes: tecnicoForm.observacoes,
+        }),
+      });
+
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (!res.ok) {
+        throw new Error(data?.error || "Erro ao gravar técnico.");
+      }
+
+      setShowTecnicoModal(false);
+      setTecnicoForm(EMPTY_TECNICO_FORM);
+      setEditingTecnicoId(null);
+      await loadTecnicos();
+    } catch (err) {
+      setTecnicoErro(err instanceof Error ? err.message : "Erro ao gravar técnico.");
+    } finally {
+      setSavingTecnico(false);
+    }
+  }
+
+  async function alternarAtivo(tecnico: TecnicoRow) {
+    const alvo = !tecnico.ativo;
+    try {
+      // Envia apenas `ativo`: o PUT é parcial, por isso os restantes campos
+      // (nome, email, estação, observações) ficam intactos.
+      const res = await fetch(`/api/tecnicos?id=${tecnico.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ativo: alvo }),
+      });
+
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (!res.ok) {
+        throw new Error(data?.error || "Erro ao alterar o estado do técnico.");
+      }
+
+      await loadTecnicos();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao alterar o estado do técnico.");
+    }
+  }
+
+  async function eliminarTecnico(tecnico: TecnicoRow) {
+    const confirmar = confirm(
+      `Eliminar ${tecnico.nome}? Isto só é possível se não tiver histórico associado.`,
+    );
+    if (!confirmar) return;
+
+    try {
+      const res = await fetch(`/api/tecnicos?id=${tecnico.id}`, { method: "DELETE" });
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (!res.ok) {
+        throw new Error(data?.error || "Erro ao eliminar técnico.");
+      }
+
+      await loadTecnicos();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao eliminar técnico.");
+    }
+  }
 
   const loadProductivity = useCallback(async () => {
     setProdLoading(true);
@@ -252,7 +381,7 @@ export default function TecnicosPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 py-8">
-      <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 sm:px-6 lg:px-8">
+      <div className="ds-page flex flex-col gap-6">
         <div className="app-hero-panel flex flex-col gap-4 rounded-2xl p-6 text-white">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
@@ -309,13 +438,24 @@ export default function TecnicosPage() {
               <h2 className="text-lg font-semibold text-slate-900">Diretório de técnicos</h2>
               <p className="text-sm text-slate-500">Pesquisa por nome ou email e consulta o agrupamento por estação.</p>
             </div>
-            <button
-              type="button"
-              onClick={() => void loadTecnicos()}
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              Atualizar lista
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              {podeGerirTecnicos ? (
+                <button
+                  type="button"
+                  onClick={openNovoTecnico}
+                  className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500"
+                >
+                  Novo técnico
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => void loadTecnicos()}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Atualizar lista
+              </button>
+            </div>
           </div>
 
           <div className="grid gap-3 md:grid-cols-[2fr,auto]">
@@ -363,47 +503,14 @@ export default function TecnicosPage() {
                     <div className="text-sm font-semibold text-slate-700">{station.totalTecnicos} técnico(s)</div>
                   </div>
 
-                  <div className="overflow-x-auto bg-white">
-                    <table className="min-w-full divide-y divide-slate-200 text-sm">
-                      <thead>
-                        <tr className="bg-slate-100 text-left text-slate-600">
-                          <th className="px-3 py-2 font-semibold">Nome</th>
-                          <th className="px-3 py-2 font-semibold">Email</th>
-                          <th className="px-3 py-2 font-semibold">Estado</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {station.tecnicos.length === 0 ? (
-                          <tr>
-                            <td colSpan={3} className="px-3 py-6 text-center text-sm text-slate-500">
-                              Sem técnicos registados nesta estação.
-                            </td>
-                          </tr>
-                        ) : (
-                          station.tecnicos.map((tecnico) => (
-                            <tr key={tecnico.id}>
-                              <td className="px-3 py-3 font-medium text-slate-900">
-                                <button
-                                  type="button"
-onClick={() => openTecnicoModal(tecnico.nome, tecnico.id)}
-                                  className="rounded px-1 py-0.5 text-left text-blue-700 transition hover:bg-blue-50 hover:underline"
-                                  title="Gerir ausências/férias"
-                                >
-                                  {tecnico.nome}
-                                </button>
-                              </td>
-                              <td className="px-3 py-3 text-slate-600">{tecnico.email || "—"}</td>
-                              <td className="px-3 py-3">
-                                <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${tecnico.ativo ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-700"}`}>
-                                  {tecnico.ativo ? "Ativo" : "Inativo"}
-                                </span>
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                  <TecnicoTabela
+                    tecnicos={station.tecnicos}
+                    vazioTexto="Sem técnicos registados nesta estação."
+                    onOpenAusencias={(nome, id) => openTecnicoModal(nome, id)}
+                    onEdit={podeGerirTecnicos ? openEditarTecnico : undefined}
+                    onToggleAtivo={podeGerirTecnicos ? alternarAtivo : undefined}
+                    onDelete={podeGerirTecnicos ? eliminarTecnico : undefined}
+                  />
                 </div>
               ))}
 
@@ -418,39 +525,14 @@ onClick={() => openTecnicoModal(tecnico.nome, tecnico.id)}
                       <div className="text-sm font-semibold text-slate-700">{payload.unassigned.length} técnico(s)</div>
                     </div>
                   </div>
-                  <div className="overflow-x-auto bg-white">
-                    <table className="min-w-full divide-y divide-slate-200 text-sm">
-                      <thead>
-                        <tr className="bg-slate-100 text-left text-slate-600">
-                          <th className="px-3 py-2 font-semibold">Nome</th>
-                          <th className="px-3 py-2 font-semibold">Email</th>
-                          <th className="px-3 py-2 font-semibold">Estado</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {payload.unassigned.map((tecnico) => (
-                          <tr key={tecnico.id}>
-                            <td className="px-3 py-3 font-medium text-slate-900">
-                              <button
-                                type="button"
-                                onClick={() => openTecnicoModal(tecnico.nome, tecnico.id)}
-                                className="rounded px-1 py-0.5 text-left text-blue-700 transition hover:bg-blue-50 hover:underline"
-                                title="Gerir ausências/férias"
-                              >
-                                {tecnico.nome}
-                              </button>
-                            </td>
-                            <td className="px-3 py-3 text-slate-600">{tecnico.email || "—"}</td>
-                            <td className="px-3 py-3">
-                              <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${tecnico.ativo ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-700"}`}>
-                                {tecnico.ativo ? "Ativo" : "Inativo"}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <TecnicoTabela
+                    tecnicos={payload.unassigned}
+                    vazioTexto="Sem técnicos sem estação."
+                    onOpenAusencias={(nome, id) => openTecnicoModal(nome, id)}
+                    onEdit={podeGerirTecnicos ? openEditarTecnico : undefined}
+                    onToggleAtivo={podeGerirTecnicos ? alternarAtivo : undefined}
+                    onDelete={podeGerirTecnicos ? eliminarTecnico : undefined}
+                  />
                 </div>
               ) : null}
             </div>
@@ -725,6 +807,23 @@ onClick={() => openTecnicoModal(tecnico.nome, tecnico.id)}
             </div>
           </div>
         </div>
+      ) : null}
+
+      {showTecnicoModal ? (
+        <TecnicoFormModal
+          editId={editingTecnicoId}
+          form={tecnicoForm}
+          estacoes={estacoesParaAtribuir}
+          saving={savingTecnico}
+          erro={tecnicoErro}
+          onChange={setTecnicoForm}
+          onSubmit={submitTecnico}
+          onClose={() => {
+            setShowTecnicoModal(false);
+            setEditingTecnicoId(null);
+            setTecnicoErro("");
+          }}
+        />
       ) : null}
     </div>
   );

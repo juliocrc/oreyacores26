@@ -204,11 +204,9 @@ export default function Step4_PackMascara() {
       const initialPackItems: any = {};
       mandatoryItems.forEach(item => {
         const matched = findMatchingArticleForPackItem(item, (inspectionData.artigos || []) as any[]) as any;
-        let validityFromRaft = matched ? toMonthYearFormat(matched.validade) : '';
-        if (!validityFromRaft) {
-          const candidate = getStockCandidatesForLabel(inspectionData.globalStock, item.label, item.stockReferences)[0];
-          validityFromRaft = candidate?.validade ? toMonthYearFormat(candidate.validade) : '';
-        }
+        // Validade vem apenas dos artigos da jangada. Sem validade registada,
+        // o campo fica em branco (nunca se herda a validade do stock).
+        const validityFromRaft = matched ? toMonthYearFormat(matched.validade) : '';
         initialPackItems[item.checklistName] = {
           checklistName: item.checklistName,
           name: item.label,

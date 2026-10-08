@@ -63,7 +63,7 @@ export default function EpirbsPage() {
 
   useEffect(() => {
     fetchEpirbs();
-    fetch("/api/navios")
+    fetch("/api/navios?lite=1")
       .then(res => res.json())
       .then(data => setNavios(data))
       .catch(err => console.error(err));

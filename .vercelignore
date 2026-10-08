@@ -6,3 +6,14 @@ node_modules/
 tmp_isp_pdf/
 tmp_colete_docx_inspect/
 Maritime_Vessel_Tracking-main/
+# Bases SQLite locais: em producao a app usa PostgreSQL (Supabase). Sem isto o
+# deploy carregava ~54 MB de backups e uma copia da base de dados.
+backups/
+prisma/local.db*
+supabase/.temp/
+.agents/
+# Env local (ligado à estação offline/localhost:3003) NUNCA vai para produção:
+.env
+.env.*
+.env.local*
+*.env

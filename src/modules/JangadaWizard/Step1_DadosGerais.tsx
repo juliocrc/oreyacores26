@@ -2,10 +2,10 @@
 import React, { useEffect, useMemo } from 'react';
 import { useJangadaWizardStore } from './store/useJangadaWizardStore';
 import { PACK_TEMPLATES } from '@/config/packTemplates';
-import { getInspectionIntervalYears, getInspectionIntervalLabel } from '../rafts/inspectionInterval';
+import { getInspectionIntervalYears } from '../rafts/inspectionInterval';
 import { LIFERAFT_REFERENCE_CATALOG } from '@/data/liferaftReference';
 import { normalizeModelMatchKey } from '@/lib/jangadas-page-helpers';
-import { parseMonthYearValue, toMonthYearString, toMonthInput, maskMonthYearInput } from '@/lib/date-utils';
+import { toMonthYearString, toMonthInput } from '@/lib/date-utils';
 import { getStepNumberByKey } from './steps';
 
 const SOS_BRANDS = ['SOS', 'SURVITEC', 'VIKING', 'LALIZAS', 'ZODIAC', 'PLASTIMO', 'EUROVINIL'];
@@ -21,40 +21,26 @@ const PACK_OPTIONS = [
   ...Object.keys(PACK_TEMPLATES).map(pack => ({ value: pack, label: pack })),
 ];
 
-const checkValidityWarning = (validadeStr: string, dataProxInspecao: string, dataInspecao: string, brand: string, shipDetails: any) => {
-  if (!validadeStr) return null;
-
-  let refDateStr = dataProxInspecao;
-  if (!refDateStr && dataInspecao) {
-    const years = getInspectionIntervalYears(brand, '', shipDetails);
-    const parts = dataInspecao.split('-');
-    if (parts[0] && parts[0].length === 4) {
-      const year = parseInt(parts[0]) + years;
-      const month = parts[1] || '01';
-      const day = parts[2] || '01';
-      refDateStr = `${year}-${month}-${day}`;
-    }
-  }
-
-  if (!refDateStr) return null;
-
-  const vParsed = parseMonthYearValue(validadeStr);
-  const valDate = vParsed ? new Date(vParsed.year, vParsed.month - 1, 1) : new Date(NaN);
-
-  const pParsed = parseMonthYearValue(refDateStr);
-  const proxDate = pParsed ? new Date(pParsed.year, pParsed.month - 1, 1) : new Date(NaN);
-
-  if (isNaN(valDate.getTime()) || isNaN(proxDate.getTime())) return null;
-
-  if (valDate < proxDate) {
-    return 'warning';
-  }
-  return 'ok';
-};
-
 export default function Step1_DadosGerais() {
   const { inspectionData, setInspectionData, inspecoes, hideOrcamento } = useJangadaWizardStore();
   const stepNo = getStepNumberByKey(inspectionData, 'dados', { hideOrcamento });
+
+  const [localSerial, setLocalSerial] = React.useState(inspectionData.serial || '');
+
+  React.useEffect(() => {
+    if (inspectionData.serial !== localSerial && inspectionData.serial !== undefined) {
+      setLocalSerial(inspectionData.serial || '');
+    }
+  }, [inspectionData.serial]);
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      if (localSerial !== (inspectionData.serial || '')) {
+        setInspectionData({ serial: localSerial });
+      }
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [localSerial, inspectionData.serial, setInspectionData]);
 
   const lastConcluded = useMemo(() => {
     return (inspecoes || [])
@@ -89,14 +75,6 @@ export default function Step1_DadosGerais() {
       setInspectionData({ packType: 'Sem pack' });
     }
   }, [inspectionData.brand, inspectionData.model, inspectionData.packType, setInspectionData]);
-
-  const hruWarning = checkValidityWarning(
-    inspectionData.hruValidade, 
-    inspectionData.dataProxInspecao, 
-    inspectionData.dataInspecao, 
-    inspectionData.brand, 
-    inspectionData.shipDetails
-  ) === 'warning';
 
   const catalogMatch = useMemo(() => {
     const bKey = normalizeModelMatchKey(inspectionData.brand);
@@ -206,8 +184,8 @@ export default function Step1_DadosGerais() {
             type="text" 
             className="w-full border-slate-200 rounded-xl px-4 py-3 bg-slate-50 focus:bg-white transition-colors"
             placeholder="Ex: XDC1234"
-            value={inspectionData.serial || ''}
-            onChange={(e) => handleChange('serial', e.target.value)}
+            value={localSerial}
+            onChange={(e) => setLocalSerial(e.target.value)}
           />
         </div>
 
@@ -466,55 +444,6 @@ export default function Step1_DadosGerais() {
               }}
             />
           </div>
-
-          <div className="space-y-2">
-            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">HRU Instalado</label>
-            <select 
-              className="w-full border-slate-200 rounded-xl px-4 py-3 bg-slate-50 focus:bg-white transition-colors"
-              value={inspectionData.hruAplicavel || 'NAO'}
-              onChange={(e) => handleChange('hruAplicavel', e.target.value)}
-            >
-              <option value="NAO">Não</option>
-              <option value="SIM">Sim</option>
-            </select>
-          </div>
-
-          {inspectionData.hruAplicavel === 'SIM' && (
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">N.º de Série do HRU</label>
-              <input
-                type="text"
-                placeholder="N.º de série do HRU"
-                className="w-full rounded-xl px-4 py-3 bg-white transition-colors border border-slate-200"
-                value={inspectionData.hruSerial || ''}
-                onChange={(e) => handleChange('hruSerial', e.target.value)}
-              />
-            </div>
-          )}
-
-          {inspectionData.hruAplicavel === 'SIM' && (
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Validade do HRU</label>
-              <input 
-                type="text" 
-                inputMode="numeric"
-                placeholder="MM/AAAA"
-                maxLength={7}
-                className={`w-full rounded-xl px-4 py-3 bg-amber-50 focus:bg-white transition-colors border ${
-                  hruWarning 
-                    ? 'border-amber-300 ring-2 ring-amber-100 bg-amber-50 focus:ring-amber-200' 
-                    : 'border-slate-200'
-                }`}
-                value={toMonthYearString(inspectionData.hruValidade)}
-                onChange={(e) => handleChange('hruValidade', maskMonthYearInput(e.target.value))}
-              />
-              {hruWarning && (
-                <p className="text-[10px] text-amber-700 font-semibold mt-1">
-                  ⚠️ Sugere-se substituir (val. inferior a {getInspectionIntervalLabel(inspectionData.brand, inspectionData.model, inspectionData.shipDetails)})
-                </p>
-              )}
-            </div>
-          )}
         </div>
       </div>
     </div>

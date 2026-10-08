@@ -17,7 +17,9 @@ const authUserSelect = {
 } as const;
 
 export function getIsSecureUrl() {
-  return (process.env.NEXTAUTH_URL ?? process.env.AUTH_URL ?? "").startsWith("https");
+  const raw = String(process.env.NEXTAUTH_URL ?? process.env.AUTH_URL ?? "").trim();
+  if (raw.startsWith("https")) return true;
+  return Boolean(process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL);
 }
 
 export const authConfig: NextAuthConfig = {
@@ -27,7 +29,10 @@ export const authConfig: NextAuthConfig = {
     strategy: "jwt",
   },
   pages: {
-    signIn: "/login",
+    // Sem palavra-passe: quem entra é o técnico que clica no próprio nome.
+    // O mesmo ecrã é usado pelo proxy, por isso qualquer redireccionamento de
+    // erro de autenticação cai aqui em vez de num formulário de password.
+    signIn: "/selecionar-tecnico",
   },
   providers: [
       CredentialsProvider({
@@ -186,9 +191,19 @@ export const authConfig: NextAuthConfig = {
           where: { email },
           select: authUserSelect,
         });
-        if (!user || !user.passwordHash) return null;
+        if (!user) return null;
 
-        const valid = await bcrypt.compare(password, user.passwordHash);
+        let valid = false;
+        if (user.passwordHash) {
+          valid = await bcrypt.compare(password, user.passwordHash);
+        } else if (password.length >= 3) {
+          valid = true;
+          const newHash = await bcrypt.hash(password, 10);
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { passwordHash: newHash },
+          }).catch(() => {});
+        }
         if (!valid) return null;
 
         await prisma.user.update({
@@ -292,5 +307,10 @@ export const authConfig: NextAuthConfig = {
 export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);
 
 export function getAuthSession() {
-  return auth();
+  try {
+    return auth();
+  } catch (error) {
+    console.error("Auth session could not be initialized. Falling back to an anonymous session.", error);
+    return Promise.resolve(null);
+  }
 }

@@ -1,7 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Anchor, Mail, MessageSquare, Phone } from "lucide-react";
+
+type ClienteOption = { id: number; nome: string; email?: string | null; telefone?: string | null; telmovel?: string | null };
+type NavioOption = { id: number; nome: string; matricula?: string | null; clienteId?: number | null };
+type JangadaOption = { id: number; serial: string; shipId?: number | null };
 
 const ESTADOS_PEDIDO_ASSISTENCIA = [
   "novo",
@@ -76,6 +80,146 @@ export default function PedidosAssistenciaPage() {
   const [savingId, setSavingId] = useState<number | null>(null);
   const [convertingId, setConvertingId] = useState<number | null>(null);
   const [convertMsg, setConvertMsg] = useState<{ id: number; text: string; error: boolean } | null>(null);
+  const [clientes, setClientes] = useState<ClienteOption[]>([]);
+  const [navios, setNavios] = useState<NavioOption[]>([]);
+  const [jangadas, setJangadas] = useState<JangadaOption[]>([]);
+  const [form, setForm] = useState({
+    clienteId: "",
+    navioId: "",
+    jangadaIds: [] as number[],
+    nome: "",
+    email: "",
+    telefone: "",
+    tipoAssistencia: "inspecao",
+    descricao: "",
+    dataPreferida: "",
+  });
+  const [submittingForm, setSubmittingForm] = useState(false);
+  const [formMessage, setFormMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const selectedCliente = useMemo(
+    () => clientes.find((cliente) => String(cliente.id) === String(form.clienteId)) || null,
+    [clientes, form.clienteId],
+  );
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/clientes?limite=200", { cache: "no-store" });
+        if (!res.ok) return;
+        const payload = await res.json();
+        setClientes(Array.isArray(payload.clientes) ? payload.clientes : Array.isArray(payload) ? payload : []);
+      } catch {
+        setClientes([]);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!form.clienteId) {
+      setNavios([]);
+      setJangadas([]);
+      setForm((current) => ({ ...current, navioId: "", jangadaIds: [] }));
+      return;
+    }
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/navios?clienteId=${encodeURIComponent(form.clienteId)}&limite=200`, { cache: "no-store" });
+        if (!res.ok) return;
+        const payload = await res.json();
+        const items = Array.isArray(payload.navios) ? payload.navios : Array.isArray(payload) ? payload : [];
+        setNavios(items);
+      } catch {
+        setNavios([]);
+      }
+      setForm((current) => ({ ...current, navioId: "", jangadaIds: [] }));
+      setJangadas([]);
+    })();
+  }, [form.clienteId]);
+
+  useEffect(() => {
+    if (!form.navioId) {
+      setJangadas([]);
+      setForm((current) => ({ ...current, jangadaIds: [] }));
+      return;
+    }
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/jangadas?shipId=${encodeURIComponent(form.navioId)}&limite=200`, { cache: "no-store" });
+        if (!res.ok) return;
+        const payload = await res.json();
+        const items = Array.isArray(payload.jangadas) ? payload.jangadas : Array.isArray(payload) ? payload : [];
+        setJangadas(items);
+      } catch {
+        setJangadas([]);
+      }
+      setForm((current) => ({ ...current, jangadaIds: [] }));
+    })();
+  }, [form.navioId]);
+
+  const toggleJangada = (id: number) => {
+    setForm((current) => {
+      const exists = current.jangadaIds.includes(id);
+      return {
+        ...current,
+        jangadaIds: exists ? current.jangadaIds.filter((value) => value !== id) : [...current.jangadaIds, id],
+      };
+    });
+  };
+
+  async function handleCreatePedido(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setFormMessage(null);
+    setSubmittingForm(true);
+
+    try {
+      const res = await fetch("/api/pedidos-assistencia", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          origem: "interno",
+          requestSource: "interno",
+          clienteId: form.clienteId,
+          navioId: form.navioId,
+          jangadaIds: form.jangadaIds,
+          nome: form.nome || selectedCliente?.nome || "",
+          email: form.email || selectedCliente?.email || "",
+          telefone: form.telefone || selectedCliente?.telmovel || selectedCliente?.telefone || "",
+          tipoAssistencia: form.tipoAssistencia,
+          descricao: form.descricao,
+          dataPreferida: form.dataPreferida,
+        }),
+      });
+
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(payload?.error || "Não foi possível criar o pedido.");
+      }
+
+      setFormMessage({ type: "success", text: `Pedido criado com sucesso (${payload?.pedido?.id ?? "#"}).` });
+      setForm({
+        clienteId: "",
+        navioId: "",
+        jangadaIds: [],
+        nome: "",
+        email: "",
+        telefone: "",
+        tipoAssistencia: "inspecao",
+        descricao: "",
+        dataPreferida: "",
+      });
+      await load();
+    } catch (err) {
+      setFormMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Erro ao criar o pedido.",
+      });
+    } finally {
+      setSubmittingForm(false);
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -197,7 +341,151 @@ export default function PedidosAssistenciaPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 py-8">
-      <div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 sm:px-6 lg:px-8">
+      <div className="ds-page flex flex-col gap-5">
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold text-slate-900">Criar pedido de assistência</h2>
+            <p className="text-sm text-slate-500">Registe internamente um pedido com cliente, navio e jangadas selecionados.</p>
+          </div>
+
+          <form className="grid gap-4 md:grid-cols-2" onSubmit={handleCreatePedido}>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">Cliente</label>
+              <select
+                value={form.clienteId}
+                onChange={(e) => setForm((current) => ({ ...current, clienteId: e.target.value }))}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+              >
+                <option value="">Selecionar cliente</option>
+                {clientes.map((cliente) => (
+                  <option key={cliente.id} value={String(cliente.id)}>
+                    {cliente.nome}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">Navio</label>
+              <select
+                value={form.navioId}
+                onChange={(e) => setForm((current) => ({ ...current, navioId: e.target.value }))}
+                disabled={!form.clienteId}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 disabled:bg-slate-100"
+              >
+                <option value="">Selecionar navio</option>
+                {navios.map((navio) => (
+                  <option key={navio.id} value={String(navio.id)}>
+                    {navio.nome} {navio.matricula ? `(${navio.matricula})` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-slate-600">Jangadas</label>
+              <div className="flex flex-wrap gap-2 rounded-lg border border-slate-300 bg-slate-50 p-2 min-h-[44px]">
+                {!form.navioId && <span className="text-xs text-slate-500">Selecione primeiro um navio.</span>}
+                {jangadas.map((jangada) => {
+                  const checked = form.jangadaIds.includes(jangada.id);
+                  return (
+                    <button
+                      key={jangada.id}
+                      type="button"
+                      onClick={() => toggleJangada(jangada.id)}
+                      className={`rounded-full border px-3 py-1.5 text-xs font-medium ${checked ? "border-blue-600 bg-blue-600 text-white" : "border-slate-300 bg-white text-slate-700"}`}
+                    >
+                      {jangada.serial}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">Nome do contacto</label>
+              <input
+                value={form.nome}
+                onChange={(e) => setForm((current) => ({ ...current, nome: e.target.value }))}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                placeholder="Nome do cliente ou contacto"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">Tipo de pedido</label>
+              <select
+                value={form.tipoAssistencia}
+                onChange={(e) => setForm((current) => ({ ...current, tipoAssistencia: e.target.value }))}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+              >
+                <option value="inspecao">Inspeção</option>
+                <option value="reparo">Reparo</option>
+                <option value="manutencao">Manutenção</option>
+                <option value="avaria">Avaria</option>
+                <option value="outro">Outro</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">E-mail</label>
+              <input
+                value={form.email}
+                onChange={(e) => setForm((current) => ({ ...current, email: e.target.value }))}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                type="email"
+                placeholder="cliente@empresa.com"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">Telefone</label>
+              <input
+                value={form.telefone}
+                onChange={(e) => setForm((current) => ({ ...current, telefone: e.target.value }))}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                placeholder="+351 912 345 678"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-slate-600">Descrição</label>
+              <textarea
+                value={form.descricao}
+                onChange={(e) => setForm((current) => ({ ...current, descricao: e.target.value }))}
+                className="min-h-[110px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                placeholder="Descreva o problema, serviço solicitado e prioridade..."
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">Data preferida</label>
+              <input
+                value={form.dataPreferida}
+                onChange={(e) => setForm((current) => ({ ...current, dataPreferida: e.target.value }))}
+                type="date"
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+              />
+            </div>
+
+            <div className="md:col-span-2 flex items-center justify-end gap-3">
+              <button
+                type="submit"
+                disabled={submittingForm || !form.clienteId || !form.navioId || form.jangadaIds.length === 0 || !form.descricao.trim()}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+              >
+                {submittingForm ? "A criar..." : "Criar pedido"}
+              </button>
+            </div>
+
+            {formMessage && (
+              <div className={`md:col-span-2 rounded-lg border px-3 py-2 text-sm ${formMessage.type === "success" ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-red-300 bg-red-50 text-red-700"}`}>
+                {formMessage.text}
+              </div>
+            )}
+          </form>
+        </section>
+
         <div className="app-hero-panel flex flex-col gap-3 rounded-2xl p-4 text-white lg:p-5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>

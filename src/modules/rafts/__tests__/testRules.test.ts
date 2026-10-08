@@ -1,4 +1,4 @@
-import { getAutomaticRaftTests, getTestRecommendations } from '../testRules';
+﻿import { getAutomaticRaftTests, getTestRecommendations, getGiDateContext } from '../testRules';
 
 function atAgeYears(ageYears: number, launchType?: string) {
   const inspectionDate = '2025-06-01';
@@ -156,5 +156,52 @@ describe('getTestRecommendations', () => {
     expect(byId['testeGI'].status).toBe('required');
     expect(byId['testeFS'].status).toBe('optional');
     expect(byId['testeNAP'].status).toBe('optional');
+  });
+});
+
+describe('getGiDateContext - datas do ensaio GI (5 em 5 anos)', () => {
+  test('a data registada tem prioridade sobre a data de fabrico', () => {
+    const ctx = getGiDateContext({
+      dataFabrico: '2015-03-10',
+      dataUltimoGi: '2024-07-02',
+      referenceDate: '2026-06-01',
+    });
+    expect(ctx.origem).toBe('registada');
+    expect(ctx.ultimaGiDate).toBe('2024-07-02');
+    expect(ctx.proximaGiDate).toBe('2029-07-02');
+    expect(ctx.anosDesdeUltimaGi).toBe(1);
+  });
+
+  test('sem data registada, deriva do fabrico o ultimo multiplo de 5 anos', () => {
+    const ctx = getGiDateContext({
+      dataFabrico: '2015-03-10',
+      referenceDate: '2026-06-01',
+    });
+    expect(ctx.origem).toBe('fabrico');
+    expect(ctx.ultimaGiDate).toBe('2025-03-10');
+    expect(ctx.proximaGiDate).toBe('2030-03-10');
+    expect(ctx.anosDesdeUltimaGi).toBe(10);
+  });
+
+  test('nao Assume GI antes dos 5 anos de fabrico', () => {
+    const ctx = getGiDateContext({
+      dataFabrico: '2024-01-15',
+      referenceDate: '2026-06-01',
+    });
+    expect(ctx.origem).toBe('desconhecida');
+    expect(ctx.ultimaGiDate).toBeNull();
+    expect(ctx.proximaGiDate).toBeNull();
+  });
+
+  test('aceita datas em formato dd/mm/aaaa e devolve YYYY-MM-DD', () => {
+    const ctx = getGiDateContext({ dataUltimoGi: '02/10/2021', referenceDate: '2026-06-01' });
+    expect(ctx.ultimaGiDate).toBe('2021-10-02');
+    expect(ctx.proximaGiDate).toBe('2026-10-02');
+  });
+
+  test('sem fabrico nem data registada nao devolve datas', () => {
+    const ctx = getGiDateContext({ referenceDate: '2026-06-01' });
+    expect(ctx.origem).toBe('desconhecida');
+    expect(ctx.anosDesdeUltimaGi).toBeNull();
   });
 });

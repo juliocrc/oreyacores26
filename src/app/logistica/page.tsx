@@ -370,7 +370,7 @@ export default function LogisticaPage() {
             <span class="blank-line" style="min-width: 100px;">${island}</span> (local) a seguir discriminados:
           </div>
 
-          <table class="items-table">
+          <div className="overflow-x-auto"><table class="items-table">
             <thead>
               <tr>
                 <th style="width: 60%;">Designação / natureza dos bens</th>
@@ -388,7 +388,7 @@ export default function LogisticaPage() {
                 </tr>
               `).join("")}
             </tbody>
-          </table>
+          </table></div>
 
           <div class="destination">
             Destinam-se a <span class="blank-line">${destino}</span> (local de destino)
@@ -490,7 +490,7 @@ export default function LogisticaPage() {
             <span class="blank-line" style="min-width: 100px;">${sel[0]?.portoRegisto || sel[0]?.island || ""}</span> (local) a seguir discriminados:
           </div>
 
-          <table class="items-table">
+          <div className="overflow-x-auto"><table class="items-table">
             <thead>
               <tr>
                 <th style="width: 60%;">Designação / natureza dos bens</th>
@@ -508,7 +508,7 @@ export default function LogisticaPage() {
                 </tr>
               `).join("")}
             </tbody>
-          </table>
+          </table></div>
 
           <div class="destination">
             Destinam-se a <span class="blank-line">${destino}</span> (local de destino)

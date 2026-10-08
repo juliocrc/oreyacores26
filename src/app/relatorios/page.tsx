@@ -131,7 +131,7 @@ function RelatoriosContent() {
   }
 
   useEffect(() => {
-    Promise.all([fetch("/api/inspecao"), fetch("/api/jangadas"), fetch("/api/navios"), fetch("/api/stock?take=5000"), fetch("/api/ordens-servico?includeClosed=1")])
+    Promise.all([fetch("/api/inspecao"), fetch("/api/jangadas"), fetch("/api/navios?lite=1"), fetch("/api/stock?take=5000"), fetch("/api/ordens-servico?includeClosed=1")])
       .then(async ([inspectionsRes, raftsRes, naviosRes, stockRes, ordersRes]) => {
         const inspectionsPayload = inspectionsRes.ok ? await safeReadJson(inspectionsRes) : [];
         const raftsPayload = raftsRes.ok ? await safeReadJson(raftsRes) : [];
@@ -921,7 +921,9 @@ function RelatoriosContent() {
       return;
     }
 
-    if (toastSavedPathIfPresent(response, "Quadro")) return;
+    // A cópia no servidor é apenas informativa; prossegue-se sempre para
+    // gravar na pasta de documentos ou descarregar para o browser.
+    toastSavedPathIfPresent(response, "Quadro");
 
     const blob = await response.blob();
     const inspectionMonthYear = (() => {

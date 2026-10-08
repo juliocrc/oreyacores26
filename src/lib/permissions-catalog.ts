@@ -7,6 +7,7 @@ export type PermissionModuleKey =
   | "agenda"
   | "estacao-servico"
   | "oficina"
+  | "calibracoes"
   | "logistica"
   | "alertas"
   | "inspecoes"
@@ -37,7 +38,8 @@ export const PERMISSION_MODULE_OPTIONS: Array<{ key: PermissionModuleKey; label:
 
   { key: "agenda", label: "Agenda", href: "/agenda" },
   { key: "estacao-servico", label: "Estação de Serviço", href: "/estacao-servico" },
-  { key: "oficina", label: "Oficina & Calibração", href: "/oficina" },
+  { key: "oficina", label: "Oficina (Compressor)", href: "/oficina" },
+  { key: "calibracoes", label: "Calibrações", href: "/calibracoes" },
   { key: "logistica", label: "Logística", href: "/logistica" },
   { key: "alertas", label: "Alertas", href: "/alertas" },
 
@@ -68,7 +70,8 @@ export const PAGE_PREFIX_OPTIONS: Array<{ key: string; label: string; prefix: st
 
   { key: "agenda", label: "Agenda", prefix: "/agenda" },
   { key: "estacao-servico", label: "Estação de Serviço", prefix: "/estacao-servico" },
-  { key: "oficina", label: "Oficina & Calibração", prefix: "/oficina" },
+  { key: "oficina", label: "Oficina (Compressor)", prefix: "/oficina" },
+  { key: "calibracoes", label: "Calibrações", prefix: "/calibracoes" },
   { key: "logistica", label: "Logística", prefix: "/logistica" },
   { key: "alertas", label: "Alertas", prefix: "/alertas" },
 

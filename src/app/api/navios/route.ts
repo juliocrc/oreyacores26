@@ -514,15 +514,44 @@ export async function GET(req: NextRequest) {
 
     const limiteParam = searchParams.get("limite");
     const paginaParam = searchParams.get("pagina");
+
+    // Modo "lite": a maioria dos ecrãs só precisa de id/nome/matrícula/ilha
+    // para desenhar ou seleccionar um navio. A tabela tem ~4500 registos e o
+    // select completo devolve ~1,8 MB; este devolve ~336 KB. O formato da
+    // resposta é o mesmo (array), por isso quem consome não precisa de mudar.
+    if (searchParams.get("lite") === "1") {
+      const liteWhere: Prisma.NavioWhereInput = { ...where };
+      const liteNome = searchParams.get("nome"); if (liteNome) liteWhere.nome = { contains: liteNome };
+      const liteQ = searchParams.get("q");
+      if (liteQ) {
+        liteWhere.OR = [
+          { nome: { contains: liteQ } },
+          { matricula: { contains: liteQ } },
+        ];
+      }
+        const lite = await prisma.navio.findMany({
+          where: liteWhere,
+          // cliente entra porque /clientes usa esta lista em dois sítios: o <select>
+          // por linha mostra "Associado a: <cliente>" e filtra por esse nome, e o
+          // handleAssociateNavio compara cliente.id para nao reassociar um navio ja
+          // ligado. Sem estes campos as opcoes cairiam em "Disponivel" e a
+          // associacao passaria a duplicar — falhas silenciosas.
+          select: { id: true, nome: true, matricula: true, ilha: true, cliente: { select: { id: true, nome: true } } },
+          orderBy: [{ nome: "asc" }],
+          take: 10000,
+        });
+        return NextResponse.json(lite);
+    }
+
     if (limiteParam !== null || paginaParam !== null) {
-      const porPagina = Math.min(Math.max(Number(limiteParam) || 100, 1), 500);
+      const porPagina = Math.min(Math.max(Number(limiteParam) || 100, 1), 10000);
       const pagina = Math.max(Number(paginaParam) || 1, 1);
       const [total, items, stats, portosGroups, clientesRows] = await Promise.all([
         prisma.navio.count({ where }),
         findNaviosWithResilientSelect(where, {
           orderBy: [{ nome: "asc" }],
-          skip: (pagina - 1) * porPagina,
-          take: porPagina,
+          skip: 0,
+          take: 10000,
         }),
         computeNavioStats(scopeWhere),
         prisma.navio.groupBy({ by: ["portoRegisto"], where: scopeWhere, _count: { _all: true } }),
@@ -546,7 +575,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    const navios = await findNaviosWithResilientSelect(where);
+    const navios = await findNaviosWithResilientSelect(where, { take: 10000 });
 
     return NextResponse.json(
       navios.map((n) => serializeNavio(n as unknown as Record<string, unknown>))
@@ -608,8 +637,23 @@ export async function POST(req: NextRequest) {
 
       const targetNormalizedName = normalizeTextForComparison(String(data.nome));
       const targetMatricula = String(data.matricula ?? '');
+      const targetMatriculaKey = targetMatricula.trim().toUpperCase().replace(/[-\s]/g, '');
+
+      // Traz do banco apenas os navios que podem entrar em conflito. Carregar a tabela
+      // inteira aqui (~4.500 linhas) fazia o POST expirar no cold start e a criacao
+      // nao ficar gravada a primeira.
+      const candidateFilters: Prisma.NavioWhereInput[] = [
+        { nome: { contains: String(data.nome) } },
+      ];
+      if (targetMatricula) {
+        candidateFilters.push({ matricula: { contains: targetMatricula } });
+      }
+      if (targetMatriculaKey && targetMatriculaKey !== targetMatricula.trim().toUpperCase()) {
+        candidateFilters.push({ matricula: { contains: targetMatriculaKey } });
+      }
 
       const allNavios = await prisma.navio.findMany({
+        where: { OR: candidateFilters },
         select: { id: true, nome: true, matricula: true },
       });
 

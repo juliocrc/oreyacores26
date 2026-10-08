@@ -6,6 +6,7 @@ import { normalizeStockValidityValue, stockItemSupportsValidity } from "@/lib/st
 import { findConflictingValidityStock } from "@/lib/stock-utils";
 import { isFoodRationsLike, normalizeStockReferenceByRule } from "@/lib/stock-reference-rules";
 import { normalizeStockCategory } from "@/lib/stock-categories";
+import { normalizeStockUnit } from "@/lib/stock-unit";
 import { getAccessContext } from "@/lib/access-control";
 import { canEditPath, canViewPath } from "@/lib/user-permissions";
 import { resolveActiveServiceStationId } from "@/lib/station-selection";
@@ -106,6 +107,7 @@ function normalizePartialStockPayload(input: Record<string, unknown>, currentObs
   if (hasOwn(input, "estadoArtigo")) data.estadoArtigo = input?.estadoArtigo ? String(input.estadoArtigo) : "ATIVO";
   if (hasOwn(input, "referenciaSubstituta")) data.referenciaSubstituta = input?.referenciaSubstituta ? String(input.referenciaSubstituta) : null;
   if (hasOwn(input, "categoria")) data.categoria = categoriaNormalizada;
+  if (hasOwn(input, "unit")) data.unit = normalizeStockUnit(input?.unit);
   if (hasOwn(input, "associavelJangada")) data.associavelJangada = Boolean(input?.associavelJangada);
   if (hasOwn(input, "aplicavelMarcaJangada")) data.aplicavelMarcaJangada = input?.aplicavelMarcaJangada ? String(input.aplicavelMarcaJangada) : null;
   if (hasOwn(input, "aplicavelModeloJangada")) data.aplicavelModeloJangada = input?.aplicavelModeloJangada ? String(input.aplicavelModeloJangada) : null;
@@ -172,9 +174,10 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
         referencia: true,
         descricao: true,
         estadoArtigo: true,
-        referenciaSubstituta: true,
-        categoria: true,
-        associavelJangada: true,
+          referenciaSubstituta: true,
+          categoria: true,
+          unit: true,
+          associavelJangada: true,
         aplicavelMarcaJangada: true,
         aplicavelModeloJangada: true,
         precoCompra: true,

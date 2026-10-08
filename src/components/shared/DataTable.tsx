@@ -20,7 +20,7 @@ export type SortDirection = "asc" | "desc" | null;
 
 export type ColumnDef<T> = {
   key: string;
-  header: string;
+  header: React.ReactNode;
   accessor?: (row: T) => unknown;
   sortable?: boolean;
   filterable?: boolean;
@@ -57,6 +57,10 @@ export type DataTableProps<T> = {
   selectable?: boolean;
   onSelectionChange?: (selectedRows: T[]) => void;
   bulkActions?: (selectedRows: T[]) => React.ReactNode;
+  /** Colunas visíveis (chaves). Array = controlado; null/undefined = todas. */
+  visibleColumnsKeys?: string[] | null;
+  /** Notifica alterações de visibilidade feitas no menu "Colunas". */
+  onVisibleColumnsChange?: (keys: string[]) => void;
 };
 
 function normalizeText(value: unknown): string {
@@ -90,6 +94,8 @@ function DataTableNoMemo<T>({
   selectable = false,
   onSelectionChange,
   bulkActions,
+  visibleColumnsKeys,
+  onVisibleColumnsChange,
 }: DataTableProps<T>) {
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<string | null>(null);
@@ -98,9 +104,13 @@ function DataTableNoMemo<T>({
   const [pageSize, setPageSize] = useState(initialPageSize);
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [showColumnToggle, setShowColumnToggle] = useState(false);
-  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
-    new Set(columns.map((c) => c.key))
-  );
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => {
+    const all = new Set(columns.map((c) => c.key));
+    if (Array.isArray(visibleColumnsKeys)) {
+      return new Set(visibleColumnsKeys.filter((k) => all.has(k)));
+    }
+    return all;
+  });
   const [showFilters, setShowFilters] = useState(false);
   const [selectedKeys, setSelectedKeys] = useState<Set<string | number>>(new Set());
   const columnToggleRef = useRef<HTMLDivElement>(null);
@@ -118,7 +128,10 @@ function DataTableNoMemo<T>({
           : columns.filter((c) => c.filterable !== false).map((c) => c.key);
       result = result.filter((row) =>
         keys.some((key) => {
-          const val = (row as Record<string, unknown>)[key];
+          const col = columns.find((c) => c.key === key);
+          const val = col?.accessor
+            ? col.accessor(row)
+            : (row as Record<string, unknown>)[key];
           return normalizeText(val).includes(searchNorm);
         })
       );
@@ -127,8 +140,11 @@ function DataTableNoMemo<T>({
     Object.entries(filters).forEach(([key, filterVal]) => {
       if (!filterVal) return;
       const filterNorm = normalizeText(filterVal);
+      const col = columns.find((c) => c.key === key);
       result = result.filter((row) => {
-        const val = (row as Record<string, unknown>)[key];
+        const val = col?.accessor
+          ? col.accessor(row)
+          : (row as Record<string, unknown>)[key];
         return normalizeText(val).includes(filterNorm);
       });
     });
@@ -223,9 +239,30 @@ function DataTableNoMemo<T>({
     []
   );
 
+  const sameKeys = (a: Set<string>, b: Set<string>) =>
+    a.size === b.size && Array.from(a).every((k) => b.has(k));
+
+  useEffect(() => {
+    if (!Array.isArray(visibleColumnsKeys)) return;
+    const next = new Set(
+      visibleColumnsKeys.filter((k) => columns.some((c) => c.key === k))
+    );
+    setVisibleColumns((prev) => (sameKeys(prev, next) ? prev : next));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só sincroniza quando o prop muda.
+  }, [visibleColumnsKeys]);
+
+  useEffect(() => {
+    if (onVisibleColumnsChange) {
+      onVisibleColumnsChange(
+        columns.filter((c) => visibleColumns.has(c.key)).map((c) => c.key)
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- emite apenas com a mudança de visibilidade.
+  }, [visibleColumns]);
+
   const handleExportCSV = useCallback(() => {
     const visible = columns.filter((c) => visibleColumns.has(c.key));
-    const header = visible.map((c) => `"${c.header}"`).join(";");
+    const header = visible.map((c) => `"${typeof c.header === "string" ? c.header : c.key}"`).join(";");
     const rows = sortedData.map((row) =>
       visible
         .map((c) => {
@@ -411,7 +448,7 @@ function DataTableNoMemo<T>({
                     }
                     className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   >
-                    <option value="">{col.header}</option>
+                    <option value="">{typeof col.header === "string" ? col.header : col.key}</option>
                     {col.filterOptions.map((opt) => (
                       <option key={opt.value} value={opt.value}>
                         {opt.label}
@@ -428,7 +465,7 @@ function DataTableNoMemo<T>({
                         [col.key]: e.target.value,
                       }))
                     }
-                    placeholder={col.header}
+                    placeholder={typeof col.header === "string" ? col.header : "Filtrar"}
                     className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-700 w-32 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   />
                 )}

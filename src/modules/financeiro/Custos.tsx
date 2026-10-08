@@ -135,7 +135,7 @@ export default function Custos() {
       {loading ? (
         <div className="text-center text-gray-400 py-8">A carregar...</div>
       ) : (
-        <table className="min-w-full bg-white rounded shadow mb-2 text-xs sm:text-sm">
+        <div className="overflow-x-auto"><table className="min-w-full bg-white rounded shadow mb-2 text-xs sm:text-sm">
           <thead>
             <tr className="bg-blue-100">
               <th className="p-2">Tipo</th>
@@ -169,7 +169,7 @@ export default function Custos() {
               <tr><td colSpan={6} className="p-2 text-gray-400 text-center">Nenhum custo registado.</td></tr>
             )}
           </tbody>
-        </table>
+        </table></div>
       )}
     </div>
   );

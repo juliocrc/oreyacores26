@@ -211,7 +211,7 @@ export default function CriarOtPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 py-8">
-      <div className="mx-auto max-w-3xl space-y-6 px-4">
+      <div className="ds-page-form space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Nova Ordem de Servico</h1>

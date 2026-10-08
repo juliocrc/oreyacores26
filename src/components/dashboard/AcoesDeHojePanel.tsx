@@ -94,7 +94,7 @@ export default function AcoesDeHojePanel() {
       label: "Ordens em atraso",
       value: String(data?.delayed ?? 0),
       icon: <Wrench className="h-5 w-5" />,
-      href: "/oficina",
+      href: "/ordens-servico",
       tone: "red",
     },
     {

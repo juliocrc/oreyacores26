@@ -768,7 +768,7 @@ export default function LiferaftDiagram({ jangada, artigos, checklist = {} }: Li
                   Diagnóstico Visual da Jangada
                 </h2>
                 <p className="text-[11px] text-slate-400 mt-0.5">
-                  {jangada.serial || ""} · Clique nos hotspots para inspecionar · <kbd className="bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded text-[10px] font-mono">Esc</kbd> para fechar
+                  {jangada.serial || ""} · Clique nos hotspots para inspecionar · <kbd className="bg-slate-700 text-slate-200 px-1.5 py-0.5 rounded text-[10px] font-mono">Esc</kbd> para fechar
                 </p>
               </div>
             </div>

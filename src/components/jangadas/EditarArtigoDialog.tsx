@@ -41,6 +41,31 @@ export function EditarArtigoDialog({
   const [codigoFabricante, setCodigoFabricante] = useState(artigo.codigoFabricante || '');
   const [quantidadeSubstituida, setQuantidadeSubstituida] = useState(artigo.quantidadeSubstituida || 0);
 
+  const [stockItems, setStockItems] = useState<Array<{ id: number; descricao?: string; name?: string; referencia?: string; fabricante?: string }>>([]);
+  const [stockQuery, setStockQuery] = useState('');
+  const [showStockDropdown, setShowStockDropdown] = useState(false);
+
+  React.useEffect(() => {
+    if (open && stockItems.length === 0) {
+      fetch('/api/stock?take=500')
+        .then((res) => (res.ok ? res.json() : []))
+        .then((data) => {
+          if (Array.isArray(data)) setStockItems(data);
+          else if (data?.items && Array.isArray(data.items)) setStockItems(data.items);
+        })
+        .catch(() => {});
+    }
+  }, [open, stockItems.length]);
+
+  const filteredStock = React.useMemo(() => {
+    if (!stockQuery.trim()) return [];
+    const q = stockQuery.toLowerCase();
+    return stockItems.filter(s => 
+      String(s.descricao || s.name || '').toLowerCase().includes(q) ||
+      String(s.referencia || '').toLowerCase().includes(q)
+    ).slice(0, 15);
+  }, [stockQuery, stockItems]);
+
   const [erro, setErro] = useState('');
   const [sucesso, setSucesso] = useState('');
 
@@ -211,6 +236,41 @@ export function EditarArtigoDialog({
             </div>
 
             <div className="space-y-5 p-6 text-left">
+              <div className="space-y-1 relative">
+                <label className="text-xs font-bold text-indigo-600 uppercase tracking-wider">🔍 Pesquisar no Stock (Nome ou Referência)</label>
+                <input
+                  type="text"
+                  placeholder="Escreva para pesquisar no stock..."
+                  className="w-full border border-indigo-200 rounded-xl px-4 py-2.5 text-sm bg-indigo-50/40 focus:bg-white focus:border-indigo-500 focus:outline-none transition-all"
+                  value={stockQuery}
+                  onChange={(e) => {
+                    setStockQuery(e.target.value);
+                    setShowStockDropdown(true);
+                  }}
+                  onFocus={() => setShowStockDropdown(true)}
+                />
+                {showStockDropdown && filteredStock.length > 0 && (
+                  <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-2xl shadow-xl max-h-52 overflow-y-auto">
+                    {filteredStock.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className="w-full text-left px-4 py-2.5 text-xs hover:bg-indigo-50 border-b border-slate-100 last:border-0 flex items-center justify-between"
+                        onClick={() => {
+                          setName(item.descricao || item.name || '');
+                          setReferencia(item.referencia || '');
+                          setStockQuery('');
+                          setShowStockDropdown(false);
+                        }}
+                      >
+                        <span className="font-semibold text-slate-800">{item.descricao || item.name}</span>
+                        <span className="font-mono text-[11px] text-slate-500">{item.referencia || '—'}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nome do Artigo *</label>
                 <input

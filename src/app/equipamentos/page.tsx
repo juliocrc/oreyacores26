@@ -373,7 +373,7 @@ export default function ColetesPage() {
       if (byModel) return byModel;
     }
 
-    return "â€”";
+    return "—";
   };
 
   const formBrandOptions = useMemo(() => {
@@ -891,8 +891,15 @@ export default function ColetesPage() {
               </select>
             </label>
             <label className="flex items-center gap-2 text-xs text-gray-700 md:col-span-5">
-              <input type="checkbox" checked={onlyExpiring30Days} onChange={(e) => setOnlyExpiring30Days(e.target.checked)} />
-              Mostrar apenas coletes com próxima inspeção nos próximos 30 dias
+              <input type="checkbox" checked={onlyExpiring30Days} onChange={(e) => setOnlyExpiring30Days(e.target.checked)} className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
+              <span className={onlyExpiring30Days ? "font-semibold text-blue-700" : ""}>
+                Mostrar apenas coletes com próxima inspeção nos próximos 30 dias
+              </span>
+              {onlyExpiring30Days && (
+                <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-300">
+                  <span>⚠</span> Filtro ativo: só a expirar ≤ 30 dias
+                </span>
+              )}
             </label>
             <div className="md:col-span-1 flex justify-end">
               <button type="button" className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50" onClick={clearFilters}>
@@ -1002,7 +1009,7 @@ export default function ColetesPage() {
                 </button>
                 <span className="text-xs text-gray-500">Selecionados: {selectedColetes.length}</span>
               </div>
-              <table className="min-w-full text-xs sm:text-sm">
+              <div className="overflow-x-auto"><table className="min-w-full text-xs sm:text-sm">
                 <thead>
                   <tr className="bg-blue-100">
                     <th className="p-2"><input type="checkbox" onChange={(e) => handleSelectAllColetes(e.target.checked)} checked={selectedColetes.length > 0 && selectedColetes.length === filtered.length} /></th>
@@ -1070,7 +1077,7 @@ export default function ColetesPage() {
                     </tr>
                   )}
                 </tbody>
-              </table>
+              </table></div>
             </div>
           )}
 

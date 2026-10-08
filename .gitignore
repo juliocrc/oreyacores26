@@ -142,3 +142,82 @@ test-script.ps1
 
 # Local-only seed scripts (contain secrets) - do not commit
 src/seed-admin-user.cjs
+
+.vercel
+
+# envs de producao locais (nao commitar)
+.env.prod*
+.vercel-env-inspect
+.vercel.env.*
+
+# probes temporarios (nao commitar)
+scripts/_probe_*
+scripts/_2122_probe.cjs
+scripts/_saida_*
+scripts/tmp-*.cjs
+scripts/_tmp_*
+scripts/_cilindros_2024.json
+scripts/_repro_*.cjs
+scripts/_restore_*.cjs
+scripts/_revert_*.cjs
+scripts/_tmp_*.ts
+
+# backup de schema local
+*.bak
+
+# dados de negocio / certificados de clientes (nao commitar)
+public/certificados-organizados/
+public/navios/Nanci Maria/
+public/navios/Seaweed/
+cruzeiro_das_ilhas.zip
+
+# password em plaintext de utilizadores reais (nao commitar)
+scripts/set-password.ts
+
+# scripts de diagnostico/import com credenciais DB embutidas (nao commitar)
+scripts/_cruzeiro_das_ilhas_*.cjs
+scripts/_diag_*.cjs
+scripts/_diagnostico_iris.cjs
+scripts/_diff_jangadas.cjs
+scripts/_div_*.cjs
+scripts/_divergencias_supabase.cjs
+scripts/_probe_iris.cjs
+scripts/_sync_navios_clientes.cjs
+scripts/associar_iris.cjs
+scripts/check_all.cjs
+scripts/check_constraints.cjs
+scripts/check_counts.cjs
+scripts/check_serial.cjs
+scripts/criar_iris_mar.cjs
+scripts/cruzar_dados.cjs
+scripts/datas_fabrico_iris.cjs
+scripts/drop_fk.cjs
+scripts/fix_seq.cjs
+scripts/forcar_associacao_iris.cjs
+scripts/import_fast*.cjs
+scripts/limpar_orfandade.cjs
+scripts/preview-supabase-import.ps1
+scripts/show-supabase-summary.cjs
+scripts/sync_faltantes_supabase.cjs
+scripts/sync_jangadas_exact.cjs
+
+# scripts de diagnostico one-shot (analise/mojibake/map/extraccao) (nao commitar)
+scripts/_analisar_*.cjs
+scripts/_detect_mojibake.cjs
+scripts/_fix_mojibake.cjs
+scripts/_scan_mojibake_repo.cjs
+scripts/_extrair_cilindros_2024.cjs
+scripts/_list_tables.cjs
+scripts/_map_*.cjs
+
+# dumps/despejos de dados locais (nao commitar)
+cruzeiroilhas24/
+terminal_logs/
+
+# fixes de schema / limpeza locais (nao commitar)
+fix_schema*.js
+clean_pkg.js
+
+# tooling da sessao (opencode/agents), nao pertence ao repo da app
+.opencode/
+.agents/

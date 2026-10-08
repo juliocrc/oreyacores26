@@ -68,21 +68,41 @@ export async function PUT(
     return NextResponse.json({ error: "Nenhum campo válido para atualizar." }, { status: 400 });
   }
 
-  const existing = await artigoJangadaDelegate.findUnique({ where: { id: artigoId } });
+  let existing = await artigoJangadaDelegate.findUnique({ where: { id: artigoId } });
 
   if (!existing || existing.jangadaId !== jangadaId) {
-    return NextResponse.json({ error: "Artigo não encontrado para esta jangada" }, { status: 404 });
+    const searchName = String(raw.name || "").trim();
+    if (searchName) {
+      existing = await artigoJangadaDelegate.findFirst({
+        where: { jangadaId, name: searchName },
+      });
+    }
   }
 
+  if (!existing || existing.jangadaId !== jangadaId) {
+    existing = await artigoJangadaDelegate.create({
+      data: {
+        jangadaId,
+        name: String(raw.name || "Artigo").trim(),
+        quantidade: Number(raw.quantidade) || 1,
+        referencia: raw.referencia ? String(raw.referencia).trim() : null,
+        validade: raw.validade ? normalizeArtigoValidade(raw.validade) : null,
+        codigoFabricante: raw.codigoFabricante ? String(raw.codigoFabricante).trim() : null,
+      },
+    });
+  }
+
+  const targetId = existing.id;
+
   const artigo = await artigoJangadaDelegate.update({
-    where: { id: artigoId },
+    where: { id: targetId },
     data,
   });
 
   await logAuditoria({
     tabela: "ArtigoJangada",
     tipoOperacao: "UPDATE",
-    idRegisto: artigoId,
+    idRegisto: targetId,
     descricao: `Artigo da jangada atualizado: ${artigo.name || existing.name}${artigo.referencia ? ` (ref. ${artigo.referencia})` : ""} — quantidade ${existing.quantidade} → ${artigo.quantidade}.`,
     usuario: access.email || "sistema",
     dadosAntes: existing,
@@ -111,7 +131,13 @@ export async function DELETE(
     return NextResponse.json({ error: "ID inválido" }, { status: 400 });
   }
 
-  const existing = await artigoJangadaDelegate.findUnique({ where: { id: artigoId } });
+  let existing = await artigoJangadaDelegate.findUnique({ where: { id: artigoId } });
+
+  if (!existing || existing.jangadaId !== jangadaId) {
+    existing = await artigoJangadaDelegate.findFirst({
+      where: { jangadaId, id: artigoId },
+    });
+  }
 
   if (!existing || existing.jangadaId !== jangadaId) {
     return NextResponse.json({ error: "Artigo não encontrado para esta jangada" }, { status: 404 });

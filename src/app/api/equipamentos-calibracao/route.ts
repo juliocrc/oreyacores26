@@ -1,69 +1,76 @@
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
+import {
+  TAREFAS_MANUTENCAO_COMPRESSOR,
+  proximaDataManutencao,
+  tarefaPorReferencia,
+  tarefaPorTipo,
+} from "@/lib/compressor-manutencao";
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const tipo = searchParams.get('tipo');
     const ativo = searchParams.get('ativo');
+    const seedCompressor = searchParams.get('seedCompressor') === 'true';
 
-    // Seed default Michelin 300L compressor maintenance items if none exist
-    const compressorCount = await prisma.calibracaoEquipamento.count({
-      where: { tipo: { startsWith: 'compressor' } }
-    });
-
-    if (compressorCount === 0) {
-      const today = new Date();
-      const nextYear = new Date();
-      nextYear.setFullYear(today.getFullYear() + 1);
-      const nextMonth = new Date();
-      nextMonth.setMonth(today.getMonth() + 3);
-
-      await prisma.calibracaoEquipamento.createMany({
-        data: [
-          {
-            nome: "Compressor Michelin 300L - Substituição de Óleo",
-            referencia: "MICHELIN-300L-OLEO",
-            tipo: "compressor_oleo",
-            dataCalibracao: today,
-            dataProxCalibracao: nextMonth,
-            certificadoNum: "S/N: 321312566 | Cód: 1498160000",
-            ativo: true,
-            observacoes: "Óleo sintético para compressor 5.5kW / 400V. Troca trimestral (500h).",
-          },
-          {
-            nome: "Compressor Michelin 300L - Filtro de Ar",
-            referencia: "MICHELIN-300L-FILTRO",
-            tipo: "compressor_filtro",
-            dataCalibracao: today,
-            dataProxCalibracao: nextMonth,
-            certificadoNum: "S/N: 321312566 | Cód: 1498160000",
-            ativo: true,
-            observacoes: "Limpeza e verificação mensal, substituição trimestral do elemento filtrante.",
-          },
-          {
-            nome: "Compressor Michelin 300L - Purga de Condensos do Depósito",
-            referencia: "MICHELIN-300L-PURGA",
-            tipo: "compressor_ar",
-            dataCalibracao: today,
-            dataProxCalibracao: new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000), // 1 semana
-            certificadoNum: "S/N: 321312566 | 270L-300L",
-            ativo: true,
-            observacoes: "Purga diária/semanal de condensados do depósito de 300L para evitar corrosão interna.",
-          },
-          {
-            nome: "Compressor Michelin 300L - Válvula de Segurança e Pressostato",
-            referencia: "MICHELIN-300L-VALVULA",
-            tipo: "compressor_valvula",
-            dataCalibracao: today,
-            dataProxCalibracao: nextYear,
-            certificadoNum: "Max Press: 10 bar / 145 psi",
-            ativo: true,
-            observacoes: "Inspeção anual obrigatória da calibração do pressostato e teste da válvula de segurança.",
-          },
-        ],
+    // Sincroniza o compressor com "Manutenção de ar comprimido v.2.xlsx".
+    // Idempotente: upsert por referência. Preserva a data da última manutenção
+    // já registada e recalcula SEMPRE a próxima a partir do intervalo do
+    // documento — nunca duplica registos e nunca aceita datas fixas erradas.
+    // Só corre quando o módulo da oficina pede explicitamente.
+    if (seedCompressor) {
+      const existentes = await prisma.calibracaoEquipamento.findMany({
+        where: { referencia: { in: TAREFAS_MANUTENCAO_COMPRESSOR.map((t) => t.referencia) } },
       });
+      const porReferencia = new Map(existentes.map((e) => [e.referencia.toUpperCase(), e]));
+
+      for (const tarefa of TAREFAS_MANUTENCAO_COMPRESSOR) {
+        const existente = porReferencia.get(tarefa.referencia.toUpperCase());
+        // Sem registo anterior, a última manutenção é hoje e a próxima fica a
+        // partir de hoje + intervalo.
+        const ultimaManutencao = existente?.dataCalibracao ?? new Date();
+        const dataProxCalibracao = proximaDataManutencao(ultimaManutencao, tarefa.intervalo);
+
+        if (!existente) {
+          await prisma.calibracaoEquipamento.create({
+            data: {
+              referencia: tarefa.referencia,
+              nome: tarefa.nome,
+              tipo: tarefa.tipo,
+              dataCalibracao: ultimaManutencao,
+              dataProxCalibracao,
+              observacoes: tarefa.observacoes,
+              certificadoNum: "S/N: 321312566 | Cód: 1498160000",
+              ativo: true,
+            },
+          });
+          continue;
+        }
+
+        // Só escreve quando algo difere. A página da oficina pede a sincronização
+        // em cada visita e não deve gerar 13 escritas iguais sem efeito.
+        const precisaDeSync =
+          existente.nome !== tarefa.nome ||
+          existente.tipo !== tarefa.tipo ||
+          !existente.ativo ||
+          (existente.observacoes ?? "") !== tarefa.observacoes ||
+          existente.dataProxCalibracao.getTime() !== dataProxCalibracao.getTime();
+
+        if (precisaDeSync) {
+          await prisma.calibracaoEquipamento.update({
+            where: { id: existente.id },
+            data: {
+              nome: tarefa.nome,
+              tipo: tarefa.tipo,
+              dataProxCalibracao,
+              observacoes: tarefa.observacoes,
+              ativo: true,
+            },
+          });
+        }
+      }
     }
 
     const where: Prisma.CalibracaoEquipamentoWhereInput = {};
@@ -91,8 +98,28 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { nome, referencia, tipo, dataCalibracao, dataProxCalibracao, certificadoNum, observacoes, certificadoUrl } = body;
 
-    if (!nome || !referencia || !tipo || !dataCalibracao || !dataProxCalibracao) {
-      return NextResponse.json({ error: 'Falta campos obrigatórios (nome, referencia, tipo, dataCalibracao, dataProxCalibracao)' }, { status: 400 });
+    if (!nome || !referencia || !tipo || !dataCalibracao) {
+      return NextResponse.json({ error: 'Falta campos obrigatórios (nome, referencia, tipo, dataCalibracao)' }, { status: 400 });
+    }
+
+    // Cálculo automático: nas tarefas do compressor a próxima data nunca vem do
+    // cliente — é sempre a última manutenção + o intervalo do documento v.2.
+    // É isto que faz a data recalcular quando se regista uma nova manutenção.
+    // Fora do compressor mantém-se o comportamento anterior (data do cliente).
+    const tarefa = tarefaPorTipo(tipo) ?? tarefaPorReferencia(referencia);
+    const ultimaManutencao = new Date(dataCalibracao);
+    if (Number.isNaN(ultimaManutencao.getTime())) {
+      return NextResponse.json({ error: 'dataCalibracao inválida' }, { status: 400 });
+    }
+
+    const proxima = tarefa
+      ? proximaDataManutencao(ultimaManutencao, tarefa.intervalo)
+      : dataProxCalibracao
+        ? new Date(dataProxCalibracao)
+        : ultimaManutencao;
+
+    if (!tarefa && !dataProxCalibracao) {
+      return NextResponse.json({ error: 'dataProxCalibracao é obrigatória para equipamento sem plano de manutenção' }, { status: 400 });
     }
 
     const equip = await prisma.calibracaoEquipamento.create({
@@ -100,8 +127,8 @@ export async function POST(request: Request) {
         nome: String(nome).trim(),
         referencia: String(referencia).trim(),
         tipo: String(tipo).trim(),
-        dataCalibracao: new Date(dataCalibracao),
-        dataProxCalibracao: new Date(dataProxCalibracao),
+        dataCalibracao: ultimaManutencao,
+        dataProxCalibracao: proxima,
         certificadoNum: certificadoNum ? String(certificadoNum).trim() : null,
         certificadoUrl: certificadoUrl ? String(certificadoUrl).trim() : null,
         ativo: body.ativo !== false,

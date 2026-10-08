@@ -627,6 +627,27 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
       select: { shipId: true, serial: true }
     });
 
+    // O serial e unico na base de dados. Sem esta verificacao previa, corrigir um
+    // numero de serie para outro ja registado devolveva o erro cru do Prisma
+    // (P2002) em vez de uma mensagem compreensivel.
+    if (Object.prototype.hasOwnProperty.call(updateData, "serial")) {
+      const serialPretendido = String(updateData.serial);
+      if (current && current.serial && current.serial === serialPretendido) {
+        delete updateData.serial;
+      } else {
+        const duplicado = await prisma.colete.findUnique({
+          where: { serial: serialPretendido },
+          select: { id: true },
+        });
+        if (duplicado && duplicado.id !== id) {
+          return NextResponse.json(
+            { error: `O nº de série "${serialPretendido}" já está atribuído a outro colete.` },
+            { status: 409 }
+          );
+        }
+      }
+    }
+
     if (current && Object.prototype.hasOwnProperty.call(updateData, "shipId") && updateData.shipId !== current.shipId) {
       let origemNome = null;
       let destinoNome = null;

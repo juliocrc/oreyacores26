@@ -417,7 +417,7 @@ const formatDate = (value?: string | null) => {
       const reloadAgendaData = async () => {
         const [raftsRes, naviosRes, agendaRes, stationRes] = await Promise.all([
           fetch("/api/jangadas?scope=all"),
-          fetch("/api/navios"),
+          fetch("/api/navios?lite=1"),
           fetch("/api/agenda"),
           fetch("/api/service-station"),
         ]);
@@ -1126,7 +1126,7 @@ const formatDate = (value?: string | null) => {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
+    <div className="ds-page">
       <AgendaHeader 
         handleExportCSV={handleExportCSV}
         handleExportExcel={handleExportExcel}

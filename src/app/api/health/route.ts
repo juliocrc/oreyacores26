@@ -7,11 +7,24 @@ import { quickCheckSqlite } from "@/lib/sqlite-pragmas";
 export const dynamic = "force-dynamic";
 
 type HealthStatus = "ok" | "warn" | "down";
+type BackupStatus = HealthStatus | "n/a";
 
 const BACKUPS_DIR = join(process.cwd(), "backups");
 const BACKUP_MAX_AGE_HOURS = 32; // tolera ligeiro atraso sobre o agendamento de 24h
 const DB_CHECK_TIMEOUT_MS = 2500; // evita que o watchdog (timeout curto) mate o servidor
 const QUICK_CHECK_TIMEOUT_MS = 2500;
+
+/**
+ * A app corre sobre SQLite local ou sobre PostgreSQL (Supabase). Os backups
+ * `auto_local_*.db` so fazem sentido no primeiro caso: numa serverless nao ha
+ * disco persistente para onde escrever, por isso o check e "n/a" em vez de
+ * "--warn" permanente.
+ */
+function usesLocalSqlite(): boolean {
+  const url =
+    process.env.SUPABASE_DATABASE_URL || process.env.DIRECT_URL || process.env.DATABASE_URL || "";
+  return url.startsWith("file:");
+}
 
 function latestAutoBackupAgeHours(): { ageHours: number; file: string | null } {
   try {
@@ -66,8 +79,13 @@ export async function GET() {
     detail: "quick_check timed out",
   } as Awaited<ReturnType<typeof quickCheckSqlite>>);
 
+  const sqliteDeployment = usesLocalSqlite();
   const { ageHours, file: backupFile } = latestAutoBackupAgeHours();
-  const backupStatus: HealthStatus = Number.isFinite(ageHours) && ageHours <= BACKUP_MAX_AGE_HOURS ? "ok" : "warn";
+  const backupStatus: BackupStatus = !sqliteDeployment
+    ? "n/a"
+    : Number.isFinite(ageHours) && ageHours <= BACKUP_MAX_AGE_HOURS
+      ? "ok"
+      : "warn";
 
   const sentryEnabled = (process.env.SENTRY_ENABLED ?? "true").trim() !== "false";
   const sentryConfigured = Boolean(process.env.NEXT_PUBLIC_SENTRY_DSN || process.env.SENTRY_DSN);
@@ -76,7 +94,7 @@ export async function GET() {
     ? "down"
     : integrity.status === "error"
       ? "warn"
-      : backupStatus === "ok" && (!sentryEnabled || sentryConfigured)
+      : (backupStatus === "ok" || backupStatus === "n/a") && (!sentryEnabled || sentryConfigured)
         ? "ok"
         : "warn";
 
@@ -97,6 +115,7 @@ export async function GET() {
       },
       backup: {
         status: backupStatus,
+        applicable: sqliteDeployment,
         latestFile: backupFile,
         ageHours: Number.isFinite(ageHours) ? Number(Math.round(ageHours * 10) / 10) : null,
         maxAgeHours: BACKUP_MAX_AGE_HOURS,

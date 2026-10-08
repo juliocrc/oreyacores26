@@ -58,7 +58,7 @@ export default function SessionIdleTimeout() {
       if (signingOutRef.current) return;
       signingOutRef.current = true;
       clearAppSessionCookie();
-      void signOut({ callbackUrl: "/login" });
+      void signOut({ callbackUrl: "/selecionar-tecnico" });
     };
 
     lastTouchRef.current = Date.now();
@@ -106,9 +106,9 @@ export default function SessionIdleTimeout() {
 
   useEffect(() => {
     if (status === "authenticated") {
-      // Sem o marcador de sessão aberta, o browser/app foi fechado: exigir login.
+      // Sem o marcador de sessão aberta, o browser/app foi fechado: exigir novo arranque.
       if (!readCookie(APP_SESSION_COOKIE)) {
-        void signOut({ callbackUrl: "/login" });
+        void signOut({ callbackUrl: "/selecionar-tecnico" });
       }
       return;
     }

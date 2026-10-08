@@ -92,7 +92,7 @@ export default function FleetStatusPanel() {
 
   useEffect(() => {
     let alive = true;
-    Promise.all([fetch("/api/navios"), fetch("/api/jangadas?scope=all")])
+    Promise.all([fetch("/api/navios?lite=1"), fetch("/api/jangadas?scope=all")])
       .then(async ([naviosRes, jangadasRes]) => {
         if (!alive) return;
         const naviosData = naviosRes.ok ? await naviosRes.json() : [];

@@ -12,7 +12,7 @@ const path = require("path");
 const { PrismaClient } = require("@prisma/client");
 
 const dbPath = path.join(process.cwd(), "prisma", "local.db");
-process.env.DATABASE_URL = "file:" + dbPath.replace(/\\/g, "/");
+process.env.DATABASE_URL = process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL || "file:" + dbPath.replace(/\\/g, "/");
 
 const prisma = new PrismaClient({ datasources: { db: { url: process.env.DATABASE_URL } } });
 const ESTACAO = "ACORES";

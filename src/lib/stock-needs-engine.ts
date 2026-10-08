@@ -1,5 +1,5 @@
 import prisma from "@/lib/prisma";
-import { certificateItemHasManagedValidity } from "@/lib/certificate-validity";
+import { certificateItemHasManagedValidity, normalizeCertificateItemName } from "@/lib/certificate-validity";
 import { stockItemSupportsValidity } from "@/lib/stock-validity";
 import { resolveMandatoryPackItemsForRaftAsync } from "@/lib/custom-pack-types";
 import { type MandatoryPackItem } from "@/modules/rafts/mandatoryPack";
@@ -24,6 +24,11 @@ export type StockMatched = {
   ref: string;
   desc: string;
   qty: number;
+  unidade: string;
+  vencido: boolean;
+  validade: string | null;
+  lote: string | null;
+  localizacao: string | null;
 };
 
 export type NeedRow = {
@@ -32,7 +37,9 @@ export type NeedRow = {
   categoria: string;
   seccao: string;
   fornecedor: string;
+  unidade: string;
   stockAtual: number;
+  stockVencido: number;
   stockMinimo: number;
   necessidade30d: number;
   necessidade60d: number;
@@ -47,6 +54,8 @@ export type NeedRow = {
   orderLimitDate: string;
   leadTimeDias: number;
   avgPrice: number;
+  /** Verdadeiro quando nenhum registo de stock tem preco de compra: o custo e desconhecido. */
+  semPrecoCompra: boolean;
   consumoHistorico90d: number;
   consumoMedioMensal: number;
   consumoMedioDiario: number;
@@ -87,10 +96,24 @@ export type StockNeedsSummary = {
   totalItemsTracked: number;
   itemsInAlert: number;
   totalReorderCost: number;
+  /** Artigos rastreados sem qualquer preco de compra: custo desconhecido. */
+  itensSemPrecoCompra: number;
   coveragePercent: number;
   cilindrosNecessarios30d: number;
   cilindrosCheiosDisponiveis30d: number;
+  /**
+   * Soma simples por mês. ATENÇÃO: mistura unidades diferentes (o `Stock.unit`
+   * pode ser "un", "kg", "L", "m"). Serve apenas para comparação relativa entre
+   * meses do mesmo conjunto — nunca para encomenda. Para valores de encomenda
+   * use `necessidadesMensaisTotaisPorUnidade`.
+   */
   necessidadesMensaisTotais: MonthlyNeed[];
+  /** Totais mensais agrupados por unidade — valores comparáveis e encomendáveis. */
+  necessidadesMensaisTotaisPorUnidade: Array<{
+    month: string;
+    totais: Array<{ unidade: string; quantidade: number }>;
+  }>;
+  unidadesPresentes: string[];
 };
 
 export type StockNeedsResult = {
@@ -114,6 +137,8 @@ export type StockNeedsResult = {
     leadTimeDias: number;
     supplier: string;
     avgPrice: number;
+    /** Verdadeiro quando nenhum registo de stock tem preco de compra: o custo e desconhecido. */
+    semPrecoCompra: boolean;
     raftCount: number;
     raftSerials: string[];
     stockMatched: StockMatched[];
@@ -149,7 +174,12 @@ type StockRecord = {
   testeHidraulico?: string | null;
   estadoCargaCilindro?: string | null;
   precoVenda?: number | null;
+  precoCompra?: number | null;
   estadoArtigo?: string | null;
+  lote?: string | null;
+  validade?: string | null;
+  localizacao?: string | null;
+  unit?: string | null;
 };
 
   type DemandEntry = {
@@ -208,6 +238,15 @@ function parseDate(input: Date | string | null | undefined): Date | null {
 function parseValidadeString(validadeStr: string): Date | null {
   if (!validadeStr) return null;
   const raw = String(validadeStr).trim();
+
+  // YYYY-MM: ultimo dia do mes (mesmo criterio de toStorageValidade).
+  const yyyymm = raw.match(/^(\d{4})-(\d{1,2})$/);
+  if (yyyymm) {
+    const year = parseInt(yyyymm[1], 10);
+    const month = parseInt(yyyymm[2], 10);
+    if (month >= 1 && month <= 12) return new Date(year, month, 0);
+  }
+
   const mmYyyy = raw.match(/^(\d{1,2})\/(\d{4})$/);
   if (mmYyyy) {
     const month = parseInt(mmYyyy[1], 10);
@@ -221,6 +260,48 @@ function parseValidadeString(validadeStr: string): Date | null {
     if (month >= 1 && month <= 12) return new Date(year, month, 0);
   }
   return parseDate(raw);
+}
+
+/**
+ * Unidade de venda do artigo. Normaliza para uma escala comum para que
+ * "UN", "un", "Un" e null caiam todos em "un" — caso contrário os totais
+ * mensais ficam repartidos por grafias equivalentes.
+ */
+const UNIDADES_CANONICAS: Record<string, string> = {
+  un: "un",
+  unid: "un",
+  unidade: "un",
+  unidades: "un",
+  pc: "un",
+  peca: "un",
+  kg: "kg",
+  kilo: "kg",
+  kilos: "kg",
+  kilogramas: "kg",
+  g: "g",
+  gr: "g",
+  l: "L",
+  lt: "L",
+  litro: "L",
+  litros: "L",
+  m: "m",
+  metro: "m",
+  metros: "m",
+  mm: "mm",
+  cm: "cm",
+  cx: "cx",
+  caixa: "cx",
+  caixas: "cx",
+  roll: "roll",
+  rolo: "roll",
+  pack: "pack",
+  packs: "pack",
+};
+
+function normalizeUnidade(value: string | null | undefined): string {
+  const raw = String(value || "").trim().toLowerCase();
+  if (!raw) return "un";
+  return UNIDADES_CANONICAS[raw] || raw;
 }
 
 function daysUntil(dateStr: string | null | undefined, now: Date): number | null {
@@ -301,8 +382,13 @@ async function fetchStockRaw(stockScope: string): Promise<StockRecord[]> {
         estadoCargaCilindro: true,
         quantidadeMinima: true,
         leadTimeDias: true,
-        precoVenda: true,
+            precoVenda: true,
+            precoCompra: true,
         estadoArtigo: true,
+        lote: true,
+        validade: true,
+        localizacao: true,
+        unit: true,
       },
     })) as StockRecord[];
   } catch {
@@ -310,7 +396,39 @@ async function fetchStockRaw(stockScope: string): Promise<StockRecord[]> {
   }
 }
 
-async function fetchCertificadosValidades() {
+type ValidadeJangadaRef = { id: number; serial: string; brand: string | null; model: string | null; owner: string | null };
+
+type LinhaValidade = {
+  id: number;
+  item: string;
+  validade: string;
+  certificadoId: number | null;
+  jangadas: ValidadeJangadaRef[];
+  origem: "certificado" | "artigoJangada";
+  /** Unidades fisicas nesta linha. Um ArtigoJangada pode valer 150 unidades. */
+  quantidade: number;
+};
+
+/**
+ * Converte uma data gravada pelo Prisma em "YYYY-MM-DD".
+ *
+ * Usa os componentes UTC de proposito: os valores foram gravados a partir de
+ * datas locais e aparecem ora como 00:00Z ora como 01:00Z, conforme a hora de
+ * verao. Ler o mesmo instante em hora local (Acores UTC-1) devolveria o dia
+ * anterior, fazendo o artigo parecer expirado ate um mes antes do prazo.
+ */
+function toIsoDateFromDb(value: Date | string | null | undefined): string {
+  if (!value) return "";
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return "";
+    return `${value.getUTCFullYear()}-${String(value.getUTCMonth() + 1).padStart(2, "0")}-${String(value.getUTCDate()).padStart(2, "0")}`;
+  }
+  const raw = String(value).trim();
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return iso ? iso[0] : raw;
+}
+
+async function fetchCertificadosValidades(): Promise<LinhaValidade[]> {
   try {
     const validades = await prisma.certificadoValidade.findMany({
       include: {
@@ -328,8 +446,64 @@ async function fetchCertificadosValidades() {
       item: v.item,
       validade: v.validade,
       certificadoId: v.certificadoId,
-      jangadas: v.certificado.jangadasAtivas || [],
+      jangadas: v.certificado?.jangadasAtivas || [],
+      origem: "certificado" as const,
+      // CertificadoValidade nao tem campo de quantidade: cada linha e um item.
+      quantidade: 1,
     }));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Validades reais do equipamento a bordo de cada jangada.
+ *
+ * A tabela CertificadoValidade so e escrita pelos seeds, portanto o relatorio
+ * de vencimentos a 12 meses ficaria permanentemente vazio. Os ArtigoJangada
+ * guardam exatamente o pacote de emergencia do certificado (fachos, paraquedas,
+ * pilhas, primeiros socorros) com as datas reais, e sao a fonte de verdade.
+ */
+async function fetchArtigosJangadaValidade(): Promise<LinhaValidade[]> {
+  try {
+    const jangadas = await prisma.jangada.findMany({
+      select: {
+        id: true,
+        serial: true,
+        brand: true,
+        model: true,
+        owner: true,
+        artigos: {
+          where: { validade: { not: null } },
+          select: { id: true, name: true, validade: true, quantidade: true },
+        },
+      },
+    });
+
+    const linhas: LinhaValidade[] = [];
+    for (const j of jangadas) {
+      const ref: ValidadeJangadaRef = {
+        id: j.id,
+        serial: j.serial,
+        brand: j.brand,
+        model: j.model,
+        owner: j.owner,
+      };
+      for (const a of j.artigos) {
+        const validade = toIsoDateFromDb(a.validade);
+        if (!validade || !a.name) continue;
+        linhas.push({
+          id: a.id,
+          item: a.name,
+          validade,
+          certificadoId: null,
+          jangadas: [ref],
+          origem: "artigoJangada",
+          quantidade: Number(a.quantidade) || 0,
+        });
+      }
+    }
+    return linhas;
   } catch {
     return [];
   }
@@ -492,9 +666,10 @@ export async function computeStockNeeds(options?: {
   const stockScope = String(options?.stockScope || "").trim().toLowerCase();
   const now = new Date();
   now.setHours(0, 0, 0, 0);
+  const inicioDoDia = now;
   const in12Months = addMonths(now, 12);
 
-  const [stockRaw, allRafts, certificadosWithValidades, consumoMap, consumoSeasonalMap] = await Promise.all([
+  const [stockRaw, allRafts, validadesCertificado, validadesArtigo, consumoMap, consumoSeasonalMap] = await Promise.all([
     fetchStockRaw(stockScope),
     prisma.jangada.findMany({
       select: {
@@ -509,9 +684,35 @@ export async function computeStockNeeds(options?: {
       },
     }),
     fetchCertificadosValidades(),
+    fetchArtigosJangadaValidade(),
     fetchConsumoHistorico90d(),
     fetchConsumoSeasonal(),
   ]);
+
+  // Duas fontes de vencimento: as linhas do certificado (quando existem) e o
+  // equipamento real a bordo das jangadas. A segunda fonte e sempre a mais
+  // completa, porque e alimentada pelo wizard de inspecao.
+  //
+  // Se o mesmo item, na mesma jangada, com a mesma validade existir nas duas
+  // fontes, somam-se as unidades em vez de contar a linha duas vezes, e nunca se
+  // descarta quantidade: um artigo pode valer 150 unidades.
+  const certificatesByKey = new Map<string, LinhaValidade>();
+  for (const linha of [...validadesCertificado, ...validadesArtigo]) {
+    const chave = [
+      normalizeCertificateItemName(linha.item),
+      parseValidadeString(linha.validade)?.toISOString() ?? linha.validade,
+      linha.jangadas.map((j) => j.id).sort((a, b) => a - b).join("-"),
+    ].join("|");
+    const existente = certificatesByKey.get(chave);
+    if (existente) {
+      existente.quantidade += linha.quantidade;
+      const vistas = new Set(existente.jangadas.map((j) => j.id));
+      for (const j of linha.jangadas) if (!vistas.has(j.id)) existente.jangadas.push(j);
+    } else {
+      certificatesByKey.set(chave, { ...linha, jangadas: [...linha.jangadas] });
+    }
+  }
+  const certificadosWithValidades = [...certificatesByKey.values()];
 
   const stockItems = stockRaw.map((s) => ({
     ...s,
@@ -607,14 +808,32 @@ export async function computeStockNeeds(options?: {
 
   const needs: NeedRow[] = Array.from(demandMap.values()).map((demand) => {
     const { matched, matchedBy } = findStockForDemand(stockItems, byRef, demand);
-    const stockAvailable = matched.reduce(
-      (acc, s) => acc + Math.max(0, (Number(s.quantidade) || 0) - (Number(s.quantidadeReservada) || 0)),
-      0
-    );
+
+    // Lotes expirados não são consumíveis: contam para o relatório de validade
+    // mas ficam fora do stock disponível, para não subestimar a reposição.
+    const isVencido = (s: StockRecord) => {
+      if (!s.validade) return false;
+      const d = parseValidadeString(String(s.validade));
+      return d ? d.getTime() < inicioDoDia.getTime() : false;
+    };
+    const livre = (s: StockRecord) => Math.max(0, (Number(s.quantidade) || 0) - (Number(s.quantidadeReservada) || 0));
+
+    const stockVencido = matched.filter(isVencido).reduce((acc, s) => acc + livre(s), 0);
+    const stockAvailable = matched
+      .filter((s) => !isVencido(s))
+      .reduce((acc, s) => acc + livre(s), 0);
+
+    const unidade = normalizeUnidade(matched[0]?.unit);
     const minQty = Math.max(...matched.map((s) => Number(s.quantidadeMinima) || 0), 0);
-    const avgPrice = matched.length
-      ? matched.reduce((acc, s) => acc + (Number(s.precoVenda) || 0), 0) / matched.length
+    // Base de custo: preco de compra. O precoVenda e o preco ao cliente e nao
+    // serve para estimar o custo de reposicao.
+    // So os registos com preco entram na media: caso contrario os artigos sem
+    // preco puxavam a media para baixo e o custo real aparecia understated.
+    const registosComPreco = matched.filter((s) => Number(s.precoCompra) > 0);
+    const avgPrice = registosComPreco.length
+      ? registosComPreco.reduce((acc, s) => acc + Number(s.precoCompra), 0) / registosComPreco.length
       : 0;
+    const semPrecoCompra = registosComPreco.length === 0;
 
     const demand30d = demand.byWindow["30d"] || 0;
     const demand60d = demand.byWindow["60d"] || 0;
@@ -678,7 +897,9 @@ export async function computeStockNeeds(options?: {
       categoria: demand.category,
       seccao: demand.section,
       fornecedor: demand.supplier,
+      unidade,
       stockAtual: stockAvailable,
+      stockVencido,
       stockMinimo: minQty,
       necessidade30d: demand30d,
       necessidade60d: demand60d,
@@ -693,6 +914,7 @@ export async function computeStockNeeds(options?: {
       orderLimitDate,
       leadTimeDias,
       avgPrice,
+      semPrecoCompra,
       consumoHistorico90d,
       consumoMedioMensal: Math.round(consumoMedioMensal * 10) / 10,
       consumoMedioDiario: Math.round(consumoMedioDiario * 100) / 100,
@@ -708,7 +930,12 @@ export async function computeStockNeeds(options?: {
         id: s.id,
         ref: s.referencia,
         desc: s.descricao,
-        qty: s.quantidade,
+        qty: livre(s),
+        unidade: normalizeUnidade(s.unit),
+        vencido: isVencido(s),
+        validade: s.validade ?? null,
+        lote: s.lote ?? null,
+        localizacao: s.localizacao ?? null,
       })),
       stockId: matched[0]?.id ?? null,
       hasValidity: Boolean(demand.hasValidity),
@@ -776,21 +1003,40 @@ export async function computeStockNeeds(options?: {
     return d ? d < now : false;
   });
 
+  // Contagem em unidades fisicas, nao em linhas. Uma linha de ArtigoJangada
+  // pode valer 150 unidades (rations, Agua), por isso contar linhas
+  // subestimava as necessidades por um factor de varios.
+  const unidades = (linhas: LinhaValidade[]) =>
+    linhas.reduce((total, l) => total + (l.quantidade > 0 ? l.quantidade : 0), 0);
+  const unidadesAte12Meses = unidades(within12MonthsCerts);
+  const unidadesVencidas = unidades(expired);
+
   const monthlyTotalsMap = new Map<string, number>();
+  // Meses × unidades: é o único agregado com significado físico, porque
+  // "un", "kg" e "L" não se somam entre si.
+  const monthlyByUnitMap = new Map<string, Map<string, number>>();
+  const unidadesPresentes = new Set<string>();
+
   for (const need of validityNeeds) {
     for (const m of need.mensal) {
       monthlyTotalsMap.set(m.month, (monthlyTotalsMap.get(m.month) || 0) + m.quantidade);
+
+      const unidade = normalizeUnidade(need.unidade);
+      unidadesPresentes.add(unidade);
+      if (!monthlyByUnitMap.has(m.month)) monthlyByUnitMap.set(m.month, new Map<string, number>());
+      const byUnit = monthlyByUnitMap.get(m.month)!;
+      byUnit.set(unidade, (byUnit.get(unidade) || 0) + m.quantidade);
     }
   }
-  for (const v of within12MonthsCerts) {
-    const d = parseValidadeString(v.validade);
-    if (!d) continue;
-    const effectiveDate = d < now ? now : d;
-    const mk = monthKey(effectiveDate);
-    // only count cert lines separately in summary.artigos — monthly pack demand already in needs
-    void mk;
-  }
 
+  const needsMensaisTotaisPorUnidade = Array.from(monthlyByUnitMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([month, byUnit]) => ({
+      month,
+      totais: Array.from(byUnit.entries())
+        .map(([unidade, quantidade]) => ({ unidade, quantidade }))
+        .sort((a, b) => b.quantidade - a.quantidade),
+    }));
   const cilindrosNecessarios30d = within30d.length;
   const cilindrosCheiosDisponiveis30d = stockItems
     .filter((s) => isCylinderLike(s))
@@ -826,7 +1072,8 @@ export async function computeStockNeeds(options?: {
     orderLimitDate: n.orderLimitDate,
     leadTimeDias: n.leadTimeDias,
     supplier: n.fornecedor,
-    avgPrice: n.avgPrice,
+      avgPrice: n.avgPrice,
+      semPrecoCompra: n.semPrecoCompra,
     raftCount: n.jangadasCount,
     raftSerials: n.jangadasAfetadas,
     stockMatched: n.stockMatched,
@@ -854,19 +1101,22 @@ export async function computeStockNeeds(options?: {
       expiringRafts60d: within60d.length,
       expiringRafts90d: within90d.length,
       expiringRafts12m: within12m.length,
-      artigosComValidadeAte12Meses: within12MonthsCerts.length,
-      artigosVencidos: expired.length,
+      artigosComValidadeAte12Meses: unidadesAte12Meses,
+      artigosVencidos: unidadesVencidas,
       quantidadeTotalNecessaria12m,
       jangadasAfetadas,
       totalItemsTracked: cleanNeeds.length,
       itemsInAlert: alertCount,
       totalReorderCost: totalCost,
+      itensSemPrecoCompra: validityNeeds.filter((n) => n.semPrecoCompra).length,
       coveragePercent,
       cilindrosNecessarios30d,
       cilindrosCheiosDisponiveis30d,
       necessidadesMensaisTotais: Array.from(monthlyTotalsMap.entries())
         .map(([month, quantidade]) => toMonthly(month, quantidade))
         .sort((a, b) => a.month.localeCompare(b.month)),
+      necessidadesMensaisTotaisPorUnidade: needsMensaisTotaisPorUnidade,
+      unidadesPresentes: Array.from(unidadesPresentes).sort(),
     },
     needs: cleanNeeds,
     stockNeeds,

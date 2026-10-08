@@ -3,6 +3,7 @@
 "use client";
 import { useAgenda } from '@/hooks/useAgenda';
 import { InspectionEvent } from '@/types';
+import { getLocalDateKey } from '@/lib/date-utils';
 
 export default function Agenda() {
   const { events = [], isLoading, isError, addEvent } = useAgenda();
@@ -12,7 +13,7 @@ export default function Agenda() {
       id: Date.now(),
       raftSerial: "Jangada Exemplo",
       title: "Inspeção Exemplo",
-      date: new Date().toISOString().slice(0, 10),
+          date: getLocalDateKey(),
       type: "Inspeção",
     };
     addEvent(newEvent);

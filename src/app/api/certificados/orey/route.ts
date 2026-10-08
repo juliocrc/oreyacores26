@@ -11,16 +11,24 @@ export async function POST(request: Request) {
     const payload = (await request.json()) as OreyCertificateTemplateInput;
     const { buffer, html, fileName } = await buildOreyCertificateArtifacts(payload);
 
-    // Guardar no folder organizado por ano (CERTIFICADOS AÇORES {YEAR})
+    // Gravação no servidor é OPCIONAL (só quando CERTIFICADOS_SAVE_TO_PUBLIC=true)
+    // e nunca bloqueia o download. Na Vercel o filesystem é read-only.
     let savedPath: string | undefined;
-    if (format === 'xlsx' && buffer) {
-      const year = getYearFromDate(payload.inspectionDate);
-      const saved = await saveCertificadoToYearFolder(year, fileName, buffer, {
-        serial: payload.raftSerial || undefined,
-        date: payload.inspectionDate ? new Date(payload.inspectionDate) : undefined,
-        type: "CERT",
-      });
-      savedPath = saved.relativePath;
+    if (
+      format === 'xlsx' && buffer &&
+      process.env.CERTIFICADOS_SAVE_TO_PUBLIC === 'true'
+    ) {
+      try {
+        const year = getYearFromDate(payload.inspectionDate);
+        const saved = await saveCertificadoToYearFolder(year, fileName, buffer, {
+          serial: payload.raftSerial || undefined,
+          date: payload.inspectionDate ? new Date(payload.inspectionDate) : undefined,
+          type: "CERT",
+        });
+        savedPath = saved.relativePath;
+      } catch (saveErr) {
+        console.warn('Gravação em public/ ignorada (não bloqueia o download):', saveErr);
+      }
     }
 
     if (format === 'xlsx') {
