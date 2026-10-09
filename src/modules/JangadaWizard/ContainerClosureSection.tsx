@@ -13,7 +13,7 @@ const formatPrice = (value: number) =>
 
 const KIND_LABEL: Record<string, string> = {
   cinta: "Cinta de fecho",
-  autocolante: "Autocolante / Selo",
+  autocolante: "Acessório de Fecho",
   hru: "HRU (Disparador)",
 };
 

@@ -64,6 +64,31 @@ const AUTOCLANTE_CATALOG: Array<{
     descricao: "Etiqueta de inspeção (data de re-inspeção)",
     quantidade: 1,
   },
+  {
+    referencia: "ANILHA-RETENCAO",
+    descricao: "Anilha de retenção",
+    quantidade: 1,
+  },
+  {
+    referencia: "FITA-ADESIVA",
+    descricao: "Fita adesiva industrial para contentor",
+    quantidade: 1,
+  },
+  {
+    referencia: "PROT-CINTA",
+    descricao: "Proteção da cinta de aperto",
+    quantidade: 2,
+  },
+  {
+    referencia: "VEDANTE-CONTENTOR",
+    descricao: "Vedantes de borracha / junta do contentor",
+    quantidade: 1,
+  },
+  {
+    referencia: "SACO-VACUO",
+    descricao: "Saco de vácuo (acondicionamento estanque)",
+    quantidade: 1,
+  },
 ];
 
 function normalizeRef(value?: string | null) {
