@@ -23,87 +23,87 @@ export async function GET(request: NextRequest) {
       prisma.jangada.findMany({
         where: {
           OR: [
-            { serial: { contains: q } },
-            { brand: { contains: q } },
-            { model: { contains: q } },
-            { shipNameManual: { contains: q } },
-            { owner: { contains: q } },
+            { serial: { contains: q, mode: 'insensitive' } },
+            { brand: { contains: q, mode: 'insensitive' } },
+            { model: { contains: q, mode: 'insensitive' } },
+            { shipNameManual: { contains: q, mode: 'insensitive' } },
+            { owner: { contains: q, mode: 'insensitive' } },
           ]
         },
-        take: 4,
+        take: 6,
         orderBy: { updatedAt: 'desc' },
       }),
       prisma.navio.findMany({
         where: {
           OR: [
-            { nome: { contains: q } },
-            { matricula: { contains: q } },
-            { mmsi: { contains: q } },
-            { imo: { contains: q } },
-            { callSignal: { contains: q } },
+            { nome: { contains: q, mode: 'insensitive' } },
+            { matricula: { contains: q, mode: 'insensitive' } },
+            { mmsi: { contains: q, mode: 'insensitive' } },
+            { imo: { contains: q, mode: 'insensitive' } },
+            { callSignal: { contains: q, mode: 'insensitive' } },
           ],
         },
-        take: 4,
+        take: 6,
         orderBy: { nome: 'asc' },
       }),
       prisma.cliente.findMany({
         where: {
           OR: [
-            { nome: { contains: q } },
-            { numeroCliente: { contains: q } },
-            { nif: { contains: q } },
-            { email: { contains: q } },
+            { nome: { contains: q, mode: 'insensitive' } },
+            { numeroCliente: { contains: q, mode: 'insensitive' } },
+            { nif: { contains: q, mode: 'insensitive' } },
+            { email: { contains: q, mode: 'insensitive' } },
           ],
         },
-        take: 4,
+        take: 6,
         orderBy: { nome: 'asc' },
       }),
       prisma.colete.findMany({
         where: {
           OR: [
-            { serial: { contains: q } },
-            { marca: { contains: q } },
-            { modelo: { contains: q } },
-            { estado: { contains: q } },
+            { serial: { contains: q, mode: 'insensitive' } },
+            { marca: { contains: q, mode: 'insensitive' } },
+            { modelo: { contains: q, mode: 'insensitive' } },
+            { estado: { contains: q, mode: 'insensitive' } },
           ],
         },
-        take: 4,
+        take: 6,
         orderBy: { updatedAt: 'desc' },
       }),
       prisma.epirb.findMany({
         where: {
           OR: [
-            { serial: { contains: q } },
-            { marca: { contains: q } },
-            { modelo: { contains: q } },
-            { hexId: { contains: q } },
-            { estado: { contains: q } },
+            { serial: { contains: q, mode: 'insensitive' } },
+            { marca: { contains: q, mode: 'insensitive' } },
+            { modelo: { contains: q, mode: 'insensitive' } },
+            { hexId: { contains: q, mode: 'insensitive' } },
+            { estado: { contains: q, mode: 'insensitive' } },
           ],
         },
-        take: 4,
+        take: 6,
         orderBy: { updatedAt: 'desc' },
       }),
       prisma.fatoImersao.findMany({
         where: {
           OR: [
-            { serial: { contains: q } },
-            { marca: { contains: q } },
-            { modelo: { contains: q } },
-            { designNo: { contains: q } },
-            { estado: { contains: q } },
+            { serial: { contains: q, mode: 'insensitive' } },
+            { marca: { contains: q, mode: 'insensitive' } },
+            { modelo: { contains: q, mode: 'insensitive' } },
+            { designNo: { contains: q, mode: 'insensitive' } },
+            { estado: { contains: q, mode: 'insensitive' } },
           ],
         },
-        take: 4,
+        take: 6,
         orderBy: { updatedAt: 'desc' },
       }),
       prisma.stock.findMany({
         where: {
           OR: [
-            { referencia: { contains: q } },
-            { descricao: { contains: q } },
-            { codigoBarras: { contains: q } },
-            { categoria: { contains: q } },
-            { codigoFabricante: { contains: q } },
+            { referencia: { contains: q, mode: 'insensitive' } },
+            { descricao: { contains: q, mode: 'insensitive' } },
+            { codigoBarras: { contains: q, mode: 'insensitive' } },
+            { categoria: { contains: q, mode: 'insensitive' } },
+            { codigoFabricante: { contains: q, mode: 'insensitive' } },
           ],
         },
         select: {
@@ -114,16 +114,16 @@ export async function GET(request: NextRequest) {
           precoVenda: true,
           serviceStation: { select: { nome: true } },
         },
-        take: 4,
+        take: 6,
         orderBy: { updatedAt: 'desc' },
       }),
       prisma.fatura.findMany({
         where: {
           cancelada: false,
           OR: [
-            { numeroFatura: { contains: q } },
-            { cliente: { nome: { contains: q } } },
-            { pagamentoStatus: { contains: q } },
+            { numeroFatura: { contains: q, mode: 'insensitive' } },
+            { cliente: { nome: { contains: q, mode: 'insensitive' } } },
+            { pagamentoStatus: { contains: q, mode: 'insensitive' } },
           ],
         },
         select: {
@@ -134,16 +134,16 @@ export async function GET(request: NextRequest) {
           dataEmissao: true,
           cliente: { select: { nome: true, numeroCliente: true } },
         },
-        take: 4,
+        take: 6,
         orderBy: { dataEmissao: 'desc' },
       }),
       prisma.ordemServico.findMany({
         where: {
           OR: [
-            { numeroOrdem: { contains: q } },
-            { tecnicoResponsavel: { contains: q } },
-            { descricao: { contains: q } },
-            { status: { contains: q } },
+            { numeroOrdem: { contains: q, mode: 'insensitive' } },
+            { tecnicoResponsavel: { contains: q, mode: 'insensitive' } },
+            { descricao: { contains: q, mode: 'insensitive' } },
+            { status: { contains: q, mode: 'insensitive' } },
           ],
         },
         select: {
@@ -156,7 +156,7 @@ export async function GET(request: NextRequest) {
             },
           },
         },
-        take: 4,
+        take: 6,
         orderBy: { updatedAt: 'desc' },
       }),
     ]);
@@ -209,10 +209,10 @@ export async function GET(request: NextRequest) {
       })),
     ];
 
+    // Remove duplicates or clean up results
     return NextResponse.json(results);
   } catch (error) {
     console.error("Erro na pesquisa global", error);
     return NextResponse.json({ error: "Falha ao pesquisar" }, { status: 500 });
   }
 }
-
