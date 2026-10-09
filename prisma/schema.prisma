@@ -1012,7 +1012,7 @@ model OrdemServico {
   jangada              Jangada?                    @relation("PrimaryOrdemServicoJangada", fields: [jangadaId], references: [id])
   ordemJangadas        OrdemServicoJangada[]
   cliente              Cliente?                    @relation(fields: [clienteId], references: [id])
-  faturaOrdemServicos  FaturaOrdemServico[]
+  faturaOrdemServicos  FaturaOrdemServico?
   tecnico              Tecnico?                    @relation(fields: [tecnicoId], references: [id])
   inspecao             Inspecao?                   @relation(fields: [inspecaoId], references: [id])
   serviceStation       ServiceStation?             @relation(fields: [serviceStationId], references: [id])
