@@ -37,7 +37,7 @@ export function buildAbateReportDoc(input: AbateReportInput) {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageW = 210;
   const margin = 10;
-  const rowH = 8;
+  const rowH = 7.5;
 
   const drawCheckbox = (x: number, y: number, checked: boolean) => {
     doc.setDrawColor(50, 50, 50);
@@ -45,10 +45,10 @@ export function buildAbateReportDoc(input: AbateReportInput) {
     doc.rect(x, y, 4.4, 4.4);
 
     if (checked) {
-      doc.setLineWidth(0.6);
-      doc.line(x + 0.8, y + 2.4, x + 1.9, y + 3.6);
-      doc.line(x + 1.9, y + 3.6, x + 3.7, y + 0.9);
-      doc.setLineWidth(0.2);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(0, 0, 0);
+      doc.text("X", x + 1.1, y + 3.4);
     }
   };
 
@@ -67,11 +67,11 @@ export function buildAbateReportDoc(input: AbateReportInput) {
 
   const drawSectionTitle = (y: number, label: string) => {
     doc.setFillColor(15, 23, 42);
-    doc.rect(margin, y, pageW - margin * 2, 8, "F");
+    doc.rect(margin, y, pageW - margin * 2, 7, "F");
     doc.setTextColor(255, 255, 255);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.text(label, margin + 3, y + 5.6);
+    doc.setFontSize(8.5);
+    doc.text(label, margin + 3, y + 4.8);
     doc.setTextColor(0, 0, 0);
   };
 
@@ -89,14 +89,14 @@ export function buildAbateReportDoc(input: AbateReportInput) {
     doc.rect(x + colLabel + colCheck, y, colCode, rowH);
 
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.text(label, x + 2.5, y + 5.4);
+    doc.setFontSize(7.5);
+    doc.text(label, x + 2.5, y + 4.8);
 
     drawCheckbox(x + colLabel + (colCheck - 4.4) / 2, y + (rowH - 4.4) / 2, checked);
 
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(8);
-    doc.text(label.length > 0 ? `${labelCode(label)}` : "—", x + colLabel + colCheck + (colCode / 2), y + 5.4, { align: "center" });
+    doc.setFontSize(7.5);
+    doc.text(label.length > 0 ? `${labelCode(label)}` : "—", x + colLabel + colCheck + (colCode / 2), y + 4.8, { align: "center" });
   };
 
   const labelCode = (label: string) => {
@@ -109,104 +109,101 @@ export function buildAbateReportDoc(input: AbateReportInput) {
 
   // Cabeçalho
   doc.setFillColor(15, 23, 42);
-  doc.rect(margin, margin, pageW - margin * 2, 16, "F");
+  doc.rect(margin, margin, pageW - margin * 2, 14, "F");
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(13);
-  doc.text("FICHA DE ABATE DE JANGADAS SALVA-VIDAS", pageW / 2, margin + 6.5, { align: "center" });
+  doc.setFontSize(12);
+  doc.text("FICHA DE ABATE DE JANGADAS SALVA-VIDAS", pageW / 2, margin + 5.5, { align: "center" });
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.text("IM.049/00", pageW / 2, margin + 12.5, { align: "center" });
+  doc.setFontSize(8.5);
+  doc.text("IM.049/00 · SB18/08 V2", pageW / 2, margin + 10.5, { align: "center" });
   doc.setTextColor(0, 0, 0);
 
-  let y = margin + 20;
+  let y = margin + 17;
 
   // Campos do cabeçalho
-  drawField(margin, y, 95, 13, "ARMADOR", asString(input.owner));
-  drawField(margin + 95, y, 95, 13, "MARCA", asString(input.brand));
-  y += 13;
-  drawField(margin, y, 95, 13, "NOME DO NAVIO", asString(input.shipName));
-  drawField(margin + 95, y, 95, 13, "TIPO", asString(input.model));
-  y += 13;
-  drawField(margin, y, 95, 13, "BANDEIRA DO NAVIO", asString(input.shipFlag));
-  drawField(margin + 95, y, 95, 13, "NÚMERO DE SÉRIE", asString(input.serial));
-  y += 13;
-  drawField(margin, y, 95, 13, "IMO No.", asString(input.shipImo));
-  drawField(margin + 95, y, 95, 13, "DATA DE FABRICO", formatDateLabel(input.dataFabrico));
-  y += 13;
-  drawField(margin, y, 95, 13, "CALL SIGN", asString(input.shipCallSign));
-  drawField(margin + 95, y, 95, 13, "CAPACIDADE", asString(input.capacity));
-  y += 13 + 4;
+  drawField(margin, y, 95, 11, "ARMADOR", asString(input.owner));
+  drawField(margin + 95, y, 95, 11, "MARCA", asString(input.brand));
+  y += 11;
+  drawField(margin, y, 95, 11, "NOME DO NAVIO", asString(input.shipName));
+  drawField(margin + 95, y, 95, 11, "TIPO", asString(input.model));
+  y += 11;
+  drawField(margin, y, 95, 11, "BANDEIRA DO NAVIO", asString(input.shipFlag));
+  drawField(margin + 95, y, 95, 11, "NÚMERO DE SÉRIE", asString(input.serial));
+  y += 11;
+  drawField(margin, y, 95, 11, "IMO No.", asString(input.shipImo));
+  drawField(margin + 95, y, 95, 11, "DATA DE FABRICO", formatDateLabel(input.dataFabrico));
+  y += 11;
+  drawField(margin, y, 95, 11, "CALL SIGN", asString(input.shipCallSign));
+  drawField(margin + 95, y, 95, 11, "CAPACIDADE", asString(input.capacity));
+  y += 11 + 3;
 
   // Tipo de Barco
   drawSectionTitle(y, "Tipo de Barco");
-  y += 8;
+  y += 7;
   ABATE_TIPOS_BARCO.forEach((tipo) => {
     drawDropdownRow(y, tipo.label, asString(input.tipoBarco) === tipo.label || String(tipo.codigo) === asString(input.tipoBarco));
     y += rowH;
   });
 
-  if (y > 275) {
-    doc.addPage();
-    y = margin + 4;
-  }
-  y += 4;
+  y += 2;
 
   // Motivos de Abate
   drawSectionTitle(y, "Motivos de Abate");
-  y += 8;
+  y += 7;
   ABATE_MOTIVOS.forEach((motivo) => {
     drawDropdownRow(y, motivo.label, getAbateMotivoCodes(input.motivo).includes(motivo.codigo));
     y += rowH;
   });
 
-  if (y > 268) {
-    doc.addPage();
-    y = margin + 4;
-  }
-  y += 4;
+  y += 2;
 
-  // Campo 28 — Detalhes do Abate
-  drawSectionTitle(y, "28. Detalhes do Abate");
-  y += 8;
-  const detalhesBoxH = 42;
+  // Campo 28 — Detalhes do Abate (com SB18/08 V2 automático)
+  drawSectionTitle(y, "28. Detalhes do Abate (incl. SB18/08 V2)");
+  y += 7;
+  const detalhesBoxH = 32;
   doc.setDrawColor(70, 70, 70);
   doc.rect(margin, y, pageW - margin * 2, detalhesBoxH);
-  const detalhesText = asString(input.detalhes);
+
+  let detalhesText = asString(input.detalhes);
+  if (!detalhesText.toUpperCase().includes("SB18/08 V2")) {
+    detalhesText = `[SB18/08 V2] ${detalhesText}`.trim();
+  }
+
   if (detalhesText) {
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.text(doc.splitTextToSize(detalhesText, pageW - margin * 2 - 6), margin + 3, y + 6);
+    doc.setFontSize(8.5);
+    doc.text(doc.splitTextToSize(detalhesText, pageW - margin * 2 - 6), margin + 3, y + 5);
   } else {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     doc.setTextColor(150, 150, 150);
-    doc.text("(descrever o motivo do abate — código 17, 26 ou outro)", margin + 3, y + 6);
+    doc.text("[SB18/08 V2] (descrever o motivo do abate — código 17, 26 ou outro)", margin + 3, y + 5);
     doc.setTextColor(0, 0, 0);
   }
-  y += detalhesBoxH + 10;
+  y += detalhesBoxH + 6;
 
   // Rodapé — Carimbo, Data, Assinatura
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
+  doc.setFontSize(8.5);
   doc.text("Carimbo:", margin, y + 3);
   doc.text("Data:", margin + 120, y + 3);
   doc.text("Assinatura:", margin + 150, y + 3);
 
   doc.setLineWidth(0.3);
-  doc.line(margin + 120, y + 6, margin + 148, y + 6);
-  doc.line(margin + 150, y + 6, pageW - margin, y + 6);
+  doc.line(margin + 120, y + 5.5, margin + 148, y + 5.5);
+  doc.line(margin + 150, y + 5.5, pageW - margin, y + 5.5);
 
   const dataAbate = asString(input.dataInspecao) || "";
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  if (dataAbate) doc.text(formatDateLabel(dataAbate), margin + 120, y + 5.5);
+  doc.setFontSize(8.5);
+  if (dataAbate) doc.text(formatDateLabel(dataAbate), margin + 120, y + 5);
 
   if (asString(input.responsavel)) {
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
+    doc.setFontSize(7.5);
     doc.setTextColor(80, 80, 80);
-    doc.text(asString(input.responsavel), margin + 150, y + 5.5);
+    doc.text(asString(input.responsavel), margin + 150, y + 5);
     doc.setTextColor(0, 0, 0);
   }
 
@@ -214,16 +211,16 @@ export function buildAbateReportDoc(input: AbateReportInput) {
   if (assinatura && /^data:image\/(png|jpe?g|webp);base64,/.test(assinatura)) {
     try {
       const base64 = assinatura.split(",")[1];
-      doc.addImage(base64, "PNG", margin + 152, y + 1.2, 34, 4.4);
+      doc.addImage(base64, "PNG", margin + 152, y + 1, 34, 4);
     } catch {
-      // assinatura inválida — ignora silenciosamente
+      // assinatura inválida — ignora
     }
   }
 
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(7);
+  doc.setFontSize(6.5);
   doc.setTextColor(120, 120, 120);
-  doc.text(`Centro técnico: OREY · Ficha de Abate IM.049/00 · S/N ${asString(input.serial) || "—"}`, pageW / 2, 290, { align: "center" });
+  doc.text(`Centro técnico: OREY · Ficha de Abate IM.049/00 · SB18/08 V2 · S/N ${asString(input.serial) || "—"}`, pageW / 2, 290, { align: "center" });
 
   return doc;
 }

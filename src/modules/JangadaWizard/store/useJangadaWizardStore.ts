@@ -141,10 +141,23 @@ export const useJangadaWizardStore = create<WizardState>()(
       setInspecoes: (list) => set({ inspecoes: list }),
       
       inspectionData: {} as InspectionData,
-      setInspectionData: (data) => set((state) => ({ 
-        inspectionData: { ...state.inspectionData, ...data },
-        isDirty: true,
-      })),
+      setInspectionData: (data) => set((state) => {
+        const nextInspectionData = { ...state.inspectionData, ...data };
+        const justActivatedAbate = !state.inspectionData.abate?.ativo && nextInspectionData.abate?.ativo;
+        let nextStep = state.currentStep;
+        if (justActivatedAbate) {
+          const newSteps = getWizardSteps(nextInspectionData, { hideOrcamento: state.hideOrcamento });
+          const resumoIdx = newSteps.findIndex(s => s.key === 'resumo');
+          if (resumoIdx !== -1) {
+            nextStep = resumoIdx + 1;
+          }
+        }
+        return {
+          inspectionData: nextInspectionData,
+          currentStep: nextStep,
+          isDirty: true,
+        };
+      }),
 
       globalStock: [],
       setGlobalStock: (stock) => set({ globalStock: stock }),

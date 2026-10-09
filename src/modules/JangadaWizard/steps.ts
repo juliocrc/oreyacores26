@@ -44,6 +44,15 @@ export function getWizardSteps(
   data: InspectionData,
   opts?: { hideOrcamento?: boolean }
 ): { key: string; title: string; icon: LucideIcon }[] {
+  if (data.abate?.ativo) {
+    return [
+      BASE_STEPS_BY_KEY.dados,
+      BASE_STEPS_BY_KEY.checklist,
+      BASE_STEPS_BY_KEY.resumo,
+      BASE_STEPS_BY_KEY.certificados,
+      BASE_STEPS_BY_KEY.historico,
+    ];
+  }
   const order: string[] = [
     "dados",
     "checklist",
