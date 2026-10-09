@@ -163,12 +163,14 @@ export default function PublicOrcamentoPage({ params }: { params: Promise<{ id: 
               <span>Subtotal:</span>
               <span>€ {subtotal.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between w-64 text-slate-400 text-xs">
-              <span>IVA ({order.isIsentoIva ? "Isento" : "16%"}):</span>
-              <span>€ {iva.toFixed(2)}</span>
-            </div>
+            {!order.isIsentoIva && (
+              <div className="flex justify-between w-64 text-slate-400 text-xs">
+                <span>IVA (16%):</span>
+                <span>€ {iva.toFixed(2)}</span>
+              </div>
+            )}
             <div className="flex justify-between w-64 text-teal-400 font-bold text-base pt-2 border-t border-slate-800">
-              <span>TOTAL:</span>
+              <span>TOTAL {order.isIsentoIva ? "(Isento)" : ""}:</span>
               <span>€ {total.toFixed(2)}</span>
             </div>
           </div>
