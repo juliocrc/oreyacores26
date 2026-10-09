@@ -185,7 +185,35 @@ export default function OrcamentosPage() {
     try {
       const res = await fetch(`/api/inspecoes?jangadaId=${jangadaId}`);
       const data = await res.json();
-      setDetailHistory(Array.isArray(data) ? data : []);
+      const history = Array.isArray(data) ? data : [];
+      setDetailHistory(history);
+
+      const currentLinhas = normalizeLinhas(getMeta(row).linhas);
+      if (currentLinhas.length === 0) {
+        const targetInsp = (row.inspecao?.id ? history.find((i: any) => i.id === row.inspecao?.id) : null) || history[0];
+        if (targetInsp) {
+          const derivedLinhas: OrcamentoLinha[] = [
+            { id: 'srv-1', referencia: 'L-JD', descricao: 'Inspeção de Jangada', quantidade: 1, unitPrice: 200, total: 200, source: 'service' },
+            { id: 'srv-2', referencia: 'L-CER', descricao: 'Certificado de Inspeção', quantidade: 1, unitPrice: 100, total: 100, source: 'service' },
+          ];
+          if (Array.isArray(targetInsp.artigos)) {
+            targetInsp.artigos.forEach((art: any, idx: number) => {
+              const qtd = Number(art.quantidade || 1);
+              const price = Number(art.precoUnitario || art.precoVenda || 0);
+              derivedLinhas.push({
+                id: `insp-art-${idx}`,
+                referencia: art.referencia || 'ART',
+                descricao: art.descricao || art.name || 'Artigo substituído',
+                quantidade: qtd,
+                unitPrice: price,
+                total: round2(qtd * price),
+                source: 'pack',
+              });
+            });
+          }
+          setLinhas(derivedLinhas);
+        }
+      }
     } catch (e) {
       setDetailHistoryError("Erro ao carregar o histórico de inspeções.");
     } finally {
