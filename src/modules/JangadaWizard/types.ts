@@ -25,6 +25,7 @@ export type ShipDetails = {
 } | null;
 
 export type CylinderData = {
+  id?: string;
   serial: string;
   sistema: string;
   co2: string;
@@ -37,6 +38,8 @@ export type CylinderData = {
   cargaNominal?: string;
   cilindroRecarregado?: boolean;
 };
+
+export type CylinderArrayItem = CylinderData;
 
 export type TestResult = "PASSOU" | "REPROVOU" | "N/A" | "";
 
@@ -224,6 +227,7 @@ export type InspectionData = {
 
   // Step 5 — Cilindros
   cylinder: CylinderData;
+  cylinders?: CylinderData[];
 
   // Step 6 — Testes
   testes: TestesData;

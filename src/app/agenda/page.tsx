@@ -419,7 +419,7 @@ const formatDate = (value?: string | null) => {
           fetch("/api/jangadas?scope=all"),
           fetch("/api/navios?lite=1"),
           fetch("/api/agenda"),
-          fetch("/api/service-station"),
+          fetch("/api/service-station?received=true"),
         ]);
 
         if (!raftsRes.ok) {

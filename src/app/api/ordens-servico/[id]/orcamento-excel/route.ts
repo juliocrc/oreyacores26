@@ -159,8 +159,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       { label: "Peças / Materiais", note: "", value: pecas },
       { label: "Desconto", note: "", value: -desconto },
       { label: "Subtotal", note: "", value: subtotal },
-      { label: "IVA (16%)", note: isentoIva ? formatIsencaoIva(true, order.codigoIsencaoIva) : "16%", value: iva },
-      { label: "TOTAL", note: "", value: total, bold: true },
+      ...(isentoIva ? [] : [{ label: "IVA (16%)", note: "16%", value: iva }]),
+      { label: "TOTAL", note: isentoIva ? (formatIsencaoIva(true, order.codigoIsencaoIva) || "Isento de IVA") : "", value: total, bold: true },
     ];
 
     moneyRows.forEach((entry) => {

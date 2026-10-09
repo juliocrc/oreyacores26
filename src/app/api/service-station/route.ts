@@ -233,6 +233,7 @@ async function resolveQueueTarget(body: Record<string, unknown>) {
 async function listQueue(
   access: NonNullable<Awaited<ReturnType<typeof getAccessContext>>>,
   activeStationId: number | null,
+  onlyReceived = false,
 ) {
   const rows = await prisma.serviceStationQueue.findMany({
     where: activeStationId
@@ -266,7 +267,18 @@ async function listQueue(
     },
   });
 
-  const raftIds = Array.from(new Set(rows.map((r) => r.jangadaId).filter(Boolean)));
+  // Filter by reception if requested: only show rafts that have been explicitly received
+  // (arrivedViaForwarder=true OR arrivalDate set by user, not just createdAt fallback)
+  const filteredRows = onlyReceived
+    ? rows.filter((row) => {
+        const meta = parseQueueMeta(row.observacoes);
+        const hasExplicitArrival = Boolean(meta.arrivedViaForwarder) || 
+          (meta.arrivalDate && meta.arrivalDate !== row.dataChegada?.toISOString().slice(0, 10) && meta.arrivalDate !== row.createdAt.toISOString().slice(0, 10));
+        return hasExplicitArrival;
+      })
+    : rows;
+
+  const raftIds = Array.from(new Set(filteredRows.map((r) => r.jangadaId).filter(Boolean)));
   const rafts = raftIds.length
     ? await prisma.jangada.findMany({
         where: { id: { in: raftIds } },
@@ -288,7 +300,7 @@ async function listQueue(
 
   const raftById = new Map(rafts.map((r) => [r.id, r]));
 
-  return rows.map((row) => {
+  return filteredRows.map((row) => {
     const raft = raftById.get(row.jangadaId);
     const meta = parseQueueMeta(row.observacoes);
     const orderMeta = parseOrdemServicoMeta(row.ordemServico?.metadados);
@@ -365,7 +377,9 @@ export async function GET(req: NextRequest) {
     }
 
     const activeStationId = resolveActiveServiceStationId(req, access);
-    const items = await listQueue(access, activeStationId);
+    const url = new URL(req.url);
+    const onlyReceived = url.searchParams.get("received") === "true";
+    const items = await listQueue(access, activeStationId, onlyReceived);
     return NextResponse.json(items);
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Erro ao listar estação de serviço." }, { status: 500 });

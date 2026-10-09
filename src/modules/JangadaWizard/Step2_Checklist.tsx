@@ -21,7 +21,7 @@ import {
   FolderClosed,
   Keyboard,
 } from 'lucide-react';
-import { ABATE_MOTIVOS, ABATE_TIPOS_BARCO } from '@/lib/abate-constants';
+import { ABATE_MOTIVOS, ABATE_TIPOS_BARCO, getAbateMotivoCodes } from '@/lib/abate-constants';
 import { appToast } from '@/lib/app-toast';
 import * as XLSX from 'xlsx';
 import { getStepNumberByKey } from './steps';
@@ -941,19 +941,36 @@ export default function Step2_Checklist() {
         {abate.ativo && (
           <div className="border-t border-slate-100 px-6 py-5 grid grid-cols-1 lg:grid-cols-2 gap-5 bg-red-50/30">
             <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Motivo de Abate (código 13–27)</label>
-              <select
-                value={abate.motivo}
-                onChange={(e) => setAbate({ motivo: e.target.value })}
-                className="w-full border-slate-200 rounded-xl px-3 py-2 bg-white text-sm focus:ring-2 focus:ring-red-200 font-medium text-slate-700"
-              >
-                <option value="">-- Selecione o motivo --</option>
-                {ABATE_MOTIVOS.map((m) => (
-                  <option key={m.codigo} value={String(m.codigo)}>
-                    {m.codigo}. {m.label}
-                  </option>
-                ))}
-              </select>
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Motivos de Abate (código 13–27) — pode escolher vários</label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5 border border-slate-200 rounded-xl bg-white p-2">
+                {ABATE_MOTIVOS.map((m) => {
+                  const selected = getAbateMotivoCodes(abate.motivo).includes(m.codigo);
+                  return (
+                    <label
+                      key={m.codigo}
+                      className={`flex items-start gap-2 px-2.5 py-1.5 rounded-lg border cursor-pointer text-xs transition-all ${
+                        selected
+                          ? "border-red-300 bg-red-50 text-slate-800"
+                          : "border-transparent hover:bg-slate-50 text-slate-600"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={() => {
+                          const codes = getAbateMotivoCodes(abate.motivo);
+                          const next = codes.includes(m.codigo)
+                            ? codes.filter((c) => c !== m.codigo)
+                            : [...codes, m.codigo];
+                          setAbate({ motivo: next.sort((a, b) => a - b).join(";") });
+                        }}
+                        className="mt-0.5 shrink-0 rounded border-slate-300 text-red-600 focus:ring-red-200"
+                      />
+                      <span>{m.codigo}. {m.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
             </div>
 
             <div className="space-y-1.5">

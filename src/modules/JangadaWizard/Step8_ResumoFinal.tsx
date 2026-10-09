@@ -642,12 +642,14 @@ export default function Step8_ResumoFinal() {
         }
         appToast.success("Inspeção concluída com sucesso!");
         setTimeout(() => {
-          if (shipId) {
+          if (jangadaId) {
+            router.push(`/jangadas/${jangadaId}`);
+          } else if (shipId) {
             router.push(`/navios/${shipId}`);
           } else {
             router.push('/jangadas');
           }
-        }, 1000);
+        }, 800);
       } else {
         appToast.success("Rascunho guardado com sucesso!");
         router.refresh();

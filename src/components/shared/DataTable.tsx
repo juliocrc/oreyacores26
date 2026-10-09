@@ -397,23 +397,25 @@ function DataTableNoMemo<T>({
               Colunas
             </button>
             {showColumnToggle && (
-              <div className="absolute right-0 top-full mt-1 z-50 w-56 bg-white border border-slate-200 rounded-xl shadow-xl p-2 space-y-0.5">
-                {columns.map((col) => (
-                  <label
-                    key={col.key}
-                    className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer text-xs"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={visibleColumns.has(col.key)}
-                      onChange={() => toggleColumn(col.key)}
-                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <span className="text-slate-700 font-medium">
-                      {col.header}
-                    </span>
-                  </label>
-                ))}
+              <div className="absolute right-0 top-full mt-1 z-50 w-72 bg-white border border-slate-200 rounded-xl shadow-xl p-2">
+                <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 max-h-80 overflow-y-auto pr-1">
+                  {columns.map((col) => (
+                    <label
+                      key={col.key}
+                      className="flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-slate-50 cursor-pointer text-xs min-w-0"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={visibleColumns.has(col.key)}
+                        onChange={() => toggleColumn(col.key)}
+                        className="shrink-0 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span className="text-slate-700 font-medium truncate">
+                        {col.header}
+                      </span>
+                    </label>
+                  ))}
+                </div>
               </div>
             )}
           </div>

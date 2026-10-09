@@ -208,6 +208,7 @@ hruReference: draftData?.hruReference || raftData?.hruReferencia || '',
             dataTeste: raftData?.cylinderDataTeste || '',
             dataProxTeste: raftData?.cylinderDataProxTeste || '',
           },
+          cylinders: Array.isArray((raftData as any)?.cylinders) ? (raftData as any).cylinders : (raftData?.cylinderData && Array.isArray(raftData.cylinderData) ? raftData.cylinderData : []),
 
           // Testes Base
           testes: {

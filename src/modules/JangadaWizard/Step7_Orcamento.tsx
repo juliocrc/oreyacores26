@@ -192,43 +192,7 @@ export default function Step7_Orcamento() {
       });
 
   const buildBulletinLines = (): OrcamentoLinha[] => {
-    // Prefill automático: boletim OTS-65 (substituição de PRV após 10 anos) —
-    // adiciona as válvulas de alívio ao orçamento quando aplicável e existem no stock.
-    const applied = inspectionData.serviceBulletinsApplied || {};
-    const bullets = inspectionData.applicableServiceBulletins || [];
-    const otsBulletins = bullets.filter((b: any) =>
-      /ots[\s-]?65|replace all ots|10 year life|prv/i.test(`${b.title || ""} ${b.shortDescription || ""} ${b.reason || ""}`)
-    );
-    if (otsBulletins.length === 0) return [];
-
-    const alreadyRemoved = new Set(orcamento.removedIds || []);
-    const matched: OrcamentoLinha[] = [];
-    const seen = new Set<string>();
-
-    for (const stock of globalStock) {
-      const haystack = `${stock.referencia || ""} ${stock.descricao || ""}`.toLowerCase();
-      const isOts65 = /ots[\s-]?65|prv|valvula de alivio|alívio|relief valve/i.test(haystack);
-      if (!isOts65) continue;
-      const key = stock.referencia || String(stock.id);
-      if (seen.has(key)) continue;
-      seen.add(key);
-      const id = `bullet-ots65-${stock.id}`;
-      const sempreAplicar = applied["OTS-65"] === "APLICADO";
-      if (!sempreAplicar && (alreadyRemoved.has(id) || alreadyRemoved.has(key))) continue;
-      const unitPrice = Number(stock.precoVenda) || 0;
-      matched.push({
-        id,
-        stockId: stock.id,
-        referencia: stock.referencia || "OTS65",
-        descricao: stock.descricao || "Válvula de alívio OTS-65",
-        quantidade: 1,
-        unitPrice,
-        total: round(unitPrice),
-        source: "componente" as const,
-      });
-    }
-
-    return matched;
+    return [];
   };
 
   const buildMergedLines = (removedIdsOverride?: string[]): OrcamentoLinha[] => {

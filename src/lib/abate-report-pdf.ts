@@ -1,5 +1,5 @@
 import jsPDF from "jspdf";
-import { ABATE_MOTIVOS, ABATE_TIPOS_BARCO, getAbateMotivoLabel } from "@/lib/abate-constants";
+import { ABATE_MOTIVOS, ABATE_TIPOS_BARCO, getAbateMotivoCodes } from "@/lib/abate-constants";
 
 export type AbateReportInput = {
   brand?: string;
@@ -156,7 +156,7 @@ export function buildAbateReportDoc(input: AbateReportInput) {
   drawSectionTitle(y, "Motivos de Abate");
   y += 8;
   ABATE_MOTIVOS.forEach((motivo) => {
-    drawDropdownRow(y, motivo.label, String(motivo.codigo) === asString(input.motivo) || getAbateMotivoLabel(input.motivo) === motivo.label);
+    drawDropdownRow(y, motivo.label, getAbateMotivoCodes(input.motivo).includes(motivo.codigo));
     y += rowH;
   });
 

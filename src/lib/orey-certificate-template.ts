@@ -320,7 +320,7 @@ function fillTemplate(worksheet: ExcelJS.Worksheet, input: OreyCertificateTempla
   const fsTestYesNo = asYesNoOrNA((checklist as Record<string, unknown>).teste_fs, 'NO');
   const loadTestYesNo = asYesNoOrNA((checklist as Record<string, unknown>).teste_dl, 'NO');
   const firstAidExpiry = findFirstValidity(checklist, ['validade_farmacia']);
-  const hasFirstAid = asYesNo(checklist.ambulancia) === 'YES';
+  const hasFirstAid = asYesNo(checklist.ambulancia) === 'YES' || Boolean(firstAidExpiry) || Boolean(checklist.ref_farmacia) || Boolean(checklist.farmacia);
   const isThrowOver = isThrowOverRaft(input);
   const cylinderSerial =
     asString(input.cylinderSerial) ||
@@ -328,7 +328,7 @@ function fillTemplate(worksheet: ExcelJS.Worksheet, input: OreyCertificateTempla
     asString((checklist as Record<string, unknown>).ref_cilindro_co2);
 
   setText(worksheet.getCell('K3'), input.certNumber);
-  setText(worksheet.getCell('I5'), input.certNumber);
+  setText(worksheet.getCell('I5'), '');
   setText(worksheet.getCell('K4'), '');
   setText(worksheet.getCell('C3'), input.brand);
 

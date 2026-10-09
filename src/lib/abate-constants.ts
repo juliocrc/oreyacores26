@@ -47,10 +47,23 @@ export function getAbateTipoBarcoLabel(tipoBarco?: string | null): string {
   return byCodigo ? byCodigo.label : String(tipoBarco).trim();
 }
 
+export function getAbateMotivoCodes(motivo?: string | null): number[] {
+  if (!motivo) return [];
+  const codes = String(motivo)
+    .split(/[;,\s]+/)
+    .map((part) => Number(part.trim()))
+    .filter((n) => Number.isInteger(n) && n > 0);
+  return Array.from(new Set(codes));
+}
+
 export function getAbateMotivoLabel(motivo?: string | null): string {
   if (!motivo) return "";
-  const numeric = Number(String(motivo).trim());
-  const found = ABATE_MOTIVOS.find((m) => m.codigo === numeric);
-  if (found) return found.label;
-  return String(motivo).trim();
+  const codes = getAbateMotivoCodes(motivo);
+  if (codes.length === 0) return String(motivo).trim();
+  return codes
+    .map((code) => {
+      const found = ABATE_MOTIVOS.find((m) => m.codigo === code);
+      return found ? `${code}. ${found.label}` : String(code);
+    })
+    .join(" · ");
 }

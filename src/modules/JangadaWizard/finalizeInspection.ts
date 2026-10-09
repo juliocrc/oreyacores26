@@ -88,10 +88,13 @@ export function computeFinishWarnings(inspectionData: any): FinishWarning[] {
   });
 
   // Step 5 Validations - Cilindro
-  if (!inspectionData.cylinder?.serial) list.push({ text: 'Nº de Série do cilindro não definido.', stepKey: 'cilindros', isCritical: false });
-  if (!inspectionData.cylinder?.pesoBruto) list.push({ text: 'Peso Bruto do cilindro não verificado.', stepKey: 'cilindros', isCritical: false });
+  const firstCylinder: any = (Array.isArray((inspectionData as any).cylinders) && (inspectionData as any).cylinders.length > 0)
+    ? (inspectionData as any).cylinders[0]
+    : (inspectionData as any).cylinder;
+  if (!firstCylinder?.serial) list.push({ text: 'Nº de Série do cilindro não definido.', stepKey: 'cilindros', isCritical: false });
+  if (!firstCylinder?.pesoBruto) list.push({ text: 'Peso Bruto do cilindro não verificado.', stepKey: 'cilindros', isCritical: false });
 
-  const rawProxTeste = inspectionData.cylinder?.dataProxTeste || inspectionData.cylinder?.nextTestDate;
+  const rawProxTeste = firstCylinder?.dataProxTeste || firstCylinder?.nextTestDate;
   if (rawProxTeste) {
     const expDate = new Date(rawProxTeste);
     if (!isNaN(expDate.getTime())) {
@@ -99,13 +102,13 @@ export function computeFinishWarnings(inspectionData: any): FinishWarning[] {
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       if (diffDays < 0) {
         list.push({
-          text: `Teste hidráulico cilindro (${inspectionData.cylinder?.serial || 'S/N'}) expirado desde ${expDate.toLocaleDateString('pt-PT')} (${Math.abs(diffDays)} dias)`,
+          text: `Teste hidráulico cilindro (${firstCylinder?.serial || 'S/N'}) expirado desde ${expDate.toLocaleDateString('pt-PT')} (${Math.abs(diffDays)} dias)`,
           stepKey: 'cilindros',
           isCritical: true,
         });
       } else if (diffDays <= 90) {
         list.push({
-          text: `Teste hidráulico cilindro (${inspectionData.cylinder?.serial || 'S/N'}) expira em ${diffDays} dias (${expDate.toLocaleDateString('pt-PT')})`,
+          text: `Teste hidráulico cilindro (${firstCylinder?.serial || 'S/N'}) expira em ${diffDays} dias (${expDate.toLocaleDateString('pt-PT')})`,
           stepKey: 'cilindros',
           isCritical: diffDays <= 30,
         });
@@ -169,6 +172,10 @@ export function computeFinishWarnings(inspectionData: any): FinishWarning[] {
 }
 
 function buildSavePayload(inspectionData: any, inspecaoId: number | null, isFinal: boolean) {
+  const firstCylinder: any = (Array.isArray((inspectionData as any).cylinders) && (inspectionData as any).cylinders.length > 0)
+    ? (inspectionData as any).cylinders[0]
+    : (inspectionData as any).cylinder;
+
   const packSubstitutions = Object.values(inspectionData.packItems || {})
     .filter((item: any) => item.quantidade > 0)
     .map((item: any) => ({
@@ -288,13 +295,14 @@ function buildSavePayload(inspectionData: any, inspecaoId: number | null, isFina
     maxStowageHeight: inspectionData.maxStowageHeight || null,
     fabricType: inspectionData.fabricType || null,
 
-    cylinderSerial: inspectionData.cylinder?.serial || null,
-    cylinderPesoBruto: inspectionData.cylinder?.pesoBruto || null,
-    cylinderTara: inspectionData.cylinder?.tara || null,
-    cylinderCo2: inspectionData.cylinder?.co2 || null,
-    cylinderN2: inspectionData.cylinder?.n2 || null,
-    cylinderDataTeste: inspectionData.cylinder?.dataTeste || null,
-    cylinderDataProxTeste: inspectionData.cylinder?.dataProxTeste || null,
+    cylinderSerial: firstCylinder?.serial || null,
+    cylinderPesoBruto: firstCylinder?.pesoBruto || null,
+    cylinderTara: firstCylinder?.tara || null,
+    cylinderCo2: firstCylinder?.co2 || null,
+    cylinderN2: firstCylinder?.n2 || null,
+    cylinderDataTeste: firstCylinder?.dataTeste || null,
+    cylinderDataProxTeste: firstCylinder?.dataProxTeste || null,
+    cylinders: (Array.isArray((inspectionData as any).cylinders) && (inspectionData as any).cylinders.length > 0) ? (inspectionData as any).cylinders : (firstCylinder ? [firstCylinder] : []),
 
     testeWP: testes.testeWP || null,
     testeNAP: testes.testeNAP || null,
@@ -430,6 +438,9 @@ export async function persistInspection({ isFinal }: { isFinal: boolean }): Prom
 
     // 2. Atualiza Jangada (testes, etc).
     if (jangadaId) {
+      const firstCylinder: any = (Array.isArray((inspectionData as any).cylinders) && (inspectionData as any).cylinders.length > 0)
+        ? (inspectionData as any).cylinders[0]
+        : (inspectionData as any).cylinder;
       const jangadaPayload: Record<string, any> = {
         brand: inspectionData.brand,
         model: inspectionData.model,
@@ -449,11 +460,12 @@ export async function persistInspection({ isFinal }: { isFinal: boolean }): Prom
         owner: inspectionData.owner,
         certificadoExternoNumero: (inspectionData.certificadoExternoNumero || '').trim() || null,
         certificadoExternoUrl: (inspectionData.certificadoExternoUrl || '').trim() || null,
-        cylinderPesoBruto: inspectionData.cylinder?.pesoBruto,
-        cylinderTara: inspectionData.cylinder?.tara,
-        cylinderCo2: inspectionData.cylinder?.co2,
-        cylinderN2: inspectionData.cylinder?.n2,
-        cylinderDataProxTeste: inspectionData.cylinder?.dataProxTeste,
+        cylinderPesoBruto: firstCylinder?.pesoBruto,
+        cylinderTara: firstCylinder?.tara,
+        cylinderCo2: firstCylinder?.co2,
+        cylinderN2: firstCylinder?.n2,
+        cylinderDataProxTeste: firstCylinder?.dataProxTeste,
+        cylinders: (Array.isArray((inspectionData as any).cylinders) && (inspectionData as any).cylinders.length > 0) ? (inspectionData as any).cylinders : (firstCylinder ? [firstCylinder] : []),
         testeWP: inspectionData.testes?.testeWP,
         testeWPUnidadePressao: inspectionData.testes?.wpUnidadePressao,
         testeWPHoraInicio: inspectionData.testes?.wpHoraInicio,
