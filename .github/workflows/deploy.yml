@@ -18,19 +18,6 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Generate PostgreSQL Prisma client and build
-        run: npm run build:vercel
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          # Necessario apenas no build (o Next recolhe page data e o Auth.js exige o
-          # segredo em production). Este .next e descartado - a Vercel rebui-la com as
-          # suas proprias env reais.
-          NEXTAUTH_SECRET: "ci-build-only-placeholder-do-not-use"
-          NEXTAUTH_URL: "https://oreyacoresdeluxe.vercel.app"
-
       - name: Deploy to Vercel
         uses: amondnet/vercel-action@v25
         with:
