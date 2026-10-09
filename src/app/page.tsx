@@ -85,6 +85,7 @@ export default async function InicioPage() {
         id: true,
         certificadoNumero: true,
         navioNome: true,
+        navioId: true,
         jangadaSerial: true,
         coleteSerial: true,
         dataInspecao: true,
