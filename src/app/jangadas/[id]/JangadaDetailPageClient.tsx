@@ -1121,12 +1121,27 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
     return () => window.removeEventListener('beforeunload', handler);
   }, [isEditing]);
 
+  async function marcarJangadaEmInspecao() {
+    const id = Number(jangadaId);
+    if (!Number.isFinite(id) || id <= 0) return;
+    try {
+      await fetch('/api/service-station/iniciar-inspecao', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jangadaId: id }),
+      });
+    } catch {
+      // sincronização com o quadro da estação é não crítica
+    }
+  }
+
   React.useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       if (params.get('startInspection') === '1') {
         setInspectionToOpen(null);
         setIsInspecting(true);
+        void marcarJangadaEmInspecao();
       }
     }
   }, []);
@@ -2785,7 +2800,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                   Vistoria Registada
                 </button>
                 <button
-                  onClick={() => { setInspectionToOpen(null); setIsInspecting(true); }}
+                  onClick={() => { setInspectionToOpen(null); setIsInspecting(true); void marcarJangadaEmInspecao(); }}
                   className="flex items-center gap-2 px-6 py-3 rounded-xl font-extrabold text-white bg-emerald-600 hover:bg-emerald-700 transition-all shadow-md shadow-emerald-600/20 hover:scale-105"
                 >
                   <ClipboardCheck size={18} />
@@ -3539,7 +3554,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                   Vistoria Registada
                 </button>
                 <button
-                  onClick={() => { setInspectionToOpen(null); setIsInspecting(true); }}
+                  onClick={() => { setInspectionToOpen(null); setIsInspecting(true); void marcarJangadaEmInspecao(); }}
                   className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3.5 rounded-xl shadow-md shadow-emerald-500/10 flex items-center justify-center gap-2 transition-transform hover:scale-[1.02]"
                 >
                   <ClipboardCheck size={16} />

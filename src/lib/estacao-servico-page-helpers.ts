@@ -97,7 +97,9 @@ export function getBoardStatusPresentation(item: ServiceStationQueueItem) {
 export function getNextStatusAction(status: QueueStatus) {
   if (status === "aguardar") return { next: "agendada" as const, label: "Agendar" };
   if (status === "agendada") return { next: "progresso" as const, label: "Iniciar" };
-  if (status === "progresso") return { next: "a_secar" as const, label: "Passar a secagem" };
+  // Etapa de secagem removida: de "Em inspeção" passa-se já a "Pronta para
+  // entrega". O ramo `a_secar` mantém-se apenas para registos legados.
+  if (status === "progresso") return { next: "finalizada" as const, label: "Concluir inspeção" };
   if (status === "a_secar") return { next: "finalizada" as const, label: "Concluir inspeção" };
   return null;
 }
@@ -106,7 +108,7 @@ export function getPreviousStatusAction(status: QueueStatus) {
   if (status === "agendada") return { prev: "aguardar" as const, label: "Voltar a aguardar" };
   if (status === "progresso") return { prev: "agendada" as const, label: "Voltar a agendada" };
   if (status === "a_secar") return { prev: "progresso" as const, label: "Voltar à inspeção" };
-  if (status === "finalizada") return { prev: "a_secar" as const, label: "Reabrir trabalho" };
+  if (status === "finalizada") return { prev: "progresso" as const, label: "Reabrir trabalho" };
   return null;
 }
 

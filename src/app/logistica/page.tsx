@@ -1,27 +1,51 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { Ship, Truck, Download, Upload, RefreshCw, Search, Filter, Calendar, AlertTriangle, CheckCircle, Clock, Loader2, X, ChevronDown, ChevronUp, Eye, Package, MapPin, Building2, Wrench, ShieldCheck, AlertCircle, Plus, Minus } from "lucide-react";
+import { Ship, Truck, Download, Upload, RefreshCw, Search, Filter, Calendar, AlertTriangle, CheckCircle, Clock, Loader2, X, ChevronDown, ChevronUp, Eye, Package, MapPin, Building2, Wrench, ShieldCheck, AlertCircle, Plus, Minus, ChevronsUpDown } from "lucide-react";
 import { formatDate } from "@/lib/date-utils";
-import type { JangadaLogistica, FilterState } from "@/types/logistica-page";
+import type { JangadaLogistica, FilterState, LogisticaStatus } from "@/types/logistica-page";
+import { toLogisticaStatus } from "@/types/logistica-page";
 
 const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactNode; class: string; bg: string; dot: string }> = {
-  recebida: { label: "Recebida", icon: <Download className="h-3 w-3" />, class: "text-blue-700", bg: "bg-blue-50", dot: "bg-blue-500" },
-  em_inspecao: { label: "Em Inspeção", icon: <Wrench className="h-3 w-3" />, class: "text-amber-700", bg: "bg-amber-50", dot: "bg-amber-500" },
-  em_inspecção: { label: "Em Inspeção", icon: <Wrench className="h-3 w-3" />, class: "text-amber-700", bg: "bg-amber-50", dot: "bg-amber-500" },
-  concluida: { label: "Concluída", icon: <CheckCircle className="h-3 w-3" />, class: "text-emerald-700", bg: "bg-emerald-50", dot: "bg-emerald-500" },
-  concluída: { label: "Concluída", icon: <CheckCircle className="h-3 w-3" />, class: "text-emerald-700", bg: "bg-emerald-50", dot: "bg-emerald-500" },
-  expedida: { label: "Expedida", icon: <Upload className="h-3 w-3" />, class: "text-indigo-700", bg: "bg-indigo-50", dot: "bg-indigo-500" },
-  agendada: { label: "Agendada", icon: <Calendar className="h-3 w-3" />, class: "text-violet-700", bg: "bg-violet-50", dot: "bg-violet-500" },
   aguardando: { label: "Aguardando", icon: <Clock className="h-3 w-3" />, class: "text-slate-600", bg: "bg-slate-100", dot: "bg-slate-400" },
+  recebida: { label: "Recebida", icon: <Download className="h-3 w-3" />, class: "text-blue-700", bg: "bg-blue-50", dot: "bg-blue-500" },
+  agendada: { label: "Agendada", icon: <Calendar className="h-3 w-3" />, class: "text-violet-700", bg: "bg-violet-50", dot: "bg-violet-500" },
+  em_inspecao: { label: "Em Inspeção", icon: <Wrench className="h-3 w-3" />, class: "text-amber-700", bg: "bg-amber-50", dot: "bg-amber-500" },
+  concluida: { label: "Concluída", icon: <CheckCircle className="h-3 w-3" />, class: "text-emerald-700", bg: "bg-emerald-50", dot: "bg-emerald-500" },
+  expedida: { label: "Expedida", icon: <Upload className="h-3 w-3" />, class: "text-indigo-700", bg: "bg-indigo-50", dot: "bg-indigo-500" },
 };
 
-const STATUS_ORDER = ["aguardando", "recebida", "em_inspecao", "em_inspecção", "concluida", "concluída", "expedida", "agendada"];
+const STATUS_ORDER: LogisticaStatus[] = ["aguardando", "recebida", "agendada", "em_inspecao", "concluida", "expedida"];
+
+/** Dias até à próxima inspeção (0 = hoje; negativo = caducada). null = sem data. */
+function inspectionDiffDays(dateStr: string | null): number | null {
+  if (!dateStr) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(dateStr);
+  target.setHours(0, 0, 0, 0);
+  return Math.ceil((target.getTime() - today.getTime()) / 86400000);
+}
+
+const SORT_ACCESSORS: Record<string, (j: JangadaLogistica) => unknown> = {
+  serial: j => j.serial,
+  marcaModelo: j => `${j.brand || ""} ${j.model || ""}`.trim(),
+  capacity: j => j.capacity ?? 0,
+  navio: j => j.shipName || "",
+  armador: j => j.owner || "",
+  ilha: j => j.island || "",
+  estacao: j => j.serviceStationName || "",
+  numeroObra: j => j.numeroObra || "",
+  dataProxInspecao: j => j.dataProxInspecao || "",
+  status: j => STATUS_ORDER.indexOf(toLogisticaStatus(j.queueStatus, { inQueue: true })),
+  chegada: j => j.queueDataChegada || "",
+  entrega: j => j.queueDataPrevistaEntrega || "",
+};
 
 function StatusBadge({ status }: { status: string | null }) {
   const s = (status || "").toLowerCase();
   const config = STATUS_CONFIG[s] || { label: status || "—", icon: <Package className="h-3 w-3" />, class: "text-slate-600", bg: "bg-slate-100", dot: "bg-slate-400" };
-  const order = STATUS_ORDER.indexOf(s);
+  const order = STATUS_ORDER.indexOf(toLogisticaStatus(s, { inQueue: true }));
   
   return (
     <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${config.bg} ${config.class}`}>
@@ -119,8 +143,11 @@ export default function LogisticaPage() {
     station: "todas",
     dateFrom: "",
     dateTo: "",
+    insp: "todas",
   });
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc" | null>(null);
   const [actionMode, setActionMode] = useState<"receber" | "expedir" | null>(null);
   const [actionData, setActionData] = useState({
     stationId: "",
@@ -152,18 +179,81 @@ export default function LogisticaPage() {
       if (filters.station !== "todas" && j.serviceStationId?.toString() !== filters.station) return false;
       if (filters.dateFrom && j.queueDataChegada && j.queueDataChegada < filters.dateFrom) return false;
       if (filters.dateTo && j.queueDataChegada && j.queueDataChegada > filters.dateTo) return false;
+      if (filters.insp === "caducadas") {
+        const d = inspectionDiffDays(j.dataProxInspecao);
+        if (d === null || d >= 0) return false;
+      }
+      if (filters.insp === "proximas") {
+        const d = inspectionDiffDays(j.dataProxInspecao);
+        if (d === null || d < 0 || d > 30) return false;
+      }
       return true;
     });
   };
 
   const filteredJangadas = getFilteredJangadas();
 
+  const sortedFilteredJangadas = useMemo(() => {
+    if (!sortKey || !sortDir) return filteredJangadas;
+    const accessor = SORT_ACCESSORS[sortKey];
+    if (!accessor) return filteredJangadas;
+    return [...filteredJangadas].sort((a, b) => {
+      const aVal = accessor(a);
+      const bVal = accessor(b);
+      if (aVal === null || aVal === undefined || aVal === "") return 1;
+      if (bVal === null || bVal === undefined || bVal === "") return -1;
+      let cmp = 0;
+      if (typeof aVal === "number" && typeof bVal === "number") cmp = aVal - bVal;
+      else cmp = String(aVal).localeCompare(String(bVal), "pt-PT");
+      return sortDir === "desc" ? -cmp : cmp;
+    });
+  }, [filteredJangadas, sortKey, sortDir]);
+
+  const handleSort = (key: string) => {
+    if (sortKey !== key) {
+      setSortKey(key);
+      setSortDir("asc");
+    } else if (sortDir === "asc") {
+      setSortDir("desc");
+    } else if (sortDir === "desc") {
+      setSortKey(null);
+      setSortDir(null);
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  };
+
+  const renderSortIndicator = (key: string) =>
+    sortKey === key ? (
+      sortDir === "asc" ? (
+        <ChevronUp className="h-3 w-3" />
+      ) : (
+        <ChevronDown className="h-3 w-3" />
+      )
+    ) : (
+      <ChevronsUpDown className="h-3 w-3 opacity-40" />
+    );
+
   const stats = useMemo(() => ({
     total: filteredJangadas.length,
-    receber: filteredJangadas.filter(j => j.queueStatus === "aguardando" || !j.inQueue).length,
-    emProcesso: filteredJangadas.filter(j => j.queueStatus === "recebida" || j.queueStatus === "em_inspecao" || j.queueStatus === "em_inspecção").length,
-    expedir: filteredJangadas.filter(j => j.queueStatus === "concluida" || j.queueStatus === "concluída").length,
+    receber: filteredJangadas.filter(j => j.queueStatus === "aguardando").length,
+    emProcesso: filteredJangadas.filter(j =>
+      j.queueStatus === "recebida" || j.queueStatus === "agendada" || j.queueStatus === "em_inspecao",
+    ).length,
+    expedir: filteredJangadas.filter(j => j.queueStatus === "concluida").length,
     expedidas: filteredJangadas.filter(j => j.queueStatus === "expedida").length,
+  }), [filteredJangadas]);
+
+  const inspStats = useMemo(() => ({
+    caducadas: filteredJangadas.filter(j => {
+      const d = inspectionDiffDays(j.dataProxInspecao);
+      return d !== null && d < 0;
+    }).length,
+    proximas: filteredJangadas.filter(j => {
+      const d = inspectionDiffDays(j.dataProxInspecao);
+      return d !== null && d >= 0 && d <= 30;
+    }).length,
   }), [filteredJangadas]);
 
   useEffect(() => {
@@ -209,7 +299,6 @@ export default function LogisticaPage() {
     try {
       const params = new URLSearchParams();
       if (filters.search) params.set("search", filters.search);
-      if (filters.status !== "todos") params.set("status", filters.status);
       if (filters.island !== "todas") params.set("island", filters.island);
       if (filters.station !== "todas") params.set("station", filters.station);
       if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
@@ -219,11 +308,22 @@ export default function LogisticaPage() {
       const res = await fetch(`/api/jangadas?${params.toString()}`);
       if (!res.ok) throw new Error("Erro ao carregar jangadas");
       const data = await res.json();
-      
+
       const islandList: string[] = data.map((j: Record<string, unknown>) => String(j.ilha ?? "")).filter(Boolean);
       const uniqueIslands = [...new Set(islandList)].sort();
       setIslands(uniqueIslands);
-      setJangadas(data);
+
+      // A API devolve o estado bruto da fila da estação; a Logística fala
+      // outro vocabulário — traduzimos aqui para que filtros, contadores,
+      // distintos e ações usem todos os mesmos estados.
+      const normalizadas: JangadaLogistica[] = (Array.isArray(data) ? data : []).map((j: JangadaLogistica) => ({
+        ...j,
+        queueStatus: toLogisticaStatus(j.queueStatus, {
+          inQueue: Boolean(j.inQueue),
+          delivered: Boolean(j.delivered),
+        }),
+      }));
+      setJangadas(normalizadas);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -243,6 +343,26 @@ export default function LogisticaPage() {
   const openActionModal = (mode: "receber" | "expedir") => {
     const sel = filteredJangadas.filter(j => selectedIds.has(j.id));
     if (sel.length === 0) return alert("Selecione pelo menos uma jangada");
+
+    // Só se pode rececionar jangadas ainda não rececionadas e só se pode
+    // expedir as que já estão concluídas na estação.
+    const estadoValido = mode === "receber" ? "aguardando" : "concluida";
+    const elegiveis = sel.filter(j => j.queueStatus === estadoValido);
+    if (elegiveis.length === 0) {
+      const rotulo = mode === "receber" ? "para receber (ainda não rececionadas)" : "para expedir (já concluídas)";
+      return alert(`Nenhuma das jangadas selecionadas está ${rotulo}.`);
+    }
+    if (elegiveis.length < sel.length) {
+      const ignoradas = sel.filter(j => j.queueStatus !== estadoValido);
+      const ok = window.confirm(
+        `${ignoradas.length} jangada(s) não estão neste estado e serão ignoradas:\n` +
+        `${ignoradas.slice(0, 8).map(j => `${j.serial} (${j.queueStatus || "—"})`).join("\n")}\n\n` +
+        `Continuar com as ${elegiveis.length} restantes?`,
+      );
+      if (!ok) return;
+      setSelectedIds(new Set(elegiveis.map(j => j.id)));
+    }
+
     setActionMode(mode);
     setActionData({
       stationId: mode === "receber" ? (sel[0].serviceStationId?.toString() || "") : "",
@@ -263,37 +383,48 @@ export default function LogisticaPage() {
     if (sel.length === 0) return;
 
     try {
+      const agora = new Date().toISOString();
+      const falhas: string[] = [];
+
       for (const jangada of sel) {
-        if (actionMode === "receber") {
-          await fetch("/api/service-station", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
+        const body = actionMode === "receber"
+          ? {
               raftId: jangada.id,
               status: "recebida",
+              origem: "logistica",
+              serviceStationId: Number(actionData.stationId) || undefined,
               tecnico: actionData.tecnico,
               observacao: actionData.observacoes,
-              dataChegada: new Date().toISOString(),
-              dataPrevistaEntrega: actionData.dataPrevistaEntrega || undefined,
-            }),
-          });
-        } else {
-          await fetch("/api/service-station", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
+              arrivalDate: agora.slice(0, 10),
+              expectedDeliveryDate: actionData.dataPrevistaEntrega || undefined,
+            }
+          : {
               raftId: jangada.id,
               status: "expedida",
+              origem: "logistica",
               tecnico: actionData.tecnico,
               observacao: actionData.observacoes,
-              dataEntrega: new Date().toISOString(),
-            }),
-          });
+              deliveredAt: agora,
+            };
+
+        const res = await fetch("/api/service-station", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          const payload = await res.json().catch(() => ({}) as { error?: string });
+          falhas.push(`${jangada.serial || jangada.id}: ${payload.error || "erro"}`);
         }
       }
+
       closeActionModal();
       setSelectedIds(new Set());
-      loadJangadas();
+      await loadJangadas();
+
+      if (falhas.length > 0) {
+        alert(`${falhas.length} jangada(s) não processada(s):\n${falhas.join("\n")}`);
+      }
     } catch (e) {
       alert("Erro ao processar: " + (e as Error).message);
     }
@@ -599,7 +730,7 @@ export default function LogisticaPage() {
               <div className="p-2 bg-indigo-100 rounded-xl"><Filter className="h-5 w-5 text-indigo-600" /></div>
               <div>
                 <h3 className="font-semibold text-slate-800">Filtros Avançados</h3>
-                <p className="text-xs text-slate-500">Refine a pesquisa por status, localização, estação ou datas</p>
+                <p className="text-xs text-slate-500">Refine a pesquisa por status, localização, estação, datas ou inspeções</p>
               </div>
             </div>
             <div className="flex items-center gap-2 text-slate-500">
@@ -623,7 +754,7 @@ export default function LogisticaPage() {
               </div>
 
               {/* Filter Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
                 <FilterSelect
                   label="Status Logístico"
                   value={filters.status}
@@ -650,6 +781,16 @@ export default function LogisticaPage() {
                   onChange={(e) => setFilters({...filters, station: e.target.value})}
                   options={[{ value: "todas", label: "Todas as Estações" }, ...stations.map(s => ({ value: s.id.toString(), label: `${s.codigo} - ${s.nome}` }))]}
                 />
+                <FilterSelect
+                  label="Inspeção"
+                  value={filters.insp}
+                  onChange={(e) => setFilters({...filters, insp: e.target.value})}
+                  options={[
+                    { value: "todas", label: "Todas as Inspeções" },
+                    { value: "proximas", label: "Próximas (≤ 30 dias)" },
+                    { value: "caducadas", label: "Caducadas / Expiradas" },
+                  ]}
+                />
                 <FilterDateRange
                   label="Data Chegada"
                   from={filters.dateFrom}
@@ -666,6 +807,22 @@ export default function LogisticaPage() {
                 <StatChip label="Em Processo" value={stats.emProcesso} color="amber" icon={<Wrench className="h-3 w-3" />} />
                 <StatChip label="Para Expedir" value={stats.expedir} color="emerald" icon={<Upload className="h-3 w-3" />} />
                 <StatChip label="Expedidas" value={stats.expedidas} color="indigo" icon={<ShieldCheck className="h-3 w-3" />} />
+                <StatChip
+                  label="Caducadas"
+                  value={inspStats.caducadas}
+                  color="red"
+                  active={filters.insp === "caducadas"}
+                  onClick={() => setFilters(f => ({ ...f, insp: f.insp === "caducadas" ? "todas" : "caducadas" }))}
+                  icon={<AlertCircle className="h-3 w-3" />}
+                />
+                <StatChip
+                  label="Próx. ≤30d"
+                  value={inspStats.proximas}
+                  color="amber"
+                  active={filters.insp === "proximas"}
+                  onClick={() => setFilters(f => ({ ...f, insp: f.insp === "proximas" ? "todas" : "proximas" }))}
+                  icon={<Calendar className="h-3 w-3" />}
+                />
               </div>
             </div>
           </div>
@@ -753,22 +910,46 @@ export default function LogisticaPage() {
                         aria-label="Selecionar todas"
                       />
                     </th>
-                    <th className="p-3 text-left">Nº Série</th>
-                    <th className="p-3 text-left">Marca / Modelo</th>
-                    <th className="p-3 text-center">Cap.</th>
-                    <th className="p-3 text-left">Navio</th>
-                    <th className="p-3 text-left">Armador</th>
-                    <th className="p-3 text-left">Ilha</th>
-                    <th className="p-3 text-left">Estação</th>
-                    <th className="p-3 text-left">Nº Obra</th>
-                    <th className="p-3 text-left">Próx. Insp.</th>
-                    <th className="p-3 text-left">Status</th>
-                    <th className="p-3 text-center">Chegada</th>
-                    <th className="p-3 text-center">Prev. Entrega</th>
+                    <th className="p-3 text-left select-none cursor-pointer hover:text-slate-800" onClick={() => handleSort("serial")}>
+                      <span className="inline-flex items-center gap-1">Nº Série {renderSortIndicator("serial")}</span>
+                    </th>
+                    <th className="p-3 text-left select-none cursor-pointer hover:text-slate-800" onClick={() => handleSort("marcaModelo")}>
+                      <span className="inline-flex items-center gap-1">Marca / Modelo {renderSortIndicator("marcaModelo")}</span>
+                    </th>
+                    <th className="p-3 text-center select-none cursor-pointer hover:text-slate-800" onClick={() => handleSort("capacity")}>
+                      <span className="inline-flex items-center gap-1 justify-center">Cap. {renderSortIndicator("capacity")}</span>
+                    </th>
+                    <th className="p-3 text-left select-none cursor-pointer hover:text-slate-800" onClick={() => handleSort("navio")}>
+                      <span className="inline-flex items-center gap-1">Navio {renderSortIndicator("navio")}</span>
+                    </th>
+                    <th className="p-3 text-left select-none cursor-pointer hover:text-slate-800" onClick={() => handleSort("armador")}>
+                      <span className="inline-flex items-center gap-1">Armador {renderSortIndicator("armador")}</span>
+                    </th>
+                    <th className="p-3 text-left select-none cursor-pointer hover:text-slate-800" onClick={() => handleSort("ilha")}>
+                      <span className="inline-flex items-center gap-1">Ilha {renderSortIndicator("ilha")}</span>
+                    </th>
+                    <th className="p-3 text-left select-none cursor-pointer hover:text-slate-800" onClick={() => handleSort("estacao")}>
+                      <span className="inline-flex items-center gap-1">Estação {renderSortIndicator("estacao")}</span>
+                    </th>
+                    <th className="p-3 text-left select-none cursor-pointer hover:text-slate-800" onClick={() => handleSort("numeroObra")}>
+                      <span className="inline-flex items-center gap-1">Nº Obra {renderSortIndicator("numeroObra")}</span>
+                    </th>
+                    <th className="p-3 text-left select-none cursor-pointer hover:text-slate-800" onClick={() => handleSort("dataProxInspecao")}>
+                      <span className="inline-flex items-center gap-1">Próx. Insp. {renderSortIndicator("dataProxInspecao")}</span>
+                    </th>
+                    <th className="p-3 text-left select-none cursor-pointer hover:text-slate-800" onClick={() => handleSort("status")}>
+                      <span className="inline-flex items-center gap-1">Status {renderSortIndicator("status")}</span>
+                    </th>
+                    <th className="p-3 text-center select-none cursor-pointer hover:text-slate-800" onClick={() => handleSort("chegada")}>
+                      <span className="inline-flex items-center gap-1 justify-center">Chegada {renderSortIndicator("chegada")}</span>
+                    </th>
+                    <th className="p-3 text-center select-none cursor-pointer hover:text-slate-800" onClick={() => handleSort("entrega")}>
+                      <span className="inline-flex items-center gap-1 justify-center">Prev. Entrega {renderSortIndicator("entrega")}</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredJangadas.map((jangada) => (
+                  {sortedFilteredJangadas.map((jangada) => (
                     <tr key={jangada.id} className="hover:bg-slate-50/50 transition-colors group">
                       <td className="p-3 pl-4 text-center">
                         <input
@@ -939,16 +1120,20 @@ function FilterDateRange({ label, from, to, onFromChange, onToChange }: {
   );
 }
 
-function StatChip({ label, value, color, icon }: { label: string; value: number; color: string; icon: React.ReactNode }) {
+function StatChip({ label, value, color, icon, onClick, active }: { label: string; value: number; color: string; icon: React.ReactNode; onClick?: () => void; active?: boolean }) {
   const colors = {
     slate: "bg-slate-100 text-slate-700 border-slate-200",
     blue: "bg-blue-50 text-blue-700 border-blue-100",
     amber: "bg-amber-50 text-amber-700 border-amber-100",
     emerald: "bg-emerald-50 text-emerald-700 border-emerald-100",
     indigo: "bg-indigo-50 text-indigo-700 border-indigo-100",
+    red: "bg-red-50 text-red-700 border-red-100",
   };
   return (
-    <button className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border ${colors[color as keyof typeof colors] || colors.slate} hover:shadow-md transition-all`}>
+    <button
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border ${colors[color as keyof typeof colors] || colors.slate} ${active ? "ring-2 ring-indigo-500/40 shadow-md" : ""} ${onClick ? "hover:shadow-md active:scale-95 cursor-pointer transition-all" : ""}`}
+    >
       <span className="p-0.5 bg-white/50 rounded">{icon}</span>
       <span>{label}</span>
       <span className="w-5 h-5 flex items-center justify-center bg-white/50 rounded-lg font-bold text-[10px]">{value}</span>

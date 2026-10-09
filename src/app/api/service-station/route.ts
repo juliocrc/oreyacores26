@@ -80,6 +80,18 @@ function normalizeStatus(value: unknown): QueueStatus {
   return "aguardar";
 }
 
+const QUEUE_STATUS_RANK: Record<QueueStatus, number> = {
+  aguardar: 0,
+  agendada: 1,
+  progresso: 2,
+  a_secar: 3,
+  finalizada: 4,
+};
+
+function queueStatusRank(value: unknown): number {
+  return QUEUE_STATUS_RANK[normalizeStatus(value)] ?? 0;
+}
+
 function parseBoolean(value: unknown, fallback = false) {
   if (typeof value === "boolean") return value;
   if (typeof value === "number") return value > 0;
@@ -374,10 +386,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "raftId inválido." }, { status: 400 });
     }
 
-    const requestedWorkflowStatus = resolveWorkflowStatus({
-      meta: { workflowStatus: body?.workflowStatus as OrdemWorkflowStatus | undefined },
-      queueStatus: body?.status,
-    }) || "entrada_estacao";
+    // A Logística fala com a estação com o seu próprio vocabulário:
+    // "recebida" = receção na estação, "expedida" = jangada enviada/entregue.
+    const rawStatus = String(body?.status || "").trim().toLowerCase();
+    const isExpedicao = ["expedida", "expedicao", "expedição", "enviada", "envio"].includes(rawStatus);
+    const isRececao = ["recebida", "rececao", "receção", "receber"].includes(rawStatus);
+    const origem = String(body?.origem || body?.origin || "").trim().toLowerCase();
+
+    const requestedWorkflowStatus =
+      (isExpedicao
+        ? ("aguarda_decisao" as OrdemWorkflowStatus)
+        : resolveWorkflowStatus({
+            meta: { workflowStatus: body?.workflowStatus as OrdemWorkflowStatus | undefined },
+            queueStatus: isRececao ? "aguardar" : body?.status,
+          })) || "entrada_estacao";
     const status = normalizeStatus(mapWorkflowStatusToQueueStatus(requestedWorkflowStatus));
     const nowIso = new Date().toISOString();
     const arrivalDate = String(body?.arrivalDate || "").trim() || nowIso.slice(0, 10);
@@ -392,19 +414,41 @@ export async function POST(req: NextRequest) {
       readyForDelivery: status === "finalizada" ? true : parseBoolean(body?.readyForDelivery, false),
       deliveryMethod: normalizeDeliveryMethod(body?.deliveryMethod),
       saoMiguelPortCall: normalizeSaoMiguelPortCall(body?.saoMiguelPortCall),
+      deliveredAt: isExpedicao
+        ? String(body?.deliveredAt || body?.dataEntrega || "").trim() || nowIso
+        : undefined,
+      transitario: String(body?.transitario || "").trim() || undefined,
+      trackingCode: String(body?.trackingCode || "").trim() || undefined,
     }, requestedWorkflowStatus, {
-      origin: "queue",
-      message: `Entrada criada na estação com workflow ${requestedWorkflowStatus}.`,
+      origin: isExpedicao ? "logistica_expedicao" : "queue",
+      message: isExpedicao
+        ? "Jangada expedida pela logística."
+        : `Entrada criada na estação com workflow ${requestedWorkflowStatus}.`,
       user: String(body?.tecnico || "").trim() || "sistema",
     }) satisfies QueueMeta;
 
     const expectedDeliveryDateRaw = String(body?.expectedDeliveryDate || "").trim();
     const expectedDeliveryDate = expectedDeliveryDateRaw ? new Date(expectedDeliveryDateRaw) : null;
+    const requestedStationId = Number(body?.serviceStationId) || null;
+    const requestedStationAllowed =
+      requestedStationId !== null &&
+      (access.isAdmin || access.allowedStationIds.length === 0 || access.allowedStationIds.includes(requestedStationId));
     const fallbackAllowedStationId = activeStationId || access.stationId || access.allowedStationIds[0] || null;
-    const enforcedServiceStationId = fallbackAllowedStationId;
+    const enforcedServiceStationId = requestedStationAllowed && requestedStationId ? requestedStationId : fallbackAllowedStationId;
 
     if (!enforcedServiceStationId) {
       return NextResponse.json({ error: "Conta sem estação de serviço associada." }, { status: 403 });
+    }
+
+    // Regra: a receção de jangadas faz-se apenas pela Logística (/logistica).
+    if (status === "aguardar" && !isExpedicao && origem !== "logistica") {
+      return NextResponse.json(
+        {
+          error:
+            "A receção de jangadas é feita apenas na Logística. Abra /logistica e use o botão «Receber».",
+        },
+        { status: 403 },
+      );
     }
 
     if (status === "aguardar" && APP_CONFIG.theme !== 'deluxe') {
@@ -417,21 +461,62 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const created = await prisma.serviceStationQueue.create({
-      data: {
-        jangadaId,
-        status,
-        serviceStationId: enforcedServiceStationId,
-        dataPrevistaEntrega: expectedDeliveryDate,
-        observacoes: toMetaJson(meta),
-      },
+    const existingActiveRow = await prisma.serviceStationQueue.findFirst({
+      where: { jangadaId },
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
     });
+    const existingActive = existingActiveRow && !isQueueRowDelivered(existingActiveRow) ? existingActiveRow : null;
+    const existingMeta = existingActive ? parseQueueMeta(existingActive.observacoes) : null;
+
+    // Nunca recuar o estado de uma entrada já existente (exceto na expedição,
+    // que fecha a entrada de qualquer forma). Isto evita duplicar linhas no
+    // quadro e rebaixar jangadas que já avançaram no fluxo.
+    const nextRowStatus = !existingActive
+      ? status
+      : isExpedicao || queueStatusRank(status) > queueStatusRank(existingActive.status)
+        ? status
+        : normalizeStatus(existingActive.status);
+    const advanced = !existingActive || nextRowStatus === status;
+
+    const created = existingActive && existingMeta
+      ? await prisma.serviceStationQueue.update({
+          where: { id: existingActive.id },
+          data: {
+            status: nextRowStatus,
+            serviceStationId: enforcedServiceStationId || existingActive.serviceStationId,
+            dataPrevistaEntrega: expectedDeliveryDate ?? existingActive.dataPrevistaEntrega,
+            observacoes: toMetaJson({
+              ...existingMeta,
+              ...meta,
+              workflowStatus: advanced ? meta.workflowStatus : existingMeta.workflowStatus,
+              workflowTransitions: advanced
+                ? meta.workflowTransitions || existingMeta.workflowTransitions
+                : existingMeta.workflowTransitions || meta.workflowTransitions,
+            }),
+          },
+        })
+      : await prisma.serviceStationQueue.create({
+          data: {
+            jangadaId,
+            status,
+            serviceStationId: enforcedServiceStationId,
+            dataPrevistaEntrega: expectedDeliveryDate,
+            observacoes: toMetaJson(meta),
+          },
+        });
+
+    const effectiveStatus = nextRowStatus;
+    const effectiveWorkflowStatus = advanced && meta.workflowStatus
+      ? (meta.workflowStatus as OrdemWorkflowStatus)
+      : (existingMeta?.workflowStatus as OrdemWorkflowStatus | undefined) ||
+        mapQueueStatusToWorkflowStatus(effectiveStatus) ||
+        requestedWorkflowStatus;
 
     const ordemServico = await ensureOrderForServiceStation({
       jangadaId,
       queueId: created.id,
-      status,
-      workflowStatus: requestedWorkflowStatus,
+      status: effectiveStatus,
+      workflowStatus: effectiveWorkflowStatus,
       tecnicoResponsavel: meta.tecnico,
       observacao: meta.observacao,
       expectedDeliveryDate,
@@ -460,7 +545,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (status === "finalizada") {
+    if (effectiveStatus === "finalizada") {
       await clearEntregaAgendaEvent({ jangadaId });
     } else if (expectedDeliveryDate) {
       await syncEntregaAgendaEvent({ jangadaId, dataPrevistaEntrega: expectedDeliveryDate });
@@ -468,13 +553,17 @@ export async function POST(req: NextRequest) {
 
     await logAuditoria({
       tabela: "ServiceStationQueue",
-      tipoOperacao: "CREATE",
+      tipoOperacao: existingActive ? "UPDATE" : "CREATE",
       idRegisto: created.id,
-      descricao: `Entrada na estação de serviço (jangadaId=${jangadaId})`,
+      descricao: isExpedicao
+        ? `Expedição registada pela logística (jangadaId=${jangadaId})`
+        : existingActive
+          ? `Entrada existente consolidada (jangadaId=${jangadaId}, estado=${nextRowStatus})`
+          : `Entrada na estação de serviço (jangadaId=${jangadaId})`,
       dadosDepois: created,
     });
 
-    if (parseBoolean(body?.arrivedViaForwarder, false)) {
+    if (!existingActive && parseBoolean(body?.arrivedViaForwarder, false)) {
       await tryNotifySms(() =>
         notifyJangadaRececionada(jangadaId, { expectedDeliveryDate }),
       );
@@ -543,7 +632,7 @@ export async function PUT(req: NextRequest) {
         return NextResponse.json(
           {
             error: "Para marcar como pronta para entrega, o orçamento da OT tem de estar aprovado.",
-            details: [`Orçamento atual: ${linkedOrder.orcamentoStatus || "Rascunho"}. Aprova o orçamento no cartão antes de fechar.`],
+            details: [`Orçamento atual: ${linkedOrder.orcamentoStatus || "Rascunho"}. Aprova no módulo de Orçamentos (/orcamentos) antes de fechar.`],
           },
           { status: 400 },
         );

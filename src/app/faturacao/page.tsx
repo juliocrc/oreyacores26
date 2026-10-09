@@ -5,7 +5,7 @@ import {
   FileText, Receipt, Search, Loader2, Save, Download, 
   CheckCircle2, AlertCircle, Edit3, RefreshCcw, Percent, 
   DollarSign, Wrench, ShieldCheck, Zap, Link2, Check, 
-  TrendingUp, PieChart, Building2, BarChart3, Wallet, MessageSquare, BadgeCheck, CreditCard,
+  TrendingUp, PieChart, Building2, BarChart3, Wallet, MessageSquare, CreditCard,
   CalendarRange, Award, FileMinus, Gauge, Plus, Trash2, Package
 } from "lucide-react";
 import { Bar, Doughnut } from "react-chartjs-2";
@@ -429,15 +429,15 @@ export default function FaturacaoConsolePage() {
     }
   };
 
-  // Manual approval (just approve budget, no order closure required)
-  const handleAprovarOrcamento = async () => {
-    await handleSave({ orcamentoStatus: "Aprovado" });
-  };
-
-  // Approve + try to conclude + register & download invoice
-  const handleAprovarEConcluirFaturar = async () => {
+  // Aprovação é exclusiva do módulo de Orçamentos (/orcamentos).
+  // Aqui conclui-se a ordem e emite-se a fatura (exige orçamento aprovado).
+  const handleConcluirEmitirFatura = async () => {
     if (!selectedOrder) return;
-    const ok = await handleSave({ orcamentoStatus: "Aprovado", status: "concluida" });
+    if (editOrcamentoStatus !== "Aprovado") {
+      setErrorMsg("Orçamento ainda não aprovado. Aprove-o no módulo de Orçamentos (/orcamentos) antes de concluir e faturar.");
+      return;
+    }
+    const ok = await handleSave({ status: "concluida" });
     if (ok) {
       await handleEmitirFatura();
     }
@@ -451,6 +451,11 @@ export default function FaturacaoConsolePage() {
 
     if (selectedOrder.status !== "concluida" && editStatus !== "concluida") {
       setErrorMsg("Para emitir a Fatura Oficial, a Ordem de Serviço deve estar concluída.");
+      return;
+    }
+
+    if ((selectedOrder.orcamentoStatus || editOrcamentoStatus) !== "Aprovado") {
+      setErrorMsg("Orçamento não aprovado — a aprovação é feita no módulo de Orçamentos (/orcamentos).");
       return;
     }
 
@@ -1239,18 +1244,9 @@ export default function FaturacaoConsolePage() {
                 <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-4 flex flex-wrap items-center justify-between gap-4">
                   <div className="flex items-center gap-2 text-xs text-indigo-700">
                     <Zap size={16} className="text-indigo-600 animate-pulse" />
-                    <span>Ações: Aprovar orçamento, enviar por WhatsApp ou faturar.</span>
+                    <span>Aprovação centralizada no módulo de Orçamentos. Conclua a ordem e emita a fatura.</span>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      onClick={handleAprovarOrcamento}
-                      disabled={saving || editOrcamentoStatus === "Aprovado"}
-                      className="flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition disabled:opacity-50"
-                    >
-                      {saving ? <Loader2 size={14} className="animate-spin" /> : <BadgeCheck size={14} />}
-                      {editOrcamentoStatus === "Aprovado" ? "Orçamento Aprovado ✓" : "Aprovar Orçamento"}
-                    </button>
-
                     <button
                       onClick={handleWhatsAppShare}
                       className="flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition"
@@ -1277,12 +1273,13 @@ export default function FaturacaoConsolePage() {
                     </button>
 
                     <button
-                      onClick={handleAprovarEConcluirFaturar}
-                      disabled={saving}
+                      onClick={handleConcluirEmitirFatura}
+                      disabled={saving || editOrcamentoStatus !== "Aprovado"}
+                      title={editOrcamentoStatus !== "Aprovado" ? "Aprove o orçamento no módulo de Orçamentos (/orcamentos)" : "Concluir a ordem e emitir a fatura"}
                       className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-indigo-500 px-4 py-2 text-xs font-bold text-white hover:from-emerald-400 hover:to-indigo-400 transition shadow-sm disabled:opacity-50"
                     >
                       {saving ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
-                      ⚡ Aprovar & Faturar
+                      Concluir & Emitir Fatura
                     </button>
 
                     <button

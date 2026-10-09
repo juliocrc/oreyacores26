@@ -874,6 +874,7 @@ export async function saveInspection(payload: SaveInspectionPayload) {
           id: true,
           inspecaoId: true,
           metadados: true,
+          orcamentoStatus: true,
           valorMaoObra: true,
           valorDesconto: true,
           isIsentoIva: true
@@ -929,10 +930,20 @@ export async function saveInspection(payload: SaveInspectionPayload) {
           const iva = isIsentoIva ? 0 : subtotal * getIvaRate();
           const valorTotal = Math.round((subtotal + iva) * 100) / 100;
           const aprovacaoStatus = payloadOrcamento?.aprovacaoWhatsApp?.status;
-          const aprovacaoObrigatoria = Boolean(payloadOrcamento?.aprovacaoWhatsApp);
-          const orcamentoStatusFinal = aprovacaoObrigatoria
-            ? (aprovacaoStatus === "aprovado" ? "Aprovado" : "Rascunho")
-            : "Emitido";
+          // A aprovação é registada exclusivamente no módulo de Orçamentos.
+          // A inspeção apenas submete o orçamento para análise ("Enviado") e
+          // preserva qualquer decisão (Aprovado/Rejeitado) já tomada na OT.
+          const decisaoModulo =
+            activeOrdem.orcamentoStatus === "Aprovado" || activeOrdem.orcamentoStatus === "Rejeitado"
+              ? activeOrdem.orcamentoStatus
+              : null;
+          const orcamentoStatusFinal =
+            decisaoModulo ??
+            (aprovacaoStatus === "aprovado"
+              ? "Aprovado"
+              : aprovacaoStatus === "rejeitado"
+                ? "Rejeitado"
+                : "Enviado");
 
           await tx.ordemServico.update({
             where: { id: activeOrdem.id },
@@ -1103,6 +1114,22 @@ export async function saveInspection(payload: SaveInspectionPayload) {
       });
     } catch (syncError) {
       console.error("Sync inspeção→OS falhou (não crítico):", syncError);
+    }
+  }
+
+  // 5.1 QUADRO DA ESTAÇÃO: refletir o progresso da checklist no fluxo da
+  // estação de serviço. Rascunho → "Em inspeção"; finalização → "Prontas para
+  // entrega". Corre depois do sync acima para reutilizar a entrada criada.
+  if (finalJangadaId) {
+    try {
+      const { syncServiceStationQueueForInspection } = await import("@/lib/service-station-queue-sync");
+      await syncServiceStationQueueForInspection({
+        jangadaId: finalJangadaId,
+        phase: applyStockMovements ? "finish" : "start",
+        tecnico: String(payload.responsavel || "").trim() || null,
+      });
+    } catch (queueError) {
+      console.error("Sync checklist→fila da estação falhou (não crítico):", queueError);
     }
   }
 

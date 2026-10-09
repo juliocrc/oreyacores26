@@ -1653,12 +1653,6 @@ function EstacaoServicoContent() {
                               </div>
                             ) : null}
 
-                            {item.status === "a_secar" && !item.delivered ? (
-                              <div className="mt-3 rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs font-medium text-cyan-800">
-                                Subfase operacional: secagem em curso, mantida dentro de <span className="font-semibold">Em inspeção</span> para não partir o fluxo do quadro.
-                              </div>
-                            ) : null}
-
                             <div className="mt-4 flex flex-wrap gap-2">
                               {prevAction ? (
                                 <button

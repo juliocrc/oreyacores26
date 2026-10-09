@@ -29,7 +29,7 @@ export function buildDefaultSmsConfig(): SmsConfig {
       enviada:
         "Olá {cliente},\n\nA sua jangada {serial} já foi enviada da Estação de Serviço e segue de regresso{transitario}{tracking}.\n\nCumprimentos,\nEstação de Serviço",
       lembrete_validade:
-        "Olá {cliente},\n\nLembramos que a inspeção da sua jangada {serial} expira em {data}.\n\nPor favor contacte-nos para agendar a revisão técnica.\n\nCumprimentos,\nEstação de Serviço",
+        "Olá {cliente},\n\nLembramos que a inspeção da sua jangada {serial} {navio} expira em {data}.\n\nPor favor contacte-nos para agendar a revisão técnica.\n\nCumprimentos,\nEstação de Serviço",
     },
     lembreteValidadeDias: 7,
     requerConfirmacao: false,
@@ -121,7 +121,9 @@ export function buildSmsMessage(template: string, vars: Record<string, string>):
       message = message
         .split(`{${key}}`)
         .join("")
-        .replace(/\n{2,}/g, "\n");
+        .replace(/\n{2,}/g, "\n")
+        // Variável vazia (ex.: sem navio) não deve deixar espaços duplos.
+        .replace(/[ ]{2,}/g, " ");
     }
   }
   return message.trim();

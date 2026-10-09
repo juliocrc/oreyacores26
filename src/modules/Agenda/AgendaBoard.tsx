@@ -12,7 +12,6 @@ type AgendaBoardProps = {
 const BOARD_COLUMNS = [
   { id: 'scheduled', label: 'Agendado' },
   { id: 'in_progress', label: 'Em curso' },
-  { id: 'paused', label: 'Em pausa / Secar' },
   { id: 'testing', label: 'Em Teste' },
   { id: 'waiting_parts', label: 'Aguarda Peças' },
   { id: 'completed', label: 'Concluído' }
@@ -45,7 +44,9 @@ export default function AgendaBoard({ events, onStatusChange }: AgendaBoardProps
         const colEvents = events.filter(e => {
           if (String(e.id).startsWith("expiracao-")) return false;
           const st = String(e.status || 'scheduled').toLowerCase();
-          return st === col.id || (col.id === 'scheduled' && st === 'confirmed');
+          return st === col.id
+            || (col.id === 'scheduled' && st === 'confirmed')
+            || (col.id === 'in_progress' && st === 'paused');
         });
         
         return (

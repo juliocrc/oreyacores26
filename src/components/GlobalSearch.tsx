@@ -35,6 +35,18 @@ const TYPE_STYLES: Record<string, { chipSx: Record<string, unknown>; sectionSx: 
     chipSx: { bgcolor: "#e0e7ff", color: "#4338ca" },
     sectionSx: { color: "#4338ca" },
   },
+  "Fato Imersão": {
+    chipSx: { bgcolor: "#ccfbf1", color: "#0f766e" },
+    sectionSx: { color: "#0f766e" },
+  },
+  Artigo: {
+    chipSx: { bgcolor: "#f1f5f9", color: "#334155" },
+    sectionSx: { color: "#334155" },
+  },
+  Fatura: {
+    chipSx: { bgcolor: "#fee2e2", color: "#b91c1c" },
+    sectionSx: { color: "#b91c1c" },
+  },
   "Ordem de Serviço": {
     chipSx: { bgcolor: "#f3e8ff", color: "#7e22ce" },
     sectionSx: { color: "#7e22ce" },
@@ -133,7 +145,7 @@ export default function GlobalSearch({ showTrigger = false }: GlobalSearchProps)
         <TextField
           inputRef={inputRef}
           fullWidth
-          placeholder="Pesquisa rápida (Jangadas, Navios, Clientes, Coletes, EPIRBs, OT)..."
+          placeholder="Pesquisa rápida (Jangadas, Navios, Clientes, Artigos, Faturas, Obras, Coletes, EPIRBs, Fatos...)..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           variant="standard"
@@ -191,7 +203,7 @@ export default function GlobalSearch({ showTrigger = false }: GlobalSearchProps)
           )}
           {query.trim().length < 2 && !loading ? (
             <Box sx={{ p: 2.5, borderTop: '1px solid #eee', color: 'text.secondary' }}>
-              <Typography variant="body2">Escreve pelo menos 2 caracteres para pesquisar por tipo, equipamento ou OT.</Typography>
+              <Typography variant="body2">Escreve pelo menos 2 caracteres para pesquisar por jangada, navio, cliente, artigo, fatura, obra ou equipamento.</Typography>
             </Box>
           ) : null}
         </DialogContent>

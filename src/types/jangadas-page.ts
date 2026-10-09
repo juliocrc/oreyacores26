@@ -30,7 +30,15 @@ export type Jangada = {
     referencia?: string | null;
     codigoFabricante?: string | null;
   }>;
-  navio?: { nome: string, cliente?: { nome: string } };
+  navio?: {
+    nome: string;
+    cliente?: { id: number; nome: string; ilha?: string | null };
+  };
+  numeroObra?: string | null;
+  serviceStationName?: string | null;
+  island?: string | null;
+  ilha?: string | null;
+  portoRegisto?: string | null;
 };
 
 export type PausedInspectionDraftMeta = {
@@ -56,6 +64,10 @@ export type JangadaListColumnKey =
   | "packType"
   | "cliente"
   | "navio"
+  | "armador"
+  | "ilha"
+  | "estacao"
+  | "numeroObra"
   | "dataInspecao"
   | "dataProxInspecao"
   | "semaforo";
@@ -109,6 +121,10 @@ export const JANGADA_LIST_COLUMNS: Array<{ key: JangadaListColumnKey; label: str
   { key: "lotacao", label: "Lotação" },
   { key: "packType", label: "Tipo de Pack" },
   { key: "navio", label: "Navio/Embarcação" },
+  { key: "armador", label: "Armador" },
+  { key: "ilha", label: "Ilha" },
+  { key: "estacao", label: "Estação" },
+  { key: "numeroObra", label: "Nº Obra" },
   { key: "dataInspecao", label: "Data Inspeção" },
   { key: "dataProxInspecao", label: "Próx. Inspeção" },
   { key: "semaforo", label: "Consumíveis" },

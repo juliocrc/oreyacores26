@@ -60,6 +60,29 @@ async function resolveJangadaSerial(jangadaId: number): Promise<string> {
   }
 }
 
+/** Devolve "a bordo do navio X" (ou "") para usar na variável {navio} dos SMS. */
+async function resolveJangadaNavio(jangadaId: number): Promise<string> {
+  try {
+    const jangada = await prisma.jangada.findUnique({
+      where: { id: jangadaId },
+      select: { shipId: true, shipNameManual: true },
+    });
+    if (!jangada) return "";
+    if (jangada.shipId) {
+      const navio = await prisma.navio.findUnique({
+        where: { id: jangada.shipId },
+        select: { nome: true },
+      });
+      const nome = String(navio?.nome || "").trim();
+      if (nome) return `a bordo do navio ${nome}`;
+    }
+    const manual = String(jangada.shipNameManual || "").trim();
+    return manual ? `a bordo do navio ${manual}` : "";
+  } catch {
+    return "";
+  }
+}
+
 function formatDataBr(data?: string | Date | null): string {
   if (!data) return "";
   const date = typeof data === "string" ? new Date(data) : data;
@@ -193,9 +216,10 @@ async function notifyJangada(
       return { sent: false, reason: "Envio desativado na configuração." };
     }
 
-    const [contact, serial, logs] = await Promise.all([
+    const [contact, serial, navio, logs] = await Promise.all([
       resolveClientContact(jangadaId),
       resolveJangadaSerial(jangadaId),
+      resolveJangadaNavio(jangadaId),
       readSmsLogs(jangadaId),
     ]);
 
@@ -212,6 +236,7 @@ async function notifyJangada(
     const message = buildSmsMessage(template, {
       cliente: contact.name,
       serial,
+      navio,
       ...(options?.vars || {}),
     });
 
@@ -309,15 +334,17 @@ export async function resolveLembreteValidadeInfo(
 ): Promise<{ name: string; phone: string; serial: string; message: string } | null> {
   try {
     const config = await getSmsConfig();
-    const [contact, serial] = await Promise.all([
+    const [contact, serial, navio] = await Promise.all([
       resolveClientContact(jangadaId),
       resolveJangadaSerial(jangadaId),
+      resolveJangadaNavio(jangadaId),
     ]);
     if (!contact) return null;
     const template = config.texts?.lembrete_validade || buildDefaultSmsConfig().texts.lembrete_validade;
     const message = buildSmsMessage(template, {
       cliente: contact.name,
       serial,
+      navio,
       data: formatDataBr(dataProxInspecao || null),
     });
     return { name: contact.name, phone: contact.phone, serial, message };

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, use } from "react";
-import { CheckCircle2, XCircle, Loader2, ShieldCheck, FileText, AlertCircle, CreditCard } from "lucide-react";
+import { Loader2, ShieldCheck, AlertCircle, CreditCard } from "lucide-react";
 
 const PAGAMENTO_BADGE_CLASSES: Record<string, string> = {
   Pendente: "bg-amber-500/20 text-amber-300 border-amber-500/30",
@@ -32,8 +32,6 @@ export default function PublicOrcamentoPage({ params }: { params: Promise<{ id: 
   const [loading, setLoading] = useState(true);
   const [order, setOrder] = useState<PublicOrder | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [actionDone, setActionDone] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadOrder() {
@@ -42,9 +40,6 @@ export default function PublicOrcamentoPage({ params }: { params: Promise<{ id: 
         if (!res.ok) throw new Error("Orçamento não encontrado.");
         const data = await res.json();
         setOrder(data);
-        if (data.orcamentoStatus) {
-          setActionDone(data.orcamentoStatus);
-        }
       } catch (err: any) {
         setError(err?.message || "Erro ao carregar orçamento.");
       } finally {
@@ -53,34 +48,6 @@ export default function PublicOrcamentoPage({ params }: { params: Promise<{ id: 
     }
     loadOrder();
   }, [id]);
-
-  const handleDecision = async (decision: "Aprovado" | "Rejeitado") => {
-    if (!order) return;
-    setSubmitting(true);
-    setError(null);
-
-    try {
-      const res = await fetch(`/api/ordens-servico/${order.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          orcamentoStatus: decision,
-          status: decision === "Aprovado" ? "concluida" : order.status,
-        }),
-      });
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.error || "Falha ao registrar resposta.");
-      }
-
-      setActionDone(decision);
-    } catch (err: any) {
-      setError(err?.message || "Erro ao atualizar estado.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -128,12 +95,12 @@ export default function PublicOrcamentoPage({ params }: { params: Promise<{ id: 
           </div>
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
             <div className={`px-4 py-1.5 rounded-full text-xs font-bold border ${
-              actionDone === "Aprovado" ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30" :
-              actionDone === "Rejeitado" ? "bg-rose-500/20 text-rose-300 border-rose-500/30" :
-              "bg-amber-500/20 text-amber-300 border-amber-500/30"
-            }`}>
-              Estado: {actionDone || "Pendente de Aprovação"}
-            </div>
+                order.orcamentoStatus === "Aprovado" ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30" :
+                order.orcamentoStatus === "Rejeitado" ? "bg-rose-500/20 text-rose-300 border-rose-500/30" :
+                "bg-amber-500/20 text-amber-300 border-amber-500/30"
+              }`}>
+                Estado: {order.orcamentoStatus || "Em análise"}
+              </div>
             <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border ${PAGAMENTO_BADGE_CLASSES[pagamentoStatus] || PAGAMENTO_BADGE_CLASSES.Pendente}`}>
               <CreditCard size={12} /> Pagamento: {pagamentoStatus}
             </span>
@@ -207,31 +174,42 @@ export default function PublicOrcamentoPage({ params }: { params: Promise<{ id: 
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center space-y-4">
-          <h2 className="text-sm font-bold text-slate-200">Deseja aprovar ou rejeitar este orçamento?</h2>
-          <div className="flex flex-wrap justify-center gap-4">
-            <button
-              onClick={() => handleDecision("Aprovado")}
-              disabled={submitting || actionDone === "Aprovado"}
-              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-xl font-bold text-sm transition disabled:opacity-50 shadow-lg shadow-emerald-900/30"
-            >
-              {submitting ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle2 size={18} />}
-              {actionDone === "Aprovado" ? "Orçamento Aprovado ✓" : "Aprovar Orçamento"}
-            </button>
-            <button
-              onClick={() => handleDecision("Rejeitado")}
-              disabled={submitting || actionDone === "Rejeitado"}
-              className="flex items-center gap-2 bg-rose-600 hover:bg-rose-500 text-white px-6 py-3 rounded-xl font-bold text-sm transition disabled:opacity-50 shadow-lg shadow-rose-900/30"
-            >
-              {submitting ? <Loader2 className="animate-spin" size={16} /> : <XCircle size={18} />}
-              {actionDone === "Rejeitado" ? "Orçamento Rejeitado" : "Rejeitar Orçamento"}
-            </button>
-          </div>
-          {actionDone && (
-            <p className="text-xs text-emerald-400 pt-2 font-medium">
-              A sua resposta foi registada com sucesso. Obrigado!
-            </p>
+        {/* Status notice — decisão da equipa Orey (aprovada no módulo de Orçamentos) */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center space-y-3">
+          {order.orcamentoStatus === "Aprovado" ? (
+            <>
+              <div className="mx-auto w-12 h-12 rounded-full bg-emerald-500/15 flex items-center justify-center">
+                <ShieldCheck className="text-emerald-400" size={26} />
+              </div>
+              <h2 className="text-base font-bold text-emerald-300">Orçamento aprovado</h2>
+              <p className="text-sm text-slate-400">
+                A equipa Orey confirmou esta proposta. Será contactado para combinar a execução do serviço e o pagamento.
+              </p>
+            </>
+          ) : order.orcamentoStatus === "Rejeitado" ? (
+            <>
+              <div className="mx-auto w-12 h-12 rounded-full bg-rose-500/15 flex items-center justify-center">
+                <AlertCircle className="text-rose-400" size={26} />
+              </div>
+              <h2 className="text-base font-bold text-rose-300">Orçamento não aprovado</h2>
+              <p className="text-sm text-slate-400">
+                Esta proposta não avançou. Se tiver dúvidas, contacte a Orey Açores.
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="mx-auto w-12 h-12 rounded-full bg-amber-500/15 flex items-center justify-center">
+                <Loader2 className="text-amber-400 animate-spin" size={26} />
+              </div>
+              <h2 className="text-base font-bold text-amber-300">Orçamento em análise</h2>
+              <p className="text-sm text-slate-400">
+                A proposta foi recebida pela equipa Orey e encontra-se em análise técnica. A decisão será comunicada,
+                geralmente dentro de 1–2 dias úteis.
+              </p>
+              <p className="text-xs text-slate-500">
+                Para esclarecimentos contacte-nos com a referência {order.numeroOrdem || `#${order.id}`}.
+              </p>
+            </>
           )}
         </div>
       </div>

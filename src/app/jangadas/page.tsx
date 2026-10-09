@@ -11,7 +11,7 @@ import {
   getMandatoryPackItemsForRaft,
   type MandatoryPackItem,
 } from '@/modules/rafts/mandatoryPack';
-import { QrCode, X, Calendar, AlertTriangle } from 'lucide-react';
+import { QrCode, X, Calendar, AlertTriangle, Building2, MapPin } from 'lucide-react';
 import DataTable, { type ColumnDef } from '@/components/shared/DataTable';
 // Html5QrcodeScanner é carregado sob demanda dentro do efeito do scanner.
 import { matchesSearch as matchesSearchTermo } from '@/lib/search';
@@ -1783,6 +1783,67 @@ export default function JangadasPage() {
       },
     },
     {
+      key: 'armador',
+      header: 'Armador',
+      sortable: true,
+      filterable: true,
+      accessor: j => {
+        const nome = String(j.owner || j.navio?.cliente?.nome || '').trim();
+        return nome;
+      },
+      render: j => {
+        const nome = String(j.owner || j.navio?.cliente?.nome || '').trim();
+        if (!nome) return <span className="text-slate-400">—</span>;
+        return (
+          <span className="inline-flex items-center gap-1.5 text-slate-700">
+            <Building2 className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+            <span className="truncate max-w-[200px]">{nome}</span>
+          </span>
+        );
+      },
+    },
+    {
+      key: 'ilha',
+      header: 'Ilha',
+      sortable: true,
+      filterable: true,
+      accessor: j => j.island || j.ilha || '',
+      render: j => {
+        const ilha = j.island || j.ilha;
+        if (!ilha) return <span className="text-slate-400">—</span>;
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 rounded text-xs font-medium text-slate-600">
+            <MapPin className="h-3 w-3" />
+            {ilha}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'estacao',
+      header: 'Estação',
+      sortable: true,
+      filterable: true,
+      accessor: j => j.serviceStationName || '',
+      render: j => {
+        if (!j.serviceStationName) return <span className="text-slate-400">—</span>;
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded text-[10px] font-medium">
+            <Building2 className="h-2.5 w-2.5" />
+            {j.serviceStationName}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'numeroObra',
+      header: 'Nº Obra',
+      sortable: true,
+      filterable: true,
+      accessor: j => j.numeroObra || '',
+      render: j => j.numeroObra || <span className="text-slate-400">—</span>,
+    },
+    {
       key: 'dataInspecao',
       header: 'Data Inspeção',
       sortable: true,
@@ -2254,7 +2315,7 @@ export default function JangadasPage() {
                     columns={jangadaListColumns}
                     keyExtractor={j => j.id}
                     searchPlaceholder="Pesquisar jangadas..."
-                    searchKeys={['marca', 'modelo', 'serial', 'navio', 'packType']}
+                    searchKeys={['marca', 'modelo', 'serial', 'navio', 'packType', 'armador', 'ilha', 'estacao', 'numeroObra']}
                     pageSize={50}
                     pageSizeOptions={[25, 50, 100, 250]}
                     emptyMessage="Nenhuma jangada encontrada"

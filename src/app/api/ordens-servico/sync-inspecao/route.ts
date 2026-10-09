@@ -443,9 +443,11 @@ export async function POST(req: NextRequest) {
           isIsentoIva,
           valorTotal,
           orcamentoStatus: orcamento && body.isFinalSave && orcamento.usarOrcamento
-            ? (orcamento.aprovacaoWhatsApp
-                ? (aprovacaoStatus === "aprovado" ? "Aprovado" : "Rascunho")
-                : "Emitido")
+            ? (aprovacaoStatus === "aprovado"
+                ? "Aprovado"
+                : aprovacaoStatus === "rejeitado"
+                  ? "Rejeitado"
+                  : "Enviado")
             : "Rascunho",
           metadados: toOrdemServicoMetaJson(metaWithLog),
         },

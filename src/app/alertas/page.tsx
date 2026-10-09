@@ -91,6 +91,7 @@ export default function AlertasPage() {
     try {
       let clientDetails: ClienteDetalhe | null = null;
       let jangadaId = a.jangadaId;
+      let navioNome = "";
 
       if (!jangadaId && a.jangadaSerial) {
         const resSerial = await fetch(`/api/jangadas/serial/${a.jangadaSerial}`);
@@ -104,8 +105,10 @@ export default function AlertasPage() {
         const resJangada = await fetch(`/api/jangadas/${jangadaId}`);
         if (resJangada.ok) {
           const data = await resJangada.json();
-          const jangada = data?.jangada;
-          const client = jangada?.serviceStationQueue?.ordemServico?.cliente || jangada?.ship?.cliente || jangada?.cliente;
+          const jangada = data?.jangada || data;
+          const ship = jangada?.ship || data?.ship;
+          navioNome = String(ship?.nome || ship?.name || jangada?.shipNome || "").trim();
+          const client = jangada?.serviceStationQueue?.ordemServico?.cliente || ship?.cliente || jangada?.cliente;
           if (client?.id) {
             const resCli = await fetch(`/api/clientes/${client.id}`);
             if (resCli.ok) {
@@ -118,11 +121,11 @@ export default function AlertasPage() {
       const name = clientDetails?.nome || "";
       const email = clientDetails?.email || "";
       const phone = clientDetails?.telmovel || clientDetails?.telefone || "";
-      
+
       setContactInfo({ name, email, phone });
-      
+
       const dateLabel = a.data ? formatDateAuto(a.data) : "—";
-      setMessageText(`Olá ${name || 'Exmo. Cliente'},\n\nLembramos que a inspeção/certificação do seu equipamento (${a.referencia}) expira em ${dateLabel}.\n\nPara garantir a segurança da embarcação e o cumprimento dos regulamentos marítimos, por favor contacte-nos com a brevidade possível para procedermos ao agendamento da revisão técnica.\n\nCom os melhores cumprimentos,\nEstação de Serviço`);
+      setMessageText(`Olá ${name || 'Exmo. Cliente'},\n\nLembramos que a inspeção/certificação do seu equipamento (${a.referencia})${navioNome ? ` a bordo do navio ${navioNome}` : ""} expira em ${dateLabel}.\n\nPara garantir a segurança da embarcação e o cumprimento dos regulamentos marítimos, por favor contacte-nos com a brevidade possível para procedermos ao agendamento da revisão técnica.\n\nCom os melhores cumprimentos,\nEstação de Serviço`);
     } catch (err) {
       console.error(err);
       setContactInfo({ name: "", email: "", phone: "" });

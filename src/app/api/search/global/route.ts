@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const access = await getAccessContext();
     if (!access) return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
 
-    const [jangadas, navios, clientes, coletes, epirbs, ordensServico] = await Promise.all([
+    const [jangadas, navios, clientes, coletes, epirbs, fatosImersao, artigos, faturas, ordensServico] = await Promise.all([
       prisma.jangada.findMany({
         where: {
           OR: [
@@ -83,6 +83,60 @@ export async function GET(request: NextRequest) {
         take: 4,
         orderBy: { updatedAt: 'desc' },
       }),
+      prisma.fatoImersao.findMany({
+        where: {
+          OR: [
+            { serial: { contains: q } },
+            { marca: { contains: q } },
+            { modelo: { contains: q } },
+            { designNo: { contains: q } },
+            { estado: { contains: q } },
+          ],
+        },
+        take: 4,
+        orderBy: { updatedAt: 'desc' },
+      }),
+      prisma.stock.findMany({
+        where: {
+          OR: [
+            { referencia: { contains: q } },
+            { descricao: { contains: q } },
+            { codigoBarras: { contains: q } },
+            { categoria: { contains: q } },
+            { codigoFabricante: { contains: q } },
+          ],
+        },
+        select: {
+          id: true,
+          referencia: true,
+          descricao: true,
+          categoria: true,
+          precoVenda: true,
+          serviceStation: { select: { nome: true } },
+        },
+        take: 4,
+        orderBy: { updatedAt: 'desc' },
+      }),
+      prisma.fatura.findMany({
+        where: {
+          cancelada: false,
+          OR: [
+            { numeroFatura: { contains: q } },
+            { cliente: { nome: { contains: q } } },
+            { pagamentoStatus: { contains: q } },
+          ],
+        },
+        select: {
+          id: true,
+          numeroFatura: true,
+          valorTotal: true,
+          pagamentoStatus: true,
+          dataEmissao: true,
+          cliente: { select: { nome: true, numeroCliente: true } },
+        },
+        take: 4,
+        orderBy: { dataEmissao: 'desc' },
+      }),
       prisma.ordemServico.findMany({
         where: {
           OR: [
@@ -132,6 +186,21 @@ export async function GET(request: NextRequest) {
         type: "EPIRB",
         label: compactLabel([e.serial, [e.marca, e.modelo].filter(Boolean).join(" "), e.hexId]),
         href: `/epirbs/${e.id}`,
+      })),
+      ...fatosImersao.map((f) => ({
+        type: "Fato Imersão",
+        label: compactLabel([f.serial, [f.marca, f.modelo].filter(Boolean).join(" "), f.estado]),
+        href: `/fatos-imersao/${f.id}`,
+      })),
+      ...artigos.map((a: any) => ({
+        type: "Artigo",
+        label: compactLabel([a.referencia, a.descricao, a.categoria, a.serviceStation?.nome]),
+        href: `/stock/${a.id}`,
+      })),
+      ...faturas.map((f) => ({
+        type: "Fatura",
+        label: compactLabel([f.numeroFatura, f.cliente?.nome, f.cliente?.numeroCliente, `€ ${Number(f.valorTotal || 0).toFixed(2)}`, f.pagamentoStatus]),
+        href: `/faturacao`,
       })),
       ...ordensServico.map((os: any) => ({
         type: "Ordem de Serviço",

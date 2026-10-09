@@ -166,10 +166,11 @@ function step7Percent(d: InspectionData) {
   const linhas = (orc?.linhas || []).filter((l: any) => Number(l.quantidade) > 0 || Number(l.unitPrice) > 0);
   if (linhas.length === 0) return { percent: 0, missing: ['Orçamento por gerar (ou avançar sem faturação)'] };
   const aprovacao = orc?.aprovacaoWhatsApp;
+  // A aprovação acontece no módulo de Orçamentos: no wizard basta submeter.
   if (aprovacao?.status === 'aprovado') return { percent: 100, missing: [] };
-  if (aprovacao?.status === 'enviado') return { percent: 70, missing: ['Aguardar resposta do cliente'] };
-  if (aprovacao?.status === 'rejeitado') return { percent: 50, missing: ['Cliente rejeitou — ajustar e reenviar'] };
-  return { percent: 40, missing: ['Orçamento por aprovar (enviar via WhatsApp)'] };
+  if (aprovacao?.status === 'enviado') return { percent: 100, missing: [] };
+  if (aprovacao?.status === 'rejeitado') return { percent: 60, missing: ['Rejeitado no módulo — ajustar e reenviar para análise'] };
+  return { percent: 60, missing: ['Submeter o orçamento para análise'] };
 }
 
 function step8Percent(d: InspectionData) {

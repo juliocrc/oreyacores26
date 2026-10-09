@@ -209,12 +209,20 @@ export function normalizeQueueWorkflowStatus(value: unknown): QueueWorkflowStatu
   return "aguardar";
 }
 
-const SIMPLE_QUEUE_FLOW: QueueWorkflowStatus[] = ["aguardar", "agendada", "progresso", "a_secar", "finalizada"];
+// Etapa de secagem removida do fluxo: "Em inspeção" → "Pronta para entrega".
+const SIMPLE_QUEUE_FLOW: QueueWorkflowStatus[] = ["aguardar", "agendada", "progresso", "finalizada"];
 
 export function getAllowedQueueWorkflowTransitions(fromValue: unknown) {
   const from = normalizeQueueWorkflowStatus(fromValue);
   const index = SIMPLE_QUEUE_FLOW.indexOf(from);
-  if (index < 0) return [from] as QueueWorkflowStatus[];
+  if (index < 0) {
+    // Registos legados ainda em "a_secar": mantêm movimento (voltar à
+    // inspeção ou concluir) para não ficarem presos no quadro.
+    if (from === "a_secar") {
+      return ["a_secar", "progresso", "finalizada"] as QueueWorkflowStatus[];
+    }
+    return [from] as QueueWorkflowStatus[];
+  }
 
   const allowed = new Set<QueueWorkflowStatus>([from]);
   if (index + 1 < SIMPLE_QUEUE_FLOW.length) allowed.add(SIMPLE_QUEUE_FLOW[index + 1]);

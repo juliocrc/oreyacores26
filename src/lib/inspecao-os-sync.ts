@@ -376,13 +376,15 @@ export async function syncInspectionToOrdemServico(
         valorDesconto,
         isIsentoIva,
         valorTotal,
+        // A aprovação acontece no módulo de Orçamentos: a inspeção submete o
+        // orçamento para análise ("Enviado"); decisão prévia só se existir.
         orcamentoStatus:
           orcamento && input.isFinalSave && orcamento.usarOrcamento
-            ? orcamento.aprovacaoWhatsApp
-              ? aprovacaoStatus === "aprovado"
-                ? "Aprovado"
-                : "Rascunho"
-              : "Emitido"
+            ? aprovacaoStatus === "aprovado"
+              ? "Aprovado"
+              : aprovacaoStatus === "rejeitado"
+                ? "Rejeitado"
+                : "Enviado"
             : "Rascunho",
         metadados: toOrdemServicoMetaJson(metaWithLog),
       },
@@ -453,11 +455,32 @@ export async function syncInspectionToOrdemServico(
     });
 
     // Criar entrada na fila da estação de serviço se associada
+    // Criar entrada na fila da estação de serviço se associada
     if (jangada.serviceStationId) {
-      const existingQueue = await tx.serviceStationQueue.findFirst({
-        where: { jangadaId, ordemServicoId: order.id },
+      const candidateRows = await tx.serviceStationQueue.findMany({
+        where: { jangadaId },
+        orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
       });
-      if (!existingQueue) {
+      const activeRow = (row: (typeof candidateRows)[number]) => {
+        try {
+          const meta = JSON.parse(row.observacoes || "{}");
+          return !(meta && typeof meta === "object" && (meta as { deliveredAt?: unknown }).deliveredAt);
+        } catch {
+          return true;
+        }
+      };
+      const existingQueue =
+        candidateRows.find((row) => row.ordemServicoId === order.id) ||
+        candidateRows.find((row) => activeRow(row));
+
+      if (existingQueue) {
+        if (!existingQueue.ordemServicoId) {
+          await tx.serviceStationQueue.update({
+            where: { id: existingQueue.id },
+            data: { ordemServicoId: order.id },
+          });
+        }
+      } else {
         await tx.serviceStationQueue.create({
           data: {
             serviceStationId: jangada.serviceStationId,

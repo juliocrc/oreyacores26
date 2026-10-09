@@ -604,14 +604,8 @@ export async function PUT(req: NextRequest) {
       );
     }
 
-    // Bloquear edição de valores/materiais se o orçamento foi Emitido pela inspeção, exceto para Aprovado/Rejeitado
-    const newOrcamentoStatus = Object.prototype.hasOwnProperty.call(body, "orcamentoStatus") ? String(body.orcamentoStatus) : undefined;
-    if (before.orcamentoStatus === "Emitido" && newOrcamentoStatus !== "Aprovado" && newOrcamentoStatus !== "Rejeitado") {
-      const materialsChanged = Object.prototype.hasOwnProperty.call(body, "metadados") || Object.prototype.hasOwnProperty.call(body, "valorPecas") || Object.prototype.hasOwnProperty.call(body, "valorMaoObra") || Object.prototype.hasOwnProperty.call(body, "valorDesconto");
-      if (materialsChanged) {
-        return NextResponse.json({ error: "Orçamento emitido pela inspeção. Não é permitido alterar valores ou materiais diretamente na OT." }, { status: 400 });
-      }
-    }
+    // A análise e edição do orçamento (incluindo valores/materiais) é feita no
+    // módulo de Orçamentos (/orcamentos); apenas a faturação ativa bloqueia alterações.
 
     const previousMeta = parseOrdemServicoMeta(before.metadados);
     const nextStatus = Object.prototype.hasOwnProperty.call(body, "status") ? normalizeOrdemStatus(body.status) : before.status;

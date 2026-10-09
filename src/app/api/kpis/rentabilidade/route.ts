@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
     const orders = await prisma.ordemServico.findMany({
       where: {
         status: "concluida",
-        faturaOrdemServicos: { some: { fatura: { is: { cancelada: false } } } },
+        faturaOrdemServicos: { is: { fatura: { is: { cancelada: false } } } },
       },
       include: {
         tecnico: { select: { id: true, nome: true } },

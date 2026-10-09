@@ -114,8 +114,11 @@ export const useJangadaWizardStore = create<WizardState>()(
         if (stepKey === 'orcamento') {
           const linhas = data.orcamento?.linhas || [];
           const aprovacao = data.orcamento?.aprovacaoWhatsApp;
-          if (linhas.length > 0 && aprovacao?.status !== 'aprovado') {
-            errors.push("O orçamento ainda não foi aprovado pelo cliente — envie via WhatsApp e registe a resposta.");
+          const submetido = aprovacao?.status === 'enviado' || aprovacao?.status === 'aprovado';
+          if (linhas.length > 0 && aprovacao?.status === 'rejeitado') {
+            errors.push("O orçamento foi rejeitado no módulo de Orçamentos — ajuste as linhas e reenvie para análise.");
+          } else if (linhas.length > 0 && !submetido) {
+            errors.push("Submeta o orçamento para análise (botão «Submeter para análise»). A aprovação e a fatura fazem-se no módulo de Orçamentos.");
           }
         }
 

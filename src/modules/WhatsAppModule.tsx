@@ -19,6 +19,14 @@ import {
 } from "lucide-react";
 import { appToast } from "@/lib/app-toast";
 
+type ConnectionStatus = {
+  canSend: boolean;
+  waba: { configured: boolean; accessToken: boolean; phoneNumberId: boolean };
+  zapier: { configured: boolean };
+  webhookInbound: { appSecret: boolean; verifyToken: boolean };
+  emailRestricted: boolean;
+};
+
 type Comunicacao = {
   id: number;
   destinatario: string;
@@ -50,6 +58,24 @@ export default function WhatsAppModule() {
   const [tabFiltro, setTabFiltro] = useState<"todas" | "enviadas" | "recebidas" | "falhadas">("todas");
   const [retryingId, setRetryingId] = useState<number | null>(null);
   const [retryingAll, setRetryingAll] = useState(false);
+  const [connStatus, setConnStatus] = useState<ConnectionStatus | null>(null);
+
+  const loadConnectionStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/whatsapp/status");
+      if (res.ok) {
+        const data = await res.json();
+        setConnStatus(data as ConnectionStatus);
+      } else {
+        setConnStatus(null);
+      }
+    } catch (e) {
+      console.error(e);
+      setConnStatus(null);
+    }
+  }, []);
+
+  useEffect(() => { loadConnectionStatus(); }, [loadConnectionStatus]);
 
   const loadHistory = useCallback(async () => {
     try {
@@ -170,11 +196,41 @@ export default function WhatsAppModule() {
           </p>
         </div>
         <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md px-4 py-3 rounded-2xl border border-white/20">
-          <ShieldCheck className="text-emerald-300" size={24} />
-          <div>
-            <div className="text-xs text-emerald-200 font-semibold">Estado da Conexão</div>
-            <div className="text-sm font-bold text-white">Ativo (WABA + Webhook Inbound)</div>
-          </div>
+          {connStatus === null ? (
+            <>
+              <Loader2 size={24} className="text-emerald-300 animate-spin" />
+              <div>
+                <div className="text-xs text-emerald-200 font-semibold">Estado da Conexão</div>
+                <div className="text-sm font-bold text-white">A verificar configuração...</div>
+              </div>
+            </>
+          ) : connStatus.canSend ? (
+            <>
+              <ShieldCheck className="text-emerald-300" size={24} />
+              <div>
+                <div className="text-xs text-emerald-200 font-semibold">Estado da Conexão</div>
+                <div className="text-sm font-bold text-white">
+                  {connStatus.waba.configured ? "Ativo (WABA Cloud API)" : "Ativo (Zapier)"}
+                </div>
+                {connStatus.emailRestricted && (
+                  <div className="text-[10px] text-emerald-200/80">Envio restrito ao utilizador autorizado</div>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <AlertCircle className="text-amber-300" size={24} />
+              <div>
+                <div className="text-xs text-emerald-200 font-semibold">Estado da Conexão</div>
+                <div className="text-sm font-bold text-amber-200">Não configurado</div>
+                <div className="text-[10px] text-emerald-200/80">
+                  Faltam credenciais: WABA ({connStatus.waba.accessToken ? "✓" : "✗"} token, {connStatus.waba.phoneNumberId ? "✓" : "✗"} phone ID)
+                  {!connStatus.zapier.configured && " / Zapier webhook"}
+                  {!connStatus.webhookInbound.appSecret && " / WHATSAPP_APP_SECRET"}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -187,7 +243,7 @@ export default function WhatsAppModule() {
             </div>
             <div>
               <p className="text-sm font-bold text-rose-800">{totalFalhadas} mensagem(ns) com falha ou pendente(s)</p>
-              <p className="text-xs text-rose-600">Clique "Reenviar" em cada uma ou "Reenviar Todas" para retentar automaticamente.</p>
+              <p className="text-xs text-rose-600">Clique “Reenviar” em cada uma ou “Reenviar Todas” para retentar automaticamente.</p>
             </div>
           </div>
           <button

@@ -1,12 +1,18 @@
 import { normalizeE164 } from "./textbee-sms";
-
-const INFINIREACH_API_KEY = process.env.INFINIREACH_API_KEY || "";
-const INFINIREACH_FROM = process.env.INFINIREACH_FROM || "";
-
 const BASE_URL = "https://api.infinireach.io";
 
+// Lidas em tempo de execução (e não em âmbito de módulo) para que a chave já
+// definida nas variáveis de ambiente seja apanhada mesmo com módulos em cache.
+function infinireachKey() {
+  return String(process.env.INFINIREACH_API_KEY || "").trim();
+}
+
+function infinireachFrom() {
+  return String(process.env.INFINIREACH_FROM || "").trim();
+}
+
 export function isInfinireachConfigured(): boolean {
-  return Boolean(INFINIREACH_API_KEY && INFINIREACH_FROM);
+  return Boolean(infinireachKey() && infinireachFrom());
 }
 
 export async function sendInfinireachSms(
@@ -28,14 +34,14 @@ export async function sendInfinireachSms(
   try {
     const response = await fetch(`${BASE_URL}/api/v1/messages`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-API-Key": INFINIREACH_API_KEY,
-      },
-      body: JSON.stringify({
-        to: phone,
-        message,
-        from: INFINIREACH_FROM,
+headers: {
+          "Content-Type": "application/json",
+          "X-API-Key": infinireachKey(),
+        },
+        body: JSON.stringify({
+          to: phone,
+          message,
+          from: infinireachFrom(),
         channel: "sms",
         externalId: `orey-${Date.now()}`,
       }),

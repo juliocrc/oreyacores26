@@ -1,7 +1,7 @@
 "use client";
 import React, { useMemo, useEffect, useRef } from 'react';
 import { useJangadaWizardStore } from './store/useJangadaWizardStore';
-import { Receipt, RefreshCw, Search, X, PackageSearch, Info, Download, MessageCircle, Send, ThumbsUp, ThumbsDown, Phone, FileText } from 'lucide-react';
+import { Receipt, RefreshCw, Search, X, PackageSearch, Info, Download, MessageCircle, Send, ThumbsUp, Phone, FileText, ClipboardCheck } from 'lucide-react';
 import type { OrcamentoLinha, OrcamentoAprovacao, GlobalStockItem } from './types';
 import { calcTotal, getIvaRate } from '@/lib/iva';
 import { appToast } from '@/lib/app-toast';
@@ -498,7 +498,7 @@ export default function Step7_Orcamento() {
         '',
         `O orçamento encontra-se em PDF anexo e é válido até ${dataValidade}.`,
         '',
-        'Por favor, responda SIM para aprovar este orçamento ou NÃO para solicitar alterações.',
+        'Por favor, responda SIM para indicar que concorda com o orçamento ou NÃO para solicitar alterações. A equipa confirma a decisão no orçamento.',
         '',
         'Com os melhores cumprimentos,',
         'Orey Azores',
@@ -517,7 +517,7 @@ export default function Step7_Orcamento() {
       '',
       `Segue o orçamento em anexo (PDF), válido até ${dataValidade}.`,
       '',
-      'Por favor, responda SIM para aprovar este orçamento ou NÃO para solicitar alterações.',
+      'Por favor, responda SIM para indicar que concorda com o orçamento ou NÃO para solicitar alterações. A equipa confirma a decisão no orçamento.',
       '',
       'Com os melhores cumprimentos,',
       'Orey Azores',
@@ -569,7 +569,7 @@ export default function Step7_Orcamento() {
       enviadoEm: agora,
     });
     registarAuditoriaEnvio(mensagem);
-    appToast.success("Orçamento enviado para aprovação. Aguarde a resposta do cliente.");
+    appToast.success("Orçamento enviado ao cliente. A decisão é registada pela equipa no módulo de Orçamentos.");
   };
 
   const recordarCliente = () => {
@@ -587,42 +587,29 @@ export default function Step7_Orcamento() {
     appToast.success("Lembrete aberto no WhatsApp.");
   };
 
-  const marcarAprovado = () => {
-    updateAprovacao({
-      status: 'aprovado',
-      aprovadoPorUtilizador: false,
-      respondidoEm: new Date().toISOString(),
-    });
-    appToast.success("Orçamento aprovado pelo cliente.");
-  };
-
-  const toggleAprovacaoUtilizador = (aprovado: boolean) => {
-    updateAprovacao({
-      status: aprovado ? 'aprovado' : 'rascunho',
-      aprovadoPorUtilizador: aprovado,
-      respondidoEm: aprovado ? new Date().toISOString() : undefined,
-    });
-    appToast.success(aprovado ? "Orçamento aprovado." : "Aprovação do orçamento removida.");
-  };
-
-  const [alteracoesInput, setAlteracoesInput] = React.useState('');
-  const [mostrarAlteracoes, setMostrarAlteracoes] = React.useState(false);
-
-  const marcarRejeitado = () => {
-    const alteracoes = alteracoesInput.trim();
-    if (!alteracoes) {
-      appToast.warning("Indique as alterações pedidas pelo cliente antes de registar a rejeição.");
+  // A aprovação acontece exclusivamente no módulo de Orçamentos (/orcamentos).
+  // No wizard o orçamento é apenas construído, enviado ao cliente e submetido
+  // para análise — este estado é o que desbloqueia o passo seguinte.
+  const submeterParaAnalise = () => {
+    if (linhas.length === 0) {
+      appToast.warning("Não existem linhas no orçamento para submeter.");
       return;
     }
+    if (aprovacao.status === 'aprovado') {
+      appToast.warning("Este orçamento já está aprovado no módulo de Orçamentos.");
+      return;
+    }
+    const reenvio = aprovacao.status === 'rejeitado';
     updateAprovacao({
-      status: 'rejeitado',
+      status: 'enviado',
       aprovadoPorUtilizador: false,
-      alteracoesPedidas: alteracoes,
-      respondidoEm: new Date().toISOString(),
+      respondidoEm: undefined,
+      alteracoesPedidas: undefined,
+      enviadoEm: new Date().toISOString(),
     });
-    setAlteracoesInput('');
-    setMostrarAlteracoes(false);
-    appToast.warning("Orçamento rejeitado. Faça as alterações e reenvie.");
+    appToast.success(reenvio
+      ? "Orçamento reenviado para análise no módulo de Orçamentos."
+      : "Orçamento submetido para análise. Abra o módulo de Orçamentos para rever, editar e decidir.");
   };
 
   const exportOrcamentoPdf = async () => {
@@ -675,10 +662,10 @@ export default function Step7_Orcamento() {
   };
 
   const aprovacaoStatusLabel = {
-    rascunho: "Por enviar",
-    enviado: "A aguardar resposta",
-    aprovado: "Aprovado",
-    rejeitado: "Rejeitado",
+    rascunho: "Por submeter",
+    enviado: "Submetido · em análise",
+    aprovado: "Aprovado no módulo",
+    rejeitado: "Rejeitado no módulo",
   }[aprovacao.status];
 
   return (
@@ -686,7 +673,7 @@ export default function Step7_Orcamento() {
       <div>
         <h2 className="text-2xl font-bold text-slate-800">{stepNo > 0 ? `${stepNo}. ` : ''}Orçamento</h2>
         <p className="text-slate-600 mt-1">
-          Orçamento sincronizado com as substituições registadas (pack e componentes) e os testes realizados. A mão de obra está incluída nos serviços (L-JD / L-RFD / L-DSB); edite preços, quantidades e desconto conforme necessário.
+          Orçamento sincronizado com as substituições registadas (pack e componentes) e os testes realizados. A mão de obra está incluída nos serviços (L-JD / L-RFD / L-DSB); edite preços, quantidades e desconto conforme necessário. Após submeter, o orçamento é analisado, editado e aprovado no módulo de Orçamentos, onde também se emite a fatura.
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <button
@@ -975,39 +962,29 @@ export default function Step7_Orcamento() {
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
         <div className="flex items-center gap-3 bg-gradient-to-r from-emerald-600 to-green-500 px-6 py-4">
           <MessageCircle className="text-white" size={20} />
-          <h3 className="text-lg font-bold text-white">Aprovação do Orçamento via WhatsApp</h3>
+          <h3 className="text-lg font-bold text-white">Envio e Submissão do Orçamento</h3>
           <span className="ml-auto inline-flex items-center gap-1.5 text-xs font-bold text-emerald-900 bg-white/90 rounded-full px-3 py-1.5">
             Estado: {aprovacaoStatusLabel}
           </span>
         </div>
 
         <div className="p-6 space-y-5">
-          <label className="flex items-center gap-3 rounded-xl border border-indigo-200 bg-indigo-50 p-4 cursor-pointer transition-colors hover:bg-indigo-100/70">
-            <input
-              type="checkbox"
-              checked={Boolean(aprovacao.aprovadoPorUtilizador)}
-              onChange={(e) => toggleAprovacaoUtilizador(e.target.checked)}
-              className="h-5 w-5 rounded border-indigo-300 text-indigo-600 focus:ring-indigo-500"
-            />
-            <div>
-              <p className="text-sm font-bold text-indigo-900">Aprovar orçamento</p>
-              <p className="text-xs text-indigo-700 mt-0.5">
-                Marque para registar a aprovação do orçamento pelo utilizador responsável, sem depender do WhatsApp.
-              </p>
-            </div>
-          </label>
+          <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 flex gap-3 items-start">
+            <Info className="text-emerald-600 shrink-0 mt-0.5" size={18} />
+            <p className="text-xs text-emerald-900 leading-relaxed">
+              Este passo prepara o orçamento e submete-o para análise. <b>Revisão, edição, aprovação e emissão da fatura</b> fazem-se no módulo de Orçamentos — a decisão do cliente é registada lá pela equipa.
+            </p>
+          </div>
           {aprovacao.status === 'aprovado' ? (
             <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
               <ThumbsUp className="text-emerald-600 shrink-0 mt-0.5" size={20} />
               <div>
-                <p className="text-sm font-bold text-emerald-800">
-                  {aprovacao.aprovadoPorUtilizador ? 'Orçamento aprovado pelo utilizador' : 'Orçamento aprovado pelo cliente'}
-                </p>
+                <p className="text-sm font-bold text-emerald-800">Orçamento aprovado no módulo de Orçamentos</p>
                 <p className="text-xs text-emerald-700 mt-0.5">
                   {aprovacao.respondidoEm
-                    ? `Resposta registada a ${new Date(aprovacao.respondidoEm).toLocaleString('pt-PT')}.`
-                    : 'Resposta registada.'}{' '}
-                  Pode continuar para o passo seguinte.
+                    ? `Decisão registada a ${new Date(aprovacao.respondidoEm).toLocaleString('pt-PT')}.`
+                    : 'Decisão registada.'}{' '}
+                  Pode continuar para o passo seguinte e faturar no módulo de Orçamentos.
                 </p>
               </div>
             </div>
@@ -1015,16 +992,30 @@ export default function Step7_Orcamento() {
             <>
               {aprovacao.status === 'rejeitado' && (
                 <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4">
-                  <ThumbsDown className="text-red-600 shrink-0 mt-0.5" size={20} />
+                  <X className="text-red-600 shrink-0 mt-0.5" size={20} />
                   <div>
-                    <p className="text-sm font-bold text-red-800">Orçamento rejeitado pelo cliente</p>
+                    <p className="text-sm font-bold text-red-800">Orçamento rejeitado no módulo de Orçamentos</p>
                     {aprovacao.alteracoesPedidas ? (
                       <p className="text-xs text-red-700 mt-0.5">
-                        Alterações pedidas: <span className="font-semibold">“{aprovacao.alteracoesPedidas}”</span> — edite as linhas acima e reenvie.
+                        Alterações pedidas: <span className="font-semibold">“{aprovacao.alteracoesPedidas}”</span> — edite as linhas acima e reenvie para análise.
                       </p>
                     ) : (
-                      <p className="text-xs text-red-700 mt-0.5">Edite as linhas acima e reenvie o orçamento.</p>
+                      <p className="text-xs text-red-700 mt-0.5">Edite as linhas acima e reenvie o orçamento para análise.</p>
                     )}
+                  </div>
+                </div>
+              )}
+              {aprovacao.status === 'enviado' && (
+                <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                  <ClipboardCheck className="text-amber-600 shrink-0 mt-0.5" size={20} />
+                  <div>
+                    <p className="text-sm font-bold text-amber-800">Submetido para análise</p>
+                    <p className="text-xs text-amber-700 mt-0.5">
+                      {aprovacao.enviadoEm
+                        ? `Submetido a ${new Date(aprovacao.enviadoEm).toLocaleString('pt-PT')}.`
+                        : 'Submetido.'}{' '}
+                      Abra o módulo de Orçamentos para analisar, editar, aprovar e faturar.
+                    </p>
                   </div>
                 </div>
               )}
@@ -1076,6 +1067,18 @@ export default function Step7_Orcamento() {
               <div className="flex flex-wrap gap-3">
                 <button
                   type="button"
+                  onClick={submeterParaAnalise}
+                  disabled={linhas.length === 0}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold shadow-md transition-all"
+                  title="Colocar o orçamento no módulo de Orçamentos para análise e edição"
+                >
+                  <ClipboardCheck size={16} />
+                  {aprovacao.status === 'enviado' || aprovacao.status === 'rejeitado'
+                    ? 'Reenviar para análise'
+                    : 'Submeter para análise'}
+                </button>
+                <button
+                  type="button"
                   onClick={enviarWhatsApp}
                   className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-md transition-all"
                 >
@@ -1092,66 +1095,26 @@ export default function Step7_Orcamento() {
                   Exportar PDF
                 </button>
                 {aprovacao.status === 'enviado' && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={recordarCliente}
-                      className="flex items-center gap-2 px-5 py-2.5 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-xl font-bold transition-colors"
-                      title="Reabrir o WhatsApp com um lembrete ao cliente"
-                    >
-                      <RefreshCw size={16} />
-                      Recordar cliente
-                    </button>
-                    <button
-                      type="button"
-                      onClick={marcarAprovado}
-                      className="flex items-center gap-2 px-5 py-2.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-xl font-bold transition-colors"
-                    >
-                      <ThumbsUp size={16} />
-                      Cliente respondeu SIM
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setMostrarAlteracoes(true)}
-                      className="flex items-center gap-2 px-5 py-2.5 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl font-bold transition-colors"
-                    >
-                      <ThumbsDown size={16} />
-                      Cliente respondeu NÃO
-                    </button>
-                  </>
+                  <button
+                    type="button"
+                    onClick={recordarCliente}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-xl font-bold transition-colors"
+                    title="Reabrir o WhatsApp com um lembrete ao cliente"
+                  >
+                    <RefreshCw size={16} />
+                    Recordar cliente
+                  </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() => router.push('/orcamentos')}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-white text-emerald-700 rounded-xl font-bold border border-emerald-200 hover:bg-emerald-50 transition-colors"
+                  title="Abrir o módulo de Orçamentos para analisar, editar, aprovar e faturar"
+                >
+                  <FileText size={16} />
+                  Abrir módulo de Orçamentos
+                </button>
               </div>
-
-              {aprovacao.status === 'enviado' && mostrarAlteracoes && (
-                <div className="rounded-xl border border-red-200 bg-red-50 p-4 space-y-3">
-                  <label className="block text-sm font-bold text-red-800">
-                    Alterações pedidas pelo cliente
-                  </label>
-                  <textarea
-                    value={alteracoesInput}
-                    onChange={(e) => setAlteracoesInput(e.target.value)}
-                    rows={3}
-                    placeholder="Ex.: reduzir a quantidade de reparações, alterar o pack substituído, novo prazo..."
-                    className="w-full rounded-xl border border-red-300 bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-                  />
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={marcarRejeitado}
-                      className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold transition-colors"
-                    >
-                      Registar rejeição e alterações
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setMostrarAlteracoes(false); setAlteracoesInput(''); }}
-                      className="px-4 py-2 text-sm font-semibold text-slate-500 hover:text-slate-700"
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                </div>
-              )}
             </>
           )}
         </div>

@@ -100,6 +100,22 @@ export function toDateKey(value: unknown): string {
   const isoLike = raw.match(/^(\d{4})-(\d{2})(?:-(\d{2}))?/);
   if (isoLike) return `${isoLike[1]}-${isoLike[2]}-${isoLike[3] ?? '01'}`;
 
+  // Mês/ano noutros formatos (MM/YYYY, MM-YYYY, M/YYYY, MM/YY). O construtor
+  // Date do V8 não aceita "MM/YYYY" (devolve Invalid Date), o que deixava em
+  // branco a data de fabrico e as validades nos certificados e no quadro.
+  const monthYear = raw.match(/^(\d{1,2})[\/\-.](\d{4})$/);
+  if (monthYear) {
+    const month = Number(monthYear[1]);
+    const year = Number(monthYear[2]);
+    if (month >= 1 && month <= 12) return `${year}-${String(month).padStart(2, '0')}-01`;
+  }
+  const monthYearShort = raw.match(/^(\d{1,2})[\/\-.](\d{2})$/);
+  if (monthYearShort) {
+    const month = Number(monthYearShort[1]);
+    const year = 2000 + Number(monthYearShort[2]);
+    if (month >= 1 && month <= 12) return `${year}-${String(month).padStart(2, '0')}-01`;
+  }
+
   const parsed = new Date(raw);
   if (Number.isNaN(parsed.getTime())) return '';
   return parsed.toLocaleDateString('sv-SE', { timeZone: AZORES_TIMEZONE });
