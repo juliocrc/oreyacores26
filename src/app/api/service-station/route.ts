@@ -267,16 +267,29 @@ async function listQueue(
     },
   });
 
+  // Deduplicate rows by jangadaId keeping the most recent
+  const rowMap = new Map<number, typeof rows[0]>();
+  for (const row of rows) {
+    if (!row.jangadaId) {
+      rowMap.set(-row.id, row);
+      continue;
+    }
+    const existing = rowMap.get(row.jangadaId);
+    if (!existing || new Date(row.updatedAt).getTime() > new Date(existing.updatedAt).getTime()) {
+      rowMap.set(row.jangadaId, row);
+    }
+  }
+  const uniqueRows = Array.from(rowMap.values());
+
   // Filter by reception if requested: only show rafts that have been explicitly received
-  // (arrivedViaForwarder=true OR arrivalDate set by user, not just createdAt fallback)
   const filteredRows = onlyReceived
-    ? rows.filter((row) => {
+    ? uniqueRows.filter((row) => {
         const meta = parseQueueMeta(row.observacoes);
         const hasExplicitArrival = Boolean(meta.arrivedViaForwarder) || 
           (meta.arrivalDate && meta.arrivalDate !== row.dataChegada?.toISOString().slice(0, 10) && meta.arrivalDate !== row.createdAt.toISOString().slice(0, 10));
         return hasExplicitArrival;
       })
-    : rows;
+    : uniqueRows;
 
   const raftIds = Array.from(new Set(filteredRows.map((r) => r.jangadaId).filter(Boolean)));
   const rafts = raftIds.length
@@ -304,12 +317,22 @@ async function listQueue(
     const raft = raftById.get(row.jangadaId);
     const meta = parseQueueMeta(row.observacoes);
     const orderMeta = parseOrdemServicoMeta(row.ordemServico?.metadados);
+
+    let effectiveQueueStatus = row.status;
+    let effectiveWorkflowStatus = meta.workflowStatus || orderMeta.workflowStatus;
+    if (raft?.dataInspecao && (effectiveQueueStatus === 'aguardar' || effectiveQueueStatus === 'agendada' || effectiveQueueStatus === 'progresso')) {
+      effectiveQueueStatus = 'finalizada';
+      if (!effectiveWorkflowStatus || effectiveWorkflowStatus === 'entrada_estacao' || effectiveWorkflowStatus === 'inspecao_em_curso') {
+        effectiveWorkflowStatus = 'concluida';
+      }
+    }
+
     const workflowStatus = resolveWorkflowStatus({
       meta: {
         ...orderMeta,
-        workflowStatus: meta.workflowStatus || orderMeta.workflowStatus,
+        workflowStatus: effectiveWorkflowStatus,
       },
-      queueStatus: row.status,
+      queueStatus: effectiveQueueStatus,
       orderStatus: row.ordemServico?.status,
     });
 
