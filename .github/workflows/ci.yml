@@ -30,6 +30,11 @@ jobs:
         run: npm run build:vercel
         env:
           DATABASE_URL: "postgresql://postgres:dummy@localhost:5432/postgres"
+          # Necessario apenas no build (o Next recolhe page data e o Auth.js exige o
+          # segredo em production). Este .next e descartado - a Vercel rebui-la com as
+          # suas proprias env reais.
+          NEXTAUTH_SECRET: "ci-build-only-placeholder-do-not-use"
+          NEXTAUTH_URL: "https://oreyacoresdeluxe.vercel.app"
 
       - name: Run unit tests
         run: npm test
