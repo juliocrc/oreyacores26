@@ -1644,7 +1644,7 @@ export default function JangadasPage() {
     const months = jangadas
       .map(j => getMonthKey(j.dataProxInspecao))
       .filter((m): m is string => !!m);
-    return Array.from(new Set(months)).sort((a, b) => b.localeCompare(a));
+    return Array.from(new Set(months)).sort((a, b) => a.localeCompare(b));
   }, [jangadas]);
 
   const sortedQuadrosJangadas = sortedFilteredJangadas;

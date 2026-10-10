@@ -92,6 +92,10 @@ export default function AlertasPage() {
       let clientDetails: ClienteDetalhe | null = null;
       let jangadaId = a.jangadaId;
       let navioNome = "";
+      let jangadaModel = "";
+      let jangadaCapacity = "";
+      let jangadaSerial = a.jangadaSerial || "";
+      let dataValidade = a.data ? formatDateAuto(a.data) : "—";
 
       if (!jangadaId && a.jangadaSerial) {
         const resSerial = await fetch(`/api/jangadas/serial/${a.jangadaSerial}`);
@@ -106,8 +110,14 @@ export default function AlertasPage() {
         if (resJangada.ok) {
           const data = await resJangada.json();
           const jangada = data?.jangada || data;
+          jangadaModel = `${jangada?.brand || ""} ${jangada?.model || ""}`.trim();
+          jangadaCapacity = String(jangada?.capacity || "");
+          jangadaSerial = jangada?.serial || jangadaSerial;
+          if (jangada?.dataProxInspecao) {
+            dataValidade = formatDateAuto(jangada.dataProxInspecao);
+          }
           const ship = jangada?.ship || data?.ship;
-          navioNome = String(ship?.nome || ship?.name || jangada?.shipNome || "").trim();
+          navioNome = String(ship?.nome || ship?.name || jangada?.shipNome || jangada?.shipNameManual || "").trim();
           const client = jangada?.serviceStationQueue?.ordemServico?.cliente || ship?.cliente || jangada?.cliente;
           if (client?.id) {
             const resCli = await fetch(`/api/clientes/${client.id}`);
@@ -124,12 +134,12 @@ export default function AlertasPage() {
 
       setContactInfo({ name, email, phone });
 
-      const dateLabel = a.data ? formatDateAuto(a.data) : "—";
-      setMessageText(`Olá ${name || 'Exmo. Cliente'},\n\nLembramos que a inspeção/certificação do seu equipamento (${a.referencia})${navioNome ? ` a bordo do navio ${navioNome}` : ""} expira em ${dateLabel}.\n\nPara garantir a segurança da embarcação e o cumprimento dos regulamentos marítimos, por favor contacte-nos com a brevidade possível para procedermos ao agendamento da revisão técnica.\n\nCom os melhores cumprimentos,\nEstação de Serviço`);
+      const clienteExibido = name ? `Sr. ${name}` : "Exmo. Cliente";
+      setMessageText(`Olá ${clienteExibido},\n\nRelembramos que a vistoria técnica da jangada salva-vidas ${jangadaModel || a.referencia}${jangadaCapacity ? ` (${jangadaCapacity}P` : ""}${jangadaSerial ? `, Série: ${jangadaSerial}` : ""}${jangadaCapacity ? ")" : ""}${navioNome ? ` instalada na embarcação "${navioNome}"` : ""} tem validade prevista até ${dataValidade}. Para garantir a segurança da embarcação e a conformidade legal, confirme por favor se podemos agendar a vistoria e a emissão do novo certificado. Ficamos a aguardar o seu contacto.\n\nCom os melhores cumprimentos,\nOrey Azores`);
     } catch (err) {
       console.error(err);
       setContactInfo({ name: "", email: "", phone: "" });
-      setMessageText(`Olá,\n\nLembramos que a inspeção do seu equipamento (${a.referencia}) está próxima do vencimento.\n\nPor favor, contacte-nos para agendar a revisão técnica.\n\nCumprimentos,\nEstação de Serviço`);
+      setMessageText(`Olá Sr. Cliente,\n\nRelembramos que a vistoria técnica da jangada salva-vidas (${a.referencia}) tem validade prevista até ${a.data ? formatDateAuto(a.data) : "—"}. Para garantir a segurança da embarcação e a conformidade legal, confirme por favor se podemos agendar a vistoria e a emissão do novo certificado. Ficamos a aguardar o seu contacto.\n\nCom os melhores cumprimentos,\nOrey Azores`);
     } finally {
       setLoadingContact(false);
     }
