@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -164,6 +164,16 @@ export default function OrcamentosPage() {
   const [emitindo, setEmitindo] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [stockList, setStockList] = useState<Array<{ id: number; referencia: string; descricao: string; precoVenda: number }>>([]);
+  const [stockSearch, setStockSearch] = useState("");
+
+  const filteredStock = useMemo(() => {
+    const q = stockSearch.trim().toLowerCase();
+    if (!q) return stockList.slice(0, 50);
+    return stockList.filter(s => 
+      String(s.referencia || "").toLowerCase().includes(q) || 
+      String(s.descricao || "").toLowerCase().includes(q)
+    ).slice(0, 50);
+  }, [stockList, stockSearch]);
 
   useEffect(() => {
     fetch("/api/stock?take=1000", { cache: "no-store" })
@@ -841,29 +851,42 @@ export default function OrcamentosPage() {
 
                 {mostrarNovo && (
                   <div className="mt-3 space-y-2 rounded-lg border border-blue-100 bg-blue-50/60 p-3">
-                    <div>
-                      <select
-                        onChange={(e) => {
-                          const sId = Number(e.target.value);
-                          const found = stockList.find(s => s.id === sId);
-                          if (found) {
-                            setNovo({
-                              referencia: found.referencia || "",
-                              descricao: found.descricao || "",
-                              quantidade: 1,
-                              unitPrice: Number(found.precoVenda || 0),
-                            });
-                          }
-                        }}
-                        className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
-                      >
-                        <option value="">🔍 Pesquisar e selecionar do stock (opcional)...</option>
-                        {stockList.map(s => (
-                          <option key={s.id} value={s.id}>
-                            {s.referencia} — {s.descricao} ({Number(s.precoVenda || 0).toFixed(2)} €)
-                          </option>
-                        ))}
-                      </select>
+                    <div className="space-y-1 relative">
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Procurar artigo no stock por escrita</label>
+                      <input
+                        type="text"
+                        value={stockSearch}
+                        onChange={(e) => setStockSearch(e.target.value)}
+                        placeholder="Digite para filtrar por referência ou descrição..."
+                        className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      />
+                      {stockSearch.trim().length > 0 && (
+                        <div className="absolute z-20 left-0 right-0 mt-1 max-h-48 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+                          {filteredStock.length === 0 ? (
+                            <div className="p-2.5 text-xs text-slate-400 text-center">Nenhum artigo encontrado no stock.</div>
+                          ) : (
+                            filteredStock.map((s: any) => (
+                              <button
+                                key={s.id}
+                                type="button"
+                                onClick={() => {
+                                  setNovo({
+                                    referencia: s.referencia || "",
+                                    descricao: s.descricao || "",
+                                    quantidade: 1,
+                                    unitPrice: Number(s.precoVenda || 0),
+                                  });
+                                  setStockSearch("");
+                                }}
+                                className="w-full text-left px-3 py-2 text-xs hover:bg-blue-50 border-b border-slate-100 flex justify-between items-center transition-colors"
+                              >
+                                <span><strong className="text-cyan-700">{s.referencia}</strong> — {s.descricao}</span>
+                                <span className="font-mono font-bold text-slate-700">{Number(s.precoVenda || 0).toFixed(2)} €</span>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-[110px_1fr_90px_110px_auto]">
                       <input
