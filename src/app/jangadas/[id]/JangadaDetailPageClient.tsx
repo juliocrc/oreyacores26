@@ -2348,6 +2348,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
   const raftLastInspecao = data.inspecoes && data.inspecoes.length > 0
     ? [...data.inspecoes].sort((a: Inspecao, b: Inspecao) => new Date(b.dataInspecao).getTime() - new Date(a.dataInspecao).getTime())[0]
     : null;
+  const isCondenada = raftLastInspecao?.status === 'Condenada' || data.status === 'Condenada' || data.estado === 'Condenada' || data.estado === 'Inoperacional' || Boolean((raftLastInspecao as any)?.abate);
 
   const openLastInspection = () => {
     if (!raftLastInspecao) {
@@ -2673,9 +2674,10 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                 <span className="text-xs font-bold uppercase tracking-wider text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-full">Dossier Técnico da Jangada</span>
                 <span className="text-xs font-semibold text-slate-400">ID: #{jangadaId}</span>
                 {/* Semáforo de Estado */}
-                <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full border ${statusStyles[inspectionStatus.color].badge}`}>
-                  <span className={`w-2 h-2 rounded-full ${statusStyles[inspectionStatus.color].dot} animate-${inspectionStatus.color === 'red' ? 'pulse' : 'none'}`} />
-                  {inspectionStatus.color === 'gray' ? 'Sem inspecção' :
+                <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full border ${isCondenada ? 'bg-red-100 border-red-300 text-red-800' : statusStyles[inspectionStatus.color].badge}`}>
+                  <span className={`w-2 h-2 rounded-full ${isCondenada ? 'bg-red-600 animate-pulse' : statusStyles[inspectionStatus.color].dot}`} />
+                  {isCondenada ? 'Inoperacional (Condenada / Abate)' :
+                   inspectionStatus.color === 'gray' ? 'Sem inspecção' :
                    inspectionStatus.color === 'red' ? 'GI Expirada' :
                    inspectionStatus.color === 'orange' ? `GI em ${inspectionStatus.daysLeft}d` :
                    inspectionStatus.color === 'yellow' ? `GI em ${inspectionStatus.daysLeft}d` :

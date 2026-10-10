@@ -796,10 +796,10 @@ function EstacaoServicoContent() {
         throw new Error(payload?.error || "Falha ao registar a entrega.");
       }
 
-      await loadStationQueueAndRafts();
       setIsDeliverModalOpen(false);
       setDeliveringItem(null);
       setSuccess(`${deliveringItem.model || "Jangada"} marcada como entregue.`);
+      await loadStationQueueAndRafts();
     } catch (err: any) {
       setError(err?.message || "Não foi possível registar a entrega.");
     } finally {

@@ -168,6 +168,14 @@ export function computeFinishWarnings(inspectionData: any): FinishWarning[] {
     });
   }
 
+  if (inspectionData.abate?.ativo) {
+    list.forEach((w) => {
+      if (!w.text.includes("ABATE") && !w.text.includes("motivo")) {
+        w.isCritical = false;
+      }
+    });
+  }
+
   return list;
 }
 
