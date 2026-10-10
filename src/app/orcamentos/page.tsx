@@ -163,6 +163,17 @@ export default function OrcamentosPage() {
   const [decidindo, setDecidindo] = useState(false);
   const [emitindo, setEmitindo] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [stockList, setStockList] = useState<Array<{ id: number; referencia: string; descricao: string; precoVenda: number }>>([]);
+
+  useEffect(() => {
+    fetch("/api/stock?take=1000", { cache: "no-store" })
+      .then(res => res.json())
+      .then(data => {
+        const list = Array.isArray(data) ? data : data?.items || data?.stock || [];
+        setStockList(list);
+      })
+      .catch(() => setStockList([]));
+  }, []);
 
   const loadEditor = (row: OrcamentoRow) => {
     setLinhas(normalizeLinhas(getMeta(row).linhas));
@@ -829,44 +840,70 @@ export default function OrcamentosPage() {
                 </div>
 
                 {mostrarNovo && (
-                  <div className="mt-3 grid grid-cols-1 gap-2 rounded-lg border border-blue-100 bg-blue-50/60 p-3 sm:grid-cols-[110px_1fr_90px_110px_auto]">
-                    <input
-                      value={novo.referencia}
-                      onChange={(e) => setNovo((p) => ({ ...p, referencia: e.target.value }))}
-                      placeholder="Referência"
-                      className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
-                    />
-                    <input
-                      value={novo.descricao}
-                      onChange={(e) => setNovo((p) => ({ ...p, descricao: e.target.value }))}
-                      placeholder="Descrição"
-                      className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
-                    />
-                    <input
-                      type="number"
-                      min="1"
-                      value={novo.quantidade}
-                      onChange={(e) => setNovo((p) => ({ ...p, quantidade: Number(e.target.value) || 1 }))}
-                      placeholder="Qtd"
-                      className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-right text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
-                    />
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={novo.unitPrice}
-                      onChange={(e) => setNovo((p) => ({ ...p, unitPrice: Number(e.target.value) || 0 }))}
-                      placeholder="Preço €"
-                      className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-right text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
-                    />
-                    <button
-                      type="button"
-                      onClick={adicionarLinha}
-                      disabled={!novo.descricao.trim()}
-                      className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-50"
-                    >
-                      Adicionar
-                    </button>
+                  <div className="mt-3 space-y-2 rounded-lg border border-blue-100 bg-blue-50/60 p-3">
+                    <div>
+                      <select
+                        onChange={(e) => {
+                          const sId = Number(e.target.value);
+                          const found = stockList.find(s => s.id === sId);
+                          if (found) {
+                            setNovo({
+                              referencia: found.referencia || "",
+                              descricao: found.descricao || "",
+                              quantidade: 1,
+                              unitPrice: Number(found.precoVenda || 0),
+                            });
+                          }
+                        }}
+                        className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      >
+                        <option value="">🔍 Pesquisar e selecionar do stock (opcional)...</option>
+                        {stockList.map(s => (
+                          <option key={s.id} value={s.id}>
+                            {s.referencia} — {s.descricao} ({Number(s.precoVenda || 0).toFixed(2)} €)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-[110px_1fr_90px_110px_auto]">
+                      <input
+                        value={novo.referencia}
+                        onChange={(e) => setNovo((p) => ({ ...p, referencia: e.target.value }))}
+                        placeholder="Referência"
+                        className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      />
+                      <input
+                        value={novo.descricao}
+                        onChange={(e) => setNovo((p) => ({ ...p, descricao: e.target.value }))}
+                        placeholder="Descrição"
+                        className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      />
+                      <input
+                        type="number"
+                        min="1"
+                        value={novo.quantidade}
+                        onChange={(e) => setNovo((p) => ({ ...p, quantidade: Number(e.target.value) || 1 }))}
+                        placeholder="Qtd"
+                        className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-right text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={novo.unitPrice}
+                        onChange={(e) => setNovo((p) => ({ ...p, unitPrice: Number(e.target.value) || 0 }))}
+                        placeholder="Preço €"
+                        className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-right text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      />
+                      <button
+                        type="button"
+                        onClick={adicionarLinha}
+                        disabled={!novo.descricao.trim()}
+                        className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-50"
+                      >
+                        Adicionar
+                      </button>
+                    </div>
                   </div>
                 )}
 
