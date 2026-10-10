@@ -65,11 +65,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: "Ordem de serviço não encontrada." }, { status: 404 });
     }
 
-    const pecas = Number(order.valorPecas || 0);
-    const maoObra = Number(order.valorMaoObra || 0);
+    const metaLinhas = parseOrdemServicoMeta(order.metadados).linhas;
+    const linhas = Array.isArray(metaLinhas) ? metaLinhas : [];
+    const linhasTotal = linhas.reduce((acc, l: any) => acc + (Number(l.total) || (Number(l.quantidade || 1) * Number(l.unitPrice || 0))), 0);
     const desconto = Number(order.valorDesconto || 0);
     const isentoIva = Boolean(order.isIsentoIva);
-    const subtotal = pecas + maoObra - desconto;
+    const subtotal = Math.max(0, linhasTotal - desconto);
     const iva = isentoIva ? 0 : subtotal * getIvaRate();
     const total = subtotal + iva;
 
@@ -132,9 +133,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     };
     rowIndex += 1;
 
-    const metaLinhas = parseOrdemServicoMeta(order.metadados).linhas;
-    const linhas = Array.isArray(metaLinhas) ? metaLinhas : [];
-
     if (linhas.length > 0) {
       worksheet.getCell(`A${rowIndex}`).value = "Ref.";
       worksheet.getCell(`B${rowIndex}`).value = "Descrição";
@@ -155,11 +153,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     }
 
     const moneyRows: Array<{ label: string; note: string; value: number; bold?: boolean }> = [
-      { label: "Inspeção de Jangada", note: "", value: maoObra },
-      { label: "Peças / Materiais", note: "", value: pecas },
-      { label: "Desconto", note: "", value: -desconto },
+      ...(desconto > 0 ? [{ label: "Desconto Comercial", note: "", value: -desconto }] : []),
       { label: "Subtotal", note: "", value: subtotal },
-      ...(isentoIva ? [] : [{ label: "IVA (16%)", note: "16%", value: iva }]),
+      ...(isentoIva ? [] : [{ label: `IVA (${Math.round(getIvaRate() * 100)}%)`, note: "", value: iva }]),
       { label: "TOTAL", note: isentoIva ? (formatIsencaoIva(true, order.codigoIsencaoIva) || "Isento de IVA") : "", value: total, bold: true },
     ];
 

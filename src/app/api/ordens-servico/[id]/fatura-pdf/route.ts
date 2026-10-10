@@ -4,6 +4,7 @@ import { PDFDocument, PDFFont, StandardFonts, rgb } from "pdf-lib";
 import { getAccessContext } from "@/lib/access-control";
 import { carregarFaturaPorOrdemServico, resumoFatura } from "@/lib/faturamento";
 import { formatIsencaoIva } from "@/lib/iva-isencao-codes";
+import { parseOrdemServicoMeta } from "@/lib/ordens-servico";
 
 const TEAL: [number, number, number] = [0.06, 0.46, 0.43];
 const DARK: [number, number, number] = [0.13, 0.16, 0.2];
@@ -153,27 +154,33 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     drawText("Valor", PAGE_WIDTH - MARGIN, y - 2, 10, { font: fontBold, align: "right" });
     y -= 32;
 
-    const lineRows: Array<[string, string, string]> = [];
+    const lineRows: Array<[string, string, string, string]> = [];
     for (const ot of ordens) {
-      const otPecas = Number(ot.valorPecas || 0);
-      const otMaoObra = Number(ot.valorMaoObra || 0);
-      const otDesconto = Number(ot.valorDesconto || 0);
+      const meta = parseOrdemServicoMeta(ot.metadados);
+      const linhas = Array.isArray(meta.linhas) ? meta.linhas : [];
       const referencia = ot.numeroOrdem || `#${ot.id}`;
-      lineRows.push([referencia, "Mão-de-obra (trabalhos executados)", formatEuro(otMaoObra)]);
-      lineRows.push([referencia, "Peças / materiais", formatEuro(otPecas)]);
+      if (linhas.length > 0) {
+        for (const l of linhas) {
+          const qtd = Number(l.quantidade || 1);
+          const unit = Number(l.unitPrice || 0);
+          const tot = Number(l.total ?? (qtd * unit));
+          lineRows.push([l.referencia || referencia, l.descricao || "Artigo", String(qtd), formatEuro(tot)]);
+        }
+      }
+      const otDesconto = Number(ot.valorDesconto || 0);
       if (otDesconto > 0) {
-        lineRows.push([referencia, "Desconto", `-${formatEuro(otDesconto)}`]);
+        lineRows.push([referencia, "Desconto Comercial", "1", `-${formatEuro(otDesconto)}`]);
       }
     }
     if (lineRows.length === 0) {
-      lineRows.push([order.numeroOrdem || `#${order.id}`, "Serviços prestados", formatEuro(total)]);
+      lineRows.push([order.numeroOrdem || `#${order.id}`, "Serviços prestados", "1", formatEuro(total)]);
     }
 
-    for (const [ref, desc, valor] of lineRows) {
+    for (const [ref, desc, qtd, valor] of lineRows) {
       if (y < 60) break;
       drawText(ref, MARGIN + 6, y, 10, { maxWidth: 110 });
       drawText(desc, MARGIN + 130, y, 10, { maxWidth: 240 });
-      drawText("1", PAGE_WIDTH - MARGIN - 150, y, 10, { align: "right" });
+      drawText(qtd, PAGE_WIDTH - MARGIN - 150, y, 10, { align: "right" });
       drawText(valor, PAGE_WIDTH - MARGIN, y, 10, { align: "right" });
       y -= 20;
     }

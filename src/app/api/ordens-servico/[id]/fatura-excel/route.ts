@@ -4,6 +4,7 @@ import ExcelJS from "exceljs";
 import { getAccessContext } from "@/lib/access-control";
 import { carregarFaturaPorOrdemServico, resumoFatura } from "@/lib/faturamento";
 import { formatIsencaoIva } from "@/lib/iva-isencao-codes";
+import { parseOrdemServicoMeta } from "@/lib/ordens-servico";
 
 const ISSUER_NAME = "Orey Técnica - Serviços Navais";
 
@@ -146,14 +147,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const lineRows: Array<string[]> = [];
     for (const ot of ordens) {
-      const otPecas = Number(ot.valorPecas || 0);
-      const otMaoObra = Number(ot.valorMaoObra || 0);
-      const otDesconto = Number(ot.valorDesconto || 0);
+      const meta = parseOrdemServicoMeta(ot.metadados);
+      const linhas = Array.isArray(meta.linhas) ? meta.linhas : [];
       const referencia = ot.numeroOrdem || `#${ot.id}`;
-      lineRows.push([referencia, `Mão-de-obra (trabalhos executados)`, "1", formatEuro(otMaoObra)]);
-      lineRows.push([referencia, "Peças / materiais", "1", formatEuro(otPecas)]);
+      if (linhas.length > 0) {
+        for (const l of linhas) {
+          const qtd = Number(l.quantidade || 1);
+          const unit = Number(l.unitPrice || 0);
+          const tot = Number(l.total ?? (qtd * unit));
+          lineRows.push([l.referencia || referencia, l.descricao || "Artigo", String(qtd), formatEuro(tot)]);
+        }
+      }
+      const otDesconto = Number(ot.valorDesconto || 0);
       if (otDesconto > 0) {
-        lineRows.push([referencia, "Desconto", "1", `-${formatEuro(otDesconto)}`]);
+        lineRows.push([referencia, "Desconto Comercial", "1", `-${formatEuro(otDesconto)}`]);
       }
     }
     if (lineRows.length === 0) {

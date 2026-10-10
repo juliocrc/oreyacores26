@@ -71,14 +71,14 @@ export default function PublicOrcamentoPage({ params }: { params: Promise<{ id: 
     );
   }
 
-  const pecas = Number(order.valorPecas || 0);
-  const maoObra = Number(order.valorMaoObra || 0);
+  const meta = (order.metadados && typeof order.metadados === "object" ? order.metadados : {}) as Record<string, any>;
+  const linhas = Array.isArray(meta.linhas) ? meta.linhas : [];
   const desconto = Number(order.valorDesconto || 0);
-  const subtotal = Math.max(0, pecas + maoObra - desconto);
+  const subtotalLinhas = linhas.reduce((acc: number, l: any) => acc + (Number(l.total) || (Number(l.quantidade || 1) * Number(l.unitPrice || 0))), 0);
+  const subtotal = Math.max(0, subtotalLinhas - desconto);
   const iva = order.isIsentoIva ? 0 : subtotal * 0.16;
   const total = subtotal + iva;
 
-  const meta = order.metadados || {};
   const pagamentoStatus = meta.pagamentoStatus || "Pendente";
 
   return (
@@ -137,16 +137,27 @@ export default function PublicOrcamentoPage({ params }: { params: Promise<{ id: 
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800 font-mono text-xs">
-                <tr>
-                  <td className="p-3 text-slate-200 font-sans">Mão-de-obra (serviços técnicos)</td>
-                  <td className="p-3 text-center">1</td>
-                  <td className="p-3 text-right font-bold">€ {maoObra.toFixed(2)}</td>
-                </tr>
-                <tr>
-                  <td className="p-3 text-slate-200 font-sans">Peças e Materiais aplicados</td>
-                  <td className="p-3 text-center">1</td>
-                  <td className="p-3 text-right font-bold">€ {pecas.toFixed(2)}</td>
-                </tr>
+                {linhas.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="p-4 text-center text-slate-400 font-sans">Sem linhas de orçamento registadas.</td>
+                  </tr>
+                ) : (
+                  linhas.map((l: any, idx: number) => {
+                    const qtd = Number(l.quantidade || 1);
+                    const unit = Number(l.unitPrice || 0);
+                    const tot = Number(l.total ?? (qtd * unit));
+                    return (
+                      <tr key={idx}>
+                        <td className="p-3 text-slate-200 font-sans">
+                          {l.referencia ? <span className="text-teal-300 font-mono mr-2">[{l.referencia}]</span> : null}
+                          {l.descricao || "Artigo"}
+                        </td>
+                        <td className="p-3 text-center">{qtd}</td>
+                        <td className="p-3 text-right font-bold">€ {tot.toFixed(2)}</td>
+                      </tr>
+                    );
+                  })
+                )}
                 {desconto > 0 && (
                   <tr className="text-rose-400">
                     <td className="p-3 font-sans">Desconto Comercial</td>
