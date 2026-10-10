@@ -34,8 +34,10 @@ export type LogisticaStatus = "aguardando" | "recebida" | "agendada" | "em_inspe
  */
 export function toLogisticaStatus(
   queueStatus: string | null | undefined,
-  opts: { inQueue?: boolean; delivered?: boolean } = {},
+  opts: { inQueue?: boolean; delivered?: boolean; dataInspecao?: string | null } = {},
 ): LogisticaStatus {
+  if (opts.delivered) return "expedida";
+  if (opts.dataInspecao) return "concluida";
   if (!opts.inQueue) return "aguardando";
 
   const s = String(queueStatus || "").trim().toLowerCase();

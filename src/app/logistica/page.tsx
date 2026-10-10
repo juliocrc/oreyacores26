@@ -316,11 +316,12 @@ export default function LogisticaPage() {
       // A API devolve o estado bruto da fila da estação; a Logística fala
       // outro vocabulário — traduzimos aqui para que filtros, contadores,
       // distintos e ações usem todos os mesmos estados.
-      const normalizadas: JangadaLogistica[] = (Array.isArray(data) ? data : []).map((j: JangadaLogistica) => ({
+       const normalizadas: JangadaLogistica[] = (Array.isArray(data) ? data : []).map((j: JangadaLogistica) => ({
         ...j,
         queueStatus: toLogisticaStatus(j.queueStatus, {
           inQueue: Boolean(j.inQueue),
           delivered: Boolean(j.delivered),
+          dataInspecao: j.dataInspecao,
         }),
       }));
       setJangadas(normalizadas);
