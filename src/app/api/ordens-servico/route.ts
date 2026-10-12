@@ -543,6 +543,7 @@ export async function GET(req: NextRequest) {
     const tecnicoId = parseOptionalPositiveInt(searchParams.get("tecnicoId"));
     const atraso = searchParams.get("atraso") === "1";
     const includeClosed = searchParams.get("includeClosed") === "1";
+    const excludeFaturadas = searchParams.get("excludeFaturadas") === "1";
     const planeadoInicioDe = parseOptionalDate(searchParams.get("planeadoInicioDe"));
     const planeadoInicioAte = parseOptionalDate(searchParams.get("planeadoInicioAte"));
     const planeadoFimDe = parseOptionalDate(searchParams.get("planeadoFimDe"));
@@ -571,6 +572,8 @@ export async function GET(req: NextRequest) {
     }
     if (tecnico) where.tecnicoResponsavel = { contains: tecnico };
     if (!includeClosed && !status) where.status = { notIn: ["concluida", "cancelada"] };
+    // A ordem tem uma relação 1:1 opcional com a tabela de ligação da fatura.
+    if (excludeFaturadas) where.faturaOrdemServicos = { is: null };
 
     if (planeadoInicioDe || planeadoInicioAte) {
       where.dataPlaneadaInicio = {

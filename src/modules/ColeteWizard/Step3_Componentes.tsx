@@ -34,7 +34,7 @@ export default function Step3_Componentes({ onNext, onPrev }: Props) {
             ...comp, 
             reference: stockItem.referencia,
             stockId: stockItem.id,
-            validade: (comp.id === 'cylinder' || comp.id === 'whistle') ? comp.validade : (toMonthYearString(stockItem.validade) || comp.validade),
+            validade: toMonthYearString(stockItem.validade) || comp.validade,
             lote: stockItem.lote || comp.lote
           } : comp
         )
@@ -176,7 +176,6 @@ export default function Step3_Componentes({ onNext, onPrev }: Props) {
                       </div>
                     </div>
 
-                    {comp.id !== 'cylinder' && comp.id !== 'whistle' && (
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
                         Validade
@@ -191,7 +190,6 @@ export default function Step3_Componentes({ onNext, onPrev }: Props) {
                         className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-white text-slate-800 focus:ring-2 focus:ring-indigo-100 transition-colors text-sm font-medium"
                       />
                     </div>
-                    )}
 
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
@@ -235,7 +233,6 @@ export default function Step3_Componentes({ onNext, onPrev }: Props) {
                       {comp.reference || '—'}
                     </div>
                   </div>
-                  {comp.id !== 'cylinder' && comp.id !== 'whistle' ? (
                   <div className="lg:col-span-3 space-y-1.5">
                     <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Validade</label>
                     <input
@@ -245,7 +242,6 @@ export default function Step3_Componentes({ onNext, onPrev }: Props) {
                       className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-white text-slate-800 focus:ring-2 focus:ring-indigo-100 transition-colors text-sm font-medium"
                     />
                   </div>
-                  ) : <div className="hidden lg:block lg:col-span-3" />}
                   <div className="lg:col-span-3 space-y-1.5">
                     <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Lote</label>
                     <input

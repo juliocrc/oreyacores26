@@ -446,6 +446,7 @@ export async function GET(req: NextRequest) {
         },
         dataInspecao: true,
         dataProxInspecao: true,
+        ultimoCertificadoNumero: true,
         cylinderSerial: true,
         cylinderTara: true,
         cylinderPesoBruto: true,
@@ -557,10 +558,11 @@ export async function GET(req: NextRequest) {
             status: "Concluída",
           },
           orderBy: [{ dataInspecao: "desc" }, { id: "desc" }],
-          select: {
-            jangadaId: true,
-            jangadaSerial: true,
-            dataInspecao: true,
+            select: {
+              jangadaId: true,
+              jangadaSerial: true,
+              certificadoNumero: true,
+              dataInspecao: true,
             dataProxInspecao: true,
           },
         })
@@ -592,8 +594,9 @@ export async function GET(req: NextRequest) {
 
       return {
         ...jangada,
-        dataInspecao: effectiveDataInspecao,
-        dataProxInspecao: effectiveDataProxInspecao,
+         dataInspecao: effectiveDataInspecao,
+         dataProxInspecao: effectiveDataProxInspecao,
+         ultimoCertificadoNumero: latestInsp?.certificadoNumero || jangada.ultimoCertificadoNumero || null,
         linkedShipName: linkedShip?.nome || null,
         navio: linkedShip
           ? {

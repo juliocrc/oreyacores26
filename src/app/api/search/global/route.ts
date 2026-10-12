@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const access = await getAccessContext();
     if (!access) return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
 
-    const [jangadas, navios, clientes, coletes, epirbs, fatosImersao, artigos, faturas, ordensServico] = await Promise.all([
+    const [jangadas, navios, clientes, coletes, epirbs, fatosImersao, artigos, faturas, ordensServico, inspecoes, certificadosExtraidos, certificadosColetes, certificadosFatos] = await Promise.all([
       prisma.jangada.findMany({
         where: {
           OR: [
@@ -28,6 +28,9 @@ export async function GET(request: NextRequest) {
             { model: { contains: q, mode: 'insensitive' } },
             { shipNameManual: { contains: q, mode: 'insensitive' } },
             { owner: { contains: q, mode: 'insensitive' } },
+            { ultimoCertificadoNumero: { contains: q, mode: 'insensitive' } },
+            { certificadoExternoNumero: { contains: q, mode: 'insensitive' } },
+            { certificadoNumeroOriginal: { contains: q, mode: 'insensitive' } },
           ]
         },
         take: 6,
@@ -159,6 +162,60 @@ export async function GET(request: NextRequest) {
         take: 6,
         orderBy: { updatedAt: 'desc' },
       }),
+      prisma.inspecao.findMany({
+        where: {
+          certificadoNumero: { contains: q, mode: 'insensitive' },
+        },
+        select: {
+          id: true,
+          certificadoNumero: true,
+          jangadaId: true,
+          jangadaSerial: true,
+          navioNome: true,
+          status: true,
+        },
+        take: 10,
+        orderBy: { dataInspecao: 'desc' },
+      }),
+      prisma.certificadoExtraido.findMany({
+        where: {
+          OR: [
+            { certificadoNumero: { contains: q, mode: 'insensitive' } },
+            { fileName: { contains: q, mode: 'insensitive' } },
+            { raftSerial: { contains: q, mode: 'insensitive' } },
+          ],
+        },
+        select: {
+          id: true,
+          certificadoNumero: true,
+          fileName: true,
+          raftSerial: true,
+          shipName: true,
+          jangada: { select: { id: true } },
+        },
+        take: 8,
+        orderBy: { updatedAt: 'desc' },
+      }),
+      prisma.certificadoColete.findMany({
+        where: { numeroCertificado: { contains: q, mode: 'insensitive' } },
+        select: {
+          id: true,
+          numeroCertificado: true,
+          colete: { select: { id: true, serial: true } },
+        },
+        take: 6,
+        orderBy: { dataCertificado: 'desc' },
+      }),
+      prisma.certificadoFatoImersao.findMany({
+        where: { numeroCertificado: { contains: q, mode: 'insensitive' } },
+        select: {
+          id: true,
+          numeroCertificado: true,
+          fatoImersao: { select: { id: true, serial: true } },
+        },
+        take: 6,
+        orderBy: { dataCertificado: 'desc' },
+      }),
     ]);
 
     const results = [
@@ -206,6 +263,34 @@ export async function GET(request: NextRequest) {
         type: "Ordem de Serviço",
         label: compactLabel([os.numeroOrdem, os.jangada?.serial ? `Jangada ${os.jangada.serial}` : null, os.status]),
         href: `/ordens-servico/${os.id}`,
+      })),
+      ...inspecoes.map((inspection) => ({
+        type: "Certificado",
+        label: compactLabel([
+          inspection.certificadoNumero,
+          inspection.jangadaSerial ? `Jangada ${inspection.jangadaSerial}` : null,
+          inspection.navioNome,
+        ]),
+        href: inspection.jangadaId ? `/jangadas/${inspection.jangadaId}` : `/inspecoes`,
+      })),
+      ...certificadosExtraidos.map((c) => ({
+        type: "Certificado Externo",
+        label: compactLabel([
+          c.certificadoNumero || c.fileName,
+          c.raftSerial ? `Jangada ${c.raftSerial}` : null,
+          c.shipName,
+        ]),
+        href: c.jangada?.id ? `/jangadas/${c.jangada.id}` : `/certificados-organizados`,
+      })),
+      ...certificadosColetes.map((c) => ({
+        type: "Certificado Colete",
+        label: compactLabel([c.numeroCertificado, c.colete?.serial ? `Colete ${c.colete.serial}` : null]),
+        href: c.colete?.id ? `/equipamentos/${c.colete.id}` : `/equipamentos`,
+      })),
+      ...certificadosFatos.map((c) => ({
+        type: "Certificado Fato",
+        label: compactLabel([c.numeroCertificado, c.fatoImersao?.serial ? `Fato ${c.fatoImersao.serial}` : null]),
+        href: c.fatoImersao?.id ? `/fatos-imersao/${c.fatoImersao.id}` : `/fatos-imersao`,
       })),
     ];
 

@@ -348,6 +348,8 @@ function buildJangadaUpdateData(
     "dataFabrico",
     "packType",
     "containerModel",
+    "containerSize",
+    "closureStrapsJson",
     "owner",
     "shipNameManual",
     "dataInspecao",
@@ -1656,7 +1658,7 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
             data: { dataPrevista: expectedDeliveryDate },
           });
         }
-      } else if (expectedDeliveryDate || nextDeliveredAt || serviceStationStatus !== undefined || readyForDelivery !== undefined || deliveryMethod !== undefined) {
+      } else if (expectedDeliveryDate || nextDeliveredAt || serviceStationStatus !== undefined) {
         await prisma.serviceStationQueue.create({
           data: {
             jangadaId: id,

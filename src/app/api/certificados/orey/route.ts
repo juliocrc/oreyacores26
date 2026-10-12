@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { buildOreyCertificateArtifacts, type OreyCertificateTemplateInput } from '@/lib/orey-certificate-template';
 import { saveCertificadoToYearFolder, getYearFromDate } from '@/lib/certificados-organizados';
+import { syncEmittedDocumentToOneDrive } from '@/lib/onedrive-sync';
 
 export const runtime = 'nodejs';
 
@@ -11,23 +12,37 @@ export async function POST(request: Request) {
     const payload = (await request.json()) as OreyCertificateTemplateInput;
     const { buffer, html, fileName } = await buildOreyCertificateArtifacts(payload);
 
-    // Gravação no servidor é OPCIONAL (só quando CERTIFICADOS_SAVE_TO_PUBLIC=true)
-    // e nunca bloqueia o download. Na Vercel o filesystem é read-only.
     let savedPath: string | undefined;
-    if (
-      format === 'xlsx' && buffer &&
-      process.env.CERTIFICADOS_SAVE_TO_PUBLIC === 'true'
-    ) {
+
+    // Sincronização direta com OneDrive (certificados e pasta do navio)
+    if (format === 'xlsx' && buffer) {
       try {
-        const year = getYearFromDate(payload.inspectionDate);
-        const saved = await saveCertificadoToYearFolder(year, fileName, buffer, {
-          serial: payload.raftSerial || undefined,
-          date: payload.inspectionDate ? new Date(payload.inspectionDate) : undefined,
-          type: "CERT",
+        const syncRes = await syncEmittedDocumentToOneDrive({
+          kind: 'certificado',
+          fileName,
+          buffer,
+          shipName: payload.shipName || undefined,
         });
-        savedPath = saved.relativePath;
-      } catch (saveErr) {
-        console.warn('Gravação em public/ ignorada (não bloqueia o download):', saveErr);
+        if (syncRes.synced && syncRes.filePath) {
+          savedPath = syncRes.filePath;
+        }
+      } catch (syncErr) {
+        console.warn('[certificados/orey] Erro ao sincronizar OneDrive:', syncErr);
+      }
+
+      // Gravação local em public/ opcional em dev
+      if (process.env.CERTIFICADOS_SAVE_TO_PUBLIC === 'true') {
+        try {
+          const year = getYearFromDate(payload.inspectionDate);
+          const saved = await saveCertificadoToYearFolder(year, fileName, buffer, {
+            serial: payload.raftSerial || undefined,
+            date: payload.inspectionDate ? new Date(payload.inspectionDate) : undefined,
+            type: "CERT",
+          });
+          if (!savedPath) savedPath = saved.relativePath;
+        } catch (saveErr) {
+          console.warn('Gravação em public/ ignorada:', saveErr);
+        }
       }
     }
 

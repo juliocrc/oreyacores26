@@ -16,6 +16,7 @@ type PanelRaft = {
 };
 
 type AgendaPanels = {
+  expiringToday: PanelRaft[];
   expiringNext30Days: PanelRaft[];
   expiringCurrentMonth: PanelRaft[];
   expiringNextMonth: PanelRaft[];
@@ -93,6 +94,25 @@ export default function AgendaSidebar({
   return (
     <div className="space-y-4">
       {/* 30 Days Panel */}
+      <div className="bg-white rounded-xl border border-orange-300 shadow-sm overflow-hidden flex flex-col max-h-[400px]">
+        <div className="bg-orange-50 px-4 py-3 border-b border-orange-200 flex justify-between items-center shrink-0">
+          <h3 className="font-bold text-orange-900 flex items-center gap-2">
+            <span className="text-lg">⏰</span> Caducam hoje
+          </h3>
+          <span className="bg-orange-200 text-orange-900 text-xs font-bold px-2.5 py-1 rounded-full">
+            {agendaPanels.expiringToday.length}
+          </span>
+        </div>
+        <div className="p-3 overflow-y-auto bg-orange-50/30 flex-1 min-h-[100px]">
+          {agendaPanels.expiringToday.map((raft) => renderPanelRaft(raft, "today"))}
+          {agendaPanels.expiringToday.length === 0 && (
+            <div className="text-sm text-gray-500 italic text-center py-4 bg-white/50 rounded-lg border border-dashed border-gray-200">
+              Nenhuma jangada caduca hoje.
+            </div>
+          )}
+        </div>
+      </div>
+
       <div className="bg-white rounded-xl border border-amber-200 shadow-sm overflow-hidden flex flex-col h-auto max-h-[500px]">
         <div className="bg-amber-50 px-4 py-3 border-b border-amber-200 flex justify-between items-center shrink-0">
           <h3 className="font-bold text-amber-900 flex items-center gap-2">

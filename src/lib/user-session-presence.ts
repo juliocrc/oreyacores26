@@ -9,7 +9,7 @@ export type UserSessionPresenceRecord = {
   userId: number;
   email: string;
   name?: string | null;
-  role: "ADMIN" | "USER";
+  role: "ADMIN" | "USER" | "CLIENTE";
   createdAt: string;
   lastSeenAt: string;
   expiresAt: string;
@@ -23,7 +23,7 @@ export type UserSessionLoginEvent = {
   userId: number;
   email: string;
   name?: string | null;
-  role: "ADMIN" | "USER";
+  role: "ADMIN" | "USER" | "CLIENTE";
   createdAt: string;
   lastSeenAt: string;
   lastPath?: string;
@@ -34,7 +34,7 @@ export type UserSessionHistoryEntry = {
   userId: number;
   email: string;
   name?: string | null;
-  role: "ADMIN" | "USER";
+  role: "ADMIN" | "USER" | "CLIENTE";
   createdAt: string;
   lastSeenAt: string;
   expiresAt: string;
@@ -80,7 +80,7 @@ function normalizePresenceRecord(sessionId: string, raw: unknown): UserSessionPr
     userId: parsedUserId,
     email,
     name: typeof value.name === "string" ? value.name : null,
-    role: value.role === "ADMIN" ? "ADMIN" : "USER",
+    role: value.role === "ADMIN" ? "ADMIN" : value.role === "CLIENTE" ? "CLIENTE" : "USER",
     createdAt: toIso(typeof value.createdAt === "string" ? value.createdAt : undefined),
     lastSeenAt: toIso(typeof value.lastSeenAt === "string" ? value.lastSeenAt : undefined),
     expiresAt: toIso(typeof value.expiresAt === "string" ? value.expiresAt : undefined),
@@ -146,7 +146,7 @@ export async function upsertUserSessionPresence(input: {
   userId: number;
   email: string;
   name?: string | null;
-  role: "ADMIN" | "USER";
+  role: "ADMIN" | "USER" | "CLIENTE";
   lastPath?: string;
   userAgent?: string;
 }) {

@@ -233,6 +233,8 @@ function DataTableNoMemo<T>({
         const next = new Set(prev);
         if (next.has(key)) next.delete(key);
         else next.add(key);
+        // A tabela precisa de pelo menos uma coluna de dados para continuar utilizável.
+        if (next.size === 0) return prev;
         return next;
       });
     },

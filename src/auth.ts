@@ -41,9 +41,7 @@ export const authConfig: NextAuthConfig = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
         loginType: { type: "text" },
-        telmovel: { type: "text" },
-        nif: { type: "text" },
-        code: { type: "text" },
+         code: { type: "text" },
         userId: { type: "text" },
       },
       async authorize(credentials) {
@@ -51,38 +49,24 @@ export const authConfig: NextAuthConfig = {
           typeof value === "string" ? value : undefined;
 
         const loginType = str(credentials?.loginType);
-        const telmovel = str(credentials?.telmovel);
-        const nif = str(credentials?.nif);
-        const code = str(credentials?.code);
+         const code = str(credentials?.code);
         const userId = str(credentials?.userId);
         const emailRaw = str(credentials?.email);
         const password = str(credentials?.password);
 
         if (loginType === "client") {
-          if (!telmovel || !nif || !code) return null;
-
-          const cleanPhone = (phone: string | null | undefined): string => {
-            if (!phone) return "";
-            return phone.replace(/\D/g, "");
-          };
-
-          const cleanedTarget = cleanPhone(telmovel);
-          if (!cleanedTarget) return null;
-
-          const cleanNif = nif.replace(/\D/g, "").trim();
-          if (cleanNif.length < 9) return null;
+          const email = normalizeEmail(emailRaw);
+          if (!email || !code) return null;
 
           const cliente = await prisma.cliente.findFirst({
             where: {
-              nif: cleanNif,
+              email,
               verificationCode: { not: null },
             },
             select: {
               id: true,
               nome: true,
-              telmovel: true,
-              telefone: true,
-              email: true,
+               email: true,
               verificationCode: true,
               verificationCodeExpires: true,
             }
@@ -90,26 +74,12 @@ export const authConfig: NextAuthConfig = {
 
           if (!cliente || !cliente.verificationCode) return null;
 
-          const phoneMatch = (() => {
-            const t1 = cleanPhone(cliente.telmovel);
-            const t2 = cleanPhone(cliente.telefone);
-            return (
-              (t1 && t1.endsWith(cleanedTarget)) ||
-              (t2 && t2.endsWith(cleanedTarget)) ||
-              (cleanedTarget.endsWith(t1) && t1) ||
-              (cleanedTarget.endsWith(t2) && t2)
-            );
-          })();
-
-          if (!phoneMatch) return null;
-
-          // Check verification code (flexible string comparison)
-          if (String(cliente.verificationCode).trim() !== String(code).trim()) return null;
+           if (String(cliente.verificationCode).trim() !== String(code).trim()) return null;
 
           if (cliente.verificationCodeExpires) {
             const expiresTime = new Date(cliente.verificationCodeExpires).getTime();
             const nowTime = Date.now();
-            if (nowTime > expiresTime + 15 * 60 * 1000) {
+             if (nowTime > expiresTime) {
               return null;
             }
           }

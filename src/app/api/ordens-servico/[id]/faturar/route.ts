@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
   try {
     const url = new URL(req.url);
     const segments = url.pathname.split("/").filter(Boolean);
-    const rawId = segments[segments.length - 1];
+    const rawId = segments[segments.length - 2];
     const id = Number(rawId);
     if (!Number.isFinite(id) || id <= 0) {
       return NextResponse.json({ error: "ID inválido." }, { status: 400 });

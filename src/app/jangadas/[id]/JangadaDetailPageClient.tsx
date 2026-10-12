@@ -38,7 +38,6 @@ import {
   Smartphone,
   ShieldCheck,
   Clock,
-  Copy,
   Mail
 } from 'lucide-react';
 import { appToast } from "@/lib/app-toast";
@@ -331,6 +330,7 @@ interface StockItem {
   quantidade?: number;
   categoria?: string;
   associavelJangada: boolean;
+  foto?: string | null;
 }
 
 interface ApplicableServiceBulletin {
@@ -759,6 +759,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
   const [errorData, setErrorData] = useState(false);
   const [selectedInspecao, setSelectedInspecao] = useState<Inspecao | null>(null);
   const [printMode, setPrintMode] = useState<'dossier' | 'checklist'>('dossier');
+  const [checklistScale, setChecklistScale] = useState(1);
   const [offlineDraftsCount, setOfflineDraftsCount] = useState(0);
   const [currentUrl, setCurrentUrl] = useState('');
   const [catalogOptions, setCatalogOptions] = useState<JangadaCatalogOption[]>([]);
@@ -782,6 +783,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
   // "certificado" | "quadro" enquanto o ficheiro esta a ser gerado no servidor.
   // Sem isto os botoes ficam seemingly inertes durante a geracao, que demora.
   const [aGerarDoc, setAGerarDoc] = useState<'certificado' | 'quadro' | null>(null);
+  const [dgrmExporting, setDgrmExporting] = useState(false);
   const [syncResult, setSyncResult] = useState<{ success: boolean; warning?: string; summary?: { added: number; updated: number; stockLinked: number; total: number }; hasSnapshot?: boolean; details?: string; packSource?: string } | null>(null);
   const [showSyncResult, setShowSyncResult] = useState(false);
 
@@ -1661,6 +1663,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
         applicableServiceBulletins,
         createdAt, updatedAt,
         serviceStationStatus, serviceStationWorkflowStatus,
+        readyForDelivery, deliveryMethod, delivered, deliveredAt, expectedDeliveryDate,
         ...editableFields
       } = editForm;
 
@@ -2131,6 +2134,33 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
     }
   };
 
+  const handleExportDgrmDocx = async () => {
+    setDgrmExporting(true);
+    try {
+      const res = await fetch('/api/export/dgrm-docx', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error('Erro ao gerar a ficha DGRM.');
+      toastSavedPathIfPresent(res, 'Ficha DGRM');
+      const blob = await res.blob();
+      const shipName = data.shipNameManual || linkedShip?.nome || data.inspecoes?.[0]?.navioNome || 'Sem Navio';
+      const serial = data.serial || 'Sem Serie';
+      const dgrmFilename = `Ficha DGRM - ${serial} - ${shipName}.docx`;
+      await saveShipDocument({
+        shipName,
+        category: 'DGRM',
+        filename: dgrmFilename,
+        blob,
+      });
+    } catch (error: unknown) {
+      alert('Erro ao gerar ficha DGRM: ' + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      setDgrmExporting(false);
+    }
+  };
+
   const addStrapToStock = async (strap: { strapQuantity: number; stockReference: string; description: string; containerFamily: string; completePartNumber?: string; upperPartNumber?: string; strapPartNumber?: string; containerLabel: string }) => {
     const qty = prompt('Quantidade de cintas a adicionar ao stock?', String(strap.strapQuantity));
     if (!qty) return;
@@ -2435,10 +2465,27 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
     html2pdf().set(opt as Record<string, unknown>).from(element).save();
   };
 
+  const printPackChecklist = () => {
+    setPrintMode('checklist');
+    setChecklistScale(1);
+    setTimeout(() => {
+      const el = document.querySelector('.screen-container-dossier') as HTMLElement | null;
+      if (el) {
+        const height = el.getBoundingClientRect().height;
+        const printable = 752;
+        const nextScale = height > printable ? Math.max(0.4, Number((printable / height).toFixed(4))) : 1;
+        if (nextScale < 1) setChecklistScale(nextScale);
+      }
+      setTimeout(() => window.print(), 120);
+    }, 160);
+  };
+
   return (
     <div className={`min-h-screen bg-gradient-to-br from-slate-100 via-indigo-50/30 to-white py-8 print:bg-white print:py-0 ${
       printMode === 'checklist' ? 'print-checklist-only' : 'print-dossier-only'
-    }`}>
+    }`}
+      style={{ "--checklist-scale": String(checklistScale) } as React.CSSProperties}
+    >
       <style>{`
         @media print {
           @page {
@@ -2652,6 +2699,75 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
           .print-dossier-page .col-print {
             width: 32.5% !important;
           }
+          /* --- Pack Checklist (uma folha A4 landscape) --- */
+          .print-checklist-only {
+            font-size: 9px !important;
+          }
+          .print-checklist-only .screen-container-dossier {
+            transform: scale(var(--checklist-scale, 1)) !important;
+            transform-origin: top left !important;
+          }
+          .print-checklist-only .max-w-7xl {
+            max-width: 100% !important;
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+          .print-checklist-only .space-y-8 > :not([hidden]) ~ :not([hidden]) {
+            margin-top: 4px !important;
+          }
+          .print-checklist-only .space-y-3 > :not([hidden]) ~ :not([hidden]) {
+            margin-top: 2px !important;
+          }
+          .print-checklist-only .p-6, .print-checklist-only .lg\:p-8 {
+            padding: 4px !important;
+          }
+          .print-checklist-only .pb-4 {
+            padding-bottom: 2px !important;
+            margin-bottom: 2px !important;
+          }
+          .print-checklist-only .rounded-3xl, .print-checklist-only .rounded-2xl {
+            border-radius: 4px !important;
+          }
+          .print-checklist-only h2 {
+            font-size: 13px !important;
+            line-height: 1.2 !important;
+            margin: 0 !important;
+          }
+          .print-checklist-only .text-lg { font-size: 13px !important; }
+          .print-checklist-only h3 {
+            font-size: 8px !important;
+            margin: 0 !important;
+          }
+          .print-checklist-only .mb-3 { margin-bottom: 2px !important; }
+          .print-checklist-only table {
+            border-collapse: collapse !important;
+            width: 100% !important;
+          }
+          .print-checklist-only table th,
+          .print-checklist-only table td {
+            padding: 1px 3px !important;
+            font-size: 8px !important;
+            line-height: 1.25 !important;
+            vertical-align: middle !important;
+          }
+          .print-checklist-only th.px-6, .print-checklist-only td.px-6 {
+            padding: 1px 3px !important;
+          }
+          .print-checklist-only th.py-4, .print-checklist-only td.py-4 {
+            padding-top: 1px !important;
+            padding-bottom: 1px !important;
+          }
+          .print-checklist-only table th:first-child,
+          .print-checklist-only table td:first-child {
+            display: none !important;
+          }
+          .print-checklist-only table th:last-child,
+          .print-checklist-only table td:last-child {
+            display: none !important;
+          }
+          .print-checklist-only .print-ident-header {
+            display: block !important;
+          }
         }
       `}</style>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 animate-in fade-in duration-500 screen-container-dossier">
@@ -2678,10 +2794,10 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                   <span className={`w-2 h-2 rounded-full ${isCondenada ? 'bg-red-600 animate-pulse' : statusStyles[inspectionStatus.color].dot}`} />
                   {isCondenada ? 'Inoperacional (Condenada / Abate)' :
                    inspectionStatus.color === 'gray' ? 'Sem inspecção' :
-                   inspectionStatus.color === 'red' ? 'GI Expirada' :
+                    inspectionStatus.color === 'red' ? 'INSPEÇÃO EXPIRADA' :
                    inspectionStatus.color === 'orange' ? `GI em ${inspectionStatus.daysLeft}d` :
                    inspectionStatus.color === 'yellow' ? `GI em ${inspectionStatus.daysLeft}d` :
-                   'GI em dia'}
+                    'Inspeção em dia'}
                 </span>
               </div>
               <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800 mt-1">
@@ -2714,6 +2830,14 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
               </>
             ) : (
               <>
+                <button
+                  onClick={handleExportDgrmDocx}
+                  disabled={dgrmExporting}
+                  className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-all shadow-md shadow-indigo-600/10 disabled:opacity-60 disabled:cursor-progress"
+                >
+                  {dgrmExporting ? <Loader2 size={18} className="animate-spin" /> : <FileText size={18} />}
+                  {dgrmExporting ? 'A gerar...' : 'Gerar Ficha DGRM'}
+                </button>
                 <button
                   onClick={() => {
                     setPrintMode('dossier');
@@ -2766,13 +2890,6 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                 >
                   <Edit3 size={18} />
                   Editar Ficha
-                </button>
-                <button
-                  onClick={() => setIsDuplicarOpen(true)}
-                  className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-all shadow-sm"
-                >
-                  <Copy size={18} className="text-cyan-600" />
-                  Duplicar Ficha
                 </button>
                 <a
                   href="https://survitec2.my.site.com/HarbourOne/"
@@ -3270,6 +3387,20 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                     />
                   ) : (
                     <p className="font-semibold text-slate-800">{data.cylinderSistema || '—'}</p>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Data Teste Hidráulico</span>
+                  {isEditing ? (
+                    <input
+                      type="month"
+                      className="w-full border-slate-200 rounded-xl px-4 py-2 bg-slate-50 text-sm"
+                      value={editForm.cylinderDataTeste ? String(editForm.cylinderDataTeste).slice(0, 7) : ''}
+                      onChange={(e) => handleCylinderChange('cylinderDataTeste', e.target.value)}
+                    />
+                  ) : (
+                    <p className="font-semibold text-slate-800">{formatDate(data.cylinderDataTeste)}</p>
                   )}
                 </div>
 
@@ -4028,6 +4159,32 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                     </span>
                   </p>
                 </div>
+                <div className="hidden print:block print-ident-header text-[10px] mb-2">
+                  <div className="rounded-xl border border-slate-300 bg-slate-50 p-2.5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-[8px] font-black uppercase tracking-widest text-slate-700">Jangada</p>
+                        <p className="font-bold text-[12px] text-slate-900 leading-snug">{data.brand} {data.model} — Nº Série {data.serial}</p>
+                        <p className="text-[10px] text-slate-700 leading-snug">
+                          Lotação: {data.capacity} pax · Pack: {data.packType || '—'} · Contentor: {data.containerModel || '—'}{data.containerSize ? ` (${data.containerSize})` : ''}{data.fabricType ? ` · ${data.fabricType}` : ''}
+                        </p>
+                        <p className="text-[10px] text-slate-700 leading-snug">
+                          Última inspeção: {data.dataInspecao || '—'} · Próxima inspeção: {data.dataProxInspecao || '—'}
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-[8px] font-black uppercase tracking-widest text-slate-700">Navio</p>
+                        <p className="font-bold text-[12px] text-slate-900 leading-snug">{linkedShip?.nome || data.shipNameManual || '—'}</p>
+                        <p className="text-[10px] text-slate-700 leading-snug">
+                          Matrícula: {linkedShip?.matricula || '—'} · IMO: {linkedShip?.imo || '—'} · Bandeira: {linkedShip?.bandeira || '—'}
+                        </p>
+                        <p className="text-[10px] text-slate-700 leading-snug">
+                          Indicativo: {linkedShip?.callSignal || '—'} · Proprietário: {linkedShip?.cliente?.nome || data.owner || '—'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 <div className="flex items-center gap-2 no-print">
                   <button
                     onClick={handleSyncPack}
@@ -4037,12 +4194,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                     🔄 {syncLoading ? 'A sincronizar...' : 'Sincronizar com Pack'}
                   </button>
                   <button
-                    onClick={() => {
-                      setPrintMode('checklist');
-                      setTimeout(() => {
-                        window.print();
-                      }, 50);
-                    }}
+                    onClick={printPackChecklist}
                     className="flex items-center gap-2 px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-bold transition-all text-xs shadow-sm"
                   >
                     <FileText size={14} />
@@ -4084,13 +4236,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                           <tbody className="divide-y divide-slate-100 text-sm">
                             {catItems.map((item: Record<string, unknown>) => {
                               const matched = findMatchingArticleForPackItem(item as MandatoryPackItem, artigos);
-                              const isPresent = !!matched;
                               const presentQty = matched ? Number(matched.quantidade || 0) : 0;
-                              const isComprimidosEnjoo = matched?.referencia === '30202051' || item.referencia === '30202051';
-                              const isComplete = isPresent && (
-                                presentQty >= Number(item.quantity) ||
-                                (isComprimidosEnjoo && presentQty >= 1)
-                              );
 
                               const lastInspectionArticles = lastInspecao?.artigos || [];
                               const replacedItem = lastInspectionArticles.find((art: Artigo) => 
@@ -4100,26 +4246,13 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                               );
                               const replacedQty = replacedItem ? replacedItem.quantidade : 0;
 
-                              let statusBadge = (
-                                <span className="bg-red-100 text-red-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
-                                  Em Falta
+                              // O pack é considerado completo por definição do template/modelo.
+                              // Não assinalamos artigos em falta nesta vista, mostrando sempre "Completo".
+                              const statusBadge = (
+                                <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
+                                  Completo
                                 </span>
                               );
-                              if (isPresent) {
-                                  if (isComplete) {
-                                    statusBadge = (
-                                      <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
-                                        Completo
-                                      </span>
-                                    );
-                                  } else {
-                                    statusBadge = (
-                                      <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
-                                        Incompleto
-                                      </span>
-                                    );
-                                  }
-                              }
 
                               return (
                                 <tr key={String(item.label)} className="hover:bg-slate-50/55 transition-colors">
@@ -4408,11 +4541,99 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
             <div className="rounded-2xl bg-white border border-slate-200 shadow-sm p-5">
               <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
                 <Package size={18} className="text-purple-500" />
-                Selecionar Cintas do Stock
+                Artigos de Fecho Aplicados (Cintas · Autocolantes · Saco · Fita)
               </h3>
-              <p className="text-sm text-slate-400 text-center py-4">
-                Em breve: seleção de cintas do stock existente.
-              </p>
+              {(() => {
+                let rawClosure: unknown = null;
+                try {
+                  const raw = data.closureStrapsJson;
+                  if (typeof raw === "string" && raw.trim()) rawClosure = JSON.parse(raw);
+                  else if (Array.isArray(raw)) rawClosure = raw;
+                } catch {
+                  rawClosure = null;
+                }
+                const closureInstalled = Array.isArray(rawClosure)
+                  ? (rawClosure as Array<{
+                      kind?: string;
+                      referencia?: string | null;
+                      descricao?: string;
+                      quantidade?: number;
+                      stockId?: number | null;
+                      partNumber?: string | null;
+                    }>).filter((item) => Number(item.quantidade) > 0)
+                  : [];
+                const stockById = new Map(stockItems.map((s) => [s.id, s]));
+                const stockByRef = new Map(
+                  stockItems
+                    .filter((s) => s.referencia)
+                    .map((s) => [String(s.referencia).trim().toUpperCase(), s]),
+                );
+
+                if (closureInstalled.length === 0) {
+                  return (
+                    <p className="text-sm text-slate-400 text-center py-4">
+                      Nenhum artigo de fecho aplicado. Os artigos escolhidos na inspeção (passo
+                      Orçamento — Equipamento de Fecho) surgem aqui com a fotografia do stock.
+                    </p>
+                  );
+                }
+
+                const kindLabel = (kind?: string) =>
+                  kind === "cinta"
+                    ? "Cinta de fecho"
+                    : kind === "hru"
+                      ? "HRU"
+                      : kind === "reparo"
+                        ? "Reparo"
+                        : "Acessório de Fecho";
+
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {closureInstalled.map((item, i) => {
+                      const stock =
+                        (item.stockId != null && stockById.get(Number(item.stockId))) ||
+                        (item.referencia
+                          ? stockByRef.get(String(item.referencia).trim().toUpperCase())
+                          : undefined);
+                      const foto = stock?.foto || null;
+                      return (
+                        <div
+                          key={`${item.referencia || item.kind}-${i}`}
+                          className="flex items-center gap-3 rounded-xl border border-slate-200 p-3 bg-white"
+                        >
+                          {foto ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={foto}
+                              alt={item.descricao || item.referencia || "artigo de fecho"}
+                              className="h-12 w-12 rounded-lg border border-slate-200 object-cover bg-slate-50"
+                            />
+                          ) : (
+                            <div className="h-12 w-12 rounded-lg border border-slate-200 bg-slate-100 flex items-center justify-center text-slate-400 shrink-0">
+                              <Package size={18} />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {item.referencia ? (
+                                <span className="text-xs font-bold text-slate-800">{item.referencia}</span>
+                              ) : null}
+                              <span className="rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+                                {kindLabel(item.kind)}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-600 truncate">{item.descricao}</p>
+                            <p className="text-[11px] text-slate-400">
+                              Qtd: {item.quantidade}
+                              {stock?.referencia ? ` · Stock ${stock.referencia}` : ""}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         );

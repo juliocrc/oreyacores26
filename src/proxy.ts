@@ -62,12 +62,14 @@ const MODULOS = [
   // Administração
   "/utilizadores",
   "/registar",
+  "/onedrive",
 ] as const;
 
 const ROTAS_LIVRES = [
   "/",
   "/login",
   "/selecionar-tecnico",
+  "/area-cliente",
 ] as const;
 
 /**
@@ -90,7 +92,6 @@ const ROTAS_LIVRES = [
  */
 const API_PUBLICAS_EXATAS = [
   "/api/health",
-  "/api/setup-db",
   "/api/whatsapp/webhook",
   "/api/comunicacoes/inbound",
   "/api/service-stations/public",
@@ -129,6 +130,7 @@ function isAllowed(pathname: string) {
 const PUBLIC_PAGE_PREFIXES = [
   "/login",
   "/selecionar-tecnico",
+  "/area-cliente",
 ];
 
 export default async function proxy(req: NextRequest) {

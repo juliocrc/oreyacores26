@@ -67,6 +67,32 @@ function dataCurta(valor: unknown) {
 
 export default async function InicioPage() {
   const session = await getAuthSession();
+  
+  if (!session) {
+    return (
+      <main className="ds-page">
+        <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center px-4">
+          <div className="w-full max-w-md text-center">
+            <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-50">
+              {APP_CONFIG.name}
+            </h1>
+            <p className="mt-2 text-slate-500 dark:text-slate-400">
+              Inicie sessão para aceder à aplicação
+            </p>
+            <div className="mt-8">
+              <a
+                href="/login"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-cyan-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2"
+              >
+                Iniciar sessão
+              </a>
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
+  
   const nome = session?.user?.name?.trim() || "Técnico";
 
   const access = await getAccessContext();

@@ -124,7 +124,7 @@ await performOfflineAwareJsonRequest({
               temLuz: inspectionData.temLuz !== false,
               cilindroRef: cylinder?.stockId ? (cylinder?.reference || null) : undefined,
               cilindroLote: cylinder?.stockId ? (cylinder?.lote || null) : undefined,
-              cilindroValidade: undefined,
+              cilindroValidade: cylinder?.stockId ? fmtVal(cylinder?.validade) : undefined,
               pastilhaRef: cartridge?.reference || null,
               pastilhaLote: cartridge?.lote || null,
               pastilhaValidade: fmtVal(cartridge?.validade),
@@ -133,7 +133,7 @@ await performOfflineAwareJsonRequest({
               luzValidade: inspectionData.temLuz !== false ? fmtVal(light?.validade) : null,
               apitoRef: whistle?.stockId ? (whistle?.reference || null) : undefined,
               apitoLote: whistle?.stockId ? (whistle?.lote || null) : undefined,
-              apitoValidade: undefined,
+              apitoValidade: whistle?.stockId ? fmtVal(whistle?.validade) : undefined,
            },
            queueEntry: {
              entityType: "colete",

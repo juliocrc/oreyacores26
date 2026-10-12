@@ -98,6 +98,7 @@ export default function NaviosWizard() {
   const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('lista');
   const [isFormExpanded, setIsFormExpanded] = useState(false);
+  const [creatingOneDriveFolders, setCreatingOneDriveFolders] = useState(false);
   const [jangadasDisponiveis, setJangadasDisponiveis] = useState<JangadaItem[]>([]);
   const [coletesDisponiveis, setColetesDisponiveis] = useState<ColeteItem[]>([]);
   const [epirbsDisponiveis, setEpirbsDisponiveis] = useState<EpirbItem[]>([]);
@@ -620,6 +621,34 @@ export default function NaviosWizard() {
     setLoading(false);
   }
 
+  async function handleCreateOneDriveFolders() {
+    if (
+      !window.confirm(
+        'Criar no OneDrive a pasta Documentos (com DGRM, Quadros, Certificados, Documentos) de todos os navios com jangadas associadas?',
+      )
+    )
+      return;
+    setCreatingOneDriveFolders(true);
+    try {
+      const response = await fetch('/api/onedrive-sync/navio-folders', { method: 'POST' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.error || 'Erro ao criar pastas no OneDrive.');
+      }
+      const created = Number(data?.created) || 0;
+      const existing = Number(data?.existing) || 0;
+      const errors = Number(data?.errors) || 0;
+      const total = Number(data?.totalNavios) || 0;
+      let message = `Pastas criadas: ${created} · já existentes: ${existing} · erros: ${errors}\nNavios processados: ${total} (origem: ${data?.source ?? 'n/a'})`;
+      if (data?.reason) message += `\nDetalhe: ${data.reason}`;
+      alert(message);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Erro ao criar pastas no OneDrive.');
+    } finally {
+      setCreatingOneDriveFolders(false);
+    }
+  }
+
   function openCreateWizard() {
     setForm(INITIAL_NAVIO_FORM);
     setSelectedJangadaIds([]);
@@ -716,6 +745,14 @@ export default function NaviosWizard() {
                 onClick={fetchNavios}
               >
                 Atualizar lista
+              </button>
+              <button
+                className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-60 sm:px-4 sm:text-sm"
+                disabled={creatingOneDriveFolders}
+                onClick={handleCreateOneDriveFolders}
+                title="Cria no OneDrive as pastas DGRM/Quadros/Certificados/Documentos de cada navio com jangadas"
+              >
+                {creatingOneDriveFolders ? 'A criar pastas...' : 'Criar pastas OneDrive'}
               </button>
             </div>
           </div>

@@ -107,6 +107,25 @@ async function hasVacationConflict(responsavelRaw: string | null | undefined, da
   return Boolean(holiday);
 }
 
+async function hasActiveRaftConflict(raftSerial: string, date: Date, excludeId?: number) {
+  const candidates = await prisma.agendaEvento.findMany({
+    where: {
+      raftSerial,
+      status: { in: Array.from(ACTIVE_ROLLOVER_STATUSES) },
+      ...(excludeId ? { id: { not: excludeId } } : {}),
+    },
+    select: { id: true, date: true },
+  });
+
+  return candidates.some((candidate) => isSameCalendarDay(candidate.date, date));
+}
+
+function isSameCalendarDay(left: Date, right: Date) {
+  return left.getFullYear() === right.getFullYear()
+    && left.getMonth() === right.getMonth()
+    && left.getDate() === right.getDate();
+}
+
 function getMinutesOfDay(date: Date) {
   return date.getHours() * 60 + date.getMinutes();
 }
@@ -314,6 +333,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "O técnico selecionado está de férias nesta data." }, { status: 409 });
     }
 
+    if (await hasActiveRaftConflict(raftSerial, parsedDate)) {
+      return NextResponse.json({ error: "Já existe um agendamento ativo para esta jangada neste dia." }, { status: 409 });
+    }
+
     const access = await getAccessContext();
     const activeStationId = access ? resolveActiveServiceStationId(req, access) : null;
     const raft = await prisma.jangada.findFirst({
@@ -394,6 +417,10 @@ export async function PUT(req: NextRequest) {
     const existing = await prisma.agendaEvento.findUnique({ where: { id } });
     if (!existing) {
       return NextResponse.json({ error: "Agendamento não encontrado." }, { status: 404 });
+    }
+
+    if (await hasActiveRaftConflict(raftSerial, parsedDate, id)) {
+      return NextResponse.json({ error: "Já existe um agendamento ativo para esta jangada neste dia." }, { status: 409 });
     }
 
     const updated = await prisma.agendaEvento.update({

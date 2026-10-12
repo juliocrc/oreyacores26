@@ -1,11 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { Anchor, CalendarDays, Mail, MessageSquare, Phone, Tag } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { Anchor, CalendarDays, Mail, MessageSquare, Phone, Search, Tag } from "lucide-react";
 
 type ClienteOption = { id: number; nome: string; email?: string | null; telefone?: string | null; telmovel?: string | null };
 type NavioOption = { id: number; nome: string; matricula?: string | null; clienteId?: number | null };
-type JangadaOption = { id: number; serial: string; shipId?: number | null };
+type JangadaOption = { id: number; serial: string; brand?: string | null; model?: string | null; shipId?: number | null };
+type NavioLookup = { id: number; nome: string; matricula?: string | null; clienteId?: number | null; clienteNome?: string | null };
+
+function normalizeLookupText(value: string | null | undefined) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
 
 const ESTADOS_PEDIDO_ASSISTENCIA = [
   "novo",
@@ -53,6 +62,33 @@ const ESTADO_ACCENT: Record<string, string> = {
   arquivado: "from-slate-400 to-slate-300",
 };
 
+const MOTIVOS_ASSISTENCIA = [
+  "Inspeção periódica obrigatória",
+  "Jangada desinsuflada",
+  "Jangada com danos (costura/tubo)",
+  "Jangada não arranca / não rebate",
+  "Substituição de boia/casca",
+  "Bateria sem carga / substituição",
+  "Luz exterior avariada",
+  "Ficha de injecção partida",
+  "Reparo de correia/quinete",
+  "Pirotécnicos a expirar / substituição",
+  "Água potável / rações a expirar",
+  "Kit de primeiros socorros a expirar",
+  "Fármacos a expirar",
+  "Cinta de amarração deteriorada",
+  "Boia luminosa / apito substituição",
+  "Fato de imersão com defeito",
+  "Colete com defeito / substituição",
+  "EPIRB avariado / bateria",
+  "Extintor fora de validade",
+  "Manutenção preventiva",
+  "Pós-incidente / inspeção extraordinária",
+  "Avaria reportada pelo armador",
+  "Roubo / perda de equipamento",
+  "Outro",
+];
+
 function estadoBadge(estado: string | null | undefined) {
   const key = String(estado || "novo").toLowerCase();
   return (
@@ -91,6 +127,7 @@ function origemLabel(origem: string | null | undefined) {
 export default function PedidosAssistenciaPage() {
   const [pedidos, setPedidos] = useState<PedidoAssistencia[]>([]);
   const [count, setCount] = useState<number>(0);
+  const [stats, setStats] = useState({ total: 0, novo: 0, em_atendimento: 0, concluido: 0, arquivado: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [estadoFilter, setEstadoFilter] = useState<string>("");
@@ -112,16 +149,80 @@ export default function PedidosAssistenciaPage() {
     email: "",
     telefone: "",
     tipoAssistencia: "inspecao",
+    motivo: "",
     descricao: "",
     dataPreferida: "",
   });
   const [submittingForm, setSubmittingForm] = useState(false);
   const [formMessage, setFormMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [lookupQuery, setLookupQuery] = useState("");
+  const [lookupOpen, setLookupOpen] = useState(false);
+  const [allNavios, setAllNavios] = useState<NavioLookup[]>([]);
+  const pendingNavioRef = useRef<string | null>(null);
 
   const selectedCliente = useMemo(
     () => clientes.find((cliente) => String(cliente.id) === String(form.clienteId)) || null,
     [clientes, form.clienteId],
   );
+
+  const selectedNavio = useMemo(
+    () => navios.find((navio) => String(navio.id) === String(form.navioId)) || null,
+    [navios, form.navioId],
+  );
+
+  const lookupResults = useMemo(() => {
+    const term = normalizeLookupText(lookupQuery);
+    if (term.length < 2) return { clientes: [] as ClienteOption[], navios: [] as NavioLookup[] };
+    return {
+      clientes: clientes.filter((cliente) => normalizeLookupText(cliente.nome).includes(term)).slice(0, 8),
+      navios: allNavios
+        .filter(
+          (navio) =>
+            normalizeLookupText(navio.nome).includes(term) || normalizeLookupText(navio.matricula).includes(term),
+        )
+        .slice(0, 8),
+    };
+  }, [lookupQuery, clientes, allNavios]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/navios?lite=1", { cache: "no-store" });
+        if (!res.ok) return;
+        const payload = await res.json();
+        const items = Array.isArray(payload) ? payload : [];
+        setAllNavios(
+          items.map((navio: { id: number; nome: string; matricula?: string | null; cliente?: { id?: number; nome?: string } | null }) => ({
+            id: navio.id,
+            nome: navio.nome,
+            matricula: navio.matricula ?? null,
+            clienteId: navio.cliente?.id ?? null,
+            clienteNome: navio.cliente?.nome ?? null,
+          })),
+        );
+      } catch {
+        setAllNavios([]);
+      }
+    })();
+  }, []);
+
+  function escolherClienteLookup(clienteId: string) {
+    setForm((current) => ({ ...current, clienteId, navioId: "", jangadaIds: [] }));
+    setLookupQuery("");
+    setLookupOpen(false);
+  }
+
+  function escolherNavioLookup(navio: NavioLookup) {
+    setLookupQuery("");
+    setLookupOpen(false);
+    const clienteIdStr = navio.clienteId != null ? String(navio.clienteId) : "";
+    if (clienteIdStr && clienteIdStr !== form.clienteId) {
+      pendingNavioRef.current = String(navio.id);
+      setForm((current) => ({ ...current, clienteId: clienteIdStr, navioId: "", jangadaIds: [] }));
+    } else {
+      setForm((current) => ({ ...current, navioId: String(navio.id), jangadaIds: [] }));
+    }
+  }
 
   useEffect(() => {
     (async () => {
@@ -153,10 +254,18 @@ export default function PedidosAssistenciaPage() {
         const payload = await res.json();
         const items = Array.isArray(payload.navios) ? payload.navios : Array.isArray(payload) ? payload : [];
         setNavios(items);
+        const pending = pendingNavioRef.current;
+        pendingNavioRef.current = null;
+        setForm((current) => ({
+          ...current,
+          navioId: pending && items.some((n: NavioOption) => String(n.id) === pending) ? pending : "",
+          jangadaIds: [],
+        }));
       } catch {
         setNavios([]);
+        pendingNavioRef.current = null;
+        setForm((current) => ({ ...current, navioId: "", jangadaIds: [] }));
       }
-      setForm((current) => ({ ...current, navioId: "", jangadaIds: [] }));
       setJangadas([]);
     })();
   }, [form.clienteId]);
@@ -176,10 +285,13 @@ export default function PedidosAssistenciaPage() {
         const payload = await res.json();
         const items = Array.isArray(payload.jangadas) ? payload.jangadas : Array.isArray(payload) ? payload : [];
         setJangadas(items);
+        // Por defeito, um pedido para o navio abrange todas as jangadas associadas.
+        // O utilizador pode desmarcar as que não pretende incluir.
+        setForm((current) => ({ ...current, jangadaIds: items.map((item: JangadaOption) => Number(item.id)).filter(Number.isFinite) }));
       } catch {
         setJangadas([]);
+        setForm((current) => ({ ...current, jangadaIds: [] }));
       }
-      setForm((current) => ({ ...current, jangadaIds: [] }));
     })();
   }, [form.navioId]);
 
@@ -212,6 +324,7 @@ export default function PedidosAssistenciaPage() {
           email: form.email || selectedCliente?.email || "",
           telefone: form.telefone || selectedCliente?.telmovel || selectedCliente?.telefone || "",
           tipoAssistencia: form.tipoAssistencia,
+          motivo: form.motivo,
           descricao: form.descricao,
           dataPreferida: form.dataPreferida,
         }),
@@ -231,6 +344,7 @@ export default function PedidosAssistenciaPage() {
         email: "",
         telefone: "",
         tipoAssistencia: "inspecao",
+        motivo: "",
         descricao: "",
         dataPreferida: "",
       });
@@ -258,10 +372,22 @@ export default function PedidosAssistenciaPage() {
       const payload = await res.json();
       setPedidos(Array.isArray(payload.pedidos) ? payload.pedidos : []);
       setCount(typeof payload.count === "number" ? payload.count : 0);
+      setStats(
+        payload.stats && typeof payload.stats === "object"
+          ? {
+              total: Number(payload.stats.total) || 0,
+              novo: Number(payload.stats.novo) || 0,
+              em_atendimento: Number(payload.stats.em_atendimento) || 0,
+              concluido: Number(payload.stats.concluido) || 0,
+              arquivado: Number(payload.stats.arquivado) || 0,
+            }
+          : { total: 0, novo: 0, em_atendimento: 0, concluido: 0, arquivado: 0 },
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao carregar pedidos.");
       setPedidos([]);
       setCount(0);
+      setStats({ total: 0, novo: 0, em_atendimento: 0, concluido: 0, arquivado: 0 });
     } finally {
       setLoading(false);
     }
@@ -342,21 +468,6 @@ export default function PedidosAssistenciaPage() {
     }
   }
 
-  const stats = useMemo(() => {
-    const porEstado: Record<string, number> = { novo: 0, em_atendimento: 0, concluido: 0, arquivado: 0 };
-    for (const p of pedidos) {
-      const key = String(p.estado || "novo").toLowerCase();
-      porEstado[key] = (porEstado[key] || 0) + 1;
-    }
-    return {
-      total: pedidos.length,
-      novo: porEstado.novo || 0,
-      em_atendimento: porEstado.em_atendimento || 0,
-      concluido: porEstado.concluido || 0,
-      arquivado: porEstado.arquivado || 0,
-    };
-  }, [pedidos]);
-
   async function abrirJangada(serial: string | null | undefined) {
     if (!serial) return;
     try {
@@ -414,11 +525,78 @@ export default function PedidosAssistenciaPage() {
           </div>
 
           <form className="grid gap-4 md:grid-cols-2" onSubmit={handleCreatePedido}>
-            <div>
+            <div className="relative md:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-slate-600">Procurar cliente ou navio</label>
+              <div className="relative">
+                <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  value={lookupQuery}
+                  onChange={(e) => {
+                    setLookupQuery(e.target.value);
+                    setLookupOpen(true);
+                  }}
+                  onFocus={() => setLookupOpen(true)}
+                  onBlur={() => window.setTimeout(() => setLookupOpen(false), 150)}
+                  placeholder="Escreva o nome do cliente ou do navio..."
+                  className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3"
+                />
+              </div>
+              {lookupOpen && normalizeLookupText(lookupQuery).length >= 2 && (
+                <div className="absolute z-30 mt-1 w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl">
+                  {lookupResults.clientes.length === 0 && lookupResults.navios.length === 0 ? (
+                    <p className="px-3 py-2 text-sm text-slate-500">Sem resultados.</p>
+                  ) : (
+                    <div className="max-h-72 overflow-auto">
+                      {lookupResults.clientes.length > 0 && (
+                        <div>
+                          <p className="bg-slate-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Clientes</p>
+                          {lookupResults.clientes.map((cliente) => (
+                            <button
+                              key={`cliente-${cliente.id}`}
+                              type="button"
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                escolherClienteLookup(String(cliente.id));
+                              }}
+                              className="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-blue-50"
+                            >
+                              {cliente.nome}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {lookupResults.navios.length > 0 && (
+                        <div>
+                          <p className="bg-slate-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Navios</p>
+                          {lookupResults.navios.map((navio) => (
+                            <button
+                              key={`navio-${navio.id}`}
+                              type="button"
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                escolherNavioLookup(navio);
+                              }}
+                              className="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-blue-50"
+                            >
+                              {navio.nome} {navio.matricula ? `(${navio.matricula})` : ""}
+                              {navio.clienteNome ? <span className="text-xs text-slate-400"> — {navio.clienteNome}</span> : null}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="md:col-span-2">
               <label className="mb-1 block text-xs font-medium text-slate-600">Cliente</label>
               <select
                 value={form.clienteId}
-                onChange={(e) => setForm((current) => ({ ...current, clienteId: e.target.value }))}
+                onChange={(e) => {
+                  pendingNavioRef.current = null;
+                  setForm((current) => ({ ...current, clienteId: e.target.value, navioId: "", jangadaIds: [] }));
+                }}
                 className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
               >
                 <option value="">Selecionar cliente</option>
@@ -430,42 +608,68 @@ export default function PedidosAssistenciaPage() {
               </select>
             </div>
 
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">Navio</label>
-              <select
-                value={form.navioId}
-                onChange={(e) => setForm((current) => ({ ...current, navioId: e.target.value }))}
-                disabled={!form.clienteId}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 disabled:bg-slate-100"
-              >
-                <option value="">Selecionar navio</option>
-                {navios.map((navio) => (
-                  <option key={navio.id} value={String(navio.id)}>
-                    {navio.nome} {navio.matricula ? `(${navio.matricula})` : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {form.clienteId && (
+              <div className="md:col-span-2 rounded-xl border border-blue-200 bg-blue-50/40 p-3">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="rounded-lg border border-blue-100 bg-white p-3">
+                    <div className="mb-2 flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Navios do cliente</p>
+                        <p className="text-[11px] text-slate-500">{selectedCliente?.nome || "Cliente selecionado"}</p>
+                      </div>
+                      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-700">{navios.length}</span>
+                    </div>
+                    <div className="max-h-48 space-y-1 overflow-y-auto">
+                      {navios.map((navio) => {
+                        const selected = String(form.navioId) === String(navio.id);
+                        return (
+                          <button
+                            key={navio.id}
+                            type="button"
+                            onClick={() => setForm((current) => ({ ...current, navioId: String(navio.id), jangadaIds: [] }))}
+                            className={`w-full rounded-lg border px-3 py-2 text-left text-sm transition ${selected ? "border-blue-600 bg-blue-600 text-white" : "border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50"}`}
+                          >
+                            <span className="block font-semibold">{navio.nome}</span>
+                            {navio.matricula && <span className={`text-xs ${selected ? "text-blue-100" : "text-slate-500"}`}>{navio.matricula}</span>}
+                          </button>
+                        );
+                      })}
+                      {navios.length === 0 && <p className="py-4 text-center text-xs italic text-slate-500">Este cliente não tem navios associados.</p>}
+                    </div>
+                  </div>
 
-            <div className="md:col-span-2">
-              <label className="mb-1 block text-xs font-medium text-slate-600">Jangadas</label>
-              <div className="flex flex-wrap gap-2 rounded-lg border border-slate-300 bg-slate-50 p-2 min-h-[44px]">
-                {!form.navioId && <span className="text-xs text-slate-500">Selecione primeiro um navio.</span>}
-                {jangadas.map((jangada) => {
-                  const checked = form.jangadaIds.includes(jangada.id);
-                  return (
-                    <button
-                      key={jangada.id}
-                      type="button"
-                      onClick={() => toggleJangada(jangada.id)}
-                      className={`rounded-full border px-3 py-1.5 text-xs font-medium ${checked ? "border-blue-600 bg-blue-600 text-white" : "border-slate-300 bg-white text-slate-700"}`}
-                    >
-                      {jangada.serial}
-                    </button>
-                  );
-                })}
+                  <div className="rounded-lg border border-emerald-100 bg-white p-3">
+                    <div className="mb-2 flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Jangadas do navio</p>
+                        <p className="text-[11px] text-slate-500">{selectedNavio?.nome || "Selecione um navio"}</p>
+                      </div>
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">{form.navioId ? jangadas.length : 0}</span>
+                    </div>
+                    <div className="max-h-48 space-y-1 overflow-y-auto">
+                      {!form.navioId && <p className="py-4 text-center text-xs italic text-slate-500">Selecione primeiro um navio.</p>}
+                      {form.navioId && jangadas.map((jangada) => {
+                        const checked = form.jangadaIds.includes(jangada.id);
+                        return (
+                          <button
+                            key={jangada.id}
+                            type="button"
+                            onClick={() => toggleJangada(jangada.id)}
+                            className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-sm transition ${checked ? "border-emerald-600 bg-emerald-600 text-white" : "border-slate-200 bg-white text-slate-700 hover:border-emerald-300 hover:bg-emerald-50"}`}
+                          >
+                            <span className="font-semibold">{jangada.serial}</span>
+                            <span className={`text-xs ${checked ? "text-emerald-100" : "text-slate-500"}`}>{jangada.model || jangada.brand || "Jangada"}</span>
+                          </button>
+                        );
+                      })}
+                      {form.navioId && jangadas.length === 0 && <p className="py-4 text-center text-xs italic text-slate-500">Este navio não tem jangadas associadas.</p>}
+                    </div>
+                  </div>
+                </div>
+                {form.navioId && jangadas.length > 0 && <p className="mt-2 text-xs font-medium text-emerald-700">{form.jangadaIds.length} de {jangadas.length} jangada(s) selecionada(s).</p>}
+                {form.navioId && jangadas.length === 0 && <p className="mt-2 text-xs font-medium text-amber-700">Este navio não tem jangadas associadas.</p>}
               </div>
-            </div>
+            )}
 
             <div>
               <label className="mb-1 block text-xs font-medium text-slate-600">Nome do contacto</label>
@@ -489,6 +693,22 @@ export default function PedidosAssistenciaPage() {
                 <option value="manutencao">Manutenção</option>
                 <option value="avaria">Avaria</option>
                 <option value="outro">Outro</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">Motivo do pedido</label>
+              <select
+                value={form.motivo}
+                onChange={(e) => setForm((current) => ({ ...current, motivo: e.target.value }))}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+              >
+                <option value="">Selecionar motivo</option>
+                {MOTIVOS_ASSISTENCIA.map((motivo) => (
+                  <option key={motivo} value={motivo}>
+                    {motivo}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -551,7 +771,7 @@ export default function PedidosAssistenciaPage() {
           </form>
         </section>
 
-        <div className="app-hero-panel flex flex-col gap-3 rounded-2xl p-4 text-white lg:p-5">
+        <div className="flex flex-col gap-3 rounded-2xl bg-gradient-to-br from-blue-700 via-blue-800 to-slate-900 p-4 text-white shadow-lg lg:p-5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-100">Orey Técnica</p>
@@ -571,23 +791,23 @@ export default function PedidosAssistenciaPage() {
             </div>
           </div>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-            <div className="app-hero-card rounded-xl p-3">
+            <div className="rounded-xl bg-white/10 p-3 ring-1 ring-white/20 backdrop-blur">
               <p className="text-xs uppercase tracking-[0.2em] text-sky-100">Total</p>
               <p className="mt-1 text-xl font-bold sm:text-2xl">{stats.total}</p>
             </div>
-            <div className="app-hero-card rounded-xl p-3">
+            <div className="rounded-xl bg-white/10 p-3 ring-1 ring-white/20 backdrop-blur">
               <p className="text-xs uppercase tracking-[0.2em] text-sky-100">Novos</p>
               <p className="mt-1 text-xl font-bold sm:text-2xl">{stats.novo}</p>
             </div>
-            <div className="app-hero-card rounded-xl p-3">
+            <div className="rounded-xl bg-white/10 p-3 ring-1 ring-white/20 backdrop-blur">
               <p className="text-xs uppercase tracking-[0.2em] text-sky-100">Em atendimento</p>
               <p className="mt-1 text-xl font-bold sm:text-2xl">{stats.em_atendimento}</p>
             </div>
-            <div className="app-hero-card rounded-xl p-3">
+            <div className="rounded-xl bg-white/10 p-3 ring-1 ring-white/20 backdrop-blur">
               <p className="text-xs uppercase tracking-[0.2em] text-sky-100">Concluídos</p>
               <p className="mt-1 text-xl font-bold sm:text-2xl">{stats.concluido}</p>
             </div>
-            <div className="app-hero-card rounded-xl p-3">
+            <div className="rounded-xl bg-white/10 p-3 ring-1 ring-white/20 backdrop-blur">
               <p className="text-xs uppercase tracking-[0.2em] text-sky-100">Arquivados</p>
               <p className="mt-1 text-xl font-bold sm:text-2xl">{stats.arquivado}</p>
             </div>
@@ -837,7 +1057,7 @@ export default function PedidosAssistenciaPage() {
                           onClick={() => converterEmOT(pedido.id)}
                           className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                         >
-                          {convertingId === pedido.id ? "A criar..." : "Criar OT"}
+                          {convertingId === pedido.id ? "A criar..." : "Criar Ordem de Serviço"}
                         </button>
                         <button
                           type="button"
@@ -855,6 +1075,26 @@ export default function PedidosAssistenciaPage() {
                         >
                           Concluir
                         </button>
+                        {String(pedido.estado || "novo").toLowerCase() !== "novo" && (
+                          <button
+                            type="button"
+                            disabled={savingId === pedido.id}
+                            onClick={() => updateEstado(pedido.id, "novo")}
+                            className="rounded-md border border-sky-300 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-800 transition hover:bg-sky-100 disabled:opacity-50"
+                          >
+                            Reabrir (Novo)
+                          </button>
+                        )}
+                        {String(pedido.estado || "novo").toLowerCase() !== "arquivado" && (
+                          <button
+                            type="button"
+                            disabled={savingId === pedido.id}
+                            onClick={() => updateEstado(pedido.id, "arquivado")}
+                            className="rounded-md border border-slate-300 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
+                          >
+                            Arquivar
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => setExpandedId(expanded ? null : pedido.id)}

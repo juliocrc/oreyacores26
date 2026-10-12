@@ -90,6 +90,14 @@ function getMonthKey(value?: string | null): string | null {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
+function getYearKey(value?: string | null): string | null {
+  if (!value) return null;
+  const match = String(value).match(/^(\d{4})/);
+  if (match) return match[1];
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : String(d.getFullYear());
+}
+
 function formatMonthLabel(monthKey: string): string {
   const match = monthKey.match(/^(\d{4})-(\d{2})$/);
   if (!match) return monthKey;
@@ -718,6 +726,7 @@ export default function JangadasPage() {
   const [filterCapacity, setFilterCapacity] = useState('');
   const [filterShip, setFilterShip] = useState('');
   const [filterInspecaoMes, setFilterInspecaoMes] = useState('');
+  const [filterInspecaoAno, setFilterInspecaoAno] = useState('');
   const [filterProximaInspecaoMes, setFilterProximaInspecaoMes] = useState('');
   const [onlyExpiring30Days, setOnlyExpiring30Days] = useState(false);
   const [onlyHruCritical, setOnlyHruCritical] = useState(false);
@@ -899,6 +908,8 @@ export default function JangadasPage() {
       if (sh) setFilterShip(sh);
       const im = params.get('mesInspecao');
       if (im) setFilterInspecaoMes(im);
+      const iy = params.get('anoInspecao');
+      if (iy === '2025' || iy === '2026') setFilterInspecaoAno(iy);
       const pm = params.get('mesProxima');
       if (pm) setFilterProximaInspecaoMes(pm);
       if (params.get('exp30') === '1') setOnlyExpiring30Days(true);
@@ -925,6 +936,7 @@ export default function JangadasPage() {
       if (filterCapacity) params.set('lotacao', filterCapacity);
       if (filterShip) params.set('navio', filterShip);
       if (filterInspecaoMes) params.set('mesInspecao', filterInspecaoMes);
+      if (filterInspecaoAno) params.set('anoInspecao', filterInspecaoAno);
       if (filterProximaInspecaoMes) params.set('mesProxima', filterProximaInspecaoMes);
       if (onlyExpiring30Days) params.set('exp30', '1');
       if (onlyHruCritical) params.set('hru', '1');
@@ -940,6 +952,7 @@ export default function JangadasPage() {
     filterCapacity,
     filterShip,
     filterInspecaoMes,
+    filterInspecaoAno,
     filterProximaInspecaoMes,
     onlyExpiring30Days,
     onlyHruCritical,
@@ -1065,13 +1078,18 @@ export default function JangadasPage() {
     (keys: string[]) => {
       setVisibleColumns(prev => {
         const next = { ...prev };
+        const visibleDataColumnKeys = new Set(keys);
         for (const col of JANGADA_LIST_COLUMNS) {
           if (col.key === 'indice') continue;
-          next[col.key] = keys.includes(col.key);
+          next[col.key] = visibleDataColumnKeys.has(col.key);
         }
-        const anyEnabled = Object.values(next).some(Boolean);
+        // "indice" é apenas a coluna técnica da seleção e não aparece na tabela.
+        // Não pode contar para permitir que todas as colunas reais sejam ocultadas.
+        const anyDataColumnEnabled = JANGADA_LIST_COLUMNS.some(
+          col => col.key !== 'indice' && next[col.key],
+        );
         const first = JANGADA_LIST_COLUMNS.find(col => col.key !== 'indice')?.key;
-        if (!anyEnabled && first) next[first] = true;
+        if (!anyDataColumnEnabled && first) next[first] = true;
         return next;
       });
     },
@@ -1308,6 +1326,8 @@ export default function JangadasPage() {
       );
     const matchesInspecaoMes =
       !filterInspecaoMes || getMonthKey(j.dataInspecao) === filterInspecaoMes;
+    const matchesInspecaoAno =
+      !filterInspecaoAno || getYearKey(j.dataInspecao) === filterInspecaoAno;
     const matchesProximaMes =
       !filterProximaInspecaoMes || getMonthKey(j.dataProxInspecao) === filterProximaInspecaoMes;
 
@@ -1335,6 +1355,7 @@ export default function JangadasPage() {
       matchesCapacity &&
       matchesShip &&
       matchesInspecaoMes &&
+      matchesInspecaoAno &&
       matchesProximaMes &&
       matchesExpiring &&
       matchesHruCritical
@@ -1615,6 +1636,7 @@ export default function JangadasPage() {
     setFilterCapacity('');
     setFilterShip('');
     setFilterInspecaoMes('');
+    setFilterInspecaoAno('');
     setFilterProximaInspecaoMes('');
     setOnlyExpiring30Days(false);
     setOnlyHruCritical(false);
@@ -1735,6 +1757,16 @@ export default function JangadasPage() {
           {renderPausedInspectionBadge(pausedInspectionDrafts[j.id])}
         </div>
       ),
+    },
+    {
+      key: 'ultimoCertificadoNumero',
+      header: 'Último certificado',
+      sortable: true,
+      filterable: true,
+      accessor: j => j.ultimoCertificadoNumero || '',
+      render: j => j.ultimoCertificadoNumero ? (
+        <span className="font-mono text-xs font-semibold text-slate-700">{j.ultimoCertificadoNumero}</span>
+      ) : <span className="text-slate-400">—</span>,
     },
     {
       key: 'dataFabrico',
@@ -2123,6 +2155,19 @@ export default function JangadasPage() {
                     {formatMonthLabel(monthKey)}
                   </option>
                 ))}
+              </select>
+            </label>
+            <label className="block text-xs font-semibold text-gray-700">
+              Ano da Inspeção
+              <select
+                className="mt-1 border rounded-lg px-2 py-2 text-sm w-full"
+                value={filterInspecaoAno}
+                onChange={e => setFilterInspecaoAno(e.target.value)}
+                title="Filtrar pelo ano da última inspeção realizada"
+              >
+                <option value="">Todos os anos</option>
+                <option value="2025">2025</option>
+                <option value="2026">2026</option>
               </select>
             </label>
             <label className="block text-xs font-semibold text-gray-700">

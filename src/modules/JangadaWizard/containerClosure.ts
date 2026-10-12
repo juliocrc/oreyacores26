@@ -8,7 +8,9 @@ import { findRaftTechnicalModel } from "@/modules/rafts/raftModelData";
 import { HRU_STOCK_REFERENCE, HRU_REFERENCE_CANDIDATES } from "@/lib/stock-reference-rules";
 import type { GlobalStockItem, InspectionData } from "./types";
 
-export type ClosureItemKind = "cinta" | "autocolante" | "hru";
+export type ClosureItemKind = "cinta" | "autocolante" | "hru" | "reparo";
+
+export const REPARO_CONTENTOR_REFERENCE = "REP-CONTENTOR";
 
 export type ClosureSuggestion = {
   key: string;
@@ -243,6 +245,18 @@ export function buildClosureSuggestions(data: InspectionData): ClosureSuggestion
     });
   }
 
+  suggestions.push({
+    key: "reparo-contentor",
+    kind: "reparo",
+    referencia: REPARO_CONTENTOR_REFERENCE,
+    descricao: "Reparo do Contentor (mão de obra e material)",
+    quantidade: 1,
+    sourceCatalog: "Serviço",
+    extraNotes: [
+      "Marque esta opção quando o contentor for reparado no decorrer da inspeção; a linha entra automaticamente no orçamento.",
+    ],
+  });
+
   return suggestions;
 }
 
@@ -267,6 +281,32 @@ export function getClosureStock(
   suggestion: ClosureSuggestion,
 ): ClosureStockLookup {
   return resolveStockForReference(globalStock, suggestion.referencia);
+}
+
+const HRU_KIND_TOKENS = ["HRU", "DISPARADOR", "LIBERTACAO"];
+const CINTA_KIND_TOKENS = ["CINTA", "STRAP", "CINTAGEM", "CORREIA", "AMARRA"];
+
+export function closureKindFromStockItem(stock: GlobalStockItem): ClosureItemKind {
+  const hay = `${stock.referencia} ${stock.descricao}`.toUpperCase();
+  if (HRU_KIND_TOKENS.some((token) => hay.includes(token))) return "hru";
+  if (CINTA_KIND_TOKENS.some((token) => hay.includes(token))) return "cinta";
+  return "autocolante";
+}
+
+let stockClosureCounter = 0;
+
+export function closureStateFromStock(stock: GlobalStockItem): ClosureItemState {
+  stockClosureCounter += 1;
+  return {
+    key: `stock-${stock.id}-${Date.now()}-${stockClosureCounter}`,
+    kind: closureKindFromStockItem(stock),
+    referencia: stock.referencia || `STK-${stock.id}`,
+    descricao: stock.descricao || "Artigos de fecho do contentor",
+    quantidade: 1,
+    unitPrice: Number(stock.precoVenda) || 0,
+    stockId: stock.id,
+    partNumber: stock.codigoFabricante || undefined,
+  };
 }
 
 export function closureLineId(item: ClosureItemState) {

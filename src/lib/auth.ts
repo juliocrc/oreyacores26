@@ -1,6 +1,6 @@
 import { UserRole } from "@prisma/client";
 
-const ADMIN_FALLBACK_EMAILS = ["julio.correia@orey.com"];
+const ADMIN_FALLBACK_EMAILS: string[] = [];
 
 function parseEmailList(rawValue: string | undefined, fallback: string[] = []) {
   if (!rawValue) return fallback;
@@ -15,7 +15,7 @@ export function normalizeEmail(email: string | null | undefined) {
 }
 
 export function getAllowedEmails() {
-  return parseEmailList(process.env.AUTH_ALLOWED_EMAILS, ADMIN_FALLBACK_EMAILS);
+  return parseEmailList(process.env.AUTH_ALLOWED_EMAILS, []);
 }
 
 export function getAdminEmails() {

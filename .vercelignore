@@ -8,7 +8,7 @@ tmp_colete_docx_inspect/
 Maritime_Vessel_Tracking-main/
 # Bases SQLite locais: em producao a app usa PostgreSQL (Supabase). Sem isto o
 # deploy carregava ~54 MB de backups e uma copia da base de dados.
-backups/
+/backups/
 prisma/local.db*
 supabase/.temp/
 .agents/

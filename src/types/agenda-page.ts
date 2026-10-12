@@ -35,6 +35,7 @@ export type InspectionCalendarProps = {
   onExternalEventConsumed: () => void;
   expiringByDay?: Record<string, ExpiringRaftInfo[]>;
   onDeleteEvent?: (event: InspectionEvent) => void;
+  onEditEvent?: (event: InspectionEvent) => void;
 };
 
 export type NavioItem = { id: number; nome: string };

@@ -2,14 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import { Pool } from "pg";
+import { getAuthSession } from "@/auth";
 
 export async function POST(req: NextRequest) {
   try {
+    const session = await getAuthSession();
+    if (session?.user?.role !== "ADMIN") {
+      return NextResponse.json({ error: "Acesso administrativo obrigatório." }, { status: 403 });
+    }
+
     const body = await req.json().catch(() => null);
     if (!body) return NextResponse.json({ error: "Pedido inválido." }, { status: 400 });
 
     const { secret } = body as { secret?: string };
-    if (secret !== "orey-setup-2026") {
+    const expectedSecret = process.env.SETUP_DB_SECRET;
+    if (!expectedSecret || secret !== expectedSecret) {
       return NextResponse.json({ error: "Não autorizado." }, { status: 403 });
     }
 

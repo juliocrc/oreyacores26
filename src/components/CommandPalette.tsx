@@ -45,6 +45,10 @@ const TYPE_ICONS: Record<string, string> = {
   Colete: "🦺",
   EPIRB: "📡",
   "Ordem de Serviço": "📋",
+  Certificado: "📜",
+  "Certificado Externo": "📑",
+  "Certificado Colete": "🦺",
+  "Certificado Fato": "🧥",
 };
 
 const TYPE_COLORS: Record<string, string> = {
@@ -54,6 +58,10 @@ const TYPE_COLORS: Record<string, string> = {
   Colete: "bg-orange-100 text-orange-700",
   EPIRB: "bg-purple-100 text-purple-700",
   "Ordem de Serviço": "bg-amber-100 text-amber-700",
+  Certificado: "bg-emerald-100 text-emerald-700",
+  "Certificado Externo": "bg-teal-100 text-teal-700",
+  "Certificado Colete": "bg-orange-100 text-orange-700",
+  "Certificado Fato": "bg-indigo-100 text-indigo-700",
 };
 
 const RECENT_KEY = "cmd-palette-recent";

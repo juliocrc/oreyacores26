@@ -13,6 +13,7 @@ import { getNavioLegalProfile } from '@/modules/navios/legalRequirements';
 import { getPescaCosteiraMandatoryEquipmentProfile } from '@/config/pescaCosteiraMandatoryEquipment';
 import { getRecreioMandatoryProfile, RECREIO_ZONA_OPTIONS } from '@/config/recreioMandatoryEquipment';
 import { normalizeManualNavioIsland } from '@/lib/navio-island-resolution';
+import { ensureFolderPermissionNow, saveColeteDocument, toastSavedPathIfPresent } from '@/lib/ship-downloads';
 
 const ShipMap = dynamic(() => import('@/app/components/ShipMap'), { ssr: false });
 
@@ -491,9 +492,11 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
   });
   const [activeTab, setActiveTab] = useState<'dossier' | 'equipment' | 'technical' | 'inspections' | 'mapa'>('dossier');
   const [aisPosition, setAisPosition] = useState<any>(null);
+  const [aisTrack, setAisTrack] = useState<{ points?: Array<{ lat: number; lng: number; time?: string | null }>; from?: string | null; to?: string | null } | null>(null);
   const [aisLoading, setAisLoading] = useState(false);
   const [aisError, setAisError] = useState<string | null>(null);
   const [aisLastRefreshAt, setAisLastRefreshAt] = useState<Date | null>(null);
+  const [uploadingNavioFile, setUploadingNavioFile] = useState<'documentos' | 'certificados' | null>(null);
   const [rememberedSmartFocus, setRememberedSmartFocus] = useState<StoredSmartFocus | null>(null);
   const smartFocusAutoAppliedRef = React.useRef(false);
 
@@ -541,6 +544,10 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
       }
       const payload = await res.json();
       setAisPosition(payload?.position || null);
+      setAisTrack(payload?.track || null);
+      if (payload?.position?.error && !payload?.position?.live) {
+        setAisError(payload.position.error);
+      }
       setAisLastRefreshAt(new Date());
     } catch {
       setAisError('Erro de rede ao obter a posição AIS.');
@@ -549,9 +556,27 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
     }
   };
 
+  async function uploadNavioFile(file: File, category: 'documentos' | 'certificados') {
+    setUploadingNavioFile(category);
+    try {
+      const body = new FormData();
+      body.append('file', file);
+      body.append('category', category);
+      const response = await fetch(`/api/navios/${encodeURIComponent(String(id))}/documentos`, { method: 'POST', body });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.error || 'Não foi possível guardar o ficheiro.');
+      appToast.success(`${category === 'certificados' ? 'Certificado' : 'Documento'} guardado na pasta do navio no OneDrive.`);
+    } catch (error) {
+      appToast.error(error instanceof Error ? error.message : 'Não foi possível guardar o ficheiro.');
+    } finally {
+      setUploadingNavioFile(null);
+    }
+  }
+
   // Atualização automática da posição AIS enquanto o mapa está ativo (60s)
   useEffect(() => {
     if (activeTab !== 'mapa') return;
+    void loadAisPosition();
     const timer = window.setInterval(() => {
       loadAisPosition(true);
     }, 60_000);
@@ -981,6 +1006,7 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
   const handleGerarCertificadoColetes = async () => {
     if (!id || !data?.coletes?.length) return;
 
+    const folderStatus = await ensureFolderPermissionNow();
     setGeneratingColeteCertificate(true);
     try {
       const response = await fetch(`/api/navios/${encodeURIComponent(id)}/certificado-coletes`);
@@ -989,18 +1015,26 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
         throw new Error(payload?.error || 'Não foi possível gerar o certificado DOCX dos coletes.');
       }
 
+      toastSavedPathIfPresent(response, 'Certificado de coletes');
+
       const blob = await response.blob();
       const contentDisposition = response.headers.get('content-disposition') || '';
       const fileNameMatch = contentDisposition.match(/filename="?([^";]+)"?/i);
       const fileName = fileNameMatch?.[1] || `certificado-coletes-navio-${id}.docx`;
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(downloadUrl);
+
+      if (folderStatus !== 'granted') {
+        appToast.info(
+          folderStatus === 'not-configured'
+            ? 'Certificado gerado. Pasta de documentos não configurada — ficheiro vai para Downloads. Defina-a no menu da conta (canto superior direito).'
+            : 'Certificado gerado. Sem autorização para a pasta de documentos — ficheiro vai para Downloads.',
+        );
+      }
+
+      await saveColeteDocument({
+        filename: fileName,
+        blob,
+        label: 'Certificado de coletes',
+      });
     } catch (error: any) {
       alert(error?.message || 'Não foi possível gerar o certificado DOCX dos coletes.');
     } finally {
@@ -1011,6 +1045,7 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
   const handleGerarFichaVerificacaoColetes = async () => {
     if (!id || !data?.coletes?.length) return;
 
+    const folderStatus = await ensureFolderPermissionNow();
     setGeneratingColeteVerificationSheet(true);
     try {
       const response = await fetch(`/api/navios/${encodeURIComponent(id)}/ficha-verificacao-coletes`);
@@ -1019,18 +1054,26 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
         throw new Error(payload?.error || 'Não foi possível gerar a ficha de verificação XLSX dos coletes.');
       }
 
+      toastSavedPathIfPresent(response, 'Ficha de verificação de coletes');
+
       const blob = await response.blob();
       const contentDisposition = response.headers.get('content-disposition') || '';
       const fileNameMatch = contentDisposition.match(/filename="?([^";]+)"?/i);
       const fileName = fileNameMatch?.[1] || `ficha-verificacao-coletes-navio-${id}.xlsx`;
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(downloadUrl);
+
+      if (folderStatus !== 'granted') {
+        appToast.info(
+          folderStatus === 'not-configured'
+            ? 'Ficha gerada. Pasta de documentos não configurada — ficheiro vai para Downloads. Defina-a no menu da conta (canto superior direito).'
+            : 'Ficha gerada. Sem autorização para a pasta de documentos — ficheiro vai para Downloads.',
+        );
+      }
+
+      await saveColeteDocument({
+        filename: fileName,
+        blob,
+        label: 'Ficha de verificação de coletes',
+      });
     } catch (error: any) {
       alert(error?.message || 'Não foi possível gerar a ficha de verificação XLSX dos coletes.');
     } finally {
@@ -2030,14 +2073,22 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
 
           <div className="space-y-6">
             <section id="section-dossier-docs" className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="text-2xl font-bold text-slate-900">Documentos & certificados</h2>
-                  <p className="mt-1 text-sm text-slate-600">Foco inicial em jangadas e coletes, com ligação direta à respetiva ficha.</p>
+                  <p className="mt-1 text-sm text-slate-600">Ficheiros guardados na pasta deste navio no OneDrive.</p>
                 </div>
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-                  {dossier.documents?.length || 0} itens
-                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="cursor-pointer rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700">
+                    {uploadingNavioFile === 'documentos' ? 'A carregar...' : 'Carregar documento'}
+                    <input type="file" className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" disabled={Boolean(uploadingNavioFile)} onChange={(event) => { const file = event.target.files?.[0]; event.currentTarget.value = ''; if (file) void uploadNavioFile(file, 'documentos'); }} />
+                  </label>
+                  <label className="cursor-pointer rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700">
+                    {uploadingNavioFile === 'certificados' ? 'A carregar...' : 'Carregar certificado'}
+                    <input type="file" className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" disabled={Boolean(uploadingNavioFile)} onChange={(event) => { const file = event.target.files?.[0]; event.currentTarget.value = ''; if (file) void uploadNavioFile(file, 'certificados'); }} />
+                  </label>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">{dossier.documents?.length || 0} itens</span>
+                </div>
               </div>
 
               <div className="mt-6 space-y-3">
@@ -3461,7 +3512,7 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
 
           {aisLoading ? (
             <div className="h-[320px] rounded-xl border border-sky-100 bg-white flex items-center justify-center animate-pulse">
-              <p className="text-sm text-sky-600 font-semibold">A pesquisar posição AIS por MMSI...</p>
+              <p className="text-sm text-sky-600 font-semibold">A obter a última posição AIS conhecida por MMSI...</p>
             </div>
           ) : aisError ? (
             <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-6 text-center text-sm text-red-700">
@@ -3470,7 +3521,7 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
           ) : (
             <>
               <div className="rounded-xl overflow-hidden border border-sky-100 shadow-sm">
-                <ShipMap navio={data} position={aisPosition} />
+                <ShipMap navio={data} position={aisPosition} track={aisTrack} />
               </div>
 
               <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

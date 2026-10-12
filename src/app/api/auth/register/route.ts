@@ -3,8 +3,14 @@ import bcrypt from "bcryptjs";
 import prisma from "@/lib/prisma";
 import { normalizeEmail, resolveUserRole } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { getAuthSession } from "@/auth";
 
 export async function POST(req: NextRequest) {
+  const session = await getAuthSession();
+  if (session?.user?.role !== "ADMIN") {
+    return NextResponse.json({ error: "Só um administrador pode criar utilizadores." }, { status: 403 });
+  }
+
   const body = await req.json().catch(() => null);
   if (!body) {
     return NextResponse.json({ error: "Pedido inválido." }, { status: 400 });

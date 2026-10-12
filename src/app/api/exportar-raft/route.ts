@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { buildQuadroInspectionArtifacts, type QuadroTemplateInput } from '@/lib/quadro-template';
 import { getAccessContext } from '@/lib/access-control';
 import { saveQuadroToNavioFolder } from '@/lib/certificados-organizados';
+import { syncEmittedDocumentToOneDrive } from '@/lib/onedrive-sync';
 
 export const runtime = 'nodejs';
 
@@ -31,18 +32,35 @@ export async function POST(request: Request) {
 
     const { buffer, fileName } = await buildQuadroInspectionArtifacts(payload);
 
-    // Gravação no servidor é OPCIONAL (só quando CERTIFICADOS_SAVE_TO_PUBLIC=true)
-    // e nunca bloqueia o download. Na Vercel o filesystem é read-only.
     let savedPath: string | undefined;
-    if (payload.shipName && buffer && process.env.CERTIFICADOS_SAVE_TO_PUBLIC === 'true') {
+
+    // Sincronização direta com OneDrive na pasta do navio
+    if (buffer) {
       try {
-        const saved = await saveQuadroToNavioFolder(payload.shipName, fileName, buffer, {
-          serial: payload.raftSerial || undefined,
-          date: payload.inspectionDate ? new Date(payload.inspectionDate) : undefined,
+        const syncRes = await syncEmittedDocumentToOneDrive({
+          kind: "quadro",
+          shipName: payload.shipName || "Geral",
+          fileName,
+          buffer,
         });
-        savedPath = saved.relativePath;
-      } catch (saveErr) {
-        console.warn('Gravação em public/ ignorada (não bloqueia o download):', saveErr);
+        if (syncRes.synced && syncRes.filePath) {
+          savedPath = syncRes.filePath;
+        }
+      } catch (syncErr) {
+        console.warn('[exportar-raft] Erro ao sincronizar OneDrive:', syncErr);
+      }
+
+      // Gravação local em public/ opcional em dev
+      if (payload.shipName && process.env.CERTIFICADOS_SAVE_TO_PUBLIC === 'true') {
+        try {
+          const saved = await saveQuadroToNavioFolder(payload.shipName, fileName, buffer, {
+            serial: payload.raftSerial || undefined,
+            date: payload.inspectionDate ? new Date(payload.inspectionDate) : undefined,
+          });
+          if (!savedPath) savedPath = saved.relativePath;
+        } catch (saveErr) {
+          console.warn('Gravação em public/ ignorada:', saveErr);
+        }
       }
     }
 

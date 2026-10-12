@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     const secret = searchParams.get("secret") || "";
 
     const envSecret = process.env.CRON_SECRET?.trim();
-    if (enviar && envSecret && secret !== envSecret) {
+    if (enviar && (!envSecret || secret !== envSecret)) {
       return NextResponse.json({ error: "Secret inválido." }, { status: 403 });
     }
 

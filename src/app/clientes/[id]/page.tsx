@@ -690,6 +690,7 @@ export default function ClienteDetalhePage() {
             <p className="text-xs text-slate-500 mb-4">A exclusão remove permanentemente o cliente e pode afetar associações.</p>
             <div className="flex flex-wrap gap-2">
               <Link href="/clientes" className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition">← Lista Clientes</Link>
+              <Link href={`/area-cliente?previewClienteId=${cliente.id}`} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition">Ver como cliente</Link>
               <button onClick={deleteCliente} disabled={deleting} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 transition disabled:opacity-50">
                 {deleting ? <><Loader2 size={14} className="animate-spin inline mr-1" />A excluir...</> : <><Trash2 size={14} className="inline mr-1" />Excluir Cliente</>}
               </button>

@@ -61,6 +61,7 @@ const ORDEM_DOCUMENTO_INCLUDE = {
       morada: true,
       localidade: true,
       ilha: true,
+      modoPagamento: true,
     },
   },
   serviceStation: {
@@ -101,6 +102,7 @@ export async function carregarFaturaPorOrdemServico(ordemServicoId: number) {
               morada: true,
               localidade: true,
               ilha: true,
+              modoPagamento: true,
             },
           },
         },
@@ -150,6 +152,7 @@ export function resumoFatura(fatura: FaturaComOrdens) {
     total: Number(fat?.valorTotal ?? 0),
     isentoIva: Boolean(fat?.isIsentoIva ?? primary?.isIsentoIva ?? false),
     codigoIsencaoIva: fat?.codigoIsencaoIva ?? primary?.codigoIsencaoIva ?? null,
+    condicoesPagamento: cliente?.modoPagamento || "Pronto pagamento",
     pagamentoStatus: fat?.pagamentoStatus || "Pendente",
     numeroNotaCredito: fat?.notaCredito?.numeroNotaCredito ?? null,
     numeroRecibo: fat?.recibos?.[0]?.numeroRecibo ?? null,

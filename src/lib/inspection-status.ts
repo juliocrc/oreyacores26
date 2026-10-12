@@ -57,10 +57,10 @@ export function getGIStatus(dataFabrico?: string | null): InspectionStatus {
   }
   const daysLeft = Math.ceil((nextGI.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
-  if (daysLeft < 0) return { label: "GI Expirada", color: "red", daysLeft };
+  if (daysLeft < 0) return { label: "INSPEÇÃO EXPIRADA", color: "red", daysLeft };
   if (daysLeft <= 30) return { label: `GI em ${daysLeft}d`, color: "orange", daysLeft };
   if (daysLeft <= 60) return { label: `GI em ${daysLeft}d`, color: "yellow", daysLeft };
-  return { label: "GI em dia", color: "green", daysLeft };
+  return { label: "Inspeção em dia", color: "green", daysLeft };
 }
 
 /**

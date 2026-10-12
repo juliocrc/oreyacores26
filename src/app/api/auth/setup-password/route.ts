@@ -1,15 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import prisma from "@/lib/prisma";
+import { getAuthSession } from "@/auth";
 
 export async function POST(req: NextRequest) {
   try {
+    const session = await getAuthSession();
+    const isAdmin = session?.user?.role === "ADMIN";
     const body = await req.json().catch(() => null);
     if (!body) return NextResponse.json({ error: "Pedido inválido." }, { status: 400 });
 
     const { email, password, secret } = body as { email?: string; password?: string; secret?: string };
 
-    if (!secret || secret !== "orey-setup-2026") {
+    const expectedSecret = process.env.SETUP_PASSWORD_SECRET;
+    const bootstrapAllowed = process.env.ALLOW_ADMIN_BOOTSTRAP === "true" && Boolean(expectedSecret);
+    if ((!isAdmin && !bootstrapAllowed) || (secret !== expectedSecret && !isAdmin)) {
       return NextResponse.json({ error: "Não autorizado." }, { status: 403 });
     }
 

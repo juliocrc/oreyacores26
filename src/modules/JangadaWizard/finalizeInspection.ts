@@ -504,6 +504,22 @@ export async function persistInspection({ isFinal }: { isFinal: boolean }): Prom
         abate: inspectionData.abate || null,
       };
 
+      if (isFinal) {
+        jangadaPayload.closureStrapsJson = JSON.stringify(
+          (inspectionData.containerClosureItems || [])
+            .filter((item: any) => item.kind !== "reparo")
+            .map((item: any) => ({
+              kind: item.kind || "autocolante",
+              referencia: item.referencia || null,
+              descricao: item.descricao || "",
+              quantidade: Number(item.quantidade) || 0,
+              stockId: item.stockId || null,
+              partNumber: item.partNumber || null,
+              unitPrice: Number(item.unitPrice) || 0,
+            })),
+        );
+      }
+
       const jangadaRes = await fetch(`/api/jangadas/${jangadaId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },

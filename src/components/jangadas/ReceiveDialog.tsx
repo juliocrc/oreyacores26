@@ -24,13 +24,18 @@ interface ReceiveDialogProps {
   jangada: RaftInfo;
 }
 
-export default function ReceiveDialog({
-  isOpen,
+export default function ReceiveDialog({ isOpen, onClose, onDone, jangada }: ReceiveDialogProps) {
+  if (!isOpen) return null;
+  return <ReceiveDialogContent onClose={onClose} onDone={onDone} jangada={jangada} />;
+}
+
+function ReceiveDialogContent({
   onClose,
   onDone,
   jangada,
-}: ReceiveDialogProps) {
-  const [date, setDate] = useState("");
+}: Omit<ReceiveDialogProps, "isOpen">) {
+  const [date, setDate] = useState(() => toLocalISO(new Date()));
+  const [expectedDelivery, setExpectedDelivery] = useState("");
   const [tecnico, setTecnico] = useState(jangada.responsavel || "");
   const [note, setNote] = useState("");
   const [tecnicos, setTecnicos] = useState<Tecnico[]>([]);
@@ -70,18 +75,9 @@ export default function ReceiveDialog({
   }, []);
 
   useEffect(() => {
-    if (isOpen) {
-      const today = new Date();
-      setDate(toLocalISO(today));
-      setTecnico(jangada.responsavel || "");
-      setNote("");
-      setError("");
-      setSuccess("");
-      void loadTecnicos();
-    }
-  }, [isOpen, jangada.responsavel, loadTecnicos]);
-
-  if (!isOpen) return null;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- carregamento inicial da lista de técnicos a partir da API.
+    void loadTecnicos();
+  }, [loadTecnicos]);
 
   const handleSave = async () => {
     setLoading(true);
@@ -98,11 +94,12 @@ export default function ReceiveDialog({
         raftId: jangada.id,
         workflowStatus: "entrada_estacao",
         status: "aguardar",
+        origem: "ficha_jangada",
         tecnico: tecnico || undefined,
         observacao: note || undefined,
         arrivalDate: parsedDate.toISOString().slice(0, 10),
         arrivedViaForwarder: false,
-        expectedDeliveryDate: date
+        expectedDeliveryDate: expectedDelivery || undefined,
       };
 
       const queueRes = await fetch("/api/service-station", {
@@ -166,6 +163,19 @@ export default function ReceiveDialog({
               onChange={(e) => setDate(e.target.value)}
               className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Data Prevista de Entrega</label>
+            <input
+              type="date"
+              value={expectedDelivery}
+              onChange={(e) => setExpectedDelivery(e.target.value)}
+              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <p className="mt-1 text-[11px] text-slate-400">
+              Opcional. Cria/atualiza o evento de entrega na agenda.
+            </p>
           </div>
 
           <div>

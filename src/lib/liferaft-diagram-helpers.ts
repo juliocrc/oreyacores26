@@ -80,7 +80,7 @@ export function getDateStatus(d?: string | null): "OK" | "WARNING" | "CRITICAL" 
 
 export function parseApproval(v?: string | null): "OK" | "CRITICAL" | "NONE" {
   const s = String(v ?? "").toLowerCase().trim();
-  if (s === "aprovado" || s === "ok" || s === "conforme") return "OK";
-  if (s === "reprovado" || s === "não conforme" || s === "nao conforme" || s === "falhou") return "CRITICAL";
+  if (["aprovado", "aprovada", "aprovou", "passou", "ok", "conforme"].includes(s)) return "OK";
+  if (["reprovado", "reprovada", "reprovou", "não conforme", "nao conforme", "falhou"].includes(s)) return "CRITICAL";
   return "NONE";
 }

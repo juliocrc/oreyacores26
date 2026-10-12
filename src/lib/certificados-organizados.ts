@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, writeFileSync, readFileSync, statSync } from "fs
 import { createHash } from "crypto";
 import path from "path";
 import { put, del } from "@vercel/blob";
+import { syncEmittedDocumentToOneDrive } from "./onedrive-sync";
 
 const CERTIFICADOS_BASE = path.join(process.cwd(), "public", "certificados-organizados");
 const NAVIOS_BASE = path.join(process.cwd(), "public", "navios");
@@ -182,6 +183,7 @@ export async function saveCertificadoToYearFolder(
 
   const relativePath = path.relative(process.cwd(), filePath);
   const blobPath = await syncToBlobIfEnabled(relativePath, buffer);
+  await syncEmittedDocumentToOneDrive({ kind: "certificado", fileName: standardName, buffer });
 
   upsertIndexEntry(dir, {
     name: standardName,
@@ -228,6 +230,7 @@ export async function saveQuadroToNavioFolder(
 
   const relativePath = path.relative(process.cwd(), filePath);
   const blobPath = await syncToBlobIfEnabled(relativePath, buffer);
+  await syncEmittedDocumentToOneDrive({ kind: "quadro", shipName, fileName: standardName, buffer });
 
   upsertIndexEntry(dir, {
     name: standardName,
@@ -276,6 +279,7 @@ export async function saveExternalCertificadoToNavioFolder(
 
   const relativePath = path.relative(process.cwd(), filePath);
   const blobPath = await syncToBlobIfEnabled(relativePath, buffer);
+  await syncEmittedDocumentToOneDrive({ kind: "externo", shipName, fileName: standardName, buffer });
 
   upsertIndexEntry(dir, {
     name: standardName,

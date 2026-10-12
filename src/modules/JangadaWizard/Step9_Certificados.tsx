@@ -1,7 +1,7 @@
 "use client";
 import React, { useState } from 'react';
 import { useJangadaWizardStore } from './store/useJangadaWizardStore';
-import { CheckCircle, Download, FileText, Loader2, ArrowRight, ExternalLink, Upload, ShieldCheck, Ban, UserCheck } from 'lucide-react';
+import { CheckCircle, Download, FileText, Loader2, ArrowRight, ExternalLink, Upload, ShieldCheck, Ban, UserCheck, PenTool } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { appToast } from '@/lib/app-toast';
@@ -9,6 +9,7 @@ import { saveShipDocument, saveCertificateDocument, yearFromDate, toastSavedPath
 import { buildCertificatePayload as buildSharedCertificatePayload } from './buildCertificatePayload';
 import { buildAbateReportDoc, abateReportFilename } from '@/lib/abate-report-pdf';
 import { getAbateMotivoLabel } from '@/lib/abate-constants';
+import SignaturePad from '@/components/SignaturePad';
 
 const HarbourOne_URL = "https://survitec2.my.site.com/HarbourOne/login?ec=302&startURL=%2FHarbourOne%2F";
 
@@ -67,6 +68,34 @@ export default function Step9_Certificados() {
 
   const openHarbourOne = () => {
     window.open(HarbourOne_URL, "_blank", "noopener,noreferrer");
+  };
+
+  const persistLateSignatures = () => {
+    const hasTech = Boolean(inspectionData.signatureBase64);
+    const hasClient = Boolean(
+      typeof inspectionData.clienteAssinaturaBase64 === 'string' && inspectionData.clienteAssinaturaBase64,
+    );
+    const hasClientName = Boolean(
+      typeof inspectionData.clienteNomeAssinatura === 'string' && inspectionData.clienteNomeAssinatura,
+    );
+    if (!hasTech && !hasClient && !hasClientName) return;
+    if (!inspecaoId) return;
+
+    fetch('/api/inspecoes/signatures', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        inspecaoId,
+        jangadaId,
+        signatureBase64: inspectionData.signatureBase64 || null,
+        clienteAssinaturaBase64: typeof inspectionData.clienteAssinaturaBase64 === 'string'
+          ? inspectionData.clienteAssinaturaBase64
+          : null,
+        clienteNomeAssinatura: typeof inspectionData.clienteNomeAssinatura === 'string'
+          ? inspectionData.clienteNomeAssinatura
+          : null,
+      }),
+    }).catch(() => {});
   };
 
   const handleExternalFile = async (file: File) => {
@@ -133,7 +162,7 @@ export default function Step9_Certificados() {
 
   const buildCertificatePayload = () => buildSharedCertificatePayload(inspectionData, jangadaId, inspecaoId);
 
-  const handleGenerate = async (type: 'orey-html' | 'orey-xlsx' | 'survitec' | 'quadro-xlsx') => {
+  const handleGenerate = async (type: 'orey-html' | 'orey-xlsx' | 'survitec' | 'quadro-xlsx' | 'certificado-pdf') => {
     if (!revisaoAprovada) {
       appToast.error("Aprove primeiro o certificado como 2º par de olhos antes de emitir.");
       return;
@@ -153,11 +182,35 @@ export default function Step9_Certificados() {
       if (type === 'orey-xlsx') url = '/api/certificados/orey?format=xlsx';
       if (type === 'survitec') url = '/api/certificados/survitec-moderno';
       if (type === 'quadro-xlsx') url = '/api/exportar-raft';
+      if (type === 'certificado-pdf') url = '/api/certificados/pdf';
+
+      const requestBody = type === 'certificado-pdf'
+        ? {
+            certNumber: payload.certNumber,
+            inspectionDate: payload.inspectionDate,
+            shipName: payload.shipName,
+            raftModel: payload.raftModel,
+            raftSerial: payload.raftSerial,
+            status: payload.status,
+            technician: inspectionData.responsavel || '',
+            checklist: payload.checklist || {},
+            technicianName: inspectionData.responsavel || '',
+            technicianSignature: inspectionData.signatureBase64 || '',
+            clientName: inspectionData.clienteNomeAssinatura || '',
+            clientSignature: inspectionData.clienteAssinaturaBase64 || '',
+          }
+        : payload;
+
+      // Persiste assinaturas capturadas após a finalização (Step 9) sem
+      // re-gravar a inspeção toda. Falha silenciosa: o PDF não depende disto.
+      if (type === 'certificado-pdf') {
+        void persistLateSignatures();
+      }
 
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(requestBody)
       });
 
       if (!response.ok) {
@@ -182,12 +235,12 @@ export default function Step9_Certificados() {
         );
       }
 
-      if (type === 'orey-xlsx' || type === 'quadro-xlsx') {
+      if (type === 'orey-xlsx' || type === 'quadro-xlsx' || type === 'certificado-pdf') {
         // A cópia no servidor é apenas informativa; o ficheiro é sempre
         // gravado nas pastas organizadas (quadro → public/navios/{navio}/,
         // certificado → public/certificados-organizados/certificados açores 2026 versao1/)
         // ou descarregado se a pasta de documentos não estiver configurada.
-        toastSavedPathIfPresent(response, type === 'orey-xlsx' ? 'Certificado' : 'Quadro');
+        toastSavedPathIfPresent(response, type === 'certificado-pdf' ? 'Certificado' : type === 'orey-xlsx' ? 'Certificado' : 'Quadro');
 
         const blob = await response.blob();
 
@@ -199,7 +252,7 @@ export default function Step9_Certificados() {
           const ship = String(payload.shipName || inspectionData.shipName || 'NAVIO').toUpperCase();
           fileName = type === 'quadro-xlsx'
             ? `${inspectionData.serial || 'jangada'}_${new Date().getFullYear()}.xlsx`
-            : `${certNumber} (${ship}).xlsx`;
+            : `${certNumber} (${ship}).${type === 'certificado-pdf' ? 'pdf' : 'xlsx'}`;
         }
 
         const docLabel = type === 'quadro-xlsx' ? 'Quadro' : 'Certificado';
@@ -304,7 +357,7 @@ export default function Step9_Certificados() {
           Emissão de Certificados
         </h3>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <button 
             onClick={() => handleGenerate('orey-xlsx')}
             disabled={loading !== null || !revisaoAprovada}
@@ -321,6 +374,21 @@ export default function Step9_Certificados() {
           </button>
 
           <button 
+            onClick={() => handleGenerate('certificado-pdf')}
+            disabled={loading !== null || !revisaoAprovada}
+            title={revisaoAprovada ? "" : "É necessária a aprovação como 2º par de olhos"}
+            className={`flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 transition-all font-bold disabled:cursor-not-allowed ${
+              revisaoAprovada
+                ? "border-red-100 bg-red-50 hover:bg-red-100 hover:border-red-200 text-red-700"
+                : "border-slate-200 bg-slate-50 text-slate-400"
+            }`}
+          >
+            {loading === 'certificado-pdf' ? <Loader2 className="animate-spin" size={32} /> : <FileText size={32} />}
+            <span>Certificado PDF</span>
+            <span className="text-xs font-medium opacity-70">.pdf + assinaturas</span>
+          </button>
+
+          <button 
             onClick={() => handleGenerate('quadro-xlsx')}
             disabled={loading !== null || !revisaoAprovada}
             title={revisaoAprovada ? "" : "É necessária a aprovação como 2º par de olhos"}
@@ -334,6 +402,47 @@ export default function Step9_Certificados() {
             <span>Quadro Inspeção</span>
             <span className="text-xs font-medium opacity-70">Tabela de Dados</span>
           </button>
+        </div>
+      </div>
+
+      {/* Assinaturas digitais do certificado */}
+      <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm">
+        <h3 className="text-lg font-bold text-slate-800 mb-2 flex items-center gap-2">
+          <PenTool className="text-slate-500" />
+          Assinaturas do Certificado
+        </h3>
+        <p className="text-xs text-slate-500 mb-6 leading-relaxed">
+          As assinaturas são incorporadas automaticamente na última página do <span className="font-bold text-slate-700">Certificado PDF</span>.
+          Alternativa ao Cartão de Cidadão / CMD no pad do lado direito.
+        </p>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div>
+            <SignaturePad
+              value={inspectionData.signatureBase64}
+              onChange={(base64) => setInspectionData({ ...inspectionData, signatureBase64: base64 })}
+              label="Assinatura do Técnico"
+            />
+            <p className="text-[11px] text-slate-400 mt-2 font-semibold">
+              {inspectionData.responsavel || 'Técnico responsável'}
+            </p>
+          </div>
+          <div>
+            <div className="mb-2">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Nome do Armador / Comandante</label>
+              <input
+                type="text"
+                value={typeof inspectionData.clienteNomeAssinatura === 'string' ? inspectionData.clienteNomeAssinatura : ''}
+                onChange={(e) => setInspectionData({ ...inspectionData, clienteNomeAssinatura: e.target.value })}
+                placeholder="Ex: Cmdt. João Silva"
+                className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-xs bg-white focus:border-indigo-500 focus:outline-none"
+              />
+            </div>
+            <SignaturePad
+              value={typeof inspectionData.clienteAssinaturaBase64 === 'string' ? inspectionData.clienteAssinaturaBase64 : ''}
+              onChange={(base64) => setInspectionData({ ...inspectionData, clienteAssinaturaBase64: base64 })}
+              label="Assinatura do Armador / Comandante"
+            />
+          </div>
         </div>
       </div>
 

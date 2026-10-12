@@ -69,6 +69,7 @@ function AgendaPage() {
   const naviosByIdRef = useRef<Record<number, string>>({});
   const [rafts, setRafts] = useState<AgendaRaft[]>([]);
   const [events, setEvents] = useState<InspectionEvent[]>([]);
+  const [editingEvent, setEditingEvent] = useState<InspectionEvent | null>(null);
   const [externalDragEvent, setExternalDragEvent] = useState<InspectionEvent | null>(null);
   const [serviceStationRafts, setServiceStationRafts] = useState<PanelRaft[]>([]);
   const [metrics, setMetrics] = useState<AgendaMetrics | null>(null);
@@ -296,6 +297,9 @@ const formatDate = (value?: string | null) => {
     });
 
     return {
+      expiringToday: normalized
+        .filter((raft) => raft.dueDate && isSameCalendarDay(raft.dueDate, now))
+        .sort((a, b) => a.dueDate!.getTime() - b.dueDate!.getTime()),
       currentMonthLabel: formatMonthLabel(new Date(currentYear, currentMonth, 1)),
       nextMonthLabel: formatMonthLabel(nextMonthDate),
       expiringNext30Days,
@@ -824,6 +828,11 @@ const formatDate = (value?: string | null) => {
       triggerAgendaReload();
     })
     .catch(err => alert(err.message));
+  }
+
+  function handleEditEvent(event: InspectionEvent) {
+    if (!/^\d+$/.test(String(event.id))) return;
+    setEditingEvent(event);
   }
 
   function handleBoardStatusChange(event: InspectionEvent, newStatus: string) {
@@ -1407,7 +1416,8 @@ const formatDate = (value?: string | null) => {
                   externalDragEvent={externalDragEvent}
                   onExternalEventConsumed={() => setExternalDragEvent(null)}
                   expiringByDay={agendaPanels.expiringByDay}
-                  onDeleteEvent={handleDeleteEvent}
+                   onDeleteEvent={handleDeleteEvent}
+                   onEditEvent={handleEditEvent}
                 />
               )}
             </div>
@@ -1742,7 +1752,12 @@ const formatDate = (value?: string | null) => {
         </aside>
       </div>
 
-      <AgendaModals handleQuickSchedule={handleQuickSchedule} />
+      <AgendaModals
+        handleQuickSchedule={handleQuickSchedule}
+        editingEvent={editingEvent}
+        onSaveEdit={handleSchedule}
+        onCloseEdit={() => setEditingEvent(null)}
+      />
     </div>
   );
 }

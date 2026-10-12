@@ -328,7 +328,149 @@ export async function syncRaftArticlesWithPackType(
     summary.removed = forbiddenToRemove.length;
   }
 
-  return { success: true, summary, packSource: resolvedPack.source };
+  const checklistArtigos = await syncRaftChecklistDrivenArtigos(jangadaId);
+
+  return {
+    success: true,
+    summary,
+    packSource: resolvedPack.source,
+    checklistDriven: checklistArtigos.summary,
+  };
+}
+
+type ChecklistArticleDef = {
+  label: string;
+  refKey?: string;
+  qtyKey?: string;
+  valKey: string;
+  flagKey?: string;
+  fallbackRef: string;
+};
+
+const CHECKLIST_DRIVEN_ARTICLES: ChecklistArticleDef[] = [
+  {
+    label: "Bateria Lítio",
+    refKey: "ref_bateria_litio",
+    qtyKey: "qtd_bateria_litio",
+    valKey: "validade_bateria",
+    flagKey: "bateria_litio",
+    fallbackRef: "BATERIA-LITIO",
+  },
+  {
+    label: "Luz Exterior",
+    refKey: "ref_luz_exterior",
+    qtyKey: "qtd_luz_exterior",
+    valKey: "validade_luzes_exteriores",
+    flagKey: "luz_exterior_bateria",
+    fallbackRef: "LUZ-EXTERIOR",
+  },
+];
+
+/**
+ * Sincroniza os artigos físicos da jangada (inspecaoId = null) com a bateria
+ * de lítio e a luz exterior preenchidas na Rich Checklist. Sem `source`,
+ * prefere a última inspeção registada para a jangada.
+ */
+export async function syncRaftChecklistDrivenArtigos(
+  jangadaId: number,
+  source?: { checklistSnapshot?: RichChecklist | null },
+) {
+  const raft = await prisma.jangada.findUnique({
+    where: { id: jangadaId },
+    include: { artigos: true },
+  });
+
+  if (!raft) return { success: false, message: "Jangada não encontrada." };
+
+  let checklist: RichChecklist = {};
+  if (source?.checklistSnapshot) {
+    checklist = source.checklistSnapshot;
+  } else {
+    const lastInspection = await prisma.inspecao.findFirst({
+      where: { jangadaId },
+      orderBy: [{ dataInspecao: "desc" }, { id: "desc" }],
+      select: { checklistSnapshot: true },
+    });
+    checklist = (lastInspection?.checklistSnapshot as RichChecklist | null) || {};
+  }
+
+  const summary = { added: 0, updated: 0, total: 0 };
+
+  for (const def of CHECKLIST_DRIVEN_ARTICLES) {
+    const refRaw = def.refKey ? checklist[def.refKey] : undefined;
+    const qtyRaw = def.qtyKey ? checklist[def.qtyKey] : undefined;
+    const valRaw = checklist[def.valKey];
+    const flagRaw = def.flagKey ? checklist[def.flagKey] : undefined;
+
+    const present =
+      Boolean(refRaw) ||
+      Boolean(qtyRaw) ||
+      Boolean(valRaw) ||
+      Boolean(def.flagKey && String(flagRaw ?? "").trim().toUpperCase() === "SIM");
+
+    if (!present) continue;
+
+    const referencia = String(refRaw || def.fallbackRef).trim() || null;
+    const quantidade = Math.max(1, Number(qtyRaw || 1) || 1);
+    const validadeDate = parseFlexibleDate(String(valRaw || ""));
+    const validade = validadeDate ? normalizeArtigoValidade(validadeDate) : null;
+
+    let existing = raft.artigos.find(
+      (a) =>
+        a.inspecaoId == null &&
+        referencia &&
+        normalizeRef(a.referencia) === normalizeRef(referencia),
+    );
+
+    if (!existing) {
+      const labelNorm = normalizeText(def.label);
+      existing = raft.artigos.find(
+        (a) =>
+          a.inspecaoId == null &&
+          (normalizeText(a.name).includes(labelNorm) ||
+            labelNorm.includes(normalizeText(a.name))),
+      );
+    }
+
+    if (existing) {
+      const data: Prisma.ArtigoJangadaUncheckedUpdateInput = {
+        name: def.label,
+        quantidade,
+        updatedAt: new Date(),
+      };
+      if (referencia) data.referencia = referencia;
+      if (validade) data.validade = validade;
+      await prisma.artigoJangada.update({ where: { id: existing.id }, data });
+      summary.updated++;
+    } else {
+      await prisma.artigoJangada.create({
+        data: {
+          jangadaId: raft.id,
+          inspecaoId: null,
+          name: def.label,
+          quantidade,
+          referencia,
+          codigoFabricante: referencia,
+          validade,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      });
+      summary.added++;
+    }
+    summary.total++;
+  }
+
+  if (summary.total === 0) {
+    return {
+      success: true,
+      summary,
+      skipped: true,
+      message: "Nenhum campo de bateria lítio / luz exterior preenchido na checklist.",
+    };
+  }
+
+  return { success: true, summary };
 }
 
 async function fetchStock() {

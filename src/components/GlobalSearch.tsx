@@ -51,6 +51,22 @@ const TYPE_STYLES: Record<string, { chipSx: Record<string, unknown>; sectionSx: 
     chipSx: { bgcolor: "#f3e8ff", color: "#7e22ce" },
     sectionSx: { color: "#7e22ce" },
   },
+  Certificado: {
+    chipSx: { bgcolor: "#d1fae5", color: "#047857" },
+    sectionSx: { color: "#047857" },
+  },
+  "Certificado Externo": {
+    chipSx: { bgcolor: "#ccfbf1", color: "#0f766e" },
+    sectionSx: { color: "#0f766e" },
+  },
+  "Certificado Colete": {
+    chipSx: { bgcolor: "#ffedd5", color: "#c2410c" },
+    sectionSx: { color: "#c2410c" },
+  },
+  "Certificado Fato": {
+    chipSx: { bgcolor: "#e0e7ff", color: "#4338ca" },
+    sectionSx: { color: "#4338ca" },
+  },
 };
 
 export default function GlobalSearch({ showTrigger = false }: GlobalSearchProps) {

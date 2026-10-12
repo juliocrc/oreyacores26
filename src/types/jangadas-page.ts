@@ -35,6 +35,7 @@ export type Jangada = {
     cliente?: { id: number; nome: string; ilha?: string | null };
   };
   numeroObra?: string | null;
+  ultimoCertificadoNumero?: string | null;
   serviceStationName?: string | null;
   island?: string | null;
   ilha?: string | null;
@@ -59,6 +60,7 @@ export type JangadaListColumnKey =
   | "tipo"
   | "boletins"
   | "serial"
+  | "ultimoCertificadoNumero"
   | "dataFabrico"
   | "lotacao"
   | "packType"
@@ -108,7 +110,7 @@ export const FALLBACK_INFLATION_SYSTEM_OPTIONS = [
 
 export const FIRING_HEAD_KEYWORDS = ["head", "operating", "cabeca", "cabeça", "disparo", "firing", "gist", "dk99", "dk96", "leafield", "thanner", "nss", "vte", "hsr"];
 
-export const JANGADA_LIST_COLUMNS_KEY = "jangadas-list-columns-v1";
+export const JANGADA_LIST_COLUMNS_KEY = "jangadas-list-columns-v2";
 
 export const JANGADA_LIST_COLUMNS: Array<{ key: JangadaListColumnKey; label: string }> = [
   { key: "indice", label: "#" },
@@ -117,6 +119,7 @@ export const JANGADA_LIST_COLUMNS: Array<{ key: JangadaListColumnKey; label: str
   { key: "tipo", label: "Tipo" },
   { key: "boletins", label: "Boletins" },
   { key: "serial", label: "Nº Série" },
+  { key: "ultimoCertificadoNumero", label: "Último certificado" },
   { key: "dataFabrico", label: "Data Fabrico" },
   { key: "lotacao", label: "Lotação" },
   { key: "packType", label: "Tipo de Pack" },

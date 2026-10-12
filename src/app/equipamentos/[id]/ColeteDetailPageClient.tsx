@@ -53,11 +53,11 @@ export default function ColeteDetailPageClient({ coleteId }: { coleteId: number 
     }
   }, [data?.id]);
   const [componentForm, setComponentForm] = useState<any>({
-    cilindroRef: '', cilindroLote: '', cilindroStockId: '',
+    cilindroRef: '', cilindroLote: '', cilindroValidade: '', cilindroStockId: '',
     pastilhaRef: '', pastilhaLote: '', pastilhaValidade: '', pastilhaStockId: '',
     temLuz: true,
     luzRef: '', luzLote: '', luzValidade: '', luzStockId: '',
-    apitoRef: '', apitoLote: '', apitoStockId: '',
+    apitoRef: '', apitoLote: '', apitoValidade: '', apitoStockId: '',
     mecanismoInflacao: ''
   });
 
@@ -66,6 +66,7 @@ export default function ColeteDetailPageClient({ coleteId }: { coleteId: number 
       setComponentForm({
         cilindroRef: data.cilindroRef || '',
         cilindroLote: data.cilindroLote || '',
+        cilindroValidade: data.cilindroValidade || '',
         pastilhaRef: data.pastilhaRef || '',
         pastilhaLote: data.pastilhaLote || '',
         pastilhaValidade: data.pastilhaValidade || '',
@@ -73,7 +74,7 @@ export default function ColeteDetailPageClient({ coleteId }: { coleteId: number 
         luzRef: data.luzRef || '',
         luzLote: data.luzLote || '',
         luzValidade: data.luzValidade || '',
-        apitoRef: data.apitoRef || '', apitoLote: data.apitoLote || '',
+        apitoRef: data.apitoRef || '', apitoLote: data.apitoLote || '', apitoValidade: data.apitoValidade || '',
         cilindroStockId: '', pastilhaStockId: '', luzStockId: '', apitoStockId: '',
         mecanismoInflacao: data.mecanismoInflacao || ''
       });
@@ -88,8 +89,8 @@ export default function ColeteDetailPageClient({ coleteId }: { coleteId: number 
       // Compute what changed
       const changes: Record<string, { from: any; to: any }> = {};
       const fieldsToTrack = [
-        'cilindroRef', 'cilindroLote', 'pastilhaRef', 'pastilhaLote', 'pastilhaValidade',
-        'temLuz', 'luzRef', 'luzLote', 'luzValidade', 'apitoRef', 'apitoLote',
+        'cilindroRef', 'cilindroLote', 'cilindroValidade', 'pastilhaRef', 'pastilhaLote', 'pastilhaValidade',
+        'temLuz', 'luzRef', 'luzLote', 'luzValidade', 'apitoRef', 'apitoLote', 'apitoValidade',
         'mecanismoInflacao', 'mecanismoValidade'
       ];
       fieldsToTrack.forEach(f => {
@@ -245,10 +246,10 @@ export default function ColeteDetailPageClient({ coleteId }: { coleteId: number 
       <tr><th>Marca / Modelo</th><td>${data.marca || '—'} / ${data.modelo || '—'}</td><th>Nº Série</th><td>${data.serial || '—'}</td></tr>
       <tr><th>Próx. Inspeção</th><td>${data.dataProxInspecao ? new Date(data.dataProxInspecao).toLocaleDateString('pt-PT') : '—'}</td><th>Mecanismo</th><td>${data.mecanismoInflacao ? (MECANISMO_OPTIONS.find(o => o.value === data.mecanismoInflacao)?.label || data.mecanismoInflacao) : '—'}</td></tr></table>
       <table><tr><th>Componente</th><th>Referência</th><th>Lote</th><th>Validade</th></tr>
-      <tr><td>Cilindro CO₂</td><td>${data.cilindroRef || '—'}</td><td>${data.cilindroLote || '—'}</td><td>—</td></tr>
+      <tr><td>Cilindro CO₂</td><td>${data.cilindroRef || '—'}</td><td>${data.cilindroLote || '—'}</td><td>${data.cilindroValidade ? formatValidityDisplay(data.cilindroValidade) : '—'}</td></tr>
       ${pastilha ? `<tr><td>Pastilha de Sal</td><td>${data.pastilhaRef || '—'}</td><td>${data.pastilhaLote || '—'}</td><td>${data.pastilhaValidade ? formatValidityDisplay(data.pastilhaValidade) : '—'}</td></tr>` : ''}
       ${data.temLuz !== false ? `<tr><td>Luz Emergência</td><td>${data.luzRef || '—'}</td><td>${data.luzLote || '—'}</td><td>${data.luzValidade ? formatValidityDisplay(data.luzValidade) : '—'}</td></tr>` : ''}
-      <tr><td>Apito</td><td>${data.apitoRef || '—'}</td><td>${data.apitoLote || '—'}</td><td>—</td></tr></table>
+      <tr><td>Apito</td><td>${data.apitoRef || '—'}</td><td>${data.apitoLote || '—'}</td><td>${data.apitoValidade ? formatValidityDisplay(data.apitoValidade) : '—'}</td></tr></table>
       <p style="font-size:10px;color:#999;margin-top:20px">Gerado em ${new Date().toLocaleString('pt-PT')}</p>
        ${['<scr', 'ipt>window.print();window.close();</scr', 'ipt>'].join('')}
       </body></html>
@@ -346,9 +347,21 @@ export default function ColeteDetailPageClient({ coleteId }: { coleteId: number 
   };
 
   const coleteStock = data?.globalStock || [];
-  const cilindrosStock = coleteStock.filter((s: any) => s.categoria === 'CILINDROS');
-  const pastilhasStock = coleteStock.filter((s: any) => s.categoria === 'PASTILHAS');
-  const luzesStock = coleteStock.filter((s: any) => s.categoria === 'LUZES');
+  const cilindrosStock = coleteStock.filter((s: any) => {
+    const cat = (s.categoria || '').toLowerCase();
+    const desc = (s.descricao || '').toLowerCase();
+    return cat.includes('cilindro') || desc.includes('co2') || desc.includes('cylinder') || desc.includes('garrafa');
+  });
+  const pastilhasStock = coleteStock.filter((s: any) => {
+    const cat = (s.categoria || '').toLowerCase();
+    const desc = (s.descricao || '').toLowerCase();
+    return cat.includes('pastilha') || cat.includes('bobbin') || desc.includes('pastilha') || desc.includes('cartridge') || desc.includes('bobbin');
+  });
+  const luzesStock = coleteStock.filter((s: any) => {
+    const cat = (s.categoria || '').toLowerCase();
+    const desc = (s.descricao || '').toLowerCase();
+    return cat.includes('luz') || desc.includes('light') || desc.includes('lanterna');
+  });
   const apitosStock = coleteStock.filter((s: any) => (s.categoria || '').toUpperCase() === 'APITOS' || s.descricao.toLowerCase().includes('apito') || s.descricao.toLowerCase().includes('whistle'));
   const mecanismosStock = coleteStock.filter((s: any) => {
     const cat = (s.categoria || '').toLowerCase();
@@ -609,6 +622,7 @@ export default function ColeteDetailPageClient({ coleteId }: { coleteId: number 
                             cilindroStockId: id || '',
                             cilindroRef: found?.referencia || '',
                             cilindroLote: found?.lote || '',
+                            cilindroValidade: found?.validade ? formatStockValidade(found.validade) : '',
                           }));
                         }}
                       >
@@ -646,6 +660,16 @@ export default function ColeteDetailPageClient({ coleteId }: { coleteId: number 
                     className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs bg-white"
                     value={componentForm.cilindroLote}
                     onChange={(e) => setComponentForm((prev: any) => ({ ...prev, cilindroLote: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Validade</label>
+                  <input
+                    type="text"
+                    className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs bg-white"
+                    placeholder="EX: MM/AAAA"
+                    value={componentForm.cilindroValidade}
+                    onChange={(e) => setComponentForm((prev: any) => ({ ...prev, cilindroValidade: e.target.value }))}
                   />
                 </div>
               </div>
@@ -852,6 +876,7 @@ export default function ColeteDetailPageClient({ coleteId }: { coleteId: number 
                             apitoStockId: id || '',
                             apitoRef: found?.referencia || '',
                             apitoLote: found?.lote || '',
+                            apitoValidade: found?.validade ? formatStockValidade(found.validade) : '',
                           }));
                         }}
                       >
@@ -889,6 +914,16 @@ export default function ColeteDetailPageClient({ coleteId }: { coleteId: number 
                     className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs bg-white"
                     value={componentForm.apitoLote}
                     onChange={(e) => setComponentForm((prev: any) => ({ ...prev, apitoLote: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Validade</label>
+                  <input
+                    type="text"
+                    className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs bg-white"
+                    placeholder="EX: MM/AAAA"
+                    value={componentForm.apitoValidade}
+                    onChange={(e) => setComponentForm((prev: any) => ({ ...prev, apitoValidade: e.target.value }))}
                   />
                 </div>
               </div>
@@ -996,6 +1031,10 @@ export default function ColeteDetailPageClient({ coleteId }: { coleteId: number 
                   <span className="text-slate-500">Lote</span>
                   <span className="font-medium text-slate-700">{data.cilindroLote || '—'}</span>
                 </div>
+                <div className="flex justify-between text-xs items-center">
+                  <span className="text-slate-500">Validade</span>
+                  <span className="font-medium text-slate-700 flex items-center gap-1.5">{data.cilindroValidade || '—'}{(() => { const t = validityTone(data.cilindroValidade); return t ? <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${t.cls}`}>{t.label}</span> : null; })()}</span>
+                </div>
               </div>
             </div>
 
@@ -1061,6 +1100,10 @@ export default function ColeteDetailPageClient({ coleteId }: { coleteId: number 
                 <div className="flex justify-between text-xs">
                   <span className="text-slate-500">Lote</span>
                   <span className="font-medium text-slate-700">{data.apitoLote || '—'}</span>
+                </div>
+                <div className="flex justify-between text-xs items-center">
+                  <span className="text-slate-500">Validade</span>
+                  <span className="font-medium text-slate-700 flex items-center gap-1.5">{data.apitoValidade || '—'}{(() => { const t = validityTone(data.apitoValidade); return t ? <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${t.cls}`}>{t.label}</span> : null; })()}</span>
                 </div>
               </div>
             </div>

@@ -138,6 +138,7 @@ async function createInternalPedido(req: NextRequest, payload: Record<string, un
     navioNome: navio.nome,
     origemInterna: true,
     requestSource: payload.requestSource ?? "interno",
+    motivo: cleanOptionalString(payload.motivo),
   };
 
   const created = await prisma.pedidoAssistencia.create({
@@ -314,19 +315,33 @@ export async function GET(req: NextRequest) {
 
   try {
     const where = estado ? { estado } : undefined;
-    const pedidos = await prisma.pedidoAssistencia.findMany({
-      where,
-      include: {
-        ordensServico: {
-          select: { id: true, numeroOrdem: true, status: true },
-          orderBy: { id: "desc" },
+    const [pedidos, grouped, count] = await Promise.all([
+      prisma.pedidoAssistencia.findMany({
+        where,
+        include: {
+          ordensServico: {
+            select: { id: true, numeroOrdem: true, status: true },
+            orderBy: { id: "desc" },
+          },
         },
-      },
-      orderBy: { createdAt: "desc" },
-      take: limite,
-    });
-    const count = await prisma.pedidoAssistencia.count({ where });
-    return NextResponse.json({ total: pedidos.length, count, pedidos });
+        orderBy: { createdAt: "desc" },
+        take: limite,
+      }),
+      prisma.pedidoAssistencia.groupBy({ by: ["estado"], _count: { _all: true } }),
+      prisma.pedidoAssistencia.count({ where }),
+    ]);
+
+    const stats = { total: 0, novo: 0, em_atendimento: 0, concluido: 0, arquivado: 0 };
+    for (const grupo of grouped) {
+      const total = grupo._count._all;
+      stats.total += total;
+      const key = String(grupo.estado || "novo").toLowerCase();
+      if (key === "novo" || key === "em_atendimento" || key === "concluido" || key === "arquivado") {
+        stats[key] += total;
+      }
+    }
+
+    return NextResponse.json({ total: pedidos.length, count, pedidos, stats });
   } catch (error) {
     console.error("[GET /api/pedidos-assistencia]", error);
     return NextResponse.json({ error: "Erro ao listar pedidos." }, { status: 500 });

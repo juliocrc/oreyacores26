@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { getAccessContext } from "@/lib/access-control";
 import { normalizeNavioTipoCategoria } from "@/lib/navio-legal-types";
 
 // Grupo Central → Grupo Oriental → Grupo Ocidental
@@ -113,6 +114,11 @@ function parseMonthYearDate(value: string | null | undefined): Date | null {
 
 export async function GET() {
   try {
+    const access = await getAccessContext();
+    if (!access) {
+      return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
+    }
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const jangadaIds = null;
@@ -424,6 +430,60 @@ export async function GET() {
       }
     }
 
+    // 3. KPIs avançados reais: taxa de aprovação à primeira e permanência média
+    const inspecoesMetricas = await prisma.inspecao.findMany({
+      where: jangadaIds ? { jangadaId: { in: jangadaIds } } : {},
+      select: {
+        dataInspecao: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        testeWP: true,
+        testeNAP: true,
+        testeFS: true,
+        testeGI: true,
+        testeDL: true,
+      },
+    });
+
+    const REPROVADO = new Set(["REPROVOU", "REPROVADO"]);
+    let inspecoesComTestes = 0;
+    let inspecoesAprovadasPrimeira = 0;
+    let inspecoesAnoAtual = 0;
+    let somaPermanenciaDias = 0;
+    let contagemPermanencia = 0;
+
+    for (const row of inspecoesMetricas) {
+      const testes = [row.testeWP, row.testeNAP, row.testeFS, row.testeGI, row.testeDL]
+        .filter((t): t is string => Boolean(t && t.trim() && t.trim().toUpperCase() !== "N/A"));
+
+      if (testes.length > 0) {
+        inspecoesComTestes++;
+        const reprovou = testes.some((t) => REPROVADO.has(t.trim().toUpperCase()));
+        if (!reprovou) inspecoesAprovadasPrimeira++;
+      }
+
+      const parsedDate = parseFlexibleDate(row.dataInspecao);
+      if (parsedDate && parsedDate.getFullYear() === today.getFullYear()) {
+        inspecoesAnoAtual++;
+      }
+
+      if (row.status === "Concluída" && row.createdAt && row.updatedAt) {
+        const dias = (row.updatedAt.getTime() - row.createdAt.getTime()) / (1000 * 60 * 60 * 24);
+        if (dias >= 0 && dias < 365) {
+          somaPermanenciaDias += dias;
+          contagemPermanencia++;
+        }
+      }
+    }
+
+    const taxaAprovacaoPrimeira = inspecoesComTestes > 0
+      ? Number(((inspecoesAprovadasPrimeira / inspecoesComTestes) * 100).toFixed(1))
+      : 0;
+    const tempoMedioPermanenciaDias = contagemPermanencia > 0
+      ? Number((somaPermanenciaDias / contagemPermanencia).toFixed(1))
+      : 0;
+
     return NextResponse.json({
       jangadas,
       navios,
@@ -467,9 +527,9 @@ export async function GET() {
         expirados: artigosExpirados
       },
       kpisAvancados: {
-        totalInspecoesAnoAtual: last12Months.reduce((s, x) => s + x.count, 0),
-        taxaAprovacaoPrimeira: 96.5,
-        tempoMedioPermanenciaDias: 3.2,
+        totalInspecoesAnoAtual: inspecoesAnoAtual,
+        taxaAprovacaoPrimeira,
+        tempoMedioPermanenciaDias,
       },
       jangadasPorPackType: jangadasPorPackTypeAgg.map((x) => ({ packType: x.packType || "Sem pack", total: x._count.packType })),
     });

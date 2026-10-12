@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { APP_CONFIG } from "@/lib/app-config";
 import { canonicalizeAzoresIsland, inferAzoresIslandFromPort } from "@/lib/azores-islands";
 import { generateNavioColetesCertificateDocx } from "@/lib/colete-certificate-template";
+import { syncEmittedDocumentToOneDrive } from "@/lib/onedrive-sync";
 
 export const runtime = "nodejs";
 
@@ -175,6 +176,17 @@ export async function GET(_req: Request, context: { params: Promise<{ id: string
     const todayStamp = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, "0")}${String(today.getDate()).padStart(2, "0")}`;
     const fileName = `certificado-coletes-${sanitizeFilenamePart(navio.nome || `navio-${id}`)}-${todayStamp}.docx`;
     const responseBody = new Uint8Array(buffer);
+
+    try {
+      await syncEmittedDocumentToOneDrive({
+        kind: "externo",
+        shipName: String(navio.nome || "").trim(),
+        fileName,
+        buffer,
+      });
+    } catch (syncErr) {
+      console.warn("[certificado-coletes] Erro ao sincronizar OneDrive:", syncErr);
+    }
 
     return new NextResponse(responseBody, {
       status: 200,

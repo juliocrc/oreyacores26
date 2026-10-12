@@ -292,8 +292,8 @@ hruReference: draftData?.hruReference || raftData?.hruReferencia || '',
           // Equipamento de fecho do contentor (cintas, autocolantes, HRU) restaurado do rascunho
           containerClosureItems: (draftData?.artigosSubstituidos || [])
             .filter((item: any) => (item.motivo || "") === "Fecho do Contentor")
-            .map((item: any) => ({
-              key: `closure-${item.referencia || item.descricao}`,
+            .map((item: any, idx: number) => ({
+              key: `closure-${item.referencia || item.descricao}-${idx}`,
               kind: (item.kind || "autocolante") as "cinta" | "autocolante" | "hru",
               referencia: item.referencia || "",
               descricao: item.descricao || "Equipamento de fecho do contentor",

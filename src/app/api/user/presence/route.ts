@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
     userId: Number(session.user.id),
     email: session.user.email,
     name: session.user.name,
-    role: session.user.role === "ADMIN" ? "ADMIN" : "USER",
+    role: session.user.role === "ADMIN" ? "ADMIN" : session.user.role === "CLIENTE" ? "CLIENTE" : "USER",
     lastPath: parsePathname((body as Record<string, unknown>)?.pathname),
     userAgent: req.headers.get("user-agent") || undefined,
   });

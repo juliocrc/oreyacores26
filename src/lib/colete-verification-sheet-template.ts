@@ -19,6 +19,14 @@ export type ColeteVerificationSheetRowInput = {
   modelo?: string | null;
   tamanho?: string | null;
   dataFabrico?: string | null;
+  cilindroRef?: string | null;
+  cilindroValidade?: string | null;
+  pastilhaRef?: string | null;
+  pastilhaValidade?: string | null;
+  luzRef?: string | null;
+  luzValidade?: string | null;
+  apitoRef?: string | null;
+  apitoValidade?: string | null;
   latestVerification?: {
     dataVerificacao?: string | Date | null;
     inspectorNome?: string | null;
@@ -263,27 +271,63 @@ function uniqueNonEmpty(values: Array<string | null | undefined>) {
 function buildMaterialLines(rows: ColeteVerificationSheetRowInput[]) {
   const parsedRows = rows.map((row) => parseManualObservation(row.latestVerification?.observacoes));
 
+  const mergeRefs = (values: Array<string | null | undefined>) => uniqueNonEmpty(values);
+
   return [
     {
       rowNumber: 25,
       item: 'Baterias/Luzes',
-      reference: uniqueNonEmpty(parsedRows.map((row) => row.lightRef)).join(' ; '),
-      quantity: uniqueNonEmpty(parsedRows.map((row) => row.lightRef)).length ? String(uniqueNonEmpty(parsedRows.map((row) => row.lightRef)).length) : '',
-      expiry: uniqueNonEmpty(parsedRows.map((row) => row.lightExpiry)).join(' ; '),
+      reference: mergeRefs([
+        ...parsedRows.map((row) => row.lightRef),
+        ...rows.map((row) => row.luzRef),
+      ]).join(' ; '),
+      quantity: mergeRefs([
+        ...parsedRows.map((row) => row.lightRef),
+        ...rows.map((row) => row.luzRef),
+      ]).length ? String(mergeRefs([...parsedRows.map((row) => row.lightRef), ...rows.map((row) => row.luzRef)]).length) : '',
+      expiry: mergeRefs([
+        ...parsedRows.map((row) => row.lightExpiry),
+        ...rows.map((row) => row.luzValidade),
+      ]).join(' ; '),
     },
     {
       rowNumber: 27,
       item: 'Mecanismo de Insuflação',
-      reference: uniqueNonEmpty(parsedRows.flatMap((row) => [row.mechanism, row.capsuleRef])).join(' ; '),
-      quantity: uniqueNonEmpty(parsedRows.map((row) => row.capsuleRef)).length ? String(uniqueNonEmpty(parsedRows.map((row) => row.capsuleRef)).length) : '',
-      expiry: uniqueNonEmpty(parsedRows.map((row) => row.capsuleExpiry)).join(' ; '),
+      reference: mergeRefs([
+        ...parsedRows.flatMap((row) => [row.mechanism, row.capsuleRef]),
+        ...rows.map((row) => row.pastilhaRef),
+      ]).join(' ; '),
+      quantity: mergeRefs([
+        ...parsedRows.map((row) => row.capsuleRef),
+        ...rows.map((row) => row.pastilhaRef),
+      ]).length ? String(mergeRefs([...parsedRows.map((row) => row.capsuleRef), ...rows.map((row) => row.pastilhaRef)]).length) : '',
+      expiry: mergeRefs([
+        ...parsedRows.map((row) => row.capsuleExpiry),
+        ...rows.map((row) => row.pastilhaValidade),
+      ]).join(' ; '),
     },
     {
       rowNumber: 28,
       item: 'Garrafa CO2',
-      reference: uniqueNonEmpty(parsedRows.flatMap((row) => row.cylinderRefs)).join(' ; '),
-      quantity: parsedRows.reduce((acc, row) => acc + row.cylinderRefs.length, 0) ? String(parsedRows.reduce((acc, row) => acc + row.cylinderRefs.length, 0)) : '',
-      expiry: uniqueNonEmpty(parsedRows.flatMap((row) => row.cylinderExpiryValues)).join(' ; '),
+      reference: mergeRefs([
+        ...parsedRows.flatMap((row) => row.cylinderRefs),
+        ...rows.map((row) => row.cilindroRef),
+      ]).join(' ; '),
+      quantity: mergeRefs([
+        ...parsedRows.flatMap((row) => row.cylinderRefs),
+        ...rows.map((row) => row.cilindroRef),
+      ]).length ? String(mergeRefs([...parsedRows.flatMap((row) => row.cylinderRefs), ...rows.map((row) => row.cilindroRef)]).length) : '',
+      expiry: mergeRefs([
+        ...parsedRows.flatMap((row) => row.cylinderExpiryValues),
+        ...rows.map((row) => row.cilindroValidade),
+      ]).join(' ; '),
+    },
+    {
+      rowNumber: 30,
+      item: 'Apito',
+      reference: mergeRefs(rows.map((row) => row.apitoRef)).join(' ; '),
+      quantity: mergeRefs(rows.map((row) => row.apitoRef)).length ? String(mergeRefs(rows.map((row) => row.apitoRef)).length) : '',
+      expiry: mergeRefs(rows.map((row) => row.apitoValidade)).join(' ; '),
     },
     {
       rowNumber: 32,

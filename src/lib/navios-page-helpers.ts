@@ -1,6 +1,7 @@
 import type { Navio, NavioListColumnKey } from "@/types/navios-page";
 import { NAVIO_LIST_COLUMNS, LOCATION_CANONICAL_MAP, IS_AZORES_APP } from "@/types/navios-page";
 import { canonicalizeAzoresIsland, inferAzoresIslandFromPort } from "@/lib/azores-islands";
+import { extrairPortoDeMatricula } from "@/utils/portosRegisto";
 
 export function buildDefaultNavioColumns(): Record<NavioListColumnKey, boolean> {
   return NAVIO_LIST_COLUMNS.reduce((acc, col) => {
@@ -39,6 +40,13 @@ export function getCanonicalNavioLocationLabel(value: string | null | undefined)
 }
 
 export function getNavioLocationValue(navio: Navio) {
+  // A matrícula é a fonte mais fiável: a ilha guardada pode ter sido herdada
+  // do cliente ou preenchida antes da correção do porto de registo.
+  const portoDaMatricula = extrairPortoDeMatricula(navio.matricula || "");
+  if (portoDaMatricula) {
+    return getCanonicalNavioLocationLabel(portoDaMatricula) || portoDaMatricula;
+  }
+
   return getCanonicalNavioLocationLabel(String(navio.ilha || ""));
 }
 

@@ -13,6 +13,7 @@ import Step5_Cilindros from './Step5_Cilindros';
 import Step6_Testes from './Step6_Testes';
 import Step6B_Reparacoes from './Step6B_Reparacoes';
 import Step6C_BoletinsServico from './Step6C_BoletinsServico';
+import Step6D_Contentor from './Step6D_Contentor';
 import Step7_Orcamento from './Step7_Orcamento';
 import Step8_ResumoFinal from './Step8_ResumoFinal';
 import Step9_Certificados from './Step9_Certificados';
@@ -40,6 +41,7 @@ export default function WizardRouter() {
       case 'testes': return <Step6_Testes />;
       case 'boletins': return <Step6C_BoletinsServico />;
       case 'reparacoes': return <Step6B_Reparacoes />;
+      case 'contentor': return <Step6D_Contentor />;
       case 'orcamento': return <Step7_Orcamento />;
       case 'resumo': return <Step8_ResumoFinal />;
       case 'certificados': return <Step9_Certificados />;

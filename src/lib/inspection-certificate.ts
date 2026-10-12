@@ -10,6 +10,10 @@ export type InspectionCertificateInput = {
   status?: string;
   technician?: string;
   checklist?: Record<string, unknown>;
+  technicianName?: string;
+  technicianSignature?: string;
+  clientName?: string;
+  clientSignature?: string;
 };
 
 function asString(value: unknown) {
@@ -203,6 +207,106 @@ export function buildInspectionCertificateDoc(input: InspectionCertificateInput)
   doc.setFontSize(8);
   doc.text(`Centro técnico: OREY · Técnico: ${asString(input.technician) || "—"}`, 12, 286);
   doc.text("Assinatura: __________________________", 130, 286);
+
+  // Página de assinaturas: técnica do centro + representante do armador.
+  const hasAnySignature =
+    /^data:image\/(png|jpe?g|webp);base64,/i.test(asString(input.technicianSignature)) ||
+    /^data:image\/(png|jpe?g|webp);base64,/i.test(asString(input.clientSignature));
+
+  if (hasAnySignature) {
+    doc.addPage();
+    const pageH = 297;
+    doc.setDrawColor(70, 70, 70);
+    doc.rect(margin, margin, pageW - margin * 2, pageH - margin * 2);
+
+    doc.setFillColor(15, 23, 42);
+    doc.rect(margin, margin, pageW - margin * 2, 18, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.text("ASSINATURAS", pageW / 2, margin + 7, { align: "center" });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.text("SIGNATURES", pageW / 2, margin + 12, { align: "center" });
+    doc.setTextColor(0, 0, 0);
+
+    const boxW = (pageW - margin * 2 - 8) / 2;
+    const boxY = 48;
+    const boxH = 78;
+
+    const drawSignatureBox = (
+      x: number,
+      titlePt: string,
+      titleEn: string,
+      signerName: string,
+      rolePt: string,
+      signature?: string,
+    ) => {
+      doc.setDrawColor(90, 90, 90);
+      doc.rect(x, boxY, boxW, boxH);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.text(titlePt.toUpperCase(), x + 4, boxY + 7);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.5);
+      doc.text(titleEn, x + 4, boxY + 11);
+
+      const imageFormat = signature?.startsWith("data:image/jpeg")
+        ? "JPEG"
+        : signature?.startsWith("data:image/webp")
+          ? "WEBP"
+          : "PNG";
+
+      if (signature && /^data:image\/(png|jpe?g|webp);base64,/i.test(signature)) {
+        const imageH = 30;
+        const imageW = Math.min(boxW - 8, 60);
+        try {
+          doc.addImage(signature, imageFormat, x + 4, boxY + 18, imageW, imageH);
+        } catch {
+          doc.setFont("helvetica", "italic");
+          doc.setFontSize(8);
+          doc.setTextColor(120, 120, 120);
+          doc.text("(imagem de assinatura inválida)", x + 4, boxY + 30);
+          doc.setTextColor(0, 0, 0);
+        }
+      } else {
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(8);
+        doc.setTextColor(120, 120, 120);
+        doc.text("(sem assinatura)", x + 4, boxY + 30);
+        doc.setTextColor(0, 0, 0);
+      }
+
+      doc.setDrawColor(0, 0, 0);
+      doc.setLineWidth(0.3);
+      doc.line(x + 4, boxY + boxH - 16, x + boxW - 4, boxY + boxH - 16);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.text(signerName ? signerName : "________________", x + 4, boxY + boxH - 8);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.5);
+      doc.setTextColor(80, 80, 80);
+      doc.text(rolePt, x + 4, boxY + boxH - 2.5);
+      doc.setTextColor(0, 0, 0);
+    };
+
+    drawSignatureBox(
+      margin,
+      "Técnico de campo",
+      "Field Technician",
+      asString(input.technicianName || input.technician),
+      "Serviço OREY Açores",
+      asString(input.technicianSignature),
+    );
+    drawSignatureBox(
+      margin + boxW + 8,
+      "Representante do armador",
+      "Master / Owner Representative",
+      asString(input.clientName),
+      "Armador / Comandante do navio",
+      asString(input.clientSignature),
+    );
+  }
 
   return doc;
 }

@@ -6,9 +6,7 @@ import type { OrcamentoLinha, OrcamentoAprovacao, GlobalStockItem } from './type
 import { calcTotal, getIvaRate } from '@/lib/iva';
 import { appToast } from '@/lib/app-toast';
 import * as XLSX from 'xlsx';
-import { ContainerClosureSection } from './ContainerClosureSection';
 import { buildClosureOrcamentoLinha } from './containerClosure';
-import type { ClosureItemState } from './containerClosure';
 import { useWhatsAppAllowed, WHATSAPP_ALLOWED_USER_EMAIL } from '@/lib/use-whatsapp-allowed';
 import { normalizeStockReferenceByRule } from '@/lib/stock-reference-rules';
 import { isArticleNonExpiring } from '@/modules/rafts/mandatoryPack';
@@ -357,22 +355,6 @@ export default function Step7_Orcamento() {
     return globalStock.filter((s) => /^L-/i.test(s.referencia || ""));
   }, [globalStock]);
 
-  const toggleClosureItem = (item: ClosureItemState, checked: boolean) => {
-    const current = (inspectionData.containerClosureItems || []).filter(
-      (c: any) => c.key !== item.key,
-    );
-    const next = checked ? [...current, item] : current;
-    setInspectionData({ containerClosureItems: next });
-  };
-
-  const updateClosureQuantity = (key: string, quantidade: number) => {
-    setInspectionData({
-      containerClosureItems: (inspectionData.containerClosureItems || []).map((c: any) =>
-        c.key === key ? { ...c, quantidade: Number(quantidade) || 0 } : c,
-      ),
-    });
-  };
-
   const artigosFiltrados = useMemo(() => {
     const busca = artigoBusca.trim().toLowerCase();
     if (!busca) return [];
@@ -686,14 +668,6 @@ export default function Step7_Orcamento() {
           </button>
         </div>
       </div>
-
-      <ContainerClosureSection
-        inspectionData={inspectionData}
-        globalStock={globalStock}
-        selected={inspectionData.containerClosureItems || []}
-        onToggle={toggleClosureItem}
-        onUpdateQuantity={updateClosureQuantity}
-      />
 
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
         <div className="flex items-center gap-3 bg-slate-50 border-b border-slate-200 px-6 py-4">

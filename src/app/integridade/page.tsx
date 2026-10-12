@@ -35,6 +35,8 @@ export default function IntegridadePage() {
   const [reabrirTexto, setReabrirTexto] = useState("");
   const [reabrirErro, setReabrirErro] = useState<string | null>(null);
   const [reabrindo, setReabrindo] = useState(false);
+  const [filtroTexto, setFiltroTexto] = useState("");
+  const [filtroEstado, setFiltroEstado] = useState<"todos" | "valido" | "divergente" | "sem-carimbo">("todos");
 
   const fetchList = useCallback(async () => {
     setLoading(true);
@@ -120,6 +122,20 @@ export default function IntegridadePage() {
     return { ...d, pct };
   }, [data]);
 
+  const itemsFiltrados = useMemo(() => {
+    const items = data?.items || [];
+    const termo = filtroTexto.trim().toLocaleLowerCase("pt-PT");
+    return items.filter((item) => {
+      const correspondeTexto = !termo || [item.certificadoNumero, item.jangadaSerial, item.navioNome, item.integrityHash]
+        .some((value) => String(value || "").toLocaleLowerCase("pt-PT").includes(termo));
+      const correspondeEstado = filtroEstado === "todos"
+        || (filtroEstado === "sem-carimbo" && !item.stamped)
+        || (filtroEstado === "valido" && item.stamped && item.valid === true)
+        || (filtroEstado === "divergente" && item.stamped && item.valid === false);
+      return correspondeTexto && correspondeEstado;
+    });
+  }, [data, filtroEstado, filtroTexto]);
+
   const badge = (i: IntegridadeItem) => {
     if (!i.stamped)
       return <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-bold text-amber-700">Sem carimbo</span>;
@@ -203,6 +219,33 @@ export default function IntegridadePage() {
             </div>
 
             {/* Lista */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex flex-wrap items-end gap-3">
+                <label className="min-w-[260px] flex-1 text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Pesquisar certificado, jangada ou navio
+                  <input
+                    value={filtroTexto}
+                    onChange={(event) => setFiltroTexto(event.target.value)}
+                    placeholder="Ex.: AZ26-052, série ou nome do navio"
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal normal-case tracking-normal outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  />
+                </label>
+                <label className="w-full sm:w-48 text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Estado
+                  <select
+                    value={filtroEstado}
+                    onChange={(event) => setFiltroEstado(event.target.value as typeof filtroEstado)}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-normal normal-case tracking-normal outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  >
+                    <option value="todos">Todos</option>
+                    <option value="valido">Válidos</option>
+                    <option value="divergente">Divergentes</option>
+                    <option value="sem-carimbo">Sem carimbo</option>
+                  </select>
+                </label>
+                <span className="pb-2 text-xs text-slate-500">{itemsFiltrados.length} de {data?.items.length || 0} registos</span>
+              </div>
+            </div>
             <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
               <table className="min-w-full text-sm">
                 <thead>
@@ -218,14 +261,14 @@ export default function IntegridadePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {resumo.items.length === 0 && (
+                   {itemsFiltrados.length === 0 && (
                     <tr>
                       <td colSpan={8} className="px-3 py-6 text-center text-xs text-slate-400">
                         Sem certificados para verificar.
                       </td>
                     </tr>
                   )}
-                  {resumo.items.map((i) => (
+                   {itemsFiltrados.map((i) => (
                     <tr key={i.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
                       <td className="px-3 py-2 font-bold text-slate-800">{i.certificadoNumero || "—"}</td>
                       <td className="px-3 py-2 text-slate-600">{i.jangadaSerial || "—"}</td>

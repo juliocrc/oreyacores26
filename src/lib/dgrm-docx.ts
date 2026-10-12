@@ -94,6 +94,25 @@ function setCellText(cell: XmlElement, text: string): void {
   }
 }
 
+function setCellSingleParagraphText(cell: XmlElement, text: string): void {
+  let firstParagraph = true;
+  for (const child of Array.from(cell.childNodes)) {
+    if (!isW(child, "p")) continue;
+    setParagraphText(child as XmlElement, firstParagraph ? text : "");
+    firstParagraph = false;
+  }
+}
+
+function getManufacturerLocation(brand?: string): string {
+  const normalized = String(brand || "").trim().toUpperCase();
+  if (normalized.includes("DSB")) return "Alemanha";
+  if (normalized.includes("RFD")) return "Inglaterra";
+  if (normalized.includes("VIKING")) return "Dinamarca";
+  if (normalized.includes("ZODIAC")) return "França";
+  if (normalized.includes("EUROVINIL")) return "Itália";
+  return "";
+}
+
 /**
  * Return array of <w:tbl> direct children of <w:body>.
  */
@@ -146,6 +165,7 @@ export interface DgrmData {
   ultimoCertificadoNumero?: string;
   ownerDisplay?: string;
   owner?: string;
+  manufacturerLocation?: string;
 }
 
 function fmtPeso(v: unknown): string {
@@ -154,6 +174,15 @@ function fmtPeso(v: unknown): string {
   const n = parseFloat(s);
   if (!isNaN(n)) return n.toFixed(3);
   return String(v);
+}
+
+function formatPeriodicReviewDate(value?: string): string {
+  const raw = String(value || "").trim();
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[3]}-${iso[2]}-${iso[1]}`;
+  const european = raw.match(/^(\d{2})[/.\-](\d{2})[/.\-](\d{4})/);
+  if (european) return `${european[1]}-${european[2]}-${european[3]}`;
+  return raw;
 }
 
 export async function generateDgrmDocx(
@@ -182,21 +211,17 @@ export async function generateDgrmDocx(
   const co2 = fmtPeso(data.cylinderCo2);
   const n2 = fmtPeso(data.cylinderN2);
 
+  // O valor é preenchido apenas na linha portuguesa. A linha inglesa é
+  // deixada intacta (apenas com o rótulo inscrito no template) para não
+  // repetir a mesma informação nas duas línguas.
   const paraReplacements: [number, string][] = [
     [5, `Fabricante: ${data.brand || ""}`],
-    [6, `Manufacturer: ${data.brand || ""}`],
     [9, `Tipo: ${data.model || ""}  N.º de série: ${data.serial || ""}  Para: ${data.capacity || ""} Pessoas`],
-    [10, `Type: ${data.model || ""}  Serial no: ${data.serial || ""}  For: ${data.capacity || ""} Persons`],
     [12, `Garrafa de gás n.º: ${cyl}  Peso: ${peso}  Tara: ${tara}  CO2: ${co2}  N2: ${n2}`],
-    [13, `Gas Cylinder: ${cyl}  Full weight: ${peso}  Tare weight: ${tara}  CO2: ${co2}  N2: ${n2}`],
     [15, `Embalagem de Sobrevivência Tipo: ${data.packType || ""}`],
-    [16, `Emergency Pack Type: ${data.packType || ""}`],
     [18, `Contentor/Saco modelo: ${data.containerModel || ""}`],
-    [19, `Container/Valise Type: ${data.containerModel || ""}`],
     [21, `Comprimento do cabo de disparo: ${data.painterLength || ""}`],
-    [22, `Painter line length: ${data.painterLength || ""}`],
     [24, `Libertador hidrostático: ${data.hruReferencia || ""}  Tipo: ${data.cylinderCabecaDisparoRef || ""}`],
-    [25, `Hydrostatic release: ${data.hruReferencia || ""}  Type: ${data.cylinderCabecaDisparoRef || ""}`],
     [28, "Local e data de emissão da ficha: _________________________ , _________________________"],
     [31, "O Responsável pela Estação de Serviço:"],
     [33, "________________________________"],
@@ -213,7 +238,7 @@ export async function generateDgrmDocx(
 
     const fab = data.dataFabrico || "";
     const cert = data.certificadoExternoNumero || data.certificadoNumeroOriginal || "";
-    const local = data.ilha || "Ponta Delgada";
+    const local = data.manufacturerLocation || getManufacturerLocation(data.brand);
 
     // Row 1: manufacture date, place, cert number
     if (rows.length > 1) {
@@ -229,7 +254,7 @@ export async function generateDgrmDocx(
       const row3 = rows[3];
       const cells = getRowCells(row3);
       if (cells.length > 0)
-        setCellText(cells[0], data.dataInspecao || "");
+        setCellText(cells[0], formatPeriodicReviewDate(data.dataInspecao));
       if (cells.length > 1)
         setCellText(cells[1], data.shipName || data.shipNameManual || "");
       if (cells.length > 2)
@@ -240,7 +265,7 @@ export async function generateDgrmDocx(
     const lastRow = rows[rows.length - 1];
     const ownerText = data.ownerDisplay || data.owner || "";
     for (const cell of getRowCells(lastRow)) {
-      setCellText(cell, ownerText);
+      setCellSingleParagraphText(cell, ownerText);
     }
   }
 

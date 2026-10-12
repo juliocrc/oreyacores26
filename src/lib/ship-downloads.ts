@@ -354,3 +354,19 @@ export function saveCertificateDocument(params: {
     successMessage: (path) => `Certificado guardado em ${path}`,
   });
 }
+
+/** Documento de colete (certificado, ficha de verificação, etc.) → "certificados açores 2026 versao1"/. */
+export function saveColeteDocument(params: {
+  filename: string;
+  blob: Blob;
+  quiet?: boolean;
+  label?: string;
+}): Promise<SaveOutcome> {
+  return saveDocument({
+    segments: [certificadosFolderForYear()],
+    filename: params.filename,
+    blob: params.blob,
+    quiet: params.quiet,
+    successMessage: (path) => `${params.label || "Documento"} guardado em ${path}`,
+  });
+}

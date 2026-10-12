@@ -42,6 +42,11 @@ yarn-error.log*
 # vercel
 .vercel
 
+# ficheiros locais com segredos / dados de upload que NAO vao para o repo
+scripts/_alexis_debug.cjs
+public/NAVIOS ACORES/
+public/NAVIOS AÇORES/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

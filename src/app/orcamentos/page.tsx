@@ -4,7 +4,7 @@ import { Fragment, useCallback, useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Loader2, Search, X, ClipboardCheck, History, FileText, ExternalLink, ArrowRightCircle, Plus, Trash2, Save, CheckCircle2, Ban, FileDown, AlertCircle, ChevronRight } from "lucide-react";
+import { Loader2, Search, X, ClipboardCheck, History, FileText, ExternalLink, ArrowRightCircle, Plus, Trash2, Save, CheckCircle2, Ban, FileDown, AlertCircle, ChevronRight, List, LayoutGrid, Columns3, FilterX } from "lucide-react";
 import { formatDateTimeShort } from "@/lib/date-utils";
 import { getIvaRate } from "@/lib/iva";
 
@@ -143,6 +143,11 @@ export default function OrcamentosPage() {
   const [rows, setRows] = useState<OrcamentoRow[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [q, setQ] = useState("");
+  const [vista, setVista] = useState<"lista" | "quadro" | "detalhes">("lista");
+  const [tipoFilter, setTipoFilter] = useState<string>("");
+  const [prioridadeFilter, setPrioridadeFilter] = useState<string>("");
+  const [dataDe, setDataDe] = useState<string>("");
+  const [dataAte, setDataAte] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [deleting, setDeleting] = useState(false);
@@ -174,6 +179,42 @@ export default function OrcamentosPage() {
       String(s.descricao || "").toLowerCase().includes(q)
     ).slice(0, 50);
   }, [stockList, stockSearch]);
+
+  const visibleRows = useMemo(() => {
+    const de = dataDe ? new Date(`${dataDe}T00:00:00`).getTime() : null;
+    const ate = dataAte ? new Date(`${dataAte}T23:59:59`).getTime() : null;
+    return rows.filter((row) => {
+      if (tipoFilter) {
+        const tipo = String(row.tipo || "");
+        if (tipoFilter === "outro") {
+          if (tipo === "inspecao" || tipo === "reparacao" || tipo === "manutencao") return false;
+        } else if (tipo !== tipoFilter) {
+          return false;
+        }
+      }
+      if (prioridadeFilter) {
+        const p = String(row.prioridade || "").toLowerCase();
+        if (prioridadeFilter === "normal" ? p !== "normal" && p !== "" : p !== prioridadeFilter) return false;
+      }
+      if (de != null || ate != null) {
+        const t = row.dataAbertura ? new Date(row.dataAbertura).getTime() : null;
+        if (t == null) return false;
+        if (de != null && t < de) return false;
+        if (ate != null && t > ate) return false;
+      }
+      return true;
+    });
+  }, [rows, tipoFilter, prioridadeFilter, dataDe, dataAte]);
+
+  const board = useMemo(() => {
+    const map: Record<string, OrcamentoRow[]> = {};
+    for (const s of ORCAMENTO_STATUS_LIST) map[s] = [];
+    for (const row of visibleRows) {
+      const s = row.orcamentoStatus || "Rascunho";
+      (map[s] ||= []).push(row);
+    }
+    return map;
+  }, [visibleRows]);
 
   useEffect(() => {
     fetch("/api/stock?take=1000", { cache: "no-store" })
@@ -330,71 +371,21 @@ export default function OrcamentosPage() {
     }
   };
 
-  const emitirFatura = async () => {
+  const emitirProforma = async () => {
     if (!detailRow) return;
     setFeedback(null);
-    if (faturaNumero) {
-      setFeedback({ type: "err", text: `Já existe a fatura ${faturaNumero} para esta OT.` });
-      return;
-    }
     if (orcStatus !== "Aprovado") {
-      setFeedback({ type: "err", text: "Aprove o orçamento antes de emitir a fatura." });
+      setFeedback({ type: "err", text: "Aprove o orçamento antes de gerar a fatura pró-forma." });
       return;
     }
     setEmitindo(true);
     try {
       const guardado = await guardarAnalise();
       if (!guardado) return;
-
-      if (detailRow.status !== "concluida") {
-        const putRes = await fetch(`/api/ordens-servico/${detailRow.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "concluida" }),
-        });
-        const putBody = await putRes.json().catch(() => null);
-        if (!putRes.ok) throw new Error(putBody?.error || "Não foi possível concluir a ordem de serviço.");
-        aplicarAtualizacao(putBody as OrcamentoRow);
-      }
-
-      const res = await fetch(`/api/ordens-servico/${detailRow.id}/faturar`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pagamentoStatus: "Pendente" }),
-      });
-      const body = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(body?.error || "Erro ao emitir a fatura.");
-
-      const numero = (body?.numeroFatura || body?.fatura?.numeroFatura) as string | null;
-      const faturaId = Number(body?.fatura?.id) || null;
-      setDetailRow((prev) =>
-        prev && prev.id === detailRow.id
-          ? {
-              ...prev,
-              metadados: {
-                ...(getMeta(prev) as object),
-                faturaId,
-                faturaNumero: numero,
-                faturaEmitidaEm: new Date().toISOString(),
-                pagamentoStatus: "Pendente",
-              },
-            }
-          : prev
-      );
-      setRows((prev) =>
-        prev.map((r) =>
-          r.id === detailRow.id
-            ? {
-                ...r,
-                metadados: { ...(getMeta(r) as object), faturaId, faturaNumero: numero, faturaEmitidaEm: new Date().toISOString(), pagamentoStatus: "Pendente" },
-              }
-            : r
-        )
-      );
-      setFeedback({ type: "ok", text: numero ? `Fatura ${numero} emitida com sucesso.` : "Fatura emitida com sucesso." });
-      window.open(`/api/ordens-servico/${detailRow.id}/fatura-excel`, "_blank");
+      window.open(`/api/ordens-servico/${detailRow.id}/fatura-pdf`, "_blank");
+      setFeedback({ type: "ok", text: "Fatura pró-forma gerada. A ordem de serviço mantém-se aberta até à conclusão do trabalho." });
     } catch (e) {
-      setFeedback({ type: "err", text: e instanceof Error ? e.message : "Erro ao emitir a fatura." });
+      setFeedback({ type: "err", text: e instanceof Error ? e.message : "Erro ao gerar a fatura pró-forma." });
     } finally {
       setEmitindo(false);
     }
@@ -458,7 +449,7 @@ export default function OrcamentosPage() {
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({ includeClosed: "1" });
+       const params = new URLSearchParams({ includeClosed: "1", excludeFaturadas: "1" });
       if (statusFilter) params.set("orcamentoStatus", statusFilter);
       if (q.trim()) params.set("q", q.trim());
       const res = await fetch(`/api/ordens-servico?${params.toString()}`);
@@ -536,35 +527,114 @@ export default function OrcamentosPage() {
           </div>
         </div>
 
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => setStatusFilter("")}
-            className={`border px-3 py-1.5 text-sm rounded-lg font-medium ${
-              statusFilter === "" ? "border-blue-400 bg-blue-600 text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-            }`}
-          >
-            Todos
-          </button>
-          {ORCAMENTO_STATUS_LIST.map((s) => (
+        <div className="mb-4 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
-              key={s}
-              onClick={() => setStatusFilter(statusFilter === s ? "" : s)}
+              onClick={() => setStatusFilter("")}
               className={`border px-3 py-1.5 text-sm rounded-lg font-medium ${
-                statusFilter === s ? "border-blue-400 bg-blue-600 text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                statusFilter === "" ? "border-blue-400 bg-blue-600 text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
               }`}
             >
-              {STATUS_LABELS[s] || s}
+              Todos
             </button>
-          ))}
+            {ORCAMENTO_STATUS_LIST.map((s) => (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(statusFilter === s ? "" : s)}
+                className={`border px-3 py-1.5 text-sm rounded-lg font-medium ${
+                  statusFilter === s ? "border-blue-400 bg-blue-600 text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                {STATUS_LABELS[s] || s}
+              </button>
+            ))}
 
-          <div className="relative ml-auto">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Pesquisar jangada, cliente, nº ordem…"
-              className="w-72 rounded-lg border border-slate-300 bg-white py-1.5 pl-8 pr-3 text-sm focus:border-blue-400 focus:outline-none"
-            />
+            <div className="relative ml-auto">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Pesquisar jangada, cliente, nº ordem…"
+                className="w-72 rounded-lg border border-slate-300 bg-white py-1.5 pl-8 pr-3 text-sm focus:border-blue-400 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={tipoFilter}
+              onChange={(e) => setTipoFilter(e.target.value)}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm"
+            >
+              <option value="">Tipo: todos</option>
+              <option value="inspecao">Inspeção</option>
+              <option value="reparacao">Reparação</option>
+              <option value="manutencao">Manutenção</option>
+              <option value="outro">Outro / Ordem</option>
+            </select>
+            <select
+              value={prioridadeFilter}
+              onChange={(e) => setPrioridadeFilter(e.target.value)}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm"
+            >
+              <option value="">Prioridade: todas</option>
+              <option value="critica">Crítica</option>
+              <option value="alta">Alta</option>
+              <option value="normal">Normal</option>
+            </select>
+            <label className="inline-flex items-center gap-1 text-xs text-slate-500">
+              De
+              <input
+                type="date"
+                value={dataDe}
+                onChange={(e) => setDataDe(e.target.value)}
+                className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm"
+              />
+            </label>
+            <label className="inline-flex items-center gap-1 text-xs text-slate-500">
+              Até
+              <input
+                type="date"
+                value={dataAte}
+                onChange={(e) => setDataAte(e.target.value)}
+                className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm"
+              />
+            </label>
+            {(tipoFilter || prioridadeFilter || dataDe || dataAte) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setTipoFilter("");
+                  setPrioridadeFilter("");
+                  setDataDe("");
+                  setDataAte("");
+                }}
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
+              >
+                <FilterX className="h-4 w-4" /> Limpar
+              </button>
+            )}
+
+            <div className="ml-auto inline-flex rounded-lg border border-slate-300 bg-white p-0.5">
+              {(
+                [
+                  { key: "lista", label: "Lista", Icon: List },
+                  { key: "quadro", label: "Quadro", Icon: LayoutGrid },
+                  { key: "detalhes", label: "Detalhes", Icon: Columns3 },
+                ] as const
+              ).map(({ key, label, Icon }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setVista(key)}
+                  className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium ${
+                    vista === key ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  <Icon className="h-4 w-4" /> {label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -574,13 +644,107 @@ export default function OrcamentosPage() {
           <div className="flex items-center justify-center gap-2 py-16 text-slate-500">
             <Loader2 className="h-5 w-5 animate-spin" /> A carregar orçamentos…
           </div>
-        ) : rows.length === 0 ? (
+        ) : visibleRows.length === 0 ? (
           <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center text-slate-500">
             Sem orçamentos encontrados neste filtro.
           </div>
+        ) : vista === "lista" ? (
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="w-10 px-3 py-2"></th>
+                  <th className="px-3 py-2">OT</th>
+                  <th className="px-3 py-2">Jangada</th>
+                  <th className="px-3 py-2">Embarcação</th>
+                  <th className="px-3 py-2">Estado</th>
+                  <th className="px-3 py-2">Aberto</th>
+                  <th className="px-3 py-2 text-right">Valor</th>
+                  <th className="w-8 px-3 py-2"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {visibleRows.map((row) => {
+                  const orcStatus = row.orcamentoStatus || "Rascunho";
+                  const badge = STATUS_BADGE_CLASSES[orcStatus] || STATUS_BADGE_CLASSES.Rascunho;
+                  return (
+                    <tr key={row.id} onClick={() => openDetail(row)} className="cursor-pointer hover:bg-blue-50/60">
+                      <td className="px-3 py-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(row.id)}
+                          onChange={() => toggleSelect(row.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="h-4 w-4 rounded border-slate-300"
+                        />
+                      </td>
+                      <td className="px-3 py-2 font-semibold text-slate-500">#{row.numeroOrdem || row.id}</td>
+                      <td className="px-3 py-2 text-slate-800">{getRaftDisplay(row)}</td>
+                      <td className="px-3 py-2 text-slate-600">{getEmbarcacao(row)}</td>
+                      <td className="px-3 py-2">
+                        <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${badge}`}>
+                          {STATUS_LABELS[orcStatus] || orcStatus}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-slate-400">{row.dataAbertura ? formatDateTimeShort(row.dataAbertura) : "—"}</td>
+                      <td className="px-3 py-2 text-right font-semibold text-slate-600">
+                        {typeof row.valorTotal === "number" ? `€ ${row.valorTotal.toFixed(2)}` : "—"}
+                      </td>
+                      <td className="px-3 py-2 text-slate-300">
+                        <ChevronRight className="h-4 w-4" />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : vista === "quadro" ? (
+          <div className="flex gap-3 overflow-x-auto pb-2">
+            {ORCAMENTO_STATUS_LIST.map((s) => {
+              const items = board[s] || [];
+              const badge = STATUS_BADGE_CLASSES[s] || STATUS_BADGE_CLASSES.Rascunho;
+              return (
+                <div key={s} className="flex w-72 shrink-0 flex-col rounded-xl border border-slate-200 bg-slate-50">
+                  <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2">
+                    <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${badge}`}>
+                      {STATUS_LABELS[s] || s}
+                    </span>
+                    <span className="text-xs font-semibold text-slate-400">{items.length}</span>
+                  </div>
+                  <div className="flex-1 space-y-2 p-2">
+                    {items.length === 0 ? (
+                      <p className="px-2 py-4 text-center text-xs text-slate-400">Vazio</p>
+                    ) : (
+                      items.map((row) => (
+                        <button
+                          key={row.id}
+                          type="button"
+                          onClick={() => openDetail(row)}
+                          className="block w-full rounded-lg border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:border-blue-300 hover:shadow-md"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-semibold text-slate-400">#{row.numeroOrdem || row.id}</span>
+                            {typeof row.valorTotal === "number" && (
+                              <span className="text-xs font-semibold text-slate-600">€ {row.valorTotal.toFixed(2)}</span>
+                            )}
+                          </div>
+                          <div className="mt-1 text-sm font-semibold text-slate-800">{getRaftDisplay(row)}</div>
+                          <div className="mt-0.5 text-xs text-slate-500">{getEmbarcacao(row)}</div>
+                          <div className="mt-2 text-xs text-slate-400">
+                            Aberto {row.dataAbertura ? formatDateTimeShort(row.dataAbertura) : "—"}
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         ) : (
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {rows.map((row) => {
+            {visibleRows.map((row) => {
               const orcStatus = row.orcamentoStatus || "Rascunho";
               const badge = STATUS_BADGE_CLASSES[orcStatus] || STATUS_BADGE_CLASSES.Rascunho;
               const label = STATUS_LABELS[orcStatus] || orcStatus;
@@ -675,13 +839,13 @@ export default function OrcamentosPage() {
             </div>
 
             <div className="space-y-5 px-6 py-5">
-              {/* Percurso do orçamento: submetido no wizard → analisado/editado aqui → aprovado → fatura */}
+               {/* Percurso comercial: proposta analisada → aprovada → pró-forma → faturação definitiva */}
               <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                 {[
                   { key: "submetido", label: "Submetido" },
                   { key: "analise", label: "Análise e edição" },
                   { key: "aprovado", label: "Aprovado" },
-                  { key: "fatura", label: "Fatura" },
+                   { key: "fatura", label: "Pró-forma" },
                 ].map((etapa, idx, arr) => {
                   const estadoAtual = faturaNumero
                     ? "fatura"
@@ -806,7 +970,7 @@ export default function OrcamentosPage() {
                       <span className="font-semibold text-slate-800">€ {ivaValor.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between border-t border-slate-200 pt-1.5 text-sm">
-                      <span className="font-bold text-slate-900">Total</span>
+                         <span className="font-bold text-slate-900">Total pró-forma</span>
                       <span className="font-black text-blue-700">€ {totalGeral.toFixed(2)}</span>
                     </div>
                   </div>
@@ -1108,19 +1272,19 @@ export default function OrcamentosPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={emitirFatura}
-                  disabled={emitindo || !podeEditar || orcStatus !== "Aprovado" || !!faturaNumero}
-                  title={
-                    faturaNumero
-                      ? `Fatura ${faturaNumero} já emitida`
-                      : orcStatus !== "Aprovado"
-                        ? "Aprove primeiro o orçamento"
-                        : "Emitir fatura desta ordem"
-                  }
+                   onClick={emitirProforma}
+                   disabled={emitindo || !podeEditar || orcStatus !== "Aprovado"}
+                   title={
+                     faturaNumero
+                       ? `Já existe uma fatura definitiva ${faturaNumero}; pode consultar a pró-forma novamente`
+                       : orcStatus !== "Aprovado"
+                         ? "Aprove primeiro o orçamento"
+                         : "Gerar fatura pró-forma sem concluir a ordem"
+                   }
                   className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {emitindo ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
-                  {faturaNumero ? `Fatura ${faturaNumero}` : "Emitir fatura"}
+                   Gerar pró-forma
                 </button>
                 {(() => {
                   const jangadaId = detailRow.jangada?.id || detailRow.jangadas?.[0]?.id || null;

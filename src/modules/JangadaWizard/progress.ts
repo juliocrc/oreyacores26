@@ -25,6 +25,7 @@ export function getStepProgress(data: InspectionData, opts?: { hideOrcamento?: b
     testes: step6Percent(data),
     boletins: step6CPercent(data),
     reparacoes: stepReparacoesPercent(data),
+    contentor: stepContentorPercent(data),
     orcamento: step7Percent(data),
     resumo: step8Percent(data),
     certificados: step9Percent(data),
@@ -158,6 +159,12 @@ function step6CPercent(_d: InspectionData) {
 function stepReparacoesPercent(d: InspectionData) {
   const repairs = (d.reparacoes || []).filter((r: any) => r.tipo || r.descricao);
   if (repairs.length === 0) return { percent: 0, missing: ['Indicar colagem/reparações'] };
+  return { percent: 100, missing: [] };
+}
+
+function stepContentorPercent(_d: InspectionData) {
+  // A seleção do equipamento de fecho do contentor é opcional: só se aplica
+  // quando há substituição de cintas/autocolantes/HRU ou reparo. Não bloqueia.
   return { percent: 100, missing: [] };
 }
 

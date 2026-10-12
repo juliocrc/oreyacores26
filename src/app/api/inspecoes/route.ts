@@ -15,6 +15,7 @@ function buildSaveErrorResponse(context: ReturnType<typeof beginApiRequest>, err
 import { generateInspectionCertificateNumber, generateNextObraNumber, saveInspection } from "@/app/inspecoes/actions";
 import { InspectionLockedError } from "@/lib/inspecao-lock";
 import { saveInspectionSnapshot } from '@/lib/inspection-snapshots';
+import { syncRaftChecklistDrivenArtigos } from "@/lib/checklist-sync";
 import { beginApiRequest, captureApiError, finishApiRequest, withRequestId } from '@/lib/observability';
 import { parseOrdemServicoMeta, toOrdemServicoMetaJson } from "@/lib/ordens-servico";
 import { getAccessContext } from "@/lib/access-control";
@@ -254,6 +255,12 @@ export async function POST(req: NextRequest) {
         await syncInspectionWithWorkOrder(Number(body.ordemId), saved.id, body.artigosSubstituidos || []);
       }
 
+      // Bateria de lítio / luz exterior da checklist → artigos ativos da jangada
+      const rafIdFinal = Number(body?.jangadaId ?? body?.raftId) || null;
+      if (payload.applyStockMovements !== false && rafIdFinal && body?.checklistSnapshot) {
+        syncRaftChecklistDrivenArtigos(rafIdFinal, { checklistSnapshot: body.checklistSnapshot }).catch(() => {});
+      }
+
       const created = await prisma.inspecao.findUnique({
         where: { id: saved.id },
         include: { artigos: true },
@@ -303,6 +310,12 @@ export async function PUT(req: NextRequest) {
     // Synchronize with Work Order if linked
     if (body?.ordemId) {
       await syncInspectionWithWorkOrder(Number(body.ordemId), saved.id, body.artigosSubstituidos || []);
+    }
+
+    // Bateria de lítio / luz exterior da checklist → artigos ativos da jangada
+    const rafIdFinal = Number(body?.jangadaId ?? body?.raftId) || null;
+    if (payload.applyStockMovements === true && rafIdFinal && body?.checklistSnapshot) {
+      syncRaftChecklistDrivenArtigos(rafIdFinal, { checklistSnapshot: body.checklistSnapshot }).catch(() => {});
     }
 
     const updated = await prisma.inspecao.findUnique({

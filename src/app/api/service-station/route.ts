@@ -34,6 +34,11 @@ type SaoMiguelPortCall =
   | "Ribeira Quente"
   | "Lagoa";
 
+// Origens autorizadas a registar a receção de uma jangada na estação: a
+// Logística (/logistica) e a própria ficha da jangada. As restantes origens
+// continuam bloqueadas para não criar entradas fora do fluxo.
+const RECECAO_ORIGINS = new Set(["logistica", "ficha", "ficha_jangada", "jangada"]);
+
 const DELIVERY_METHODS = new Set<DeliveryMethod>(["cliente", "transitario", "navio"]);
 const SAO_MIGUEL_PORT_CALLS = new Set<SaoMiguelPortCall>([
   "Rabo de Peixe",
@@ -477,12 +482,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Conta sem estação de serviço associada." }, { status: 403 });
     }
 
-    // Regra: a receção de jangadas faz-se apenas pela Logística (/logistica).
-    if (status === "aguardar" && !isExpedicao && origem !== "logistica") {
+    // Regra: a receção de jangadas faz-se pela Logística (/logistica) ou
+    // diretamente pela ficha da jangada.
+    if (status === "aguardar" && !isExpedicao && !RECECAO_ORIGINS.has(origem)) {
       return NextResponse.json(
         {
           error:
-            "A receção de jangadas é feita apenas na Logística. Abra /logistica e use o botão «Receber».",
+            "A receção de jangadas faz-se na Logística (/logistica) ou através da ficha da jangada.",
         },
         { status: 403 },
       );

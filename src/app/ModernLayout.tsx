@@ -153,6 +153,7 @@ const navSections: NavSection[] = [
       { label: 'Integridade', href: '/integridade', icon: '🔐', roles: ['ADMIN'] },
       { label: 'Conformidade DGRM', href: '/dgrm', icon: '📄', roles: ['ADMIN'] },
       { label: 'Auditorias', href: '/auditorias', icon: '🔎', roles: ['ADMIN'] },
+      { label: 'Propostas do Portal', href: '/portal-propostas', icon: '✅', roles: ['ADMIN'] },
       {
         label: 'Departamento Técnico',
         href: '/departamento-tecnico',
@@ -161,6 +162,7 @@ const navSections: NavSection[] = [
       },
       { label: 'Legislação', href: '/legislacao', icon: '⚖️', roles: ['ADMIN'] },
       { label: 'Certificados Externos', href: '/fotos', icon: '📑', roles: ['ADMIN'] },
+      { label: 'Estatísticas', href: '/estatisticas', icon: '📊', roles: ['ADMIN', 'USER'] },
       { label: 'Relatórios', href: '/relatorios', icon: '📈', roles: ['ADMIN'] },
       { label: 'Contactos Internos', href: '/contactos-internos', icon: '☎️', roles: ['ADMIN'] },
     ],
@@ -169,6 +171,7 @@ const navSections: NavSection[] = [
     label: 'Administração',
     items: [
       { label: 'Utilizadores', href: '/utilizadores', icon: '👤', roles: ['ADMIN'] },
+      { label: 'OneDrive', href: '/onedrive', icon: '☁️', roles: ['ADMIN'] },
       { label: 'Registar', href: '/registar', icon: '➕', roles: ['ADMIN'] },
     ],
   },

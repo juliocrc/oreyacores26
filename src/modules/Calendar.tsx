@@ -48,6 +48,7 @@ type InspectionCalendarProps = {
   externalDragEvent?: InspectionEvent | null;
   onExternalEventConsumed?: () => void;
   onDeleteEvent?: (event: InspectionEvent) => void;
+  onEditEvent?: (event: InspectionEvent) => void;
   expiringByDay?: Record<string, any[]>;
 };
 
@@ -119,6 +120,7 @@ export default function InspectionCalendar({
   externalDragEvent,
   onExternalEventConsumed,
   onDeleteEvent,
+  onEditEvent,
 }: InspectionCalendarProps) {
   const [view, setView] = useState<"month" | "week" | "day">("week");
   const [date, setDate] = useState(new Date());
@@ -309,9 +311,11 @@ export default function InspectionCalendar({
                alert("Este evento refere-se a férias ou ausência de um técnico. Pode gerir este registo na página de Técnicos.");
                return;
              }
-             if (window.confirm("Desejas cancelar este agendamento?\n\nClica OK para DESMARCAR o agendamento.\nClica Cancelar para o manter.")) {
-               if (onDeleteEvent) onDeleteEvent(event as InspectionEvent);
-             }
+              if (onEditEvent) {
+                onEditEvent(event as InspectionEvent);
+              } else if (window.confirm("Desejas cancelar este agendamento?\n\nClica OK para DESMARCAR o agendamento.\nClica Cancelar para o manter.")) {
+                if (onDeleteEvent) onDeleteEvent(event as InspectionEvent);
+              }
           }}
           dragFromOutsideItem={externalDragEvent ? () => externalDragEvent : undefined}
           onDropFromOutside={onDropFromOutside}

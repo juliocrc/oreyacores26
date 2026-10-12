@@ -5,6 +5,7 @@ import { getAccessContext } from "@/lib/access-control";
 import { carregarFaturaPorOrdemServico, resumoFatura } from "@/lib/faturamento";
 import { formatIsencaoIva } from "@/lib/iva-isencao-codes";
 import { parseOrdemServicoMeta } from "@/lib/ordens-servico";
+import { saveExternalCertificadoToNavioFolder } from "@/lib/certificados-organizados";
 
 const TEAL: [number, number, number] = [0.06, 0.46, 0.43];
 const DARK: [number, number, number] = [0.13, 0.16, 0.2];
@@ -63,13 +64,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: "Ordem de serviço não encontrada." }, { status: 404 });
     }
 
-    if (order.status !== "concluida") {
-      return NextResponse.json(
-        { error: "A fatura só pode ser gerada para ordens de serviço concluídas." },
-        { status: 400 },
-      );
-    }
-
     const link = await carregarFaturaPorOrdemServico(id);
     const fatura = link?.fatura ?? null;
 
@@ -114,14 +108,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     };
 
     // Header band
-    page.drawRectangle({ x: 0, y: 841.89 - 110, width: PAGE_WIDTH, height: 110, color: rgb(TEAL[0], TEAL[1], TEAL[2]) });
-    drawText("FATURA", MARGIN, 841.89 - 75, 26, { font: fontBold, color: [1, 1, 1] });
-    drawText(resumo.issuer, MARGIN, 841.89 - 48, 11, { color: [1, 1, 1] });
+    page.drawRectangle({ x: 0, y: 841.89 - 125, width: PAGE_WIDTH, height: 125, color: rgb(TEAL[0], TEAL[1], TEAL[2]) });
+    drawText("FATURA PRÓ-FORMA", MARGIN, 841.89 - 42, 20, { font: fontBold, color: [1, 1, 1] });
+    drawText(resumo.numeroFatura, PAGE_WIDTH - MARGIN, 841.89 - 42, 18, { font: fontBold, color: [1, 1, 1], align: "right" });
 
-    // Meta info right side
-    drawText(resumo.numeroFatura, PAGE_WIDTH - MARGIN, 841.89 - 75, 20, { font: fontBold, color: [1, 1, 1], align: "right" });
+    drawText("Orey Técnica, Serviços Navais Lda.", MARGIN, 841.89 - 66, 11, { font: fontBold, color: [1, 1, 1] });
+    drawText("Morada: Zona Industrial dos Portões Vermelhos, Armazém 19", MARGIN, 841.89 - 82, 9, { color: [0.92, 0.96, 0.96] });
+    drawText("NIF: 501117334 | Email: azores.tecnica@orey.com", MARGIN, 841.89 - 98, 9, { color: [0.92, 0.96, 0.96] });
 
-    y = 841.89 - 130;
+    y = 841.89 - 145;
     const label = (label: string, value: string, size = 10) => {
       drawText(label, MARGIN, y, size, { font: fontBold, color: GRAY });
       drawText(value, MARGIN + 130, y, size, { color: DARK });
@@ -143,7 +138,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     label("Data de emissão", formatDate(resumo.emissao));
     label("Data de trabalho", formatDate(dataTrabalho));
     if (tecnicoNome) label("Técnico responsável", tecnicoNome);
-    label("Estado de Pagamento", resumo.pagamentoStatus);
+    label("Cond. pagamento", resumo.condicoesPagamento);
 
     // Table header
     y -= 10;
@@ -223,12 +218,25 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const pdfBytes = await doc.save();
     const copy = new Uint8Array(pdfBytes.byteLength);
     copy.set(pdfBytes);
+    const buffer = Buffer.from(copy);
+    const fileName = `fatura-proforma-${resumo.numeroFatura.replace(/[/\\?%*:|"<>]/g, "_")}.pdf`;
+
+    if (resumo.navio && resumo.navio !== "—") {
+      try {
+        await saveExternalCertificadoToNavioFolder(resumo.navio, fileName, buffer, {
+          date: new Date(resumo.emissao || Date.now()),
+        });
+      } catch (e) {
+        console.warn("Erro ao guardar fatura PDF na pasta do navio:", e);
+      }
+    }
+
     const blob = new Blob([copy], { type: "application/pdf" });
 
     return new NextResponse(blob, {
       status: 200,
       headers: {
-        "Content-Disposition": `attachment; filename=fatura-${resumo.numeroFatura}.pdf`,
+        "Content-Disposition": `attachment; filename=${fileName}`,
         "Content-Type": "application/pdf",
       },
     });

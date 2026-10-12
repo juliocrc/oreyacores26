@@ -246,7 +246,7 @@ export type InspectionData = {
   // Step 7 — Equipamento de fecho do contentor (cintas, autocolantes, HRU)
   containerClosureItems?: Array<{
     key: string;
-    kind: "cinta" | "autocolante" | "hru";
+    kind: "cinta" | "autocolante" | "hru" | "reparo";
     referencia: string;
     descricao: string;
     quantidade: number;
