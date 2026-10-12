@@ -46,6 +46,7 @@ yarn-error.log*
 scripts/_alexis_debug.cjs
 public/NAVIOS ACORES/
 public/NAVIOS AÇORES/
+cruzeirocanal26/
 
 # typescript
 *.tsbuildinfo

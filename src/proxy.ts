@@ -57,6 +57,8 @@ const MODULOS = [
   "/departamento-tecnico",
   "/legislacao",
   "/fotos",
+  "/estatisticas",
+  "/portal-propostas",
   "/relatorios",
   "/contactos-internos",
   // Administração
