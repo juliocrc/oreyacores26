@@ -3515,7 +3515,7 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
               <p className="text-sm text-sky-600 font-semibold">A obter a última posição AIS conhecida por MMSI...</p>
             </div>
           ) : aisError ? (
-            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-6 text-center text-sm text-red-700">
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-6 text-center text-sm text-red-700 whitespace-pre-line">
               {aisError}
             </div>
           ) : (

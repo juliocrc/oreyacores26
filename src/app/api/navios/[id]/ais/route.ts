@@ -538,9 +538,32 @@ async function resolveBestPosition(mmsi: string): Promise<{ best: AisPositionRes
 
   if (usable.length) return { best: usable[0], diagnostics };
 
-  const withError = results.find((result) => result.error);
+  const ordered = providers
+    .map(({ source }) => results.find((item) => item.source === source))
+    .filter((result): result is AisPositionResult => Boolean(result));
+
+  const stripConfigNote = (text: string) => text.replace(/ \(necessário para o? [^)]*\)/i, '');
+
+  const detail = ordered.map((result) => {
+    if (isUsablePosition(result)) return `${result.source}: ok`;
+    if (result.error && /não configurad/i.test(result.error)) {
+      const label =
+        result.source === 'openwaters_live' ? 'stream OpenWaters'
+        : result.source === 'aisstream' ? 'AISStream'
+        : result.source === 'aishub' ? 'AISHub'
+        : result.source;
+      return `${label}: não configurado`;
+    }
+    return `${result.source}: ${stripConfigNote(result.error ?? 'sem posição')}`;
+  });
+
+  const dataError = ordered.find((result) => result.error && !/não configurad/i.test(result.error));
+  const headline = dataError?.error
+    ? stripConfigNote(dataError.error)
+    : 'Sem posição AIS disponível para este MMSI nas fontes configuradas.';
+
   return {
-    best: { found: false, source: 'none', error: withError?.error || 'Sem posição AIS disponível.' },
+    best: { found: false, source: 'none', error: `${headline}\n${detail.join('\n')}` },
     diagnostics,
   };
 }
