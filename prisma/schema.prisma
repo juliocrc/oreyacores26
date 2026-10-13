@@ -657,6 +657,8 @@ model Jangada {
   cylinderTuboCamaraInferiorDescricao  String?
   cylinderAcessoriosCamaraSuperiorJson String?
   cylinderAcessoriosCamaraInferiorJson String?
+  cylindersJson                        String?
+  testeCamarasJson                     String?
   valvulasAlivio                       String?
   valvulasAtestar                      String?
   hruReferencia                        String?

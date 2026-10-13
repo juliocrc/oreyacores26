@@ -58,6 +58,8 @@ import { toMonthInput, formatMonthPt, parseMonthEnd } from '@/lib/date-utils';
 import InspectionCompareDialog from '@/components/InspectionCompareDialog';
 import HistoricaInspecaoDialog from '@/components/jangadas/HistoricaInspecaoDialog';
 import LiferaftDiagram from '@/components/jangadas/LiferaftDiagram';
+import CylindersPanel, { parseCylindersJson, type CylinderRow } from '@/components/jangadas/CylindersPanel';
+import CamaraTestsPanel, { parseTesteCamarasJson } from '@/components/jangadas/CamaraTestsPanel';
 import { formatDate, getLocalDateKey, getLocalMidnight } from '@/lib/date-utils';
 import { buildInspectionIcs, downloadIcsFile } from '@/lib/ics';
 import { formatValidityDisplay, normalizeMonthYearValue } from '@/lib/date-display';
@@ -3565,6 +3567,20 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                     })()}
                   </div>
                 </div>
+
+                {(() => {
+                  const parsed = parseCylindersJson(data.cylindersJson);
+                  const fallback: CylinderRow = {
+                    serial: data.cylinderSerial,
+                    co2: data.cylinderCo2,
+                    n2: data.cylinderN2,
+                    tara: data.cylinderTara,
+                    pesoBruto: data.cylinderPesoBruto,
+                    dataTeste: data.cylinderDataTeste,
+                    dataProxTeste: data.cylinderDataProxTeste,
+                  };
+                  return <CylindersPanel cylinders={parsed} fallback={fallback} />;
+                })()}
               </div>
             </div>
 
@@ -5036,6 +5052,11 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
             lowerEnd: wpSource.testeWPCamaraInferiorFim,
           });
 
+          const camarasTests = parseTesteCamarasJson(data.testeCamarasJson) || parseTesteCamarasJson(editForm.testeCamaras);
+          const wpArcos = (camarasTests?.arcos || []).filter(
+            (a) => String(a.inicio ?? "") !== "" || String(a.fim ?? "") !== "",
+          );
+
           const testRecs = getTestRecommendations({
             brand: data.brand,
             model: data.model,
@@ -5124,9 +5145,10 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                   ['#wp-condicoes', 'Condições'],
                   ['#wp-camara-sup', 'Câmara Superior'],
                   ['#wp-camara-inf', 'Câmara Inferior'],
+                  ...wpArcos.map((_, i) => [`#wp-arco-${i}`, `Arco ${i + 1}`] as [string, string]),
                   ['#wp-outros', 'Outros Testes'],
                   ['#wp-hidraulico', 'Hidráulico'],
-                ] as const).map(([href, label]) => (
+                ] as [string, string][]).map(([href, label]) => (
                   <a
                     key={href}
                     href={href}
@@ -5610,8 +5632,72 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                       </div>
                     )}
                   </div>
+
+                  {/* Arcos (enumerados) */}
+                  {wpArcos.map((arco, i) => {
+                    const iniRaw = parseFloat(String(arco.inicio ?? '').replace(',', '.'));
+                    const fimRaw = parseFloat(String(arco.fim ?? '').replace(',', '.'));
+                    const hasVal = isFinite(iniRaw) && isFinite(fimRaw);
+                    const queda = hasVal ? iniRaw - fimRaw : null;
+                    const pct = hasVal && iniRaw !== 0 ? ((iniRaw - fimRaw) / iniRaw) * 100 : null;
+                    const fails = pct !== null && pct > 5;
+                    const unidadeArco = wpSource.testeWPUnidadePressao || 'hpa';
+                    return (
+                      <div key={`arco-${i}`} id={`wp-arco-${i}`} className="border border-slate-200 rounded-2xl p-5 space-y-4 scroll-mt-24">
+                        <h3 className="font-bold text-slate-800 text-sm flex items-center justify-between pb-2 border-b border-slate-100">
+                          <span className="flex items-baseline gap-1.5">
+                            Arco {i + 1}
+                            {arco.label && arco.label !== `A${i + 1}` && (
+                              <span className="text-[10px] font-semibold text-slate-400 uppercase">({arco.label})</span>
+                            )}
+                          </span>
+                          {pct !== null && (
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
+                              fails ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'
+                            }`}>
+                              {fails ? 'Falhou' : 'Aprovado'}
+                            </span>
+                          )}
+                        </h3>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Leitura Inicial</span>
+                            <p className="font-semibold text-slate-800">{arco.inicio || '—'} {unidadeArco}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Leitura Final</span>
+                            <p className="font-semibold text-slate-800">{arco.fim || '—'} {unidadeArco}</p>
+                          </div>
+                        </div>
+
+                        {hasVal && (
+                          <div className="grid grid-cols-3 gap-2.5 pt-2 text-center">
+                            <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                              <span className="block text-[10px] font-bold text-slate-450 uppercase tracking-wide">Queda Real</span>
+                              <span className="text-xs font-extrabold text-slate-800 mt-0.5 block">{(queda ?? 0).toFixed(2)} {unidadeArco}</span>
+                            </div>
+                            <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 col-span-2">
+                              <span className="block text-[10px] font-bold text-slate-450 uppercase tracking-wide">Percentagem Queda</span>
+                              <span className={`text-xs font-extrabold mt-0.5 block ${fails ? 'text-rose-650 font-black' : 'text-slate-800'}`}>
+                                {pct !== null ? `${pct.toFixed(2)}%` : '—'}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
+                        {fails && (
+                          <div className="mt-2 text-xs font-bold text-rose-600 bg-rose-50 border border-rose-100 rounded-xl p-2.5 flex items-center gap-1.5">
+                            <AlertCircle size={14} />
+                            Queda de Pressão excessiva ({(pct ?? 0).toFixed(2)}%)! Excedeu o limite regulamentar de 5%.
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
 
+                <CamaraTestsPanel data={camarasTests} />
               </div>
             </div>
           );

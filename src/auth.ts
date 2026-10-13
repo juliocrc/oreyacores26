@@ -6,6 +6,7 @@ import prisma from "@/lib/prisma";
 import { getAuthSecret, normalizeEmail } from "@/lib/auth";
 import { resolveEffectivePermissions } from "@/lib/user-permissions";
 import { getCachedPermissions, setCachedPermissions } from "@/lib/permissions-cache";
+import { encontrarClientePorContacto } from "@/lib/communications";
 
 const authUserSelect = {
   id: true,
@@ -43,6 +44,7 @@ export const authConfig: NextAuthConfig = {
         loginType: { type: "text" },
          code: { type: "text" },
         userId: { type: "text" },
+        phone: { type: "text" },
       },
       async authorize(credentials) {
         const str = (value: unknown): string | undefined =>
@@ -53,24 +55,41 @@ export const authConfig: NextAuthConfig = {
         const userId = str(credentials?.userId);
         const emailRaw = str(credentials?.email);
         const password = str(credentials?.password);
+        const phone = str(credentials?.phone);
 
         if (loginType === "client") {
           const email = normalizeEmail(emailRaw);
-          if (!email || !code) return null;
 
-          const cliente = await prisma.cliente.findFirst({
-            where: {
-              email,
-              verificationCode: { not: null },
-            },
-            select: {
-              id: true,
-              nome: true,
-               email: true,
-              verificationCode: true,
-              verificationCodeExpires: true,
-            }
-          });
+          const cliente = phone
+            ? await (async () => {
+                const match = await encontrarClientePorContacto(phone);
+                if (!match) return null;
+                return prisma.cliente.findUnique({
+                  where: { id: match.id },
+                  select: {
+                    id: true,
+                    nome: true,
+                    email: true,
+                    verificationCode: true,
+                    verificationCodeExpires: true,
+                  },
+                });
+              })()
+            : email
+              ? await prisma.cliente.findFirst({
+                  where: {
+                    email,
+                    verificationCode: { not: null },
+                  },
+                  select: {
+                    id: true,
+                    nome: true,
+                     email: true,
+                    verificationCode: true,
+                    verificationCodeExpires: true,
+                  }
+                })
+              : null;
 
           if (!cliente || !cliente.verificationCode) return null;
 

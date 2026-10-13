@@ -372,6 +372,8 @@ function buildJangadaUpdateData(
     "cylinderTuboCamaraInferiorDescricao",
     "cylinderAcessoriosCamaraSuperiorJson",
     "cylinderAcessoriosCamaraInferiorJson",
+    "cylindersJson",
+    "testeCamarasJson",
     "valvulasAlivio",
     "valvulasAtestar",
     "hruReferencia",
@@ -512,6 +514,8 @@ function buildJangadaUpdateData(
 }
 
 const JANGADA_COMPAT_OPTIONAL_FIELDS = [
+  "cylindersJson",
+  "testeCamarasJson",
   "serviceBulletinsAppliedJson",
   "testeWPUnidadePressao",
   "testeWPHoraInicio",
@@ -574,6 +578,8 @@ const JANGADA_DETAIL_FIELD_NAMES = [
   "cylinderTuboCamaraInferiorDescricao",
   "cylinderAcessoriosCamaraSuperiorJson",
   "cylinderAcessoriosCamaraInferiorJson",
+  "cylindersJson",
+  "testeCamarasJson",
   "valvulasAlivio",
   "valvulasAtestar",
   "hruReferencia",

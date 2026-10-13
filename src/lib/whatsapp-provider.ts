@@ -24,6 +24,8 @@ export type WhatsAppProviderResult = {
   enviadoDeFacto?: boolean;
   /** URL wa.me de fallback. */
   link?: string;
+  /** True quando não há API configurada (só link wa.me disponível). */
+  naoConfigurado?: boolean;
 };
 
 function getConfig() {
@@ -51,21 +53,10 @@ function normalizePhoneForApi(raw: string): string {
   return raw.replace(/[^0-9]/g, "").replace(/^0+/, "");
 }
 
-/**
- * Envia uma mensagem de texto via WhatsApp Business Cloud API ou Zapier.
- * Devolve link wa.me de fallback quando nenhum está configurado ou falham.
- */
-export async function sendWhatsAppApi(
+async function enviarWhatsAppCore(
   phoneRaw: string,
   mensagem: string,
 ): Promise<WhatsAppProviderResult> {
-  if (!(await isWhatsAppAllowed())) {
-    return {
-      ok: false,
-      erro: "WhatsApp disponível apenas para o administrador Júlio Correia.",
-    };
-  }
-
   const link = buildWhatsAppUrl(phoneRaw, mensagem);
 
   if (isZapierWhatsAppConfigured()) {
@@ -77,7 +68,7 @@ export async function sendWhatsAppApi(
   }
 
   if (!whatsappApiConfigurado()) {
-    return { ok: true, enviadoDeFacto: false, link };
+    return { ok: false, erro: "WhatsApp não configurado.", link, naoConfigurado: true };
   }
 
   const phone = normalizePhoneForApi(phoneRaw);
@@ -128,6 +119,48 @@ export async function sendWhatsAppApi(
       link,
     };
   }
+}
+
+/**
+ * Envia uma mensagem de texto via WhatsApp Business Cloud API ou Zapier.
+ * Devolve link wa.me de fallback quando nenhum está configurado ou falham.
+ */
+export async function sendWhatsAppApi(
+  phoneRaw: string,
+  mensagem: string,
+): Promise<WhatsAppProviderResult> {
+  if (!(await isWhatsAppAllowed())) {
+    return {
+      ok: false,
+      erro: "WhatsApp disponível apenas para o administrador Júlio Correia.",
+    };
+  }
+
+  const core = await enviarWhatsAppCore(phoneRaw, mensagem);
+  if (core.naoConfigurado) {
+    return { ok: true, enviadoDeFacto: false, link: core.link };
+  }
+  return core;
+}
+
+/**
+ * Envia uma mensagem via WhatsApp sem exigir sessão de administrador
+ * (usado por fluxos do sistema, ex.: código de acesso do cliente).
+ * Falha explicitamente quando não há API configurada (não devolve só o link).
+ */
+export async function sendWhatsAppSystem(
+  phoneRaw: string,
+  mensagem: string,
+): Promise<WhatsAppProviderResult> {
+  const core = await enviarWhatsAppCore(phoneRaw, mensagem);
+  if (core.naoConfigurado) {
+    return {
+      ok: false,
+      erro: "O envio por WhatsApp não está configurado. Contacte a Orey Técnica Açores.",
+      link: core.link,
+    };
+  }
+  return core;
 }
 
 function extractErrorMessage(raw: string): string | null {

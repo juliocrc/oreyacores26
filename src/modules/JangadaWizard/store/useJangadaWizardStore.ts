@@ -254,7 +254,25 @@ hruReference: draftData?.hruReference || raftData?.hruReferencia || '',
             dataTeste: raftData?.cylinderDataTeste || '',
             dataProxTeste: raftData?.cylinderDataProxTeste || '',
           },
-          cylinders: Array.isArray((raftData as any)?.cylinders) ? (raftData as any).cylinders : (raftData?.cylinderData && Array.isArray(raftData.cylinderData) ? raftData.cylinderData : []),
+          cylinders: (() => {
+            const rawJson = (raftData as any)?.cylindersJson;
+            if (typeof rawJson === "string" && rawJson.trim()) {
+              try {
+                const parsed = JSON.parse(rawJson);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+              } catch { /* ignora JSON inválido */ }
+            }
+            if (Array.isArray((raftData as any)?.cylinders) && (raftData as any).cylinders.length > 0) return (raftData as any).cylinders;
+            if (raftData?.cylinderData && Array.isArray(raftData.cylinderData) && raftData.cylinderData.length > 0) return raftData.cylinderData;
+            return raftData?.cylinder && (raftData.cylinder as any).serial ? [raftData.cylinder] : [];
+          })(),
+          testeCamaras: (() => {
+            const rawJson = (raftData as any)?.testeCamarasJson;
+            if (typeof rawJson === "string" && rawJson.trim()) {
+              try { return JSON.parse(rawJson); } catch { /* ignora JSON inválido */ }
+            }
+            return (raftData as any)?.testeCamaras || undefined;
+          })(),
 
           // Testes Base
           testes: {

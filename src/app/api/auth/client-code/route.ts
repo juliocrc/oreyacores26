@@ -3,6 +3,8 @@ import prisma from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { generateFiveDigitCode } from "@/lib/code";
 import { sendEmail, isEmailConfigured } from "@/lib/email-sender";
+import { encontrarClientePorContacto } from "@/lib/communications";
+import { sendWhatsAppSystem } from "@/lib/whatsapp-provider";
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,14 +13,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Pedido inválido." }, { status: 400 });
     }
 
-    const { email } = body as {
-      email?: string;
-    };
+    const { email, phone } = body as { email?: string; phone?: string };
     const cleanEmail = String(email || "").trim().toLowerCase();
-    if (!cleanEmail) {
-      return NextResponse.json({ error: "Indique o email para receber o código por email." }, { status: 400 });
+    const cleanPhone = String(phone || "").trim();
+
+    if (!cleanEmail && !cleanPhone) {
+      return NextResponse.json(
+        { error: "Indique o email ou o número de telemóvel para receber o código." },
+        { status: 400 },
+      );
     }
-    const rateKey = `client-code:${cleanEmail}`;
+
+    const rateKey = `client-code:${cleanPhone || cleanEmail}`;
     const { allowed, retryAfterMs } = checkRateLimit(rateKey, 3, 10 * 60 * 1000);
     if (!allowed) {
       return NextResponse.json(
@@ -27,35 +33,69 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const cliente = await prisma.cliente.findFirst({
-      where: { email: cleanEmail },
-      select: {
-        id: true,
-        nome: true,
-        email: true,
-      },
-    });
-
-    if (!cliente) {
-       return NextResponse.json({ error: "Não existe um cliente com este email." }, { status: 404 });
+    let clienteId: number;
+    let clienteEmail: string;
+    if (cleanPhone) {
+      const match = await encontrarClientePorContacto(cleanPhone);
+      if (!match) {
+        return NextResponse.json(
+          { error: "Não existe um cliente com este número de telemóvel." },
+          { status: 404 },
+        );
+      }
+      const full = await prisma.cliente.findUnique({
+        where: { id: match.id },
+        select: { id: true, email: true },
+      });
+      if (!full) {
+        return NextResponse.json(
+          { error: "Não existe um cliente com este número de telemóvel." },
+          { status: 404 },
+        );
+      }
+      clienteId = full.id;
+      clienteEmail = String(full.email || "").trim().toLowerCase();
+    } else {
+      const cliente = await prisma.cliente.findFirst({
+        where: { email: cleanEmail },
+        select: { id: true, email: true },
+      });
+      if (!cliente) {
+        return NextResponse.json({ error: "Não existe um cliente com este email." }, { status: 404 });
+      }
+      clienteId = cliente.id;
+      clienteEmail = String(cliente.email || "").trim().toLowerCase();
     }
 
     const code = generateFiveDigitCode();
 
-    // Persist verification code regardless of channel so auth.verify can validate
+    // Persist verification code regardless of channel so auth verify can validate
     await prisma.cliente.update({
-      where: { id: cliente.id },
+      where: { id: clienteId },
       data: {
         verificationCode: code,
         verificationCodeExpires: new Date(Date.now() + 10 * 60 * 1000),
       },
     });
 
+    if (cleanPhone) {
+      const msg = `O seu código de acesso ao Gestor Naval Pro é: ${code}\nVálido por 10 minutos.\n\nOrey Técnica Açores`;
+      const waResult = await sendWhatsAppSystem(cleanPhone, msg);
+      if (!waResult.ok) {
+        console.error("[client-code] WhatsApp send error:", waResult.erro);
+        return NextResponse.json(
+          { error: waResult.erro || "Não foi possível enviar o código por WhatsApp." },
+          { status: 500 },
+        );
+      }
+      return NextResponse.json({ success: true, message: "Código enviado por WhatsApp." });
+    }
+
     const msg = `O seu código de acesso ao Gestor Naval Pro é: ${code}\nVálido por 10 minutos.\n\nOrey Técnica Açores`;
     if (!isEmailConfigured()) {
       return NextResponse.json({ error: "O envio por email não está configurado. Contacte a Orey Técnica Açores." }, { status: 500 });
     }
-    const emailResult = await sendEmail({ to: cleanEmail, subject: "O seu código de acesso ao Gestor Naval Pro", text: msg });
+    const emailResult = await sendEmail({ to: clienteEmail, subject: "O seu código de acesso ao Gestor Naval Pro", text: msg });
     if (!emailResult.ok) {
       console.error("[client-code] Email send error:", emailResult.error);
       return NextResponse.json({ error: emailResult.error || "Não foi possível enviar o email." }, { status: 500 });

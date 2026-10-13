@@ -77,6 +77,8 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
       cylinderTuboCamaraInferiorDescricao: original.cylinderTuboCamaraInferiorDescricao,
       cylinderAcessoriosCamaraSuperiorJson: original.cylinderAcessoriosCamaraSuperiorJson,
       cylinderAcessoriosCamaraInferiorJson: original.cylinderAcessoriosCamaraInferiorJson,
+      cylindersJson: original.cylindersJson,
+      testeCamarasJson: original.testeCamarasJson,
       valvulasAlivio: original.valvulasAlivio,
       valvulasAtestar: original.valvulasAtestar,
       tuboIdentificacao: original.tuboIdentificacao,

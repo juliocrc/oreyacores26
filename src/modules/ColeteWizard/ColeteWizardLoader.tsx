@@ -48,7 +48,7 @@ export default function ColeteWizardLoader({ coleteId }: { coleteId: number }) {
               shipId: draft.navioId || coleteData.shipId || null,
               dataInspecao: draft.dataInspecao || new Date().toISOString().slice(0, 10),
               dataProxInspecao: draft.dataProxInspecao || "",
-              temLuz: coleteData.temLuz === false ? false : true,
+              temLuz: coleteData.temLuz === true,
 
               testePressao: coleteData.testePressao || "",
               testeInsuflacao: coleteData.testeInsuflacao || "",
@@ -67,7 +67,7 @@ export default function ColeteWizardLoader({ coleteId }: { coleteId: number }) {
             shipId: coleteData.shipId || null,
             dataInspecao: new Date().toISOString().slice(0, 10),
             dataProxInspecao: "",
-            temLuz: coleteData.temLuz === false ? false : true,
+            temLuz: coleteData.temLuz === true,
 
             testePressao: coleteData.testePressao || "",
             testeInsuflacao: coleteData.testeInsuflacao || "",

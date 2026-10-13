@@ -121,16 +121,16 @@ await performOfflineAwareJsonRequest({
              testeVazamento: inspectionData.testeVazamento,
              observacoes: inspectionData.observacoes,
              
-              temLuz: inspectionData.temLuz !== false,
+              temLuz: inspectionData.temLuz === true,
               cilindroRef: cylinder?.stockId ? (cylinder?.reference || null) : undefined,
               cilindroLote: cylinder?.stockId ? (cylinder?.lote || null) : undefined,
               cilindroValidade: cylinder?.stockId ? fmtVal(cylinder?.validade) : undefined,
               pastilhaRef: cartridge?.reference || null,
               pastilhaLote: cartridge?.lote || null,
               pastilhaValidade: fmtVal(cartridge?.validade),
-              luzRef: inspectionData.temLuz !== false ? (light?.reference || null) : null,
-              luzLote: inspectionData.temLuz !== false ? (light?.lote || null) : null,
-              luzValidade: inspectionData.temLuz !== false ? fmtVal(light?.validade) : null,
+              luzRef: inspectionData.temLuz === true ? (light?.reference || null) : null,
+              luzLote: inspectionData.temLuz === true ? (light?.lote || null) : null,
+              luzValidade: inspectionData.temLuz === true ? fmtVal(light?.validade) : null,
               apitoRef: whistle?.stockId ? (whistle?.reference || null) : undefined,
               apitoLote: whistle?.stockId ? (whistle?.lote || null) : undefined,
               apitoValidade: whistle?.stockId ? fmtVal(whistle?.validade) : undefined,
@@ -182,7 +182,7 @@ await performOfflineAwareJsonRequest({
 
       const navioId = inspectionData.shipId;
       reset();
-      router.push(navioId ? `/equipamentos?navio=${navioId}` : `/equipamentos`);
+      router.push(navioId ? `/navios/${navioId}?tab=equipment&section=section-coletes` : `/equipamentos`);
       router.refresh();
 
     } catch (err: unknown) {

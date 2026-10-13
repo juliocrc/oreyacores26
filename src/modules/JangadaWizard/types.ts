@@ -41,6 +41,29 @@ export type CylinderData = {
 
 export type CylinderArrayItem = CylinderData;
 
+export type CamaraTestRow = {
+  label: string;
+  inicio?: string;
+  fim?: string;
+  queda?: string;
+  pct?: string;
+  valido?: string;
+  abertura?: string;
+  reset?: string;
+};
+
+export type TesteCamarasData = {
+  unidade?: string;
+  tubes?: CamaraTestRow[];
+  arcos?: CamaraTestRow[];
+  overpressure?: {
+    tubes?: CamaraTestRow[];
+    arcos?: CamaraTestRow[];
+    superior?: { abertura?: string; reset?: string };
+    inferior?: { abertura?: string; reset?: string };
+  };
+};
+
 export type TestResult = "PASSOU" | "REPROVOU" | "N/A" | "";
 
 export type TestesData = {
@@ -228,6 +251,9 @@ export type InspectionData = {
   // Step 5 — Cilindros
   cylinder: CylinderData;
   cylinders?: CylinderData[];
+
+  // Step 6 — Testes às várias câmaras (tubes) e arcos
+  testeCamaras?: TesteCamarasData;
 
   // Step 6 — Testes
   testes: TestesData;

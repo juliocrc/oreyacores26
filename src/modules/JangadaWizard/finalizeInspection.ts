@@ -490,6 +490,10 @@ export async function persistInspection({ isFinal }: { isFinal: boolean }): Prom
       const firstCylinder: any = (Array.isArray((inspectionData as any).cylinders) && (inspectionData as any).cylinders.length > 0)
         ? (inspectionData as any).cylinders[0]
         : (inspectionData as any).cylinder;
+      const cylindersArray: any[] = (Array.isArray((inspectionData as any).cylinders) && (inspectionData as any).cylinders.length > 0)
+        ? (inspectionData as any).cylinders
+        : (firstCylinder ? [firstCylinder] : []);
+      const testeCamaras: any = (inspectionData as any).testeCamaras;
       const jangadaPayload: Record<string, any> = {
         brand: inspectionData.brand,
         model: inspectionData.model,
@@ -515,6 +519,8 @@ export async function persistInspection({ isFinal }: { isFinal: boolean }): Prom
         cylinderN2: firstCylinder?.n2,
         cylinderDataProxTeste: firstCylinder?.dataProxTeste,
         cylinders: (Array.isArray((inspectionData as any).cylinders) && (inspectionData as any).cylinders.length > 0) ? (inspectionData as any).cylinders : (firstCylinder ? [firstCylinder] : []),
+        cylindersJson: cylindersArray.length ? JSON.stringify(cylindersArray) : null,
+        testeCamarasJson: testeCamaras ? JSON.stringify(testeCamaras) : null,
         testeWP: inspectionData.testes?.testeWP,
         testeWPUnidadePressao: inspectionData.testes?.wpUnidadePressao,
         testeWPHoraInicio: inspectionData.testes?.wpHoraInicio,

@@ -499,6 +499,7 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
   const [uploadingNavioFile, setUploadingNavioFile] = useState<'documentos' | 'certificados' | null>(null);
   const [rememberedSmartFocus, setRememberedSmartFocus] = useState<StoredSmartFocus | null>(null);
   const smartFocusAutoAppliedRef = React.useRef(false);
+  const deepLinkAppliedRef = React.useRef(false);
 
   useEffect(() => { setIsClient(true); }, []);
 
@@ -1336,6 +1337,27 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
     window.localStorage.setItem(smartFocusStorageKey, JSON.stringify(stored));
     setRememberedSmartFocus(stored);
   }, [rememberedSmartFocus?.key, smartFocusPreferredKey, smartFocusPreferredTarget, smartFocusStorageKey]);
+
+  useEffect(() => {
+    if (!isClient || loading || !data || deepLinkAppliedRef.current) return;
+    if (typeof window === 'undefined') return;
+    const searchParams = new URLSearchParams(window.location.search);
+    const tab = searchParams.get('tab');
+    const section = searchParams.get('section');
+    if (!tab && !section) return;
+
+    deepLinkAppliedRef.current = true;
+    smartFocusAutoAppliedRef.current = true;
+
+    const validTabs = ['dossier', 'equipment', 'technical', 'inspections', 'mapa'] as const;
+    let targetTab: typeof validTabs[number] | null = null;
+    if (tab && (validTabs as readonly string[]).includes(tab)) targetTab = tab as typeof validTabs[number];
+    if (section && ['section-jangadas', 'section-coletes', 'section-epirbs', 'section-pirotecnia'].includes(section)) {
+      targetTab = 'equipment';
+    }
+    if (targetTab) window.setTimeout(() => setActiveTab(targetTab!), 0);
+    if (section) window.setTimeout(() => scrollToSection(section), 180);
+  }, [data, isClient, loading]);
 
   useEffect(() => {
     if (!isClient || loading || !data || !smartFocusPreferredTarget || smartFocusAutoAppliedRef.current) return;

@@ -97,7 +97,7 @@ const initialInspectionData = {
   tuboInflador: 'OK',
   zataosVelcro: 'OK',
 
-  temLuz: true,
+  temLuz: false,
 
   componentes: [
     { id: 'cylinder', name: 'Cilindro CO2', reference: '', stockId: null, validade: '', lote: '', substituido: false },

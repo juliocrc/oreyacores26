@@ -29,15 +29,6 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/api/**/*": ["./templates/**/*"],
   },
-  async redirects() {
-    return [
-      {
-        source: '/relatorios',
-        destination: '/obras',
-        permanent: true,
-      },
-    ];
-  },
   async headers() {
     return [
       {

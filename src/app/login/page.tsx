@@ -48,7 +48,7 @@ function LoginPageContent() {
 
   const [tab, setTab] = React.useState(0);
 
-  const [clientEmail, setClientEmail] = React.useState("");
+  const [clientLogin, setClientLogin] = React.useState("");
   const [clientCode, setClientCode] = React.useState("");
   const [clientStep, setClientStep] = React.useState<"form" | "code">("form");
   const [clientError, setClientError] = React.useState<string | null>(null);
@@ -108,9 +108,9 @@ function LoginPageContent() {
       const res = await fetch("/api/auth/client-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: clientEmail,
-        }),
+        body: JSON.stringify(
+          clientLogin.includes("@") ? { email: clientLogin } : { phone: clientLogin },
+        ),
       });
       const data = await res.json();
       if (!res.ok) { setClientError(data.error || "Erro ao enviar código."); return; }
@@ -127,7 +127,7 @@ function LoginPageContent() {
     try {
       const result = await signIn("credentials", {
         loginType: "client",
-        email: clientEmail,
+        ...(clientLogin.includes("@") ? { email: clientLogin } : { phone: clientLogin }),
         code: clientCode,
         callbackUrl: "/area-cliente",
         redirect: false,
@@ -262,10 +262,10 @@ function LoginPageContent() {
               {clientStep === "form" ? (
                 <Stack spacing={3} component="form" onSubmit={handleRequestCode}>
                    <Typography variant="body2" color="text.secondary" textAlign="center">
-                     Introduza o email registado para receber um novo código de acesso.
+                     Introduza o email ou o telemóvel registado para receber um novo código de acesso.
                    </Typography>
-                   <TextField label="Email" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)}
-                     required fullWidth placeholder="cliente@empresa.pt"
+                   <TextField label="Email ou telemóvel" value={clientLogin} onChange={(e) => setClientLogin(e.target.value)}
+                     required fullWidth placeholder="cliente@empresa.pt ou 912345678"
                      sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 } }} />
                   <Button type="submit" variant="contained" size="large" fullWidth disabled={isSubmitting}
                     sx={{ py: 1.5, textTransform: "none", fontWeight: 700, borderRadius: 4, fontSize: 16, boxShadow: "0 4px 12px rgba(37, 99, 235, 0.2)" }}>
@@ -276,8 +276,8 @@ function LoginPageContent() {
                 <Stack spacing={3} component="form" onSubmit={handleClientLogin}>
                   <Typography variant="body2" color="text.secondary" textAlign="center">
                     Introduza o código de 5 dígitos recebido
-                     por email.
-                   </Typography>
+                     por email ou WhatsApp.
+                  </Typography>
                   <TextField label="Código" value={clientCode} onChange={(e) => setClientCode(e.target.value.replace(/\D/g, "").slice(0, 5))}
                     required fullWidth placeholder="12345" inputProps={{ maxLength: 5 }}
                     sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 },

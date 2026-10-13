@@ -85,7 +85,7 @@ export default function Step3_Componentes({ onNext, onPrev }: Props) {
           <label className="text-xs font-semibold text-slate-700">Colete tem luz de emergência?</label>
           <select
             className="border border-slate-300 rounded-lg px-3 py-1.5 text-xs bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-            value={inspectionData.temLuz === false ? 'nao' : 'sim'}
+            value={inspectionData.temLuz ? 'sim' : 'nao'}
             onChange={(e) => setInspectionData({ temLuz: e.target.value === 'sim' })}
           >
             <option value="sim">Sim</option>
