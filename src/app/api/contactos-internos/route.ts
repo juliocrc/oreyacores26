@@ -18,6 +18,7 @@ type SanitizedContactoInternoPayload = {
   observacoes?: string | null;
   ativo?: boolean;
   fonte?: string | null;
+  tecnicoId?: number | null;
 };
 
 type ContactoInternoRecord = {
@@ -81,6 +82,14 @@ function sanitizeContactoInternoPayload(data: ContactoInternoInput): SanitizedCo
     observacoes: normalizeOptionalString(data?.observacoes),
     ativo: typeof data?.ativo === "boolean" ? data.ativo : undefined,
     fonte: normalizeOptionalString(data?.fonte),
+    tecnicoId:
+      data && Object.prototype.hasOwnProperty.call(data, "tecnicoId")
+        ? data.tecnicoId === "" || data.tecnicoId == null
+          ? null
+          : Number.isFinite(Number(data.tecnicoId))
+            ? Number(data.tecnicoId)
+            : null
+        : undefined,
   };
 }
 
@@ -91,6 +100,7 @@ export async function GET(req: NextRequest) {
   const empresa = searchParams.get("empresa")?.trim();
   const localizacao = searchParams.get("localizacao")?.trim();
   const ativo = searchParams.get("ativo")?.trim();
+  const tecnicoIdParam = searchParams.get("tecnicoId")?.trim();
 
   const where: Record<string, unknown> = {};
 
@@ -124,8 +134,15 @@ export async function GET(req: NextRequest) {
     where.ativo = false;
   }
 
+  if (tecnicoIdParam === "none") {
+    where.tecnicoId = null;
+  } else if (tecnicoIdParam && Number.isFinite(Number(tecnicoIdParam))) {
+    where.tecnicoId = Number(tecnicoIdParam);
+  }
+
   const contactos = await contactoInternoModel.findMany({
     where,
+    include: { tecnico: { select: { id: true, nome: true, email: true } } },
     orderBy: [
       { categoria: "asc" },
       { empresa: "asc" },
@@ -160,6 +177,7 @@ export async function POST(req: NextRequest) {
         observacoes: data.observacoes,
         ativo: data.ativo ?? true,
         fonte: data.fonte,
+        tecnicoId: data.tecnicoId ?? null,
       },
     });
 

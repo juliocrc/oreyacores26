@@ -1,0 +1,38 @@
+[
+  {
+    "tecnicoId": 5,
+    "nome": "João Ferreira",
+    "localizacao": "ES Aveleda",
+    "email": "joao.ferreira@orey.com",
+    "observacoes": "Técnico ES Aveleda",
+    "insertedId": 60,
+    "skipped": false
+  },
+  {
+    "tecnicoId": 6,
+    "nome": "Rui Costa",
+    "localizacao": "ES Aveleda",
+    "email": "rui.costa@orey.com",
+    "observacoes": "Técnico ES Aveleda",
+    "insertedId": 61,
+    "skipped": false
+  },
+  {
+    "tecnicoId": 9,
+    "nome": "Manuel Silva",
+    "localizacao": "ES Alcantarilha",
+    "email": "manuel.silva@orey.com",
+    "observacoes": "Técnico ES Alcantarilha (Algarve)",
+    "insertedId": 62,
+    "skipped": false
+  },
+  {
+    "tecnicoId": 14,
+    "nome": "Duarte Marques",
+    "localizacao": "ES Vialonga",
+    "email": null,
+    "observacoes": "Técnico ES Lisboa/Vialonga",
+    "insertedId": 63,
+    "skipped": false
+  }
+]

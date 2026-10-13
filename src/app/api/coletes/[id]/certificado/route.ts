@@ -2,13 +2,7 @@
 import { APP_CONFIG } from "@/lib/app-config";
 import prisma from "@/lib/prisma";
 
-function buildGeneratedCertificateNumber(coleteId: number, date = new Date()) {
-  const dateStr = date.toISOString().slice(0, 10).replace(/-/g, "");
-  return `CERT-${dateStr}-${coleteId}`;
-}
-
 type CertificadoBody = {
-  numeroCertificado?: string | null;
   dataCertificado?: string | null;
   dataValidade?: string | null;
   resultado?: string | null;
@@ -121,8 +115,6 @@ export async function POST(
       );
     }
 
-    const generatedNumeroCertificado = buildGeneratedCertificateNumber(coleteId);
-
     const existing = await prisma.certificadoColete.findUnique({
       where: { coleteId },
     });
@@ -131,7 +123,6 @@ export async function POST(
       where: { coleteId },
       create: {
         coleteId,
-        numeroCertificado: body.numeroCertificado || generatedNumeroCertificado,
         dataCertificado: body.dataCertificado ? new Date(body.dataCertificado) : new Date(),
         dataValidade: body.dataValidade
           ? new Date(body.dataValidade)
@@ -141,7 +132,6 @@ export async function POST(
         observacoes: body.observacoes || null,
       },
       update: {
-        numeroCertificado: body.numeroCertificado || existing?.numeroCertificado || generatedNumeroCertificado,
         dataCertificado: body.dataCertificado ? new Date(body.dataCertificado) : existing?.dataCertificado || new Date(),
         dataValidade: body.dataValidade
           ? new Date(body.dataValidade)
@@ -193,7 +183,6 @@ export async function PUT(
     const certificado = await prisma.certificadoColete.update({
       where: { coleteId },
       data: {
-        numeroCertificado: body.numeroCertificado || existing.numeroCertificado,
         dataCertificado: body.dataCertificado ? new Date(body.dataCertificado) : existing.dataCertificado,
         dataValidade: body.dataValidade ? new Date(body.dataValidade) : existing.dataValidade,
         resultado: body.resultado || existing.resultado,

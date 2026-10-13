@@ -57,7 +57,6 @@ type TimelineItem = {
 
 type CertificateDocument = {
   id: string | number;
-  certificadoNumero?: string;
   fileName?: string;
   sourceYear?: number;
   dataInspecao?: string;
@@ -381,7 +380,7 @@ const ColetorPremiumDossierNoMemo = function ColetorPremiumDossier({
                   <div key={`cert-${String(cert.id)}`} className="rounded-2xl border border-blue-100 bg-blue-50 p-3">
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div>
-                        <p className="text-sm font-semibold text-slate-900">{String(cert.certificadoNumero || cert.fileName || `Certificado #${String(cert.id)}`)}</p>
+                        <p className="text-sm font-semibold text-slate-900">{cert.fileName || `Certificado de inspeção${cert.sourceYear ? ` ${cert.sourceYear}` : ''}`}</p>
                         <p className="mt-1 text-xs text-slate-600">
                           {cert.dataInspecao ? `Inspeção ${formatDatePt(cert.dataInspecao)}` : 'Sem data de inspeção'}
                           {cert.dataProxInspecao ? ` · Próxima ${formatDatePt(cert.dataProxInspecao)}` : ''}

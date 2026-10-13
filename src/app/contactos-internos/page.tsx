@@ -17,6 +17,8 @@ type ContactoInterno = {
   observacoes: string | null;
   ativo: boolean;
   fonte: string | null;
+  tecnicoId: number | null;
+  tecnico?: { id: number; nome: string; email: string | null } | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -33,6 +35,7 @@ type ContactoForm = {
   extensaoVodafone: string;
   observacoes: string;
   ativo: boolean;
+  tecnicoId: string;
 };
 
 const INITIAL_FORM: ContactoForm = {
@@ -47,6 +50,7 @@ const INITIAL_FORM: ContactoForm = {
   extensaoVodafone: "",
   observacoes: "",
   ativo: true,
+  tecnicoId: "",
 };
 
 function formatInlinePhone(value: string | null | undefined) {
@@ -68,6 +72,8 @@ export default function ContactosInternosPage() {
   const [showOnlyActive, setShowOnlyActive] = useState(true);
   const [isFormExpanded, setIsFormExpanded] = useState(false);
   const [form, setForm] = useState(INITIAL_FORM);
+  const [tecnicos, setTecnicos] = useState<Array<{ id: number; nome: string; email: string | null }>>([]);
+  const [tecnicoFiltro, setTecnicoFiltro] = useState("");
 
   const loadContactos = useCallback(async () => {
     try {
@@ -77,6 +83,7 @@ export default function ContactosInternosPage() {
       if (categoria.trim()) params.set("categoria", categoria.trim());
       if (empresa.trim()) params.set("empresa", empresa.trim());
       if (localizacao.trim()) params.set("localizacao", localizacao.trim());
+      if (tecnicoFiltro) params.set("tecnicoId", tecnicoFiltro);
       params.set("ativo", showOnlyActive ? "true" : "");
 
       const response = await fetch(`/api/contactos-internos?${params.toString()}`);
@@ -92,12 +99,39 @@ export default function ContactosInternosPage() {
     } finally {
       setLoading(false);
     }
-  }, [categoria, empresa, localizacao, search, showOnlyActive]);
+  }, [categoria, empresa, localizacao, search, showOnlyActive, tecnicoFiltro]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- setLoading(true) no início do fetch assíncrono controla o estado de carregamento.
     void loadContactos();
   }, [loadContactos]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch("/api/tecnicos?includeInactive=false");
+        if (!response.ok) return;
+        const data = await response.json();
+        const flat: Array<{ id: number; nome: string; email: string | null }> = [];
+        for (const station of Array.isArray(data?.stations) ? data.stations : []) {
+          for (const t of Array.isArray(station?.tecnicos) ? station.tecnicos : []) {
+            flat.push({ id: t.id, nome: t.nome, email: t.email ?? null });
+          }
+        }
+        for (const t of Array.isArray(data?.unassigned) ? data.unassigned : []) {
+          flat.push({ id: t.id, nome: t.nome, email: t.email ?? null });
+        }
+        flat.sort((a, b) => a.nome.localeCompare(b.nome, "pt-PT", { sensitivity: "base" }));
+        if (!cancelled) setTecnicos(flat);
+      } catch (error) {
+        console.error(error);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const empresas = useMemo(
     () => Array.from(new Set(contactos.map((item) => item.empresa).filter(Boolean) as string[])).sort((a, b) => a.localeCompare(b, "pt-PT")),
@@ -353,6 +387,7 @@ export default function ContactosInternosPage() {
                 <label className="text-sm text-slate-600">Categoria<select value={form.categoria} onChange={(event) => setForm((prev) => ({ ...prev, categoria: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"><option value="Colaborador">Colaborador</option><option value="Contacto útil">Contacto útil</option></select></label>
                 <label className="text-sm text-slate-600">Empresa<input type="text" value={form.empresa} onChange={(event) => setForm((prev) => ({ ...prev, empresa: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" /></label>
                 <label className="text-sm text-slate-600">Localização<input type="text" value={form.localizacao} onChange={(event) => setForm((prev) => ({ ...prev, localizacao: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" /></label>
+                <label className="text-sm text-slate-600">Técnico ligado<select value={form.tecnicoId} onChange={(event) => setForm((prev) => ({ ...prev, tecnicoId: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"><option value="">Sem técnico ligado</option>{tecnicos.map((item) => <option key={item.id} value={String(item.id)}>{item.nome}</option>)}</select></label>
                 <label className="text-sm text-slate-600">Email(s)<input type="text" value={form.email} onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))} placeholder="email@orey.com / outro@orey.com" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" /></label>
                 <label className="text-sm text-slate-600">Telemóvel<input type="text" value={form.telemovel} onChange={(event) => setForm((prev) => ({ ...prev, telemovel: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" /></label>
                 <label className="text-sm text-slate-600">Telefone fixo<input type="text" value={form.telefoneFixo} onChange={(event) => setForm((prev) => ({ ...prev, telefoneFixo: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" /></label>
@@ -380,11 +415,12 @@ export default function ContactosInternosPage() {
               </div>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
               <input type="text" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Pesquisar..." className="rounded-lg border border-slate-300 px-3 py-2 text-sm xl:col-span-2" />
               <select value={categoria} onChange={(event) => setCategoria(event.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm"><option value="">Todas as categorias</option>{categorias.map((item) => <option key={item} value={item}>{item}</option>)}</select>
               <select value={empresa} onChange={(event) => setEmpresa(event.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm"><option value="">Todas as empresas</option>{empresas.map((item) => <option key={item} value={item}>{item}</option>)}</select>
               <select value={localizacao} onChange={(event) => setLocalizacao(event.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm"><option value="">Todas as localizações</option>{localizacoes.map((item) => <option key={item} value={item}>{item}</option>)}</select>
+              <select value={tecnicoFiltro} onChange={(event) => setTecnicoFiltro(event.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm"><option value="">Todos os técnicos</option><option value="none">Sem técnico ligado</option>{tecnicos.map((item) => <option key={item.id} value={String(item.id)}>{item.nome}</option>)}</select>
             </div>
 
             <div className="mt-3 flex items-end justify-between gap-3">
@@ -412,7 +448,7 @@ export default function ContactosInternosPage() {
                       {!collapsed && (
                         <div className="overflow-x-auto border-t border-slate-200 bg-white/80">
                           <table className="min-w-full divide-y divide-slate-200 text-sm">
-                            <thead><tr className="bg-slate-100 text-left text-slate-600"><th className="px-3 py-2 font-semibold">Contacto</th><th className="px-3 py-2 font-semibold">Empresa / local</th><th className="px-3 py-2 font-semibold">Telefones</th><th className="px-3 py-2 font-semibold">Extensões</th><th className="px-3 py-2 font-semibold">Ações</th></tr></thead>
+                            <thead><tr className="bg-slate-100 text-left text-slate-600"><th className="px-3 py-2 font-semibold">Contacto</th><th className="px-3 py-2 font-semibold">Empresa / local</th><th className="px-3 py-2 font-semibold">Telefones</th><th className="px-3 py-2 font-semibold">Extensões</th><th className="px-3 py-2 font-semibold">Técnico</th><th className="px-3 py-2 font-semibold">Ações</th></tr></thead>
                             <tbody className="divide-y divide-slate-100">
                               {group.contactos.map((contacto) => (
                                 <tr key={contacto.id} className="align-top">
@@ -420,6 +456,7 @@ export default function ContactosInternosPage() {
                                   <td className="px-3 py-3 text-slate-600"><div>{contacto.empresa || "—"}</div><div className="text-xs text-slate-500">{contacto.localizacao || "Sem localização"}</div></td>
                                   <td className="px-3 py-3 text-slate-600"><div className="whitespace-nowrap text-xs text-slate-600">Móvel: {formatInlinePhone(contacto.telemovel)}</div><div className="whitespace-nowrap text-xs text-slate-500">Fixo: {formatInlinePhone(contacto.telefoneFixo)}</div></td>
                                   <td className="px-3 py-3 text-slate-600"><div className="whitespace-nowrap">NOS: {contacto.extensaoNos || "—"}</div><div className="whitespace-nowrap text-xs text-slate-500">Vodafone: {contacto.extensaoVodafone || "—"}</div></td>
+                                  <td className="px-3 py-3 text-slate-600">{contacto.tecnico ? (<div className="flex flex-col gap-1"><span className="inline-flex w-fit items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">Ligado</span><span className="text-xs font-medium text-slate-700">{contacto.tecnico.nome}</span></div>) : (<span className="text-xs text-slate-400">—</span>)}</td>
                                   <td className="px-3 py-3"><div className="flex flex-col gap-2"><Link href={`/contactos-internos/${contacto.id}`} className="rounded-md bg-blue-600 px-3 py-1.5 text-center text-xs font-semibold text-white hover:bg-blue-700">Abrir ficha</Link><button type="button" onClick={() => handleDelete(contacto.id, contacto.nome)} className="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700">Excluir</button></div></td>
                                 </tr>
                               ))}

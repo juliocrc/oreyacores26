@@ -138,7 +138,6 @@ model VerificacaoColete {
 model CertificadoColete {
   id                Int       @id @default(autoincrement())
   coleteId          Int       @unique
-  numeroCertificado String    @unique
   dataCertificado   DateTime  @default(now())
   dataValidade      DateTime?
   resultado         String    @default("Aprovado")
@@ -317,6 +316,8 @@ model ContactoInterno {
   observacoes      String?
   ativo            Boolean  @default(true)
   fonte            String?
+  tecnicoId        Int?
+  tecnico          Tecnico? @relation(fields: [tecnicoId], references: [id], onDelete: SetNull)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -326,6 +327,7 @@ model ContactoInterno {
   @@index([nome])
   @@index([ativo])
   @@index([fonte])
+  @@index([tecnicoId])
 }
 
 model ServiceStation {
@@ -906,6 +908,7 @@ model Tecnico {
   tempos           OrdemServicoTempo[]
   serviceStation   ServiceStation?                 @relation(fields: [serviceStationId], references: [id])
   ausencias        TecnicoAusencia[]
+  contactosInternos ContactoInterno[]
 
   @@index([serviceStationId])
   @@index([nome])

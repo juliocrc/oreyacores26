@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const access = await getAccessContext();
     if (!access) return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
 
-    const [jangadas, navios, clientes, coletes, epirbs, fatosImersao, artigos, faturas, ordensServico, inspecoes, certificadosExtraidos, certificadosColetes, certificadosFatos] = await Promise.all([
+    const [jangadas, navios, clientes, coletes, epirbs, fatosImersao, artigos, faturas, ordensServico, inspecoes, certificadosExtraidos, certificadosFatos] = await Promise.all([
       prisma.jangada.findMany({
         where: {
           OR: [
@@ -196,16 +196,6 @@ export async function GET(request: NextRequest) {
         take: 8,
         orderBy: { updatedAt: 'desc' },
       }),
-      prisma.certificadoColete.findMany({
-        where: { numeroCertificado: { contains: q, mode: 'insensitive' } },
-        select: {
-          id: true,
-          numeroCertificado: true,
-          colete: { select: { id: true, serial: true } },
-        },
-        take: 6,
-        orderBy: { dataCertificado: 'desc' },
-      }),
       prisma.certificadoFatoImersao.findMany({
         where: { numeroCertificado: { contains: q, mode: 'insensitive' } },
         select: {
@@ -281,11 +271,6 @@ export async function GET(request: NextRequest) {
           c.shipName,
         ]),
         href: c.jangada?.id ? `/jangadas/${c.jangada.id}` : `/certificados-organizados`,
-      })),
-      ...certificadosColetes.map((c) => ({
-        type: "Certificado Colete",
-        label: compactLabel([c.numeroCertificado, c.colete?.serial ? `Colete ${c.colete.serial}` : null]),
-        href: c.colete?.id ? `/equipamentos/${c.colete.id}` : `/equipamentos`,
       })),
       ...certificadosFatos.map((c) => ({
         type: "Certificado Fato",

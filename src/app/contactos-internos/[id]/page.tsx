@@ -19,6 +19,8 @@ type ContactoInterno = {
   observacoes: string | null;
   ativo: boolean;
   fonte: string | null;
+  tecnicoId: number | null;
+  tecnico?: { id: number; nome: string; email: string | null } | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -36,6 +38,7 @@ type ContactoForm = {
   observacoes: string;
   ativo: boolean;
   fonte: string;
+  tecnicoId: string;
 };
 
 function buildForm(contacto: ContactoInterno): ContactoForm {
@@ -52,6 +55,7 @@ function buildForm(contacto: ContactoInterno): ContactoForm {
     observacoes: contacto.observacoes || "",
     ativo: contacto.ativo,
     fonte: contacto.fonte || "",
+    tecnicoId: contacto.tecnicoId != null ? String(contacto.tecnicoId) : "",
   };
 }
 
@@ -64,6 +68,7 @@ export default function ContactoInternoDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [tecnicos, setTecnicos] = useState<Array<{ id: number; nome: string; email: string | null }>>([]);
 
   const isDirty = useMemo(() => {
     if (!contacto || !form) return false;
@@ -96,6 +101,33 @@ export default function ContactoInternoDetailPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- setLoading(true) no início do fetch assíncrono controla o estado de carregamento.
     loadContacto();
   }, [loadContacto]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch("/api/tecnicos?includeInactive=false");
+        if (!response.ok) return;
+        const data = await response.json();
+        const flat: Array<{ id: number; nome: string; email: string | null }> = [];
+        for (const station of Array.isArray(data?.stations) ? data.stations : []) {
+          for (const t of Array.isArray(station?.tecnicos) ? station.tecnicos : []) {
+            flat.push({ id: t.id, nome: t.nome, email: t.email ?? null });
+          }
+        }
+        for (const t of Array.isArray(data?.unassigned) ? data.unassigned : []) {
+          flat.push({ id: t.id, nome: t.nome, email: t.email ?? null });
+        }
+        flat.sort((a, b) => a.nome.localeCompare(b.nome, "pt-PT", { sensitivity: "base" }));
+        if (!cancelled) setTecnicos(flat);
+      } catch (error) {
+        console.error(error);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleSave = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -172,6 +204,11 @@ export default function ContactoInternoDetailPage() {
                 {!contacto.ativo && (
                   <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700">
                     Inativo
+                  </span>
+                )}
+                {contacto.tecnico && (
+                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                    Técnico: {contacto.tecnico.nome}
                   </span>
                 )}
               </div>
@@ -262,6 +299,19 @@ export default function ContactoInternoDetailPage() {
                 onChange={(event) => setForm((prev) => (prev ? { ...prev, localizacao: event.target.value } : prev))}
                 className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
               />
+            </label>
+            <label className="text-sm text-slate-600">
+              Técnico ligado
+              <select
+                value={form.tecnicoId}
+                onChange={(event) => setForm((prev) => (prev ? { ...prev, tecnicoId: event.target.value } : prev))}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              >
+                <option value="">Sem técnico ligado</option>
+                {tecnicos.map((item) => (
+                  <option key={item.id} value={String(item.id)}>{item.nome}</option>
+                ))}
+              </select>
             </label>
             <label className="text-sm text-slate-600 sm:col-span-2">
               Email(s)

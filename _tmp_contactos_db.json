@@ -1,0 +1,62 @@
+[
+  {
+    "id": 3,
+    "categoria": "Técnico",
+    "empresa": "Orey",
+    "localizacao": "Açores",
+    "nome": "Julio Correia",
+    "email": "julio.correia@orey.com",
+    "telemovel": "912345673",
+    "telefoneFixo": null,
+    "extensaoNos": null,
+    "extensaoVodafone": null,
+    "observacoes": null,
+    "ativo": true,
+    "fonte": null
+  },
+  {
+    "id": 4,
+    "categoria": "Técnico",
+    "empresa": "Orey",
+    "localizacao": "Açores",
+    "nome": "Alex Santos",
+    "email": "alex.santos@orey.com",
+    "telemovel": "912345674",
+    "telefoneFixo": null,
+    "extensaoNos": null,
+    "extensaoVodafone": null,
+    "observacoes": null,
+    "ativo": true,
+    "fonte": null
+  },
+  {
+    "id": 6,
+    "categoria": "Administrador",
+    "empresa": "Orey",
+    "localizacao": "Alcatarilha",
+    "nome": "Alvaro Silva",
+    "email": "alvaro.silva@orey.com",
+    "telemovel": "912345676",
+    "telefoneFixo": null,
+    "extensaoNos": null,
+    "extensaoVodafone": null,
+    "observacoes": null,
+    "ativo": true,
+    "fonte": null
+  },
+  {
+    "id": 7,
+    "categoria": "Administrador",
+    "empresa": "Orey",
+    "localizacao": "Alcatarilha",
+    "nome": "João Silvestre",
+    "email": "joao.silvestre@orey.com",
+    "telemovel": "912345677",
+    "telefoneFixo": null,
+    "extensaoNos": null,
+    "extensaoVodafone": null,
+    "observacoes": null,
+    "ativo": true,
+    "fonte": null
+  }
+]

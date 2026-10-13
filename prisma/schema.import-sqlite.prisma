@@ -158,7 +158,6 @@ model CertificadoColete {
   colete   Colete @relation(fields: [coleteId], references: [id], onDelete: Cascade)
 
   // Certificate Info
-  numeroCertificado String    @unique
   dataCertificado   DateTime  @default(now())
   dataValidade      DateTime?
 
@@ -400,6 +399,8 @@ model ContactoInterno {
   observacoes      String?
   ativo            Boolean  @default(true)
   fonte            String?
+  tecnicoId        Int?
+  tecnico          Tecnico? @relation(fields: [tecnicoId], references: [id], onDelete: SetNull)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -1072,6 +1073,7 @@ model Tecnico {
   serviceStation   ServiceStation?                 @relation(fields: [serviceStationId], references: [id])
   ausencias        TecnicoAusencia[]
   certificacoes    CertificacaoFabricanteTecnico[]
+  contactosInternos ContactoInterno[]
 
   @@index([serviceStationId])
   @@index([nome])

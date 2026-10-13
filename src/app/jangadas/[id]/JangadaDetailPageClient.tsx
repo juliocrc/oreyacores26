@@ -2869,6 +2869,17 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                   <FileText size={18} />
                   Imprimir Dossier
                 </button>
+                {/MES|SIS|MIS/i.test(`${data.brand || ''} ${data.model || ''} ${data.launchType || ''}`) && (
+                  <a
+                    href={`/jangadas/${jangadaId}/ficha-mes`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-all shadow-sm"
+                  >
+                    <FileText size={18} />
+                    Ficha MES
+                  </a>
+                )}
                 <button
                   onClick={() => setIsQrOpen(true)}
                   className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-all shadow-sm"

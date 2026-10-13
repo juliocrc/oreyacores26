@@ -1,0 +1,2249 @@
+
+
+########## PDF: ZODIAC 100 TO SR V MES MIS Nº XDC6FL95I314 STARBOARD (2023)V.pdf (pages=1) ##########
+
+A member of
+InflAtAble SAfety And
+SurvIvAl equIpment
+trAde ASSocIAtIon lImIted
+ISSettA form no 197
+Certificate
+no.
+CertifiCate of re-inspeCtion
+Inflatable Liferaft
+Type: 	Serial Number: 	Date of Manufacture:
+Fabric Type: 	Capacity: 	Length of Painter:
+m/inside 	m/outside
+Max Stowage height:
+m
+Identification:
+Cylinders:
+Equipment:
+Tests:
+Verification:
+Flagstate of ship:
+IMO No.
+International call signal
+Name of ship:
+Ship owner: Signature
+For authorized servicing station
+Serial No. 	Contents CO2 	Contents N2 	Latest hyd. test
+Unit 	Type 	Serial No. 	Expiry date
+Emergency pack:
+EPIRB:
+HRU test:
+Radar Reflector:
+First aid kit:
+Nap-test 	Gas inflation test 	Floor seam test 	Load test davit launched
+Yes/No 	Yes/No 	Yes/No 	Yes/No
+Latest Test: 	Latest Test: 	Latest Test: 	Latest Test:
+Date of inspection: 	Service Station name and No. 	Date issued to ship:
+National Marine
+authority ID No.
+Remarks/modification:
+Unit 	Serial No. 	Date of Manufacture
+Humidity/CO2 Sensor:
+2928826
+This is to certify that the raft detailed below has been surveyed, controlled and tested in compliance with requirements from:
+DGRM and the manufacturer and in accordance with IMO resolution A.761 (18)
+Survitec Zodiac TO XDC6FL95I314 Sep-2013
+Polyurethane 100 2 1 4
+HGH062 15.930kg 0.945kg Sep-2013
+HGH065 15.930kg 0.945kg Sep-2013
+HGH067 15.930kg 0.945kg Sep-2013
+WMW077 0.700kg 0.045kg Jul-2013
+Solas B XDC6FL95I314 Jan-2024
+SART 004109735T Jul-2026
+HAMMAR
+ZODIAC
+SOLAS Feb-2024
+No No No No
+16-Jan-2023
+50937:
+Orey Tecnica Azores 21-Jan-2023
+REPORT ANNEXED
+According to SOLAS regulation, this inflatable liferaft requires servicing within 12 months from the date of inspection (above).
+Julio Correa
+Portugal
+9690494
+CSMG
+&quot;GILGERTO MARIANO&quot;
+ATLANTICOLINE, S.A.
+Survitec Group, Kingsway, Dunmurry, Belfast, BT17 9AF, Northern Ireland
+Telephone: 44 (0) 28 9030 1531 FAX: 44 (0) 28 90621765
+Powered by TCPDF (www.tcpdf.org)
+
+-- 1 of 1 --
+
+
+
+
+########## XLSX: ZODIAC 100 TO SR V MES MIS Nº XDC6FL95I314 STARBOARD (2023)V.xlsx (sheets=Sheet1) ##########
+
+--- sheet: Sheet1 ---
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+SURVITEC ZODIAC      LIFERAFT TEST AND SURVEY REPORT n°      PAGE No 1/3,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Date:,,1/16/23,,,,Station N°:,,,,50937,,,,REINSPECTION CERTIFICATE N°:,,,,,,,,,,,,2928826,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Type of liferaft,,,,,,TO SR V  (MES MIS),,,,,,,,,Ship name,,,,,,"""GILBERTO MARIANO""",,,,,,,,,
+Capacity,,,,,,100,,,,,,,,,Owner,,,,,,"ATLANTICOLINE, S.A.",,,,,,,,,
+Serial n°,,,,,,XDC6FL95I314,,,,,,,,,Flag state,,,,,,PORTUGAL,,,,,,,,,
+Pack,,,,,,"SOLAS ""B""",,,,,,,,,IMO N°,,,,,,9690494,,,,,,,,,
+Date of Manufacture,,,,,,09/2013,,,,,,,,,Last service,,,,,,18/04/2022,,,,,,,,,
+Painter Line length,,,,,,"2,6 MT",,,,,,,,,By station n°,,,,,,50374,,,,,,,,,
+Stowage height ,,,,,,"4,0 MT",,,,,,,,,Last certificate n°,,,,,,2871441,,,,,,,,,
+,,,,,Information if MES SIS raft (mini slide),,,,,,,,,,,,,,Left,,,,Right,,,,,,,
+,,,,,Position of container on board,,,,,,,,,,,,,,Port side,,,,Starboard,,,,,,,
+,,,,,Firing Line Length (if EBL),,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,Mooring Springs Position for SIS slide connection,,,,,,,,,,,,,,1  |  2  |  3,,,,4  |  5  |  6,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+1. BLAST TEST on inflation hoses ,,,,,,,,,,,,,,,,,,,,,,,OK,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+2. OVERPRESSURE VALVES *,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Start:    ,,15:30,,TUBES,,,,,,,,,,,,,,ARCHES,,,,,,,,,,,,
+End:,,16:30,,UP / F1,,,LOW / F2,,,F3,,F4,,F5,,F6,,A1,,A2,,A3,,A4,,A5,,A6,,
+Opening,,,,213,,,210,,,,,,,,,,,261,,265,,265,,267,,,,,,
+Reset,,,,187,,,185,,,,,,,,,,,221,,236,,256,,226,,,,,,
+* Opening/reset pressures of the over pressure valves according to the color of the dot on the valve. Refer to,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+" Manual MS003, page 4 in PART I - Controls, Solas Tests",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,LIFERAFT FITTED WITH ASPIRATOR: ASPIRATOR PROTECTIVE TUBE,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,Overpressure valves test ,,,,,,,,UPPER,,,,,,,LOWER,,,,,,,,,,,
+,,,,Opening (max 296),,,,,,,,290,,,,,,,289,,,,,,,,,,,
+,,,,Reset (mini 206),,,,,,,,232,,,,,,,209,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+3. WORKING PRESSURE TEST (WP test)  Tolerance 5% of start pressure,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,Time,,,,,,,Temperature,,,,,,,Atmospheric pressure,,,,,,,
+Star,,,,,,,,,16:30,,,,,,,T1:,14.7 Cº,,,,,,P1:,1027 Hpa,,,,,,
+End,,,,,,,,,17:30,,,,,,,T2:,14.3 Cº,,,,,,P2:,1027 Hpa,,,,,,
+Difference,,,,,,,,,,,,,,,,,-0.4 Cº,,,,,,,0 Hpa,,,,,,
+Correction,,,,,,,,,,,,,,,,,-1.6,,,,,,,0,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,TUBES,,,,,,,,,,,,,,ARCHES,,,,,,,,,,,,
+,,,,UP / F1,,,LOW / F2,,,F3,,F4,,F5,,F6,,A1,,A2,,A3,,A4,,A5,,A6,,
+Start,,,,187,,,185,,,,,,,,,,,229,,236,,236,,226,,,,,,
+End,,,,184,,,182,,,,,,,,,,,221,,232,,232,,224,,,,,,
+"Result (after
+correction)",,,,-1.4,,,-1.4,,,,,,,,,,,-6.4,,-2.4,,-2.4,,-0.4,,,,,,
+,,,,-0.7%,,,-0.8%,,,,,,,,,,,-2.8%,,-1.0%,,-1.0%,,-0.2%,,,,,,
+Valid test,,,,YES,,,YES,,,,,,,,,,,YES,,YES,,YES,,YES,,,,,,
+YES/NO,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,LIFERAFT FITTED WITH ASPIRATOR: ASPIRATOR PROTECTIVE TUBE,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,Pressure Test,,,,,,Time,,,,UP (~235 mbar),,,,,,LOW (~235 mbar),,,,,,,,,,
+,,,,Start ,,,,,,16:35,,,,232,,,,,,209,,,,,,,,,,
+,,,,End(test on 10 mn),,,,,,16:45,,,,224,,,,,,181,,,,,,,,,,
+,,,,Final Result (OK if loss < 130 mbar),,,,,,,,,,-8,,,,,,-28,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Ed.03-2020,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+SURVITEC ZODIAC      LIFERAFT TEST AND SURVEY REPORT n°      PAGE No 2/3,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+4. CYLINDERS,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Cylinder N°,,,,,,HGH062,,,,HGH065,,,,HGH067,,,,WMW077,,,,,,,,,,,,
+CO2 Weight,,,,,,15.930 Kg,,,,15.930 Kg,,,,15.930 Kg,,,,0.700 Kg,,,,,,,,,,,,
+N2 Weight,,,,,,0.945 Kg,,,,0.945 Kg,,,,0.945 Kg,,,,0.045 Kg,,,,,,,,,,,,
+Full Weight,,,,,,46.140 Kg,,,,46.060 Kg,,,,45.770 Kg,,,,4.499 Kg,,,,,,,,,,,,
+Weight reading,,,,,,46.146 Kg,,,,46.068 Kg,,,,45.776 Kg,,,,4.500 Kg,,,,,,,,,,,,
+Last Hydro test,,,,,,09/2013,,,,09/2013,,,,09/2013,,,,07/2013,,,,,,,,,,,,
+Cylinder refilling date,,,,,,02/2018,,,,02/2018,,,,02/2018,,,,02/2018,,,,,,,,,,,,
+Firing head Type & n°,,,,,,DK99S Nº:60198,,,,DK96  Nº:08819,,,,DK96  Nº:08319,,,,DK96  Nº:08671,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,5. TESTS CARRIED OUT,,,,,,,,YES,,,,,,NO,,,,,,,,,,,
+,,,,,NAP TEST,,,,,,,,,,,,,,X,,,,,,,,,,,
+,,,,,GI test,,,,,,,,,,,,,,X,,,,,,,,,,,
+,,,,,Floor seam test,,,,,,,,,,,,,,X,,,,,,,,,,,
+,,,,,Over load test (DL),,,,,,,,---,,,,,,---,,,,,,,,,,,
+,,,,,Cylinder hydro test,,,,,,,,,,,,,,X,,,,,,,,,,,
+,,,,,Hoses replaced,,,,,,,,,,,,,,X,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+6. LIFERAFT INSPECTION,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Main buoyancies,,,,,,Chek,,R*,,Canopy,,,,,,Chek,,R*,,Inner floor,,,,,,Chek,,R*,,
+Buoyancy,,,,,,OK,,,,Canopy ,,,,,,OK,,,,Automatic bailer ,,,,,,OK,,,,
+Reflective tape,,,,,,OK,,,,Reflective tape,,,,,,OK,,,,Vacuum breaker,,,,,,OK,,,,
+Outer lifeline,,,,,,OK,,,,Rainwater collector,,,,,,,,1,,Insulating foam/rem. floor,,,,,,OK,,,,
+Inner lifeline,,,,,,OK,,,,Entrances,,,,,,OK,,,,Outer floor,,,,,,Chek,,R*,,
+Painter patch,,,,,,---,,,,External flash light,,,,,,,,1,,Reflective tape,,,,,,OK,,,,
+Towing patch,,,,,,OK,,,,Arches,,,,,,OK,,,,Water pockets,,,,,,OK,,,,
+Bowsing lines,,,,,,OK,,,,Shackle / Ring (DL),,,,,,---,,,,CO² cyl. pocket/straps ,,,,,,OK,,,,
+Ramp / Ladder,,,,,,OK,,,,Webbings (DL),,,,,,---,,,,Righting straps,,,,,,OK,,,,
+Overpressure valves,,,,,,OK,,,,,,,,,,,,,,,,,,,,,,,,
+Overpressure valves caps,,,,,,OK,,,,Container / Valise,,,,,,Chek,,R*,,Inflation system,,,,,,Chek,,R*,,
+Labels,,,,,,OK,,,,Upper shell ,,,,,,OK,,,,CO² valves,,,,,,OK,,,,
+Floating knife,,,,,,OK,,,,Lower shell ,,,,,,OK,,,,Hoses,,,,,,OK,,,,
+Sea Anchor,,,,,,OK,,,,Foam / plastic sheet,,,,,,OK,,,,Inflation valves,,,,,,OK,,,,
+Quoit + Line,,,,,,OK,,,,Painter line,,,,,,OK,,,,,,,,,,,,,,
+Painter line retrieving line,,,,,,---,,,,Labels,,,,,,OK,,,,If raft fitted with Venturi,,,,,,Chek,,R*,,
+Signal card,,,,,,OK,,,,Identification tube ,,,,,,OK,,,,Venturi,,,,,,OK,,,,
+Immediate actions card,,,,,,OK,,,,Shackle access cover (DL),,,,,,---,,,,Venturi caps,,,,,,OK,,,,
+Lighting system,,,,,,,,1,,,,,,,,,,,,Venturi flap cover,,,,,,OK,,,,
+R*= replacement,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+7. IF MES LIFERAFTS: CONNECTION LINES,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+MES SIS LIFERAFTS (Mini slide),,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Extremity Bowsing Line (EBL),,,,,,,,,,,Chek,,R*,,Central Bowsing Line (CBL),,,,,,,,,,,Chek,,R*,,
+EBL system good condition (Bowsing lines + Shock absorbers),,,,,,,,,,,,,,,CBL system good condition (Shock absorber + Safety line),,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Bowsing lines attached with 35kg zip ties,,,,,,,,,,,,,,,4 rings (per side) connected,,,,,,,,,,,,,,,
+2 B.lines with connected shock absorber(one per side) ,,,,,,,,,,,,,,,Shackles secured,,,,,,,,,,,,,,,
+Slings connected to the EBL system,,,,,,,,,,,,,,,Bowsing line + Painter connected to the CBL system,,,,,,,,,,,,,,,
+MES MIS LIFERAFTS (Super slide),,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+PRIMARY,,,,,,,,,,,Chek,,R*,,SECONDARY / ADDITIONAL,,,,,,,,,,,Chek,,R*,,
+Blue Tether line attached with 9 kg (x2) zip ties,,,,,,,,,,,OK,,,,Extremity connection lines fixed with 9 kg (x2) zip ties,,,,,,,,,,,,,,,
+Bowsing lines V connected with shackle + secured,,,,,,,,,,,OK,,,,Short connection lines OR shackles connected (in vacuum pouch),,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Slings connected to the Bowsing V,,,,,,,,,,,OK,,,,Pre-connection lines connected(out of vacuum pouch),,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Ed.03-2020,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+SURVITEC ZODIAC      LIFERAFT TEST AND SURVEY REPORT n°      PAGE No 3/3,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+8. ACCESSORIES INSPECTION,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Equipment,,,,,,Check,,R*,,Expiry date,,,,,,,,,Other equipment,,,,,,,Check,,R*,,
+  In the pack:,,,,,,,,,,,,,,,,,,,Leak stopper ,,,,,,,OK,,,,
+  Hand flares,,,,,,OK,,,,       05-2025,,,,,,,,,Foot pump,,,,,,,OK,,,,
+  Rocket parachute,,,,,,OK,,,,      08-2025,,,,,,,,,Bailer,,,,,,,OK,,,,
+  Smoke signal,,,,,,OK,,,,   05-2025,,,,,,,,,Sponge,,,,,,,OK,,,,
+  Food,,,,,,---,,,,,,,,,,,,,Tin opener,,,,,,,---,,,,
+  Water,,,,,,---,,,,,,,,,,,,,Fishing kit,,,,,,,---,,,,
+  First aid kit,,,,,,OK,,,,    02-2024,,,,,,,,,Torch,,,,,,,OK,,,,
+  Seasickness tablets,,,,,,OK,,,,02-2024,,,,,,,,,Spare bulb,,,,,,,OK,,,,
+"  Batteries 1,5V",,,,,,,,4,,20903022        12-2026,,,,,,,,,Signal mirror,,,,,,,OK,,,,
+  Glue in repair kit,,,,,,,,1,,05-2025,,,,,,,,,Whistle,,,,,,,OK,,,,
+  EPIRB,,,,,,---,,,,,,,,,,,,,Drinking vessel,,,,,,,OK,,,,
+  SART Ocean Signal S100,,,,,,OK,,,,S/N: 004109735T      04-2025,,,,,,,,,Seasickness bags,,,,,,,OK,,,,
+,,,,,,,,,,,,,,,,,,,Sea anchor,,,,,,,OK,,,,
+  Outside of the pack:,,,,,,,,,,,,,,,,,,,Paddles,,,,,,,OK,,,,
+  Radar transponder,,,,,,---,,,,,,,,,,,,,Rainwater collector,,,,,,,OK,,,,
+  HRU,,,,,,---,,,,,,,,,,,,,Servicing history ,,,,,,,OK,,,,
+  Lighting system,,,,,,,,1,,"BATTERY - 07-2026
+EXTERNAL LIGHT - 08-2026",,,,,,,,,T.P.A.,,,,,,,OK,,,,
+  (battery + flashing light),,,,,,,,,,,,,,,,,,,Radar reflector,,,,,,,OK,,,,
+  R*= replacement,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+9. LIFERAFT AND EQUIPMENT CONDITION INFORMATION,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,Yes,,No,,,,,,,,,,,,,Yes,,No,,
+Was the raft wet?,,,,,,,,,,,,,X,,Was the liferaft damaged?,,,,,,,,,,,,,X,,
+Was the container damaged?,,,,,,,,,,,,,X,,Had the liferaft been fired ,,,,,,,,,,,,,X,,
+Nature and extent of the damages:,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Nature and extent of the defects:,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Repairs carried out / remarks:,,,,,,,RAINWATER COLLECTOR - 31301020 (1),,,,,,,,,,,,,,,,,,,,,,,
+"SERVICE KIT MES MIS 4,8 100TOSRV - 31301112 (1) ; KIT RL6 >25 - 31301178 (1)",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+10. REPACKING WITH SAFETY CHECK - PACKER / CHECKER,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+DOCUMENTS,,,,,,,,,,Packer,,Checker,,,DOCUMENTS,,,,,,,,,,,Packer,,Checker,,
+Liferaft label completed,,,,,,,,,,D.M.,,A.S.,,,Container label completed,,,,,,,,,,,D.M.,,A.S.,,
+ID card completed,,,,,,,,,,D.M.,,A.S.,,,Servicing history completed,,,,,,,,,,,D.M.,,A.S.,,
+Re-inspection certificate completed,,,,,,,,,,D.M.,,A.S.,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+CONNECTIONS,,,,,,,,,,Packer,,Checker,,,For liferafts with VENTURI,,,,,,,,,,,Packer,,Checker,,
+Light connected,,,,,,,,,,J.C.,,A.S.,,,Venturi flap cover in position,,,,,,,,,,,J.C.,,A.S.,,
+Painter line connected,,,,,,,,,,---,,---,,,Venturi caps removed,,,,,,,,,,,J.C.,,A.S.,,
+Quick firing line connected,,,,,,,,,,J.C.,,A.S.,,,Venturis opened / secured,,,,,,,,,,,J.C.,,A.S.,,
+,,,,,,,,,,,,,,,Venturi protection rolled,,,,,,,,,,,J.C.,,A.S.,,
+DL container: shackle access cover glued,,,,,,,,,,---,,---,,,"Venturis protection held in central 
+pos. on the container (Not on MIS R302)",,,,,,,,,,,J.C.,,A.S.,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Station nº:,,,50937,,,Technician's name:,,,,,,JULIO CORREA,,,,,,,,,Signature:,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,, Checker's name:,,,,,,ANTÓNIO SARAMAGO,,,,,,,,,Signature:,,,,,,,,,
+,"IMPORTANT - The « Technician or Packer » as well as the « Checker » must be approved by SurvitecZodiac. 
+Please contact SurvitecZodiac for approval if an exemption is needed.
+- The fields « Packer » and « Checker » must be always filled with the initials or with « N/A».
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Ed.03-2020,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+
+
+########## PDF: ZODIAC 100 TO SR V MES MIS Nº XDC6FL96I314 PORTSIDE (2023) V.pdf (pages=1) ##########
+
+A member of
+InflAtAble SAfety And
+SurvIvAl equIpment
+trAde ASSocIAtIon lImIted
+ISSettA form no 197
+Certificate
+no.
+CertifiCate of re-inspeCtion
+Inflatable Liferaft
+Type: 	Serial Number: 	Date of Manufacture:
+Fabric Type: 	Capacity: 	Length of Painter:
+m/inside 	m/outside
+Max Stowage height:
+m
+Identification:
+Cylinders:
+Equipment:
+Tests:
+Verification:
+Flagstate of ship:
+IMO No.
+International call signal
+Name of ship:
+Ship owner: Signature
+For authorized servicing station
+Serial No. 	Contents CO2 	Contents N2 	Latest hyd. test
+Unit 	Type 	Serial No. 	Expiry date
+Emergency pack:
+EPIRB:
+HRU test:
+Radar Reflector:
+First aid kit:
+Nap-test 	Gas inflation test 	Floor seam test 	Load test davit launched
+Yes/No 	Yes/No 	Yes/No 	Yes/No
+Latest Test: 	Latest Test: 	Latest Test: 	Latest Test:
+Date of inspection: 	Service Station name and No. 	Date issued to ship:
+National Marine
+authority ID No.
+Remarks/modification:
+Unit 	Serial No. 	Date of Manufacture
+Humidity/CO2 Sensor:
+2933204
+This is to certify that the raft detailed below has been surveyed, controlled and tested in compliance with requirements from:
+DGRM and the manufacturer and in accordance with IMO resolution A.761 (18)
+Survitec Zodiac TO XDC6FL96I314 Sep-2013
+Polyurethane 100 2 1 4
+HGH064 15.930kg 0.945kg Sep-2013
+HGH070 15.930kg 0.945kg Sep-2013
+HGH063 15.930kg 0.945kg Sep-2013
+WMW067 0.700kg 0.045kg Jul-2023
+Solas B XDC6FL96I314 Jan-2024
+HAMMAR L1 52202 /L2 52208 Jan-2025
+SOLAS Feb-2024
+No No No No
+17-Jan-2023
+50937:
+Orey Tecnica Azores 21-Jan-2023
+REPORT ANNEXED
+According to SOLAS regulation, this inflatable liferaft requires servicing within 12 months from the date of inspection (above).
+Julio Correa
+Portugal
+9690494
+CSMG
+GILBERTO MARIANO
+ATLANTICOLINE, S.A.
+Survitec Group, Kingsway, Dunmurry, Belfast, BT17 9AF, Northern Ireland
+Telephone: 44 (0) 28 9030 1531 FAX: 44 (0) 28 90621765
+Powered by TCPDF (www.tcpdf.org)
+
+-- 1 of 1 --
+
+
+
+
+########## XLSX: ZODIAC 100 TO SR V MES MIS Nº XDC6FL96I314 PORTSIDE (2023) V.xlsx (sheets=Sheet1) ##########
+
+--- sheet: Sheet1 ---
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+SURVITEC ZODIAC      LIFERAFT TEST AND SURVEY REPORT n°      PAGE No 1/3,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Date:,,1/17/23,,,,Station N°:,,,,50937,,,,REINSPECTION CERTIFICATE N°:,,,,,,,,,,,,2933204,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Type of liferaft,,,,,,TO SR V  (MES MIS),,,,,,,,,Ship name,,,,,,"""GILBERTO MARIANO""",,,,,,,,,
+Capacity,,,,,,100,,,,,,,,,Owner,,,,,,"ATLANTICOLINE, S.A.",,,,,,,,,
+Serial n°,,,,,,XDC6FL96I314,,,,,,,,,Flag state,,,,,,PORTUGAL,,,,,,,,,
+Pack,,,,,,"SOLAS ""B""",,,,,,,,,IMO N°,,,,,,9690494,,,,,,,,,
+Date of Manufacture,,,,,,09/2013,,,,,,,,,Last service,,,,,,18/04/2022,,,,,,,,,
+Painter Line length,,,,,,"2,6 MT",,,,,,,,,By station n°,,,,,,50374,,,,,,,,,
+Stowage height ,,,,,,"4,0 MT",,,,,,,,,Last certificate n°,,,,,,2871437,,,,,,,,,
+,,,,,Information if MES SIS raft (mini slide),,,,,,,,,,,,,,Left,,,,Right,,,,,,,
+,,,,,Position of container on board,,,,,,,,,,,,,,Port side,,,,Starboard,,,,,,,
+,,,,,Firing Line Length (if EBL),,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,Mooring Springs Position for SIS slide connection,,,,,,,,,,,,,,1  |  2  |  3,,,,1  |  2  |  3,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+1. BLAST TEST on inflation hoses ,,,,,,,,,,,,,,,,,,,,,,,OK,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+2. OVERPRESSURE VALVES *,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Start:    ,,17:25,,TUBES,,,,,,,,,,,,,,ARCHES,,,,,,,,,,,,
+End:,,18:25,,UP / F1,,,LOW / F2,,,F3,,F4,,F5,,F6,,A1,,A2,,A3,,A4,,A5,,A6,,
+Opening,,,,204,,,200,,,,,,,,,,,262,,267,,267,,264,,,,,,
+Reset,,,,173,,,172,,,,,,,,,,,221,,229,,229,,218,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+" Manual MS003, page 4 in PART I - Controls, Solas Tests",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,LIFERAFT FITTED WITH ASPIRATOR: ASPIRATOR PROTECTIVE TUBE,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,Overpressure valves test ,,,,,,,,UPPER,,,,,,,LOWER,,,,,,,,,,,
+,,,,Opening (max 296),,,,,,,,296,,,,,,,299,,,,,,,,,,,
+,,,,Reset (mini 206),,,,,,,,207,,,,,,,206,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+3. WORKING PRESSURE TEST (WP test)  Tolerance 5% of start pressure,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,Time,,,,,,,Temperature,,,,,,,Atmospheric pressure,,,,,,,
+Star,,,,,,,,,18:25,,,,,,,T1:,15.0 Cº,,,,,,P1:,1028 Hpa,,,,,,
+End,,,,,,,,,19:25,,,,,,,T2:,15.0 Cº,,,,,,P2:,1028 Hpa,,,,,,
+Difference,,,,,,,,,,,,,,,,,0.0 Cº,,,,,,,0 Hpa,,,,,,
+Correction,,,,,,,,,,,,,,,,,0,,,,,,,0,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,TUBES,,,,,,,,,,,,,,ARCHES,,,,,,,,,,,,
+,,,,UP / F1,,,LOW / F2,,,F3,,F4,,F5,,F6,,A1,,A2,,A3,,A4,,A5,,A6,,
+Start,,,,173,,,172,,,,,,,,,,,218,,224,,224,,221,,,,,,
+End,,,,171,,,169,,,,,,,,,,,215,,221,,221,,217,,,,,,
+"Result (after
+correction)",,,,-2,,,-3,,,,,,,,,,,-3,,-3,,-3,,-4,,,,,,
+,,,,-1.2%,,,-1.7%,,,,,,,,,,,-1.4%,,-1.3%,,-1.3%,,-1.8%,,,,,,
+Valid test,,,,YES,,,YES,,,,,,,,,,,YES,,YES,,YES,,YES,,,,,,
+YES/NO,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,LIFERAFT FITTED WITH ASPIRATOR: ASPIRATOR PROTECTIVE TUBE,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,Pressure Test,,,,,,Time,,,,UP (~235 mbar),,,,,,LOW (~235 mbar),,,,,,,,,,
+,,,,Start ,,,,,,18:25,,,,197,,,,,,206,,,,,,,,,,
+,,,,End(test on 10 mn),,,,,,18:35,,,,180,,,,,,185,,,,,,,,,,
+,,,,Final Result (OK if loss < 130 mbar),,,,,,,,,,-17,,,,,,-21,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Ed.03-2020,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+SURVITEC ZODIAC      LIFERAFT TEST AND SURVEY REPORT n°      PAGE No 2/3,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+4. CYLINDERS,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Cylinder N°,,,,,,HGH064,,,,HGH070,,,,HGH063,,,,WMW067,,,,,,,,,,,,
+CO2 Weight,,,,,,15.930 Kg,,,,15.930 Kg,,,,15.930 Kg,,,,0.700 Kg,,,,,,,,,,,,
+N2 Weight,,,,,,0.945 Kg,,,,0.945 Kg,,,,0.945 Kg,,,,0.045 Kg,,,,,,,,,,,,
+Full Weight,,,,,,45.760 Kg,,,,46.120 Kg,,,,46.000 Kg,,,,4.480 Kg,,,,,,,,,,,,
+Weight reading,,,,,,45.776 Kg,,,,46.124 Kg,,,,46.012 Kg,,,,4.494 Kg,,,,,,,,,,,,
+Last Hydro test,,,,,,09/2013,,,,09/2013,,,,09/2013,,,,07/2013,,,,,,,,,,,,
+Cylinder refilling date,,,,,,02/2018,,,,02/2018,,,,02/2018,,,,02/2018,,,,,,,,,,,,
+Firing head Type & n°,,,,,,DK99S Nº:60193,,,,DK96  Nº:08821,,,,DK96  Nº:08620,,,,DK96  Nº:08689,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,5. TESTS CARRIED OUT,,,,,,,,YES,,,,,,NO,,,,,,,,,,,
+,,,,,NAP TEST,,,,,,,,,,,,,,X,,,,,,,,,,,
+,,,,,GI test,,,,,,,,,,,,,,X,,,,,,,,,,,
+,,,,,Floor seam test,,,,,,,,,,,,,,X,,,,,,,,,,,
+,,,,,Over load test (DL),,,,,,,,---,,,,,,---,,,,,,,,,,,
+,,,,,Cylinder hydro test,,,,,,,,,,,,,,X,,,,,,,,,,,
+,,,,,Hoses replaced,,,,,,,,,,,,,,X,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+6. LIFERAFT INSPECTION,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Main buoyancies,,,,,,Chek,,R*,,Canopy,,,,,,Chek,,R*,,Inner floor,,,,,,Chek,,R*,,
+Buoyancy,,,,,,OK,,,,Canopy ,,,,,,OK,,,,Automatic bailer ,,,,,,OK,,,,
+Reflective tape,,,,,,OK,,,,Reflective tape,,,,,,OK,,,,Vacuum breaker,,,,,,OK,,,,
+Outer lifeline,,,,,,OK,,,,Rainwater collector,,,,,,OK,,,,Insulating foam/rem. floor,,,,,,OK,,,,
+Inner lifeline,,,,,,OK,,,,Entrances,,,,,,OK,,,,Outer floor,,,,,,Chek,,R*,,
+Painter patch,,,,,,---,,,,External flash light,,,,,,OK,,,,Reflective tape,,,,,,OK,,,,
+Towing patch,,,,,,OK,,,,Arches,,,,,,OK,,,,Water pockets,,,,,,OK,,,,
+Bowsing lines,,,,,,OK,,,,Shackle / Ring (DL),,,,,,---,,,,CO² cyl. pocket/straps ,,,,,,OK,,,,
+Ramp / Ladder,,,,,,OK,,,,Webbings (DL),,,,,,---,,,,Righting straps,,,,,,OK,,,,
+Overpressure valves,,,,,,OK,,,,,,,,,,,,,,,,,,,,,,,,
+Overpressure valves caps,,,,,,OK,,,,Container / Valise,,,,,,Chek,,R*,,Inflation system,,,,,,Chek,,R*,,
+Labels,,,,,,OK,,,,Upper shell ,,,,,,OK,,,,CO² valves,,,,,,OK,,,,
+Floating knife,,,,,,OK,,,,Lower shell ,,,,,,OK,,,,Hoses,,,,,,OK,,,,
+Sea Anchor,,,,,,OK,,,,Foam / plastic sheet,,,,,,OK,,,,Inflation valves,,,,,,OK,,,,
+Quoit + Line,,,,,,OK,,,,Painter line,,,,,,OK,,,,,,,,,,,,,,
+Painter line retrieving line,,,,,,---,,,,Labels,,,,,,OK,,,,If raft fitted with Venturi,,,,,,Chek,,R*,,
+Signal card,,,,,,OK,,,,Identification tube ,,,,,,OK,,,,Venturi,,,,,,OK,,,,
+Immediate actions card,,,,,,OK,,,,Shackle access cover (DL),,,,,,---,,,,Venturi caps,,,,,,OK,,,,
+Lighting system,,,,,,OK,,,,,,,,,,,,,,Venturi flap cover,,,,,,OK,,,,
+R*= replacement,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+7. IF MES LIFERAFTS: CONNECTION LINES,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+MES SIS LIFERAFTS (Mini slide),,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Extremity Bowsing Line (EBL),,,,,,,,,,,Chek,,R*,,Central Bowsing Line (CBL),,,,,,,,,,,Chek,,R*,,
+EBL system good condition (Bowsing lines + Shock absorbers),,,,,,,,,,,,,,,CBL system good condition (Shock absorber + Safety line),,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Bowsing lines attached with 35kg zip ties,,,,,,,,,,,,,,,4 rings (per side) connected,,,,,,,,,,,,,,,
+2 B.lines with connected shock absorber(one per side) ,,,,,,,,,,,,,,,Shackles secured,,,,,,,,,,,,,,,
+Slings connected to the EBL system,,,,,,,,,,,,,,,Bowsing line + Painter connected to the CBL system,,,,,,,,,,,,,,,
+MES MIS LIFERAFTS (Super slide),,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+PRIMARY,,,,,,,,,,,Chek,,R*,,SECONDARY / ADDITIONAL,,,,,,,,,,,Chek,,R*,,
+Blue Tether line attached with 9 kg (x2) zip ties,,,,,,,,,,,OK,,,,Extremity connection lines fixed with 9 kg (x2) zip ties,,,,,,,,,,,,,,,
+Bowsing lines V connected with shackle + secured,,,,,,,,,,,OK,,,,Short connection lines OR shackles connected (in vacuum pouch),,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Slings connected to the Bowsing V,,,,,,,,,,,OK,,,,Pre-connection lines connected(out of vacuum pouch),,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+SURVITEC ZODIAC      LIFERAFT TEST AND SURVEY REPORT n°      PAGE No 3/3,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+8. ACCESSORIES INSPECTION,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Equipment,,,,,,Check,,R*,,Expiry date,,,,,,,,,Other equipment,,,,,,,Check,,R*,,
+  In the pack:,,,,,,,,,,,,,,,,,,,Leak stopper ,,,,,,,OK,,,,
+  Hand flares,,,,,,OK,,,,20500035        05-2025,,,,,,,,,Foot pump,,,,,,,OK,,,,
+  Rocket parachute,,,,,,OK,,,,20500023        07-2025,,,,,,,,,Bailer,,,,,,,OK,,,,
+  Smoke signal,,,,,,OK,,,,20500002        05-2025,,,,,,,,,Sponge,,,,,,,OK,,,,
+  Food,,,,,,---,,,,,,,,,,,,,Tin opener,,,,,,,---,,,,
+  Water,,,,,,---,,,,,,,,,,,,,Fishing kit,,,,,,,---,,,,
+  First aid kit,,,,,,OK,,,,31301042        02-2024,,,,,,,,,Torch,,,,,,,OK,,,,
+  Seasickness tablets,,,,,,OK,,,,02-2024,,,,,,,,,Spare bulb,,,,,,,OK,,,,
+"  Batteries 1,5V",,,,,,,,4,,20903022        12-2026,,,,,,,,,Signal mirror,,,,,,,OK,,,,
+  Glue in repair kit,,,,,,,,1,,05/2025,,,,,,,,,Whistle,,,,,,,OK,,,,
+  EPIRB,,,,,,---,,,,,,,,,,,,,Drinking vessel,,,,,,,---,,,,
+,,,,,,,,,,,,,,,,,,,Seasickness bags,,,,,,,OK,,,,
+,,,,,,,,,,,,,,,,,,,Sea anchor,,,,,,,OK,,,,
+  Outside of the pack:,,,,,,,,,,,,,,,,,,,Paddles,,,,,,,OK,,,,
+  Radar transponder,,,,,,---,,,,,,,,,,,,,Rainwater collector,,,,,,,OK,,,,
+  HRU,,,,,,2,,,,L1 52202 /L2 52208 EXP 01/2025,,,,,,,,,Servicing history ,,,,,,,OK,,,,
+  Lighting system,,,,,,OK,,,,"BATTERY - 07-2026
+EXTERNAL LIGHT - 05-2026",,,,,,,,,T.P.A.,,,,,,,OK,,,,
+  (battery + flashing light),,,,,,,,,,,,,,,,,,,Radar reflector,,,,,,,OK,,,,
+  R*= replacement,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+9. LIFERAFT AND EQUIPMENT CONDITION INFORMATION,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,Yes,,No,,,,,,,,,,,,,Yes,,No,,
+Was the raft wet?,,,,,,,,,,,,,X,,Was the liferaft damaged?,,,,,,,,,,,,,X,,
+Was the container damaged?,,,,,,,,,,,,,X,,Had the liferaft been fired ,,,,,,,,,,,,,X,,
+Nature and extent of the damages:,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Nature and extent of the defects:,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Repairs carried out / remarks:,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+"SERVICE KIT MES MIS 4,8 100TOSRV - 31301112 (1)  3 HAMMAR H20",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+10. REPACKING WITH SAFETY CHECK - PACKER / CHECKER,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+DOCUMENTS,,,,,,,,,,Packer,,Checker,,,DOCUMENTS,,,,,,,,,,,Packer,,Checker,,
+Liferaft label completed,,,,,,,,,,J.C,,A.S.,,,Container label completed,,,,,,,,,,,J.C,,A.S.,,
+ID card completed,,,,,,,,,,J.C,,A.S.,,,Servicing history completed,,,,,,,,,,,J.C,,A.S.,,
+Re-inspection certificate completed,,,,,,,,,,J.C,,A.S.,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+CONNECTIONS,,,,,,,,,,Packer,,Checker,,,For liferafts with VENTURI,,,,,,,,,,,Packer,,Checker,,
+Light connected,,,,,,,,,,J.C,,A.S.,,,Venturi flap cover in position,,,,,,,,,,,J.C,,A.S.,,
+Painter line connected,,,,,,,,,,---,,---,,,Venturi caps removed,,,,,,,,,,,J.C,,A.S.,,
+Quick firing line connected,,,,,,,,,,J.C,,A.S.,,,Venturis opened / secured,,,,,,,,,,,J.C,,A.S.,,
+,,,,,,,,,,,,,,,Venturi protection rolled,,,,,,,,,,,J.C,,A.S.,,
+DL container: shackle access cover glued,,,,,,,,,,---,,---,,,"Venturis protection held in central 
+pos. on the container (Not on MIS R302)",,,,,,,,,,,J.C,,A.S.,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Station nº:,,,50937,,,Technician's name:,,,,,,JULIO CORREA ,,,,,,,,,Signature:,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,, Checker's name:,,,,,,ANTÓNIO SARAMAGO,,,,,,,,,Signature:,,,,,,,,,
+,"IMPORTANT - The « Technician or Packer » as well as the « Checker » must be approved by SurvitecZodiac. 
+Please contact SurvitecZodiac for approval if an exemption is needed.
+- The fields « Packer » and « Checker » must be always filled with the initials or with « N/A».
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Ed.03-2020,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+
+
+########## PDF: ZODIAC 100 TO SR V MES SIS CBL Nº XDC7FL37I314 STARBOARD (2023)V.pdf (pages=1) ##########
+
+A member of
+InflAtAble SAfety And
+SurvIvAl equIpment
+trAde ASSocIAtIon lImIted
+ISSettA form no 197
+Certificate
+no.
+CertifiCate of re-inspeCtion
+Inflatable Liferaft
+Type: 	Serial Number: 	Date of Manufacture:
+Fabric Type: 	Capacity: 	Length of Painter:
+m/inside 	m/outside
+Max Stowage height:
+m
+Identification:
+Cylinders:
+Equipment:
+Tests:
+Verification:
+Flagstate of ship:
+IMO No.
+International call signal
+Name of ship:
+Ship owner: Signature
+For authorized servicing station
+Serial No. 	Contents CO2 	Contents N2 	Latest hyd. test
+Unit 	Type 	Serial No. 	Expiry date
+Emergency pack:
+EPIRB:
+HRU test:
+Radar Reflector:
+First aid kit:
+Nap-test 	Gas inflation test 	Floor seam test 	Load test davit launched
+Yes/No 	Yes/No 	Yes/No 	Yes/No
+Latest Test: 	Latest Test: 	Latest Test: 	Latest Test:
+Date of inspection: 	Service Station name and No. 	Date issued to ship:
+National Marine
+authority ID No.
+Remarks/modification:
+Unit 	Serial No. 	Date of Manufacture
+Humidity/CO2 Sensor:
+2933221
+This is to certify that the raft detailed below has been surveyed, controlled and tested in compliance with requirements from:
+DGRM and the manufacturer and in accordance with IMO resolution A.761 (18)
+SurvitecZodiac TO XDC7FL37I314 Sep-2013
+Polyurethane 100 13 1 20
+HGH069 15.930kg 0.945kg Sep-2013
+HGH061 15.930kg 0.945kg Sep-2013
+HGH073 15.930kg 0.945kg Sep-2013
+WMW074 0.700kg 0.045kg Jul-2013
+Solas B XDC7FL37I314 Jan-2024
+HAMMAR S/N:69638/69639 Jan-2025
+SOLAS Feb-2024
+No No No No
+19-Jan-2023
+50937:
+Orey Tecnica Azores 21-Jan-2023
+REPORT ANNEXED
+According to SOLAS regulation, this inflatable liferaft requires servicing within 12 months from the date of inspection (above).
+Julio Correa
+Portugal
+9690494
+CSMG
+GILBERTO MARIANO
+ATLANTICOLINE, S.A.
+Survitec Group, Kingsway, Dunmurry, Belfast, BT17 9AF, Northern Ireland
+Telephone: 44 (0) 28 9030 1531 FAX: 44 (0) 28 90621765
+Powered by TCPDF (www.tcpdf.org)
+
+-- 1 of 1 --
+
+
+
+
+########## XLSX: ZODIAC 100 TO SR V MES SIS CBL Nº XDC7FL37I314 STARBOARD (2023)V.xlsx (sheets=Sheet1) ##########
+
+--- sheet: Sheet1 ---
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+SURVITEC ZODIAC      LIFERAFT TEST AND SURVEY REPORT n°      PAGE No 1/3,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Date:,,19-01-2023,,,,Station N°:,,,,50937,,,,REINSPECTION CERTIFICATE N°:,,,,,,,,,,,,2933204,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Type of liferaft,,,,,,TO SR V (CBL),,,,,,,,,Ship name,,,,,,"""GILBERTO MARIANO""",,,,,,,,,
+Capacity,,,,,,100,,,,,,,,,Owner,,,,,,"ATLANTICOLINE, S.A.",,,,,,,,,
+Serial n°,,,,,,XDC7FL37I314,,,,,,,,,Flag state,,,,,,PORTUGAL,,,,,,,,,
+Pack,,,,,,"SOLAS ""B""",,,,,,,,,IMO N°,,,,,,9690494,,,,,,,,,
+Date of Manufacture,,,,,,09/2013,,,,,,,,,Last service,,,,,,18/04/2022,,,,,,,,,
+Painter Line length,,,,,,13 MT,,,,,,,,,By station n°,,,,,,50374,,,,,,,,,
+Stowage height ,,,,,,20 MT,,,,,,,,,Last certificate n°,,,,,,2871429,,,,,,,,,
+,,,,,Information if MES SIS raft (mini slide),,,,,,,,,,,,,,Left,,,,Right,,,,,,,
+,,,,,Position of container on board,,,,,,,,,,,,,,Port side,,,,Starboard,,,,,,,
+,,,,,Firing Line Length (if EBL),,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,Mooring Springs Position for SIS slide connection,,,,,,,,,,,,,, 1  |  2  |  3 ,,,, 4  |  5  |  6 ,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+1. BLAST TEST on inflation hoses ,,,,,,,,,,,,,,,,,,,,,,,OK,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+2. OVERPRESSURE VALVES *,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Start:    ,,11:30,,TUBES,,,,,,,,,,,,,,ARCHES,,,,,,,,,,,,
+End:,,12:30,,UP / F1,,,LOW / F2,,,F3,,F4,,F5,,F6,,A1,,A2,,A3,,A4,,A5,,A6,,
+Opening,,,,208,,,210,,,,,,,,,,,259,,271,,271,,265.0,,,,,,
+Reset,,,,190,,,186,,,,,,,,,,,230,,236,,236,,228,,,,,,
+* Opening/reset pressures of the over pressure valves according to the color of the dot on the valve. Refer to,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+" Manual MS003, page 4 in PART I - Controls, Solas Tests",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,LIFERAFT FITTED WITH ASPIRATOR: ASPIRATOR PROTECTIVE TUBE,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,Overpressure valves test ,,,,,,,,UPPER,,,,,,,LOWER,,,,,,,,,,,
+,,,,Opening (max 296),,,,,,,,280,,,,,,,288,,,,,,,,,,,
+,,,,Reset (mini 206),,,,,,,,232,,,,,,,231,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+3. WORKING PRESSURE TEST (WP test)  Tolerance 5% of start pressure,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,Time,,,,,,,Temperature,,,,,,,Atmospheric pressure,,,,,,,
+Star,,,,,,,,,12:30,,,,,,,T1:,14.0 Cº,,,,,,P1:,1029 Hpa,,,,,,
+End,,,,,,,,,13:30,,,,,,,T2:,14.0 Cº,,,,,,P2:,1029 Hpa,,,,,,
+Difference,,,,,,,,,,,,,,,,,0.0 Cº,,,,,,,0 Hpa,,,,,,
+Correction,,,,,,,,,,,,,,,,,0,,,,,,,0,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,TUBES,,,,,,,,,,,,,,ARCHES,,,,,,,,,,,,
+,,,,UP / F1,,,LOW / F2,,,F3,,F4,,F5,,F6,,A1,,A2,,A3,,A4,,A5,,A6,,
+Start,,,,190,,,186,,,,,,,,,,,230,,236,,236,,228,,,,,,
+End,,,,186,,,180,,,,,,,,,,,225,,230,,230,,225,,,,,,
+"Result (after
+correction)",,,,-4,,,-6,,,,,,,,,,,-5.0,,-6.0,,-6.0,,-3.0,,,,,,
+,,,,-2.1%,,,-3.2%,,,,,,,,,,,-2.2%,,-2.5%,,-2.5%,,-1.3%,,,,,,
+Valid test,,,,YES,,,YES,,,,,,,,,,,YES,,YES,,YES,,YES,,,,,,
+YES/NO,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,LIFERAFT FITTED WITH ASPIRATOR: ASPIRATOR PROTECTIVE TUBE,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,Pressure Test,,,,,,Time,,,,UP (~235 mbar),,,,,,LOW (~235 mbar),,,,,,,,,,
+,,,,Start ,,,,,,12:30,,,,232,,,,,,235,,,,,,,,,,
+,,,,End(test on 10 mn),,,,,,12:40,,,,208,,,,,,210,,,,,,,,,,
+,,,,Final Result (OK if loss < 130 mbar),,,,,,,,,,-24,,,,,,-25,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Ed.03-2020,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+SURVITEC ZODIAC      LIFERAFT TEST AND SURVEY REPORT n°      PAGE No 2/3,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+4. CYLINDERS,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Cylinder N°,,,,,,HGH069,,,,HGH061,,,,HGH073,,,,WMW074,,,,,,,,,,,,
+CO2 Weight,,,,,,15.930 Kg,,,,15.930 Kg,,,,15.930 Kg,,,,0.700 Kg,,,,,,,,,,,,
+N2 Weight,,,,,,0.945 Kg,,,,0.945 Kg,,,,0.945 Kg,,,,0.045 Kg,,,,,,,,,,,,
+Full Weight,,,,,,46.113 Kg,,,,46.053 Kg,,,,46.086 Kg,,,,4.492 Kg,,,,,,,,,,,,
+Weight reading,,,,,,46.112 Kg,,,,46.054 Kg,,,,46.086 Kg,,,,4.493 Kg,,,,,,,,,,,,
+Last Hydro test,,,,,,09/2013,,,,09/2013,,,,09/2013,,,,07/2013,,,,,,,,,,,,
+Cylinder refilling date,,,,,,02/2018,,,,02/2018,,,,02/2018,,,,02/2018,,,,,,,,,,,,
+Firing head Type & n°,,,,,,DK99S  Nº:60176,,,,DK96  Nº:08793,,,,DK96  Nº:08810,,,,DK96  Nº:08578,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,5. TESTS CARRIED OUT,,,,,,,,YES,,,,,,NO,,,,,,,,,,,
+,,,,,NAP TEST,,,,,,,,,,,,,,X,,,,,,,,,,,
+,,,,,GI test,,,,,,,,,,,,,,X,,,,,,,,,,,
+,,,,,Floor seam test,,,,,,,,,,,,,,X,,,,,,,,,,,
+,,,,,Over load test (DL),,,,,,,,---,,,,,,---,,,,,,,,,,,
+,,,,,Cylinder hydro test,,,,,,,,,,,,,,X,,,,,,,,,,,
+,,,,,Hoses replaced,,,,,,,,,,,,,,X,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+6. LIFERAFT INSPECTION,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Main buoyancies,,,,,,Chek,,R*,,Canopy,,,,,,Chek,,R*,,Inner floor,,,,,,Chek,,R*,,
+Buoyancy,,,,,,OK,,,,Canopy ,,,,,,OK,,,,Automatic bailer ,,,,,,OK,,,,
+Reflective tape,,,,,,OK,,,,Reflective tape,,,,,,OK,,,,Vacuum breaker,,,,,,OK,,,,
+Outer lifeline,,,,,,OK,,,,Rainwater collector,,,,,,OK,,,,Insulating foam/rem. floor,,,,,,OK,,,,
+Inner lifeline,,,,,,OK,,,,Entrances,,,,,,OK,,,,Outer floor,,,,,,Chek,,R*,,
+Painter patch,,,,,,OK,,,,External flash light,,,,,,,,1,,Reflective tape,,,,,,OK,,,,
+Towing patch,,,,,,OK,,,,Arches,,,,,,OK,,,,Water pockets,,,,,,OK,,,,
+Bowsing lines,,,,,,OK,,,,Shackle / Ring (DL),,,,,,---,,,,CO² cyl. pocket/straps ,,,,,,OK,,,,
+Ramp / Ladder,,,,,,OK,,,,Webbings (DL),,,,,,---,,,,Righting straps,,,,,,---,,,,
+Overpressure valves,,,,,,OK,,,,,,,,,,,,,,,,,,,,,,,,
+Overpressure valves caps,,,,,,OK,,,,Container / Valise,,,,,,Chek,,R*,,Inflation system,,,,,,Chek,,R*,,
+Labels,,,,,,OK,,,,Upper shell ,,,,,,OK,,,,CO² valves,,,,,,OK,,,,
+Floating knife,,,,,,OK,,,,Lower shell ,,,,,,OK,,,,Hoses,,,,,,OK,,,,
+Sea Anchor,,,,,,OK,,,,Foam / plastic sheet,,,,,,OK,,,,Inflation valves,,,,,,OK,,,,
+Quoit + Line,,,,,,OK,,,,Painter line,,,,,,OK,,,,,,,,,,,,,,
+Painter line retrieving line,,,,,,---,,,,Labels,,,,,,OK,,,,If raft fitted with Venturi,,,,,,Chek,,R*,,
+Signal card,,,,,,OK,,,,Identification tube ,,,,,,OK,,,,Venturi,,,,,,OK,,,,
+Immediate actions card,,,,,,OK,,,,Shackle access cover (DL),,,,,,---,,,,Venturi caps,,,,,,OK,,,,
+Lighting system,,,,,,,,1,,,,,,,,,,,,Venturi flap cover,,,,,,OK,,,,
+R*= replacement,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+7. IF MES LIFERAFTS: CONNECTION LINES,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+MES SIS LIFERAFTS (Mini slide),,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Extremity Bowsing Line (EBL),,,,,,,,,,,Chek,,R*,,Central Bowsing Line (CBL),,,,,,,,,,,Chek,,R*,,
+EBL system good condition (Bowsing lines + Shock absorbers),,,,,,,,,,,,,,,CBL system good condition (Shock absorber + Safety line),,,,,,,,,,,OK,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Bowsing lines attached with 35kg zip ties,,,,,,,,,,,,,,,4 rings (per side) connected,,,,,,,,,,,OK,,,,
+2 B.lines with connected shock absorber(one per side) ,,,,,,,,,,,,,,,Shackles secured,,,,,,,,,,,OK,,,,
+Slings connected to the EBL system,,,,,,,,,,,,,,,Bowsing line + Painter connected to the CBL system,,,,,,,,,,,OK,,,,
+MES MIS LIFERAFTS (Super slide),,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+PRIMARY,,,,,,,,,,,Chek,,R*,,SECONDARY / ADDITIONAL,,,,,,,,,,,Chek,,R*,,
+Blue Tether line attached with 9 kg (x2) zip ties,,,,,,,,,,,,,,,Extremity connection lines fixed with 9 kg (x2) zip ties,,,,,,,,,,,,,,,
+Bowsing lines V connected with shackle + secured,,,,,,,,,,,,,,,Short connection lines OR shackles connected (in vacuum pouch),,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Slings connected to the Bowsing V,,,,,,,,,,,,,,,Pre-connection lines connected(out of vacuum pouch),,,,,,,,,,,,,,,
+Ed.03-2020,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+SURVITEC ZODIAC      LIFERAFT TEST AND SURVEY REPORT n°      PAGE No 3/3,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+8. ACCESSORIES INSPECTION,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Equipment,,,,,,Check,,R*,,Expiry date,,,,,,,,,Other equipment,,,,,,,Check,,R*,,
+  In the pack:,,,,,,,,,,,,,,,,,,,Leak stopper ,,,,,,,OK,,,,
+  Hand flares,,,,,,,,,,20500035        05-2025,,,,,,,,,Foot pump,,,,,,,OK,,,,
+  Rocket parachute,,,,,,,,,,20500023        08-2025,,,,,,,,,Bailer,,,,,,,OK,,,,
+  Smoke signal,,,,,,,,,,20500002        05-2024,,,,,,,,,Sponge,,,,,,,OK,,,,
+  Food,,,,,,---,,,,,,,,,,,,,Tin opener,,,,,,,---,,,,
+  Water,,,,,,---,,,,,,,,,,,,,Fishing kit,,,,,,,---,,,,
+  First aid kit,,,,,,,,,,31301042        02-2024,,,,,,,,,Torch,,,,,,,OK,,,,
+  Seasickness tablets,,,,,,OK,,,,2-4-2024,,,,,,,,,Spare bulb,,,,,,,OK,,,,
+"  Batteries 1,5V",,,,,,,,4,,20903022        12-2026,,,,,,,,,Signal mirror,,,,,,,OK,,,,
+  Glue in repair kit,,,,,,,,1,,31301043        05-2025,,,,,,,,,Whistle,,,,,,,OK,,,,
+  EPIRB,,,,,,---,,,,,,,,,,,,,Drinking vessel,,,,,,,---,,,,
+,,,,,,,,,,,,,,,,,,,Seasickness bags,,,,,,,OK,,,,
+,,,,,,,,,,,,,,,,,,,Sea anchor,,,,,,,OK,,,,
+  Outside of the pack:,,,,,,,,,,,,,,,,,,,Paddles,,,,,,,OK,,,,
+  Radar transponder,,,,,,---,,,,,,,,,,,,,Rainwater collector,,,,,,,OK,,,,
+  HRU,,,,,,OK,,,,S/N:69638/69639        01-2025,,,,,,,,,Servicing history ,,,,,,,OK,,,,
+  Lighting system,,,,,,,,1,,"BATTERY - 07-2026
+EXTERNAL LIGHT - 05-2026",,,,,,,,,T.P.A.,,,,,,,OK,,,,
+  (battery + flashing light),,,,,,,,,,,,,,,,,,,Radar reflector,,,,,,,OK,,,,
+  R*= replacement,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+9. LIFERAFT AND EQUIPMENT CONDITION INFORMATION,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,Yes,,No,,,,,,,,,,,,,Yes,,No,,
+Was the raft wet?,,,,,,,,,,,,,X,,Was the liferaft damaged?,,,,,,,,,,,,,X,,
+Was the container damaged?,,,,,,,,,,,,,X,,Had the liferaft been fired ,,,,,,,,,,,,,X,,
+Nature and extent of the damages:,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Nature and extent of the defects:,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Repairs carried out / remarks:,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+            SERVICE KIT MES SIS CBL 100TOSRV - 31301110 (1) ; ,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+10. REPACKING WITH SAFETY CHECK - PACKER / CHECKER,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+DOCUMENTS,,,,,,,,,,Packer,,Checker,,,DOCUMENTS,,,,,,,,,,,Packer,,Checker,,
+Liferaft label completed,,,,,,,,,,J.C,,A.S.,,,Container label completed,,,,,,,,,,,J.C,,A.S.,,
+ID card completed,,,,,,,,,,J.C,,A.S.,,,Servicing history completed,,,,,,,,,,,J.C,,A.S.,,
+Re-inspection certificate completed,,,,,,,,,,,,A.S.,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+CONNECTIONS,,,,,,,,,,Packer,,Checker,,,For liferafts with VENTURI,,,,,,,,,,,Packer,,Checker,,
+Light connected,,,,,,,,,,J.C,,A.S.,,,Venturi flap cover in position,,,,,,,,,,,J.C,,A.S.,,
+Painter line connected,,,,,,,,,,J.C,,A.S.,,,Venturi caps removed,,,,,,,,,,,J.C,,A.S.,,
+Quick firing line connected,,,,,,,,,,---,,---,,,Venturis opened / secured,,,,,,,,,,,J.C,,A.S.,,
+,,,,,,,,,,,,,,,Venturi protection rolled,,,,,,,,,,,J.C,,A.S.,,
+DL container: shackle access cover glued,,,,,,,,,,---,,---,,,"Venturis protection held in central 
+pos. on the container (Not on MIS R302)",,,,,,,,,,,---,,---,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Station nº:,,,50937,,,Technician's name:,,,,,,JULIO CORREA,,,,,,,,,Signature:,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,, Checker's name:,,,,,,ANTÓNIO SARAMAGO,,,,,,,,,Signature:,,,,,,,,,
+,"IMPORTANT - The « Technician or Packer » as well as the « Checker » must be approved by SurvitecZodiac. 
+Please contact SurvitecZodiac for approval if an exemption is needed.
+- The fields « Packer » and « Checker » must be always filled with the initials or with « N/A».
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Ed.03-2020,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+
+
+########## PDF: ZODIAC 100 TO SR V MES SIS CBL Nº XDC7FL38I314 PORTSIDE (2023).pdf (pages=1) ##########
+
+A member of
+InflAtAble SAfety And
+SurvIvAl equIpment
+trAde ASSocIAtIon lImIted
+ISSettA form no 197
+Certificate
+no.
+CertifiCate of re-inspeCtion
+Inflatable Liferaft
+Type: 	Serial Number: 	Date of Manufacture:
+Fabric Type: 	Capacity: 	Length of Painter:
+m/inside 	m/outside
+Max Stowage height:
+m
+Identification:
+Cylinders:
+Equipment:
+Tests:
+Verification:
+Flagstate of ship:
+IMO No.
+International call signal
+Name of ship:
+Ship owner: Signature
+For authorized servicing station
+Serial No. 	Contents CO2 	Contents N2 	Latest hyd. test
+Unit 	Type 	Serial No. 	Expiry date
+Emergency pack:
+EPIRB:
+HRU test:
+Radar Reflector:
+First aid kit:
+Nap-test 	Gas inflation test 	Floor seam test 	Load test davit launched
+Yes/No 	Yes/No 	Yes/No 	Yes/No
+Latest Test: 	Latest Test: 	Latest Test: 	Latest Test:
+Date of inspection: 	Service Station name and No. 	Date issued to ship:
+National Marine
+authority ID No.
+Remarks/modification:
+Unit 	Serial No. 	Date of Manufacture
+Humidity/CO2 Sensor:
+2933223
+This is to certify that the raft detailed below has been surveyed, controlled and tested in compliance with requirements from:
+DGRM and the manufacturer and in accordance with IMO resolution A.761 (18)
+SurvitecZodiac TO XDC7FL38I314 Sep-2013
+Polyurethane 100 13 1 20
+HGH072 15.930kg 0.945kg Sep-2013
+HGH068 15.930kg 0.945kg Sep-2013
+HGH071 15.930kg 0.945kg Sep-2013
+WMW075 0.700kg 0.045kg Jul-2013
+Solas B XDC7FL38I314 Jan-2024
+HAMMAR S/N:69636/69637 Jan-2025
+SOLAS Feb-2024
+No No No No
+20-Jan-2023
+50937:
+Orey Tecnica Azores 21-Jan-2023
+REPORT ANNEXED
+According to SOLAS regulation, this inflatable liferaft requires servicing within 12 months from the date of inspection (above).
+Julio Correa
+Portugal
+9690494
+CSMG
+GILBERTO MARIANO
+ATLANTICOLINE, S.A.
+Survitec Group, Kingsway, Dunmurry, Belfast, BT17 9AF, Northern Ireland
+Telephone: 44 (0) 28 9030 1531 FAX: 44 (0) 28 90621765
+Powered by TCPDF (www.tcpdf.org)
+
+-- 1 of 1 --
+
+
+
+
+########## XLSX: ZODIAC 100 TO SR V MES SIS CBL Nº XDC7FL38I314 PORTSIDE (2023).xlsx (sheets=Sheet1) ##########
+
+--- sheet: Sheet1 ---
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+SURVITEC ZODIAC      LIFERAFT TEST AND SURVEY REPORT n°      PAGE No 1/3,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Date:,,20-01-2023,,,,Station N°:,,,,50937,,,,REINSPECTION CERTIFICATE N°:,,,,,,,,,,,,2933223,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Type of liferaft,,,,,,TO SR V (CBL),,,,,,,,,Ship name,,,,,,"""GILBERTO MARIANO""",,,,,,,,,
+Capacity,,,,,,100,,,,,,,,,Owner,,,,,,"ATLANTICOLINE, S.A.",,,,,,,,,
+Serial n°,,,,,,XDC7FL38I314,,,,,,,,,Flag state,,,,,,PORTUGAL,,,,,,,,,
+Pack,,,,,,"SOLAS ""B""",,,,,,,,,IMO N°,,,,,,9690494,,,,,,,,,
+Date of Manufacture,,,,,,09/2013,,,,,,,,,Last service,,,,,,18/04/2022,,,,,,,,,
+Painter Line length,,,,,,13 MT,,,,,,,,,By station n°,,,,,,50374,,,,,,,,,
+Stowage height ,,,,,,20 MT,,,,,,,,,Last certificate n°,,,,,,2871432,,,,,,,,,
+,,,,,Information if MES SIS raft (mini slide),,,,,,,,,,,,,,Left,,,,Right,,,,,,,
+,,,,,Position of container on board,,,,,,,,,,,,,,Port side,,,,Starboard,,,,,,,
+,,,,,Firing Line Length (if EBL),,,,,,,,,,,,,,-----,,,,,,,,,,,
+,,,,,Mooring Springs Position for SIS slide connection,,,,,,,,,,,,,, 1  |  2  |  3,,,, 4  |  5  |  6 ,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+1. BLAST TEST on inflation hoses ,,,,,,,,,,,,,,,,,,,,,,,OK,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+2. OVERPRESSURE VALVES *,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Start:    ,,10:00,,TUBES,,,,,,,,,,,,,,ARCHES,,,,,,,,,,,,
+End:,,11:00,,UP / F1,,,LOW / F2,,,F3,,F4,,F5,,F6,,A1,,A2,,A3,,A4,,A5,,A6,,
+Opening,,,,213,,,205,,,,,,,,,,,269,,272,,272,,256,,,,,,
+Reset,,,,188,,,183,,,,,,,,,,,232,,237,,237,,218,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+" Manual MS003, page 4 in PART I - Controls, Solas Tests",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,LIFERAFT FITTED WITH ASPIRATOR: ASPIRATOR PROTECTIVE TUBE,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,Overpressure valves test ,,,,,,,,UPPER,,,,,,,LOWER,,,,,,,,,,,
+,,,,Opening (max 296),,,,,,,,283,,,,,,,287,,,,,,,,,,,
+,,,,Reset (mini 206),,,,,,,,212,,,,,,,217,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+3. WORKING PRESSURE TEST (WP test)  Tolerance 5% of start pressure,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,Time,,,,,,,Temperature,,,,,,,Atmospheric pressure,,,,,,,
+Star,,,,,,,,,11:00,,,,,,,T1:,16.0 Cº,,,,,,P1:,1028 Hpa,,,,,,
+End,,,,,,,,,12:00,,,,,,,T2:,16.0 Cº,,,,,,P2:,1028 Hpa,,,,,,
+Difference,,,,,,,,,,,,,,,,,0.0 Cº,,,,,,,0 Hpa,,,,,,
+Correction,,,,,,,,,,,,,,,,,0,,,,,,,0,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,TUBES,,,,,,,,,,,,,,ARCHES,,,,,,,,,,,,
+,,,,UP / F1,,,LOW / F2,,,F3,,F4,,F5,,F6,,A1,,A2,,A3,,A4,,A5,,A6,,
+Start,,,,188,,,183,,,,,,,,,,,232,,237,,237,,218,,,,,,
+End,,,,187,,,180,,,,,,,,,,,231,,234,,234,,217,,,,,,
+"Result (after
+correction)",,,,-1,,,-3,,,,,,,,,,,-1.0,,-3.0,,-3.0,,-1.0,,,,,,
+,,,,-0.5%,,,-1.6%,,,,,,,,,,,-0.4%,,-1.3%,,-1.3%,,-0.5%,,,,,,
+Valid test,,,,YES,,,YES,,,,,,,,,,,YES,,YES,,YES,,YES,,,,,,
+YES/NO,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,LIFERAFT FITTED WITH ASPIRATOR: ASPIRATOR PROTECTIVE TUBE,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,Pressure Test,,,,,,Time,,,,UP (~235 mbar),,,,,,LOW (~235 mbar),,,,,,,,,,
+,,,,Start ,,,,,,11:00,,,,212,,,,,,217,,,,,,,,,,
+,,,,End(test on 10 mn),,,,,,11:10,,,,200,,,,,,201,,,,,,,,,,
+,,,,Final Result (OK if loss < 130 mbar),,,,,,,,,,-12,,,,,,-16,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Ed.03-2020,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+SURVITEC ZODIAC      LIFERAFT TEST AND SURVEY REPORT n°      PAGE No 2/3,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+4. CYLINDERS,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Cylinder N°,,,,,,HGH072,,,,HGH068,,,,HGH071,,,,WMW075,,,,,,,,,,,,
+CO2 Weight,,,,,,15.930 Kg,,,,15.930 Kg,,,,15.930 Kg,,,,0.700 Kg,,,,,,,,,,,,
+N2 Weight,,,,,,0.945 Kg,,,,0.945 Kg,,,,0.945 Kg,,,,0.045 Kg,,,,,,,,,,,,
+Full Weight,,,,,,45.656 Kg,,,,46.006 Kg,,,,45.749 Kg,,,,4.473 Kg,,,,,,,,,,,,
+Weight reading,,,,,,45.648 Kg,,,,46.000 Kg,,,,45.740 Kg,,,,4.474 Kg,,,,,,,,,,,,
+Last Hydro test,,,,,,09/2013,,,,09/2013,,,,09/2013,,,,07/2013,,,,,,,,,,,,
+Cylinder refilling date,,,,,,02/2018,,,,02/2018,,,,02/2018,,,,02/2018,,,,,,,,,,,,
+Firing head Type & n°,,,,,,DK99S  Nº:60195,,,,DK96  Nº:08807,,,,DK96  Nº:08768,,,,DK96  Nº:08599,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,5. TESTS CARRIED OUT,,,,,,,,YES,,,,,,NO,,,,,,,,,,,
+,,,,,NAP TEST,,,,,,,,,,,,,,X,,,,,,,,,,,
+,,,,,GI test,,,,,,,,,,,,,,X,,,,,,,,,,,
+,,,,,Floor seam test,,,,,,,,,,,,,,X,,,,,,,,,,,
+,,,,,Over load test (DL),,,,,,,,---,,,,,,---,,,,,,,,,,,
+,,,,,Cylinder hydro test,,,,,,,,,,,,,,X,,,,,,,,,,,
+,,,,,Hoses replaced,,,,,,,,,,,,,,X,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+6. LIFERAFT INSPECTION,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Main buoyancies,,,,,,Chek,,R*,,Canopy,,,,,,Chek,,R*,,Inner floor,,,,,,Chek,,R*,,
+Buoyancy,,,,,,OK,,,,Canopy ,,,,,,OK,,,,Automatic bailer ,,,,,,OK,,,,
+Reflective tape,,,,,,OK,,,,Reflective tape,,,,,,OK,,,,Vacuum breaker,,,,,,OK,,,,
+Outer lifeline,,,,,,OK,,,,Rainwater collector,,,,,,OK,,,,Insulating foam/rem. floor,,,,,,OK,,,,
+Inner lifeline,,,,,,OK,,,,Entrances,,,,,,OK,,,,Outer floor,,,,,,Chek,,R*,,
+Painter patch,,,,,,OK,,,,External flash light,,,,,,OK,,,,Reflective tape,,,,,,OK,,,,
+Towing patch,,,,,,OK,,,,Arches,,,,,,OK,,,,Water pockets,,,,,,OK,,,,
+Bowsing lines,,,,,,OK,,,,Shackle / Ring (DL),,,,,,---,,,,CO² cyl. pocket/straps ,,,,,,OK,,,,
+Ramp / Ladder,,,,,,OK,,,,Webbings (DL),,,,,,---,,,,Righting straps,,,,,,---,,,,
+Overpressure valves,,,,,,OK,,,,,,,,,,,,,,,,,,,,,,,,
+Overpressure valves caps,,,,,,OK,,,,Container / Valise,,,,,,Chek,,R*,,Inflation system,,,,,,Chek,,R*,,
+Labels,,,,,,OK,,,,Upper shell ,,,,,,OK,,,,CO² valves,,,,,,OK,,,,
+Floating knife,,,,,,OK,,,,Lower shell ,,,,,,OK,,,,Hoses,,,,,,OK,,,,
+Sea Anchor,,,,,,OK,,,,Foam / plastic sheet,,,,,,OK,,,,Inflation valves,,,,,,OK,,,,
+Quoit + Line,,,,,,OK,,,,Painter line,,,,,,OK,,,,,,,,,,,,,,
+Painter line retrieving line,,,,,,---,,,,Labels,,,,,,OK,,,,If raft fitted with Venturi,,,,,,Chek,,R*,,
+Signal card,,,,,,OK,,,,Identification tube ,,,,,,OK,,,,Venturi,,,,,,OK,,,,
+Immediate actions card,,,,,,OK,,,,Shackle access cover (DL),,,,,,---,,,,Venturi caps,,,,,,OK,,,,
+Lighting system,,,,,,OK,,,,,,,,,,,,,,Venturi flap cover,,,,,,OK,,,,
+R*= replacement,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+7. IF MES LIFERAFTS: CONNECTION LINES,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+MES SIS LIFERAFTS (Mini slide),,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Extremity Bowsing Line (EBL),,,,,,,,,,,Chek,,R*,,Central Bowsing Line (CBL),,,,,,,,,,,Chek,,R*,,
+EBL system good condition (Bowsing lines + Shock absorbers),,,,,,,,,,,,,,,CBL system good condition (Shock absorber + Safety line),,,,,,,,,,,OK,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Bowsing lines attached with 35kg zip ties,,,,,,,,,,,,,,,4 rings (per side) connected,,,,,,,,,,,OK,,,,
+2 B.lines with connected shock absorber(one per side) ,,,,,,,,,,,,,,,Shackles secured,,,,,,,,,,,OK,,,,
+Slings connected to the EBL system,,,,,,,,,,,,,,,Bowsing line + Painter connected to the CBL system,,,,,,,,,,,OK,,,,
+MES MIS LIFERAFTS (Super slide),,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+PRIMARY,,,,,,,,,,,Chek,,R*,,SECONDARY / ADDITIONAL,,,,,,,,,,,Chek,,R*,,
+Blue Tether line attached with 9 kg (x2) zip ties,,,,,,,,,,,,,,,Extremity connection lines fixed with 9 kg (x2) zip ties,,,,,,,,,,,,,,,
+Bowsing lines V connected with shackle + secured,,,,,,,,,,,,,,,Short connection lines OR shackles connected (in vacuum pouch),,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Slings connected to the Bowsing V,,,,,,,,,,,,,,,Pre-connection lines connected(out of vacuum pouch),,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Ed.03-2020,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+SURVITEC ZODIAC      LIFERAFT TEST AND SURVEY REPORT n°      PAGE No 3/3,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+8. ACCESSORIES INSPECTION,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Equipment,,,,,,Check,,R*,,Expiry date,,,,,,,,,Other equipment,,,,,,,Check,,R*,,
+  In the pack:,,,,,,,,,,,,,,,,,,,Leak stopper ,,,,,,,OK,,,,
+  Hand flares,,,,,,OK,,,,        05-2025,,,,,,,,,Foot pump,,,,,,,OK,,,,
+  Rocket parachute,,,,,,OK,,,,        08-2025,,,,,,,,,Bailer,,,,,,,OK,,,,
+  Smoke signal,,,,,,OK,,,,        05-2025,,,,,,,,,Sponge,,,,,,,OK,,,,
+  Food,,,,,,---,,,,,,,,,,,,,Tin opener,,,,,,,---,,,,
+  Water,,,,,,---,,,,,,,,,,,,,Fishing kit,,,,,,,---,,,,
+  First aid kit,,,,,,OK,,,,  02-2024,,,,,,,,,Torch,,,,,,,OK,,,,
+  Seasickness tablets,,,,,,OK,,,,09-2024,,,,,,,,,Spare bulb,,,,,,,OK,,,,
+"  Batteries 1,5V",,,,,,,,4,,20903022        12-2026,,,,,,,,,Signal mirror,,,,,,,OK,,,,
+  Glue in repair kit,,,,,,,,1,,31301043        05-2025,,,,,,,,,Whistle,,,,,,,OK,,,,
+  EPIRB,,,,,,---,,,,,,,,,,,,,Drinking vessel,,,,,,,---,,,,
+,,,,,,,,,,,,,,,,,,,Seasickness bags,,,,,,,OK,,,,
+,,,,,,,,,,,,,,,,,,,Sea anchor,,,,,,,OK,,,,
+  Outside of the pack:,,,,,,,,,,,,,,,,,,,Paddles,,,,,,,OK,,,,
+  Radar transponder,,,,,,---,,,,,,,,,,,,,Rainwater collector,,,,,,,OK,,,,
+  HRU,,,,,,,,,,S/N:69636/69637        01-2025,,,,,,,,,Servicing history ,,,,,,,OK,,,,
+  Lighting system,,,,,,OK,,,,"BATTERY - 08-2026
+EXTERNAL LIGHT - 07-2026",,,,,,,,,T.P.A.,,,,,,,OK,,,,
+  (battery + flashing light),,,,,,,,,,,,,,,,,,,Radar reflector,,,,,,,OK,,,,
+  R*= replacement,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+9. LIFERAFT AND EQUIPMENT CONDITION INFORMATION,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,Yes,,No,,,,,,,,,,,,,Yes,,No,,
+Was the raft wet?,,,,,,,,,,,,,X,,Was the liferaft damaged?,,,,,,,,,,,,,X,,
+Was the container damaged?,,,,,,,,,,,,,X,,Had the liferaft been fired ,,,,,,,,,,,,,X,,
+Nature and extent of the damages:,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Nature and extent of the defects:,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Repairs carried out / remarks:,,,,,,,"TUBO 4,70M 31301186 (1)",,,,,,,,,,,,,,,,,,,,,,,
+            SERVICE KIT MES SIS CBL 100TOSRV - 31301110 (1),,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+10. REPACKING WITH SAFETY CHECK - PACKER / CHECKER,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+DOCUMENTS,,,,,,,,,,Packer,,Checker,,,DOCUMENTS,,,,,,,,,,,Packer,,Checker,,
+Liferaft label completed,,,,,,,,,,J.C,,A.S.,,,Container label completed,,,,,,,,,,,J.C,,A.S.,,
+ID card completed,,,,,,,,,,J.C,,A.S.,,,Servicing history completed,,,,,,,,,,,J.C,,A.S.,,
+Re-inspection certificate completed,,,,,,,,,,J.C,,A.S.,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+CONNECTIONS,,,,,,,,,,Packer,,Checker,,,For liferafts with VENTURI,,,,,,,,,,,Packer,,Checker,,
+Light connected,,,,,,,,,,J.C,,A.S.,,,Venturi flap cover in position,,,,,,,,,,,J.C,,A.S.,,
+Painter line connected,,,,,,,,,,J.C,,A.S.,,,Venturi caps removed,,,,,,,,,,,J.C,,A.S.,,
+Quick firing line connected,,,,,,,,,,---,,---,,,Venturis opened / secured,,,,,,,,,,,J.C,,A.S.,,
+,,,,,,,,,,,,,,,Venturi protection rolled,,,,,,,,,,,J.C,,A.S.,,
+DL container: shackle access cover glued,,,,,,,,,,---,,---,,,"Venturis protection held in central 
+pos. on the container (Not on MIS R302)",,,,,,,,,,,---,,---,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Station nº:,,,50937,,,Technician's name:,,,,,,JULIO CORREA,,,,,,,,,Signature:,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,, Checker's name:,,,,,,ANTÓNIO SARAMAGO,,,,,,,,,Signature:,,,,,,,,,
+,"IMPORTANT - The « Technician or Packer » as well as the « Checker » must be approved by SurvitecZodiac. 
+Please contact SurvitecZodiac for approval if an exemption is needed.
+- The fields « Packer » and « Checker » must be always filled with the initials or with « N/A».
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Ed.03-2020,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+
+
+########## XLSX: ZODIAC MIS 4.8MT Nº XDC6FL61I314 STARBOARD (2023) V.xlsx (sheets=Sheet1) ##########
+
+--- sheet: Sheet1 ---
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+TEST AND SURVEY REPORT MES MIS SLIDE,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+"4,8 – 6,2 – 7,7 – 9,3 m (9,3m before 02-2020)",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Date:,,1/16/23,,,,Station N°:,,,,50937,,,,REINSPECTION CERTIFICATE N°:,,,,,,,,,,,,000882S,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Length,,,,,,,4.8,,6.2,,7.7,,9.3,,Ship name,,,,,,"""GILBERTO MARIANO""",,,,,,,,,,,
+Date of manufacture,,,,,,,09/2013,,,,,,,,Ship owner,,,,,,"ATLANTICOLINE, S.A.",,,,,,,,,,,
+Last service date,,,,,,,2/17/21,,,,,,,,Flag state,,,,,,PORTUGAL,,,,,,,,,,,
+By station n°,,,,,,,50374,,,,,,,,IMO N°,,,,,,9690494,,,,,,,,,,,
+Last certificat n°,,,,,,,000917S,,,,,,,,,,,,,,,,,,,,,,,,,
+SERIAL N° ,,,,,,,XDC6FL61I314,,,,,,,,,,,,,,STARBOARD,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+1 - INFORMATION ABOUT THE SLIDE CONDITION,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,YES,,NO,,,,,,,,,,,,,YES,,NO,,,,
+Had the slide been inflated?,,,,,,,,,,,,,X,,GI test?,,,,,,,,,,,,,X,,,,
+Was the slide wet?,,,,,,,,,,,,,X,,Cylinder test?,,,,,,,,,,,,,X,,,,
+Was the slide damaged?,,,,,,,,,,,,,X,,,,,,,,,,,,,,,,,,,
+Do not carry out overpressure test and floor seam test,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+2 – UNINSTALLATION OF SLIDE / CONTAINER FROM SUPPORT,,,,,,,,,,,,,,,,,,,,,,Technician,,,,Checker,,,,,,
+Check that the firing line of the slide is disconnected,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Check that the hoses connected to firing head are disconnected,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Check that the electrical plug of the slide is disconnected,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Position the lifting slings on both sides of the rolling bands of the container,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Put the lifting slings in tension,,,,,,,,,,,,,,,,,,,,,,J.C.,,,,D.M.,,,,,,
+Loosen the ratchets of the lashing,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Lift the container and put it on the rolling beams,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Completely unroll the slide and cut the cable ties of the yellow straps,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Disconnect the firing line from the container,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Disconnect the 4 pyrotechnic knives,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Disconnect the 4 « 3 rings system » on the liferaft,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Unscrew the hoses of the slide,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Disconnect the 2 connecting plates of the slide from the support,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Cut the cable ties of the yellow straps around the slide,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+3 – BLAST TEST ON INFLATION SYSTEM,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Hoses,,,Checked,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+A Tube,,,OK,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+B Tube,,,OK,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+C Tube,,,OK,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+D Tube,,,OK,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+E Tube,,,OK,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+F Tube,,,OK,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+G Tube,,,OK,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+H Tube,,,OK,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+I Tube,,,OK,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,Ed.08-2020,,,,,,,,,,,~PAGE 1/5~,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+TEST AND SURVEY REPORT MES MIS SLIDE,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+"4,8 – 6,2 – 7,7 – 9,3 m (9,3m before 02-2020)",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+4 – INFLATION AND CONTROL OF RELIEF VALVES,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,Time,,,,,,,,TUBES,,,,,,,,,,,,,,,,,,,,,,
+,,Star: ,,16:30,,End: ,,17:30,,A,,D,,B,,C,,E,,F,,G,,H,,I,,,,,,
+,,Color of valve,,,,,,,,Red,,Red,,Black,,Black,,Black,,Black,,Black,,Black,,Black,,,,,,
+,,"Pressure
+at opening",,,,Theoretical,,,,343,,,,390,,,,,,,,,,,,,,,,,,
+,,,,,,Measured,,,,319,,325,,358,,372,,375,,353,,378,,362,,370,,,,,,
+,,"Pressure
+at closing",,,,Theoretical,,,,239,,,,290,,,,,,,,,,,,,,,,,,
+,,,,,,Measured,,,,279,,311,,283,,337,,318,,303,,326,,311,,314,,,,,,
+,,Results,,,,,,,,OK,,OK,,OK,,OK,,OK,,OK,,OK,,OK,,OK,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+5 – PRESSURE TEST (WP TEST),,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,Time,,,,,Temperature,,,,,,Atmospheric pressure,,,,,,,,,,,
+,,,Start,,,,,,,17:00,,,,,T1:,14.0 Cº,,,,,P1:,1029 Hpa,,,,,,,,,,
+,,,End,,,,,,,18:00,,,,,T2:,14.0 Cº,,,,,P2:,1028 Hpa,,,,,,,,,,
+,,,Difference,,,,,,,,,,,,,0.0 Cº,,,,,,-1 Hpa,,,,,,,,,,
+,,,Correction,,,,,,,,,,,,,0,,,,,,1,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,TUBES,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,A,,D,,B,,C,,E,,F,,G,,H,,I,,,,,,
+,,Pressure at beginning,,,,,,,,279,,283,,311,,337,,318,,303,,326,,311,,314,,,,,,
+,,Pressure at end,,,,,,,,271,,276,,307,,333,,307,,300,,323,,306,,311,,,,,,
+,,"Final Result 
+(after correction)",,,,,,,,-9.0,,-8.0,,-4.0,,-4.0,,-11.0,,-3.0,,-3.0,,-5.0,,-3.0,,,,,,
+,,,,,,,,,,-3.2%,,-2.8%,,-1.3%,,-1.2%,,-3.5%,,-1.0%,,-0.9%,,-1.6%,,-1.0%,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+6 - INSPECTION OF INFLATABLE STRUCTURE,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,Inflatable structure,,,,,Checked,,,,Replacement,,,,Track,,,,,,,Checked,,,,Replacement,,,,,,,
+,A tube,,,,,OK,,,,,,,,Wear,,,,,,,OK,,,,,,,,,,,
+,B tube,,,,,OK,,,,,,,,Tightness of the partition net,,,,,,,OK,,,,,,,,,,,
+,C tube,,,,,OK,,,,,,,,,,,,,,,,,,,,,,,,,,
+,D tube,,,,,OK,,,,,,,,Ship connection,,,,,,,Checked,,,,Replacement,,,,,,,
+,E tube,,,,,OK,,,,,,,,Plate for connection to support,,,,,,,OK,,,,,,,,,,,
+,F tube,,,,,OK,,,,,,,,Plate for connection to liferaft,,,,,,,OK,,,,,,,,,,,
+,G tube,,,,,OK,,,,,,,,Strap,,,,,,,OK,,,,,,,,,,,
+,H tube,,,,,OK,,,,,,,,,,,,,,,,,,,,,,,,,,
+,I tube,,,,,OK,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+7 - INSPECTION OF ACCESSORIES OF THE SLIDE,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,ACCESSORIES,,,,,,,,,,,,,,,,Checked,,,,,,Replacement,,,,,,,,,
+,Tether line fixed (attachment: 2 cable ties 9 Kg on each loop patch),,,,,,,,,,,,,,,,OK,,,,,,,,,,,,,,,
+,Electrical wire checked (Ground and Conductivity test),,,,,,,,,,,,,,,,OK,,,,,,,,,,,,,,,
+,Relief valves,,,,,,,,,,,,,,,,OK,,,,,,,,,,,,,,,
+,Inflation valves,,,,,,,,,,,,,,,,OK,,,,,,,,,,,,,,,
+,Firing line release system from deck fixed (attachment: 2 cable ties 9 Kg on each loop patch) – slide associated with R302 system (if applicable),,,,,,,,,,,,,,,,----,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,Ed.08-2020,,,,,,,,,,,~PAGE 2/5~,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+TEST AND SURVEY REPORT MES MIS SLIDE,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+"4,8 – 6,2 – 7,7 – 9,3 m (9,3m before 02-2020)",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,Hoses,,,,,,Checked,,,,,,Replacement,,,,,,,,,,,,,,
+,,,,,,A Tube,,,,,,OK,,,,,,,,,,,,,,,,,,,,
+,,,,,,B Tube,,,,,,OK,,,,,,,,,,,,,,,,,,,,
+,,,,,,C Tube ,,,,,,OK,,,,,,,,,,,,,,,,,,,,
+,,,,,,D Tube,,,,,,OK,,,,,,,,,,,,,,,,,,,,
+,,,,,,E Tube,,,,,,OK,,,,,,,,,,,,,,,,,,,,
+,,,,,,F Tube,,,,,,OK,,,,,,,,,,,,,,,,,,,,
+,,,,,,G Tube,,,,,,OK,,,,,,,,,,,,,,,,,,,,
+,,,,,,H Tube,,,,,,OK,,,,,,,,,,,,,,,,,,,,
+,,,,,,I Tube,,,,,,OK,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+8 - INFORMATION ABOUT THE INFLATION SYSTEM,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,Serial N°,,,,,,,XDC6FL61I314,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+CYLINDERS,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Cylinder N°,,,,,,GOV059,,,GOV060,,,GOV072,,,GOV064,,,,,,,,,,,,,,,,,
+CO² weight,,,,,,11.000 KG,,,11.000 KG,,,11.000 KG,,,11.000 KG,,,,,,,,,,,,,,,,,
+N² weight,,,,,,0.660 KG,,,0.660 KG,,,0.660 KG,,,0.660 KG,,,,,,,,,,,,,,,,,
+Theoretical full weight,,,,,,33.340 KG,,,33.340 KG,,,33.360 KG,,,33.320 KG,,,,,,,,,,,,,,,,,
+Measured full weight,,,,,,33.356 KG,,,33.356 KG,,,33.392 KG,,,33.350 KG,,,,,,,,,,,,,,,,,
+Cylinder test last date,,,,,,04/2013,,,04/2013,,,04/2013,,,04/2013,,,,,,,,,,,,,,,,,
+Cylinder filling last date,,,,,,02/2018,,,02/2018,,,02/2018,,,02/2018,,,,,,,,,,,,,,,,,
+FIRING HEADS,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+"Condition (New or
+ Serviced)",,,,,,SERVICED,,,SERVICED,,,SERVICED,,,SERVICED,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Type,,,,,,DK99S,,,DK96,,,DK96,,,DK96,,,,,,,,,,,,,,,,,
+Serial N° ,,,,,,59951,,,08574,,,08600,,,08572,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+9 – INSPECTION OF SUPPORT,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+ACCESSORIES,,,,,,,,,,,Checked,,,,Replacement,,,,,Serial n° HRU/ERU,,,,,Expiry date,,,,,,,
+Hoses,,,,,,,,,,,OK,,,,,,,,,,,,,,,,,,,,,
+Tilting arms / locking pins,,,,,,,,,,,OK,,,,,,,,,,,,,,,,,,,,,
+Bowsing line arrangement (pulley + rings),,,,,,,,,,,OK,,,,,,,,,,,,,,,,,,,,,
+lashing guiding tubes on top of arms,,,,,,,,,,,OK,,,,,,,,,,,,,,,,,,,,,
+Titling plate,,,,,,,,,,,OK,,,,,,,,,,,,,,,,,,,,,
+Neoprene strips,,,,,,,,,,,OK,,,,,,,,,,,,,,,,,,,,,
+Winch,,,,,,,,,,,OK,,,,,,,,,,,,,,,,,,,,,
+Manifold,,,,,,,,,,,OK,,,,,,,,,,,,,,,,,,,,,
+Rope clutch,,,,,,,,,,,OK,,,,,,,,,,,,,,,,,,,,,
+Cylinders fixed system,,,,,,,,,,,OK,,,,,,,,,,,,,,,,,,,,,
+Fixing additional cylinder system (if applicable),,,,,,,,,,,OK,,,,,,,,,,,,,,,,,,,,,
+Knife sheath / knife,,,,,,,,,,,OK,,,,,,,,,,,,,,,,,,,,,
+Junction box,,,,,,,,,,,OK,,,,,,,,,,,,,,,,,,,,,
+Lashing (to replace every 5 years),,,,,,,,,,,OK,,,,,,,,,,,,,,06/2024,,,,,,,
+ERU system (to replace every 2 years),,,,,,,,,,,OK,,,,20701040,,,,,69634 / 69635,,,,,01/2025,,,,,,,
+HRU of Bowsing line (to replace every 2 years),,,,,,,,,,,OK,,,,(2) 20701039,,,,,69642 / 69343,,,,,01/2025,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,Ed.08-2020,,,,,,,,,,,~PAGE 3/5~,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+TEST AND SURVEY REPORT MES MIS SLIDE,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+"4,8 – 6,2 – 7,7 – 9,3 m (9,3m before 02-2020)",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+10 - PREPARATION OF SUPPORT,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,ACCESSORIES,,,,,,,,,,,,,,,,,,Tecnician,,,,,Checker,,,,,,,,
+,Cylinders checked and head serviced,,,,,,,,,,,,,,,,,,J.C,,,,,D.M.,,,,,,,,
+,Hoses connected (don’t connect to the firing head and cylinders with valve if applicable),,,,,,,,,,,,,,,,,,J.C,,,,,D.M.,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,Adaptor of cylinder with valve: Teflon tape (3 turns) + tightened to 5 daN (if applicable),,,,,,,,,,,,,,,,,,---,,,,,---,,,,,,,,
+,Cylinders fixed (using ratchet strap or cable ties),,,,,,,,,,,,,,,,,,J.C,,,,,D.M.,,,,,,,,
+,Additional cylinder fixed (if applicable),,,,,,,,,,,,,,,,,,---,,,,,---,,,,,,,,
+,Cylinder with firing head secure with a line,,,,,,,,,,,,,,,,,,J.C,,,,,D.M.,,,,,,,,
+,ERU cable connected inside the junction box,,,,,,,,,,,,,,,,,,J.C,,,,,D.M.,,,,,,,,
+,Cable and hoses fixed with cable ties 35 Kg ,,,,,,,,,,,,,,,,,,J.C,,,,,D.M.,,,,,,,,
+,Put the slide Firing Line through the rings under the support,,,,,,,,,,,,,,,,,,J.C,,,,,D.M.,,,,,,,,
+,Put the 2 guiding lines of bowsing lines through the support,,,,,,,,,,,,,,,,,,J.C,,,,,D.M.,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+10 - FOLDING THE SLIDE,,,,,,,,,,,,,,,,,,,,,,Tecnician,,,,Checker,,,,,,
+Position the new polyethylene protective sheet under the slide,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Deflate the slide,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Pull the 3 central tubes back,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Fold and position the crossing tubes under the 3 central tubes,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Vacuum the 9 tubes,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Fill in the slide label ,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Fold the slide,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Position the yellow straps around the slide (cable ties 35Kg),,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Position the slide protection (black fabric panel),,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Connect the 2 connecting plates of the slide to the support (copper grease),,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Connect the slide hoses to the manifolds,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Place the container on rolling beams to connect it to the slide,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Connect the 4 « 3 ring systems » to the slide plate (copper grease),,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,Ed.08-2020,,,,,,,,,,,~PAGE 4/5~,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+TEST AND SURVEY REPORT MES MIS SLIDE,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+"4,8 – 6,2 – 7,7 – 9,3 m (9,3m before 02-2020)",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Connect the 4 pyrotechnic knives,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Test the knife wire by means of electrical plug of the slide (Ground and Conductivity test),,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Protect the 4 pyrotechnic knive plugs (heath shrinkable sheaths),,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Position the 2 safety pins,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Connect the Firing Line (goes underneath the tether line),,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Connect the Firing line release system from deck - R302/R200 system (goes over the tether,,,,,,,,,,,,,,,,,,,,,,---,,,,---,,,,,,
+line and Primary liferaft Firing Line) (if applicable),,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Secure the Firing line (cable tie 35kg) (or secure the 2 Firing Lines in case or R302/R200),,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Protect the closing straps seals at both extremities with foams,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Put the slide to tension between the container and the support,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Position the foams around container,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Position the rolling straps,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Roll the slide and hold in position with yellow straps (cable ties 35kg),,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Put the safety strap through the last yellow strap (strap with 2 loops) ,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Position the container horizontally,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Remove the safety pins and the rolling strap,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Position the protective foams around the slide fixing plates (only container version 1),,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+External pyrotechnic cable fixed with 9kg cable tie (only container version 2),,,,,,,,,,,,,,,,,,,,,,---,,,,---,,,,,,
+Replace the 35kg cable tie of Firing Line with a 9kg one,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Position the lifting slings on the container rolling band edge,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Position the safety line of the tilting plate,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Position the last yellow strap around the slide protection (black fabric panel),,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Lift and position the container in front of the support,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Put the support tilting plate back in position,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Arm the tilting plate locking pins (applicable for: L’Estuaire),,,,,,,,,,,,,,,,,,,,,,---,,,,---,,,,,,
+Put the slide Firing Line through the 3 rings under the support ,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Put the protective foam in place on the support,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Position the container on top of the support and start to fold the slide,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Check that the extremity of hoses and tether lines are not blocked in the folds,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Remove the safety strap before positioning the container on the support arms,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Secure the container to the support with the lashing and secure the ratchet (cable ties 35kg),,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Remove the lifting slings,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Fill in the container label: liferaft and slide,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Fill in the container label: MOR (if applicable),,,,,,,,,,,,,,,,,,,,,,---,,,,---,,,,,,
+Secure the inflation system (and additional cylinders if applicable),,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Secure the lashing with a line,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Name of technician:,,,,,,,,JULIO CORREA,,,,,,,,,Signature:,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Name of checker:,,,,,,,,DUARTE MARQUES,,,,,,,,,Signature:,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Important: «Techinician or packer » as well as «cheker» are necessarily approves by Survitec SAS. Please contact Survitec SAS ,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+for approval if derogation is necessary. « PACKER » and « CHEKER » fields must always be filled in with initials or « N / A »,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,Ed.08-2020,,,,,,,,,,,~PAGE 5/5~,,,,,,,,,,,,,,,,,,,
+
+
+########## XLSX: ZODIAC MIS 4.8MT Nº XDC6FL62I314 PORTSIDE (2023).xlsx (sheets=Sheet1) ##########
+
+--- sheet: Sheet1 ---
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+TEST AND SURVEY REPORT MES MIS SLIDE,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+"4,8 – 6,2 – 7,7 – 9,3 m (9,3m before 02-2020)",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Date:,,1/17/22,,,,Station N°:,,,,50937,,,,REINSPECTION CERTIFICATE N°:,,,,,,,,,,,,000883S,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Length,,,,,,,4.8,,6.2,,7.7,,9.3,,Ship name,,,,,,"""GILBERTO MARIANO""",,,,,,,,,,,
+Date of manufacture,,,,,,,09/2013,,,,,,,,Ship owner,,,,,,"ATLANTICOLINE, S.A.",,,,,,,,,,,
+Last service date,,,,,,,4/18/22,,,,,,,,Flag state,,,,,,PORTUGAL,,,,,,,,,,,
+By station n°,,,,,,,50374,,,,,,,,IMO N°,,,,,,9690494,,,,,,,,,,,
+Last certificat n°,,,,,,,000916S,,,,,,,,,,,,,,,,,,,,,,,,,
+SERIAL N° ,,,,,,,XDC6FL62I314,,,,,,,,,,,,,,PORTISIDE,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+1 - INFORMATION ABOUT THE SLIDE CONDITION,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,YES,,NO,,,,,,,,,,,,,YES,,NO,,,,
+Had the slide been inflated?,,,,,,,,,,,,,X,,GI test?,,,,,,,,,,,,,X,,,,
+Was the slide wet?,,,,,,,,,,,,,X,,Cylinder test?,,,,,,,,,,,,,X,,,,
+Was the slide damaged?,,,,,,,,,,,,,X,,,,,,,,,,,,,,,,,,,
+Do not carry out overpressure test and floor seam test,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+2 – UNINSTALLATION OF SLIDE / CONTAINER FROM SUPPORT,,,,,,,,,,,,,,,,,,,,,,Technician,,,,Checker,,,,,,
+Check that the firing line of the slide is disconnected,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Check that the hoses connected to firing head are disconnected,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Check that the electrical plug of the slide is disconnected,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Position the lifting slings on both sides of the rolling bands of the container,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Put the lifting slings in tension,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Loosen the ratchets of the lashing,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Lift the container and put it on the rolling beams,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Completely unroll the slide and cut the cable ties of the yellow straps,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Disconnect the firing line from the container,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Disconnect the 4 pyrotechnic knives,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Disconnect the 4 « 3 rings system » on the liferaft,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Unscrew the hoses of the slide,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Disconnect the 2 connecting plates of the slide from the support,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Cut the cable ties of the yellow straps around the slide,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+3 – BLAST TEST ON INFLATION SYSTEM,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Hoses,,,Checked,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+A Tube,,,OK,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+B Tube,,,OK,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+C Tube,,,OK,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+D Tube,,,OK,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+E Tube,,,OK,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+F Tube,,,OK,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+G Tube,,,OK,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+H Tube,,,OK,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+I Tube,,,OK,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,Ed.08-2020,,,,,,,,,,,~PAGE 1/5~,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+TEST AND SURVEY REPORT MES MIS SLIDE,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+"4,8 – 6,2 – 7,7 – 9,3 m (9,3m before 02-2020)",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+4 – INFLATION AND CONTROL OF RELIEF VALVES,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,Time,,,,,,,,TUBES,,,,,,,,,,,,,,,,,,,,,,
+,,Star: ,,11:30,,End: ,,12:30,,A,,D,,B,,C,,E,,F,,G,,H,,I,,,,,,
+,,Color of valve,,,,,,,,Red,,Red,,Black,,Black,,Black,,Black,,Black,,Black,,Black,,,,,,
+,,"Pressure
+at opening",,,,Theoretical,,,,343,,,,390,,,,,,,,,,,,,,,,,,
+,,,,,,Measured,,,,315,,296,,364,,348,,374,,354,,343,,356,,363,,,,,,
+,,"Pressure
+at closing",,,,Theoretical,,,,239,,,,290,,,,,,,,,,,,,,,,,,
+,,,,,,Measured,,,,274,,274,,315,,294,,316,,310,,298,,302,,308,,,,,,
+,,Results,,,,,,,,OK,,OK,,OK,,OK,,OK,,OK,,OK,,OK,,OK,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+5 – PRESSURE TEST (WP TEST),,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,Time,,,,,Temperature,,,,,,Atmospheric pressure,,,,,,,,,,,
+,,,Start,,,,,,,12:30,,,,,T1:,16.0 Cº,,,,,P1:,1029 Hpa,,,,,,,,,,
+,,,End,,,,,,,13:30,,,,,T2:,16.0 Cº,,,,,P2:,1029 Hpa,,,,,,,,,,
+,,,Difference,,,,,,,,,,,,,0.0 Cº,,,,,,0 Hpa,,,,,,,,,,
+,,,Correction,,,,,,,,,,,,,0,,,,,,0,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,TUBES,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,A,,D,,B,,C,,E,,F,,G,,H,,I,,,,,,
+,,Pressure at beginning,,,,,,,,274,,274,,315,,294,,316,,310,,298,,302,,308,,,,,,
+,,Pressure at end,,,,,,,,271,,270,,310,,292,,315,,308,,297,,299,,307,,,,,,
+,,"Final Result 
+(after correction)",,,,,,,,-3.0,,-4.0,,-5.0,,-2.0,,-1.0,,-2.0,,-1.0,,-3.0,,-1.0,,,,,,
+,,,,,,,,,,-1.1%,,-1.5%,,-1.6%,,-0.7%,,-0.3%,,-0.6%,,-0.3%,,-1.0%,,-0.3%,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+6 - INSPECTION OF INFLATABLE STRUCTURE,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,Inflatable structure,,,,,Checked,,,,Replacement,,,,Track,,,,,,,Checked,,,,Replacement,,,,,,,
+,A tube,,,,,OK,,,,,,,,Wear,,,,,,,OK,,,,,,,,,,,
+,B tube,,,,,OK,,,,,,,,Tightness of the partition net,,,,,,,OK,,,,,,,,,,,
+,C tube,,,,,OK,,,,,,,,,,,,,,,,,,,,,,,,,,
+,D tube,,,,,OK,,,,,,,,Ship connection,,,,,,,Checked,,,,Replacement,,,,,,,
+,E tube,,,,,OK,,,,,,,,Plate for connection to support,,,,,,,OK,,,,,,,,,,,
+,F tube,,,,,OK,,,,,,,,Plate for connection to liferaft,,,,,,,OK,,,,,,,,,,,
+,G tube,,,,,OK,,,,,,,,Strap,,,,,,,OK,,,,,,,,,,,
+,H tube,,,,,OK,,,,,,,,,,,,,,,,,,,,,,,,,,
+,I tube,,,,,OK,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+7 - INSPECTION OF ACCESSORIES OF THE SLIDE,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,ACCESSORIES,,,,,,,,,,,,,,,,Checked,,,,,,Replacement,,,,,,,,,
+,Tether line fixed (attachment: 2 cable ties 9 Kg on each loop patch),,,,,,,,,,,,,,,,OK,,,,,,,,,,,,,,,
+,Electrical wire checked (Ground and Conductivity test),,,,,,,,,,,,,,,,OK,,,,,,,,,,,,,,,
+,Relief valves,,,,,,,,,,,,,,,,OK,,,,,,,,,,,,,,,
+,Inflation valves,,,,,,,,,,,,,,,,OK,,,,,,,,,,,,,,,
+,Firing line release system from deck fixed (attachment: 2 cable ties 9 Kg on each loop patch) – slide associated with R302 system (if applicable),,,,,,,,,,,,,,,,----,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,Ed.08-2020,,,,,,,,,,,~PAGE 2/5~,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+TEST AND SURVEY REPORT MES MIS SLIDE,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+"4,8 – 6,2 – 7,7 – 9,3 m (9,3m before 02-2020)",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,Hoses,,,,,,Checked,,,,,,Replacement,,,,,,,,,,,,,,
+,,,,,,A Tube,,,,,,OK,,,,,,,,,,,,,,,,,,,,
+,,,,,,B Tube,,,,,,OK,,,,,,,,,,,,,,,,,,,,
+,,,,,,C Tube ,,,,,,OK,,,,,,,,,,,,,,,,,,,,
+,,,,,,D Tube,,,,,,OK,,,,,,,,,,,,,,,,,,,,
+,,,,,,E Tube,,,,,,OK,,,,,,,,,,,,,,,,,,,,
+,,,,,,F Tube,,,,,,OK,,,,,,,,,,,,,,,,,,,,
+,,,,,,G Tube,,,,,,OK,,,,,,,,,,,,,,,,,,,,
+,,,,,,H Tube,,,,,,OK,,,,,,,,,,,,,,,,,,,,
+,,,,,,I Tube,,,,,,OK,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+8 - INFORMATION ABOUT THE INFLATION SYSTEM,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,Serial N°,,,,,,,XDC6FL62I314,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+CYLINDERS,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Cylinder N°,,,,,,GOV055,,,GOV056,,,GOV057,,,GOV058,,,,,,,,,,,,,,,,,
+CO² weight,,,,,,11.000 KG,,,11.000 KG,,,11.000 KG,,,11.000 KG,,,,,,,,,,,,,,,,,
+N² weight,,,,,,0.660 KG,,,0.660 KG,,,0.660 KG,,,0.660 KG,,,,,,,,,,,,,,,,,
+Theoretical full weight,,,,,,33.280 KG,,,33.320 KG,,,33.300 KG,,,33.300 KG,,,,,,,,,,,,,,,,,
+Measured full weight,,,,,,33.300 KG,,,33.332 KG,,,33.312 KG,,,33.306 KG,,,,,,,,,,,,,,,,,
+Cylinder test last date,,,,,,04/2013,,,04/2013,,,04/2013,,,04/2013,,,,,,,,,,,,,,,,,
+Cylinder filling last date,,,,,,02/2018,,,02/2018,,,02/2018,,,02/2018,,,,,,,,,,,,,,,,,
+FIRING HEADS,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+"Condition (New or
+ Serviced)",,,,,,SERVICED,,,SERVICED,,,SERVICED,,,SERVICED,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Type,,,,,,DK99S,,,DK96,,,DK96,,,DK96,,,,,,,,,,,,,,,,,
+Serial N° ,,,,,,59921,,,08573,,,08570,,,08547,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+9 – INSPECTION OF SUPPORT,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+ACCESSORIES,,,,,,,,,,,Checked,,,,Replacement,,,,,Serial n° HRU/ERU,,,,,Expiry date,,,,,,,
+Hoses,,,,,,,,,,,OK,,,,,,,,,,,,,,,,,,,,,
+Tilting arms / locking pins,,,,,,,,,,,OK,,,,,,,,,,,,,,,,,,,,,
+Bowsing line arrangement (pulley + rings),,,,,,,,,,,OK,,,,,,,,,,,,,,,,,,,,,
+lashing guiding tubes on top of arms,,,,,,,,,,,OK,,,,,,,,,,,,,,,,,,,,,
+Titling plate,,,,,,,,,,,OK,,,,,,,,,,,,,,,,,,,,,
+Neoprene strips,,,,,,,,,,,OK,,,,,,,,,,,,,,,,,,,,,
+Winch,,,,,,,,,,,OK,,,,,,,,,,,,,,,,,,,,,
+Manifold,,,,,,,,,,,OK,,,,,,,,,,,,,,,,,,,,,
+Rope clutch,,,,,,,,,,,OK,,,,,,,,,,,,,,,,,,,,,
+Cylinders fixed system,,,,,,,,,,,OK,,,,,,,,,,,,,,,,,,,,,
+Fixing additional cylinder system (if applicable),,,,,,,,,,,OK,,,,,,,,,,,,,,,,,,,,,
+Knife sheath / knife,,,,,,,,,,,OK,,,,,,,,,,,,,,,,,,,,,
+Junction box,,,,,,,,,,,OK,,,,,,,,,,,,,,,,,,,,,
+Lashing (to replace every 5 years),,,,,,,,,,,OK,,,,,,,,,,,,,,06/2024,,,,,,,
+ERU system (to replace every 2 years),,,,,,,,,,,OK,,,,,,,,,69633/69632,,,,,01/2025,,,,,,,
+HRU of Bowsing line (to replace every 2 years),,,,,,,,,,,OK,,,,,,,,,69640/69641,,,,,01/2025,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,Ed.08-2020,,,,,,,,,,,~PAGE 3/5~,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+TEST AND SURVEY REPORT MES MIS SLIDE,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+"4,8 – 6,2 – 7,7 – 9,3 m (9,3m before 02-2020)",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+10 - PREPARATION OF SUPPORT,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,ACCESSORIES,,,,,,,,,,,,,,,,,,Tecnician,,,,,Checker,,,,,,,,
+,Cylinders checked and head serviced,,,,,,,,,,,,,,,,,,J.C,,,,,D.M.,,,,,,,,
+,Hoses connected (don’t connect to the firing head and cylinders with valve if applicable),,,,,,,,,,,,,,,,,,J.C,,,,,D.M.,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,Adaptor of cylinder with valve: Teflon tape (3 turns) + tightened to 5 daN (if applicable),,,,,,,,,,,,,,,,,,---,,,,,---,,,,,,,,
+,Cylinders fixed (using ratchet strap or cable ties),,,,,,,,,,,,,,,,,,J.C,,,,,D.M.,,,,,,,,
+,Additional cylinder fixed (if applicable),,,,,,,,,,,,,,,,,,---,,,,,---,,,,,,,,
+,Cylinder with firing head secure with a line,,,,,,,,,,,,,,,,,,J.C,,,,,D.M.,,,,,,,,
+,ERU cable connected inside the junction box,,,,,,,,,,,,,,,,,,J.C,,,,,D.M.,,,,,,,,
+,Cable and hoses fixed with cable ties 35 Kg ,,,,,,,,,,,,,,,,,,J.C,,,,,D.M.,,,,,,,,
+,Put the slide Firing Line through the rings under the support,,,,,,,,,,,,,,,,,,J.C,,,,,D.M.,,,,,,,,
+,Put the 2 guiding lines of bowsing lines through the support,,,,,,,,,,,,,,,,,,J.C,,,,,D.M.,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+10 - FOLDING THE SLIDE,,,,,,,,,,,,,,,,,,,,,,Tecnician,,,,Checker,,,,,,
+Position the new polyethylene protective sheet under the slide,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Deflate the slide,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Pull the 3 central tubes back,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Fold and position the crossing tubes under the 3 central tubes,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Vacuum the 9 tubes,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Fill in the slide label ,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Fold the slide,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Position the yellow straps around the slide (cable ties 35Kg),,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Position the slide protection (black fabric panel),,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Connect the 2 connecting plates of the slide to the support (copper grease),,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Connect the slide hoses to the manifolds,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Place the container on rolling beams to connect it to the slide,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Connect the 4 « 3 ring systems » to the slide plate (copper grease),,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,Ed.08-2020,,,,,,,,,,,~PAGE 4/5~,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+TEST AND SURVEY REPORT MES MIS SLIDE,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+"4,8 – 6,2 – 7,7 – 9,3 m (9,3m before 02-2020)",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Connect the 4 pyrotechnic knives,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Test the knife wire by means of electrical plug of the slide (Ground and Conductivity test),,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Protect the 4 pyrotechnic knive plugs (heath shrinkable sheaths),,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Position the 2 safety pins,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Connect the Firing Line (goes underneath the tether line),,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Connect the Firing line release system from deck - R302/R200 system (goes over the tether,,,,,,,,,,,,,,,,,,,,,,---,,,,---,,,,,,
+line and Primary liferaft Firing Line) (if applicable),,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Secure the Firing line (cable tie 35kg) (or secure the 2 Firing Lines in case or R302/R200),,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Protect the closing straps seals at both extremities with foams,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Put the slide to tension between the container and the support,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Position the foams around container,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Position the rolling straps,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Roll the slide and hold in position with yellow straps (cable ties 35kg),,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Put the safety strap through the last yellow strap (strap with 2 loops) ,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Position the container horizontally,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Remove the safety pins and the rolling strap,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Position the protective foams around the slide fixing plates (only container version 1),,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+External pyrotechnic cable fixed with 9kg cable tie (only container version 2),,,,,,,,,,,,,,,,,,,,,,---,,,,---,,,,,,
+Replace the 35kg cable tie of Firing Line with a 9kg one,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Position the lifting slings on the container rolling band edge,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Position the safety line of the tilting plate,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Position the last yellow strap around the slide protection (black fabric panel),,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Lift and position the container in front of the support,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Put the support tilting plate back in position,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Arm the tilting plate locking pins (applicable for: L’Estuaire),,,,,,,,,,,,,,,,,,,,,,---,,,,---,,,,,,
+Put the slide Firing Line through the 3 rings under the support ,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Put the protective foam in place on the support,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Position the container on top of the support and start to fold the slide,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Check that the extremity of hoses and tether lines are not blocked in the folds,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Remove the safety strap before positioning the container on the support arms,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Secure the container to the support with the lashing and secure the ratchet (cable ties 35kg),,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Remove the lifting slings,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Fill in the container label: liferaft and slide,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Fill in the container label: MOR (if applicable),,,,,,,,,,,,,,,,,,,,,,---,,,,---,,,,,,
+Secure the inflation system (and additional cylinders if applicable),,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+Secure the lashing with a line,,,,,,,,,,,,,,,,,,,,,,J.C,,,,D.M.,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Name of technician:,,,,,,,,JULIO CORREA,,,,,,,,,Signature:,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Name of checker:,,,,,,,,DUARTE MARQUES,,,,,,,,,Signature:,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Important: «Techinician or packer » as well as «cheker» are necessarily approves by Survitec SAS. Please contact Survitec SAS ,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+for approval if derogation is necessary. « PACKER » and « CHEKER » fields must always be filled in with initials or « N / A »,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,,Ed.08-2020,,,,,,,,,,,~PAGE 5/5~,,,,,,,,,,,,,,,,,,,
+
+
+########## PDF: ZODIAC SIS Nº XDC5FL91I314  PORTSIDE REPORT (2023) 2933224.pdf (pages=1) ##########
+
+A member of
+InflAtAble SAfety And
+SurvIvAl equIpment
+trAde ASSocIAtIon lImIted
+ISSettA form no 197
+Certificate
+no.
+CertifiCate of re-inspeCtion
+Inflatable Liferaft
+Type: 	Serial Number: 	Date of Manufacture:
+Fabric Type: 	Capacity: 	Length of Painter:
+m/inside 	m/outside
+Max Stowage height:
+m
+Identification:
+Cylinders:
+Equipment:
+Tests:
+Verification:
+Flagstate of ship:
+IMO No.
+International call signal
+Name of ship:
+Ship owner: Signature
+For authorized servicing station
+Serial No. 	Contents CO2 	Contents N2 	Latest hyd. test
+Unit 	Type 	Serial No. 	Expiry date
+Emergency pack:
+EPIRB:
+HRU test:
+Radar Reflector:
+First aid kit:
+Nap-test 	Gas inflation test 	Floor seam test 	Load test davit launched
+Yes/No 	Yes/No 	Yes/No 	Yes/No
+Latest Test: 	Latest Test: 	Latest Test: 	Latest Test:
+Date of inspection: 	Service Station name and No. 	Date issued to ship:
+National Marine
+authority ID No.
+Remarks/modification:
+Unit 	Serial No. 	Date of Manufacture
+Humidity/CO2 Sensor:
+2933224
+This is to certify that the raft detailed below has been surveyed, controlled and tested in compliance with requirements from:
+DGRM and the manufacturer and in accordance with IMO resolution A.761 (18)
+SurvitecZodiac MES SIS XDC5FL91I314 Sep-2013
+Polyurethane 1 1 1 2
+WBG015 2.200kg 0.140kg Feb-2013
+XDC5FL91I314 Jan-2024
+No No No No
+20-Jan-2023
+50937:
+Orey Tecnica Azores 21-Jan-2023
+According to SOLAS regulation, this inflatable liferaft requires servicing within 12 months from the date of inspection (above).
+Julio Correa
+Portugal
+9690494
+CSMG
+GILBERTO MARIANO
+ATLANTICOLINE, S.A.
+Survitec Group, Kingsway, Dunmurry, Belfast, BT17 9AF, Northern Ireland
+Telephone: 44 (0) 28 9030 1531 FAX: 44 (0) 28 90621765
+Powered by TCPDF (www.tcpdf.org)
+
+-- 1 of 1 --
+
+
+
+
+########## PDF: ZODIAC SIS Nº XDC5FL91I314  PORTSIDE REPORT (2023).pdf (pages=2) ##########
+
+Ed.10-2020 Page 1/2
+Type of SLIDE Ship name
+Stowage height Shipowner
+Serial N° Flag
+Date of manufacture IMO N°
+Last service date
+By station n°
+Last certificate n°
+1. INFLATION HOSES BLAST TEST
+2. RELIEF VALVE TEST *
+Start: BUOYANCIES
+End: UPPER LOWER 1 LOWER 2 (3.80m)
+Opening
+Closure
+* Opening/closure pressure of the relief valves according to the valve dot color. Refer to the service manual info
+sheet SM003, page 4 / PART I - Controls, SOLAS Tests
+3. PRESSURE TEST (WP test) Tolerance 5% for starting pressure
+Hour Temperature Atmospheric pressure
+Start T1 : P1 :
+End T2 : P2 :
+Difference
+Correction
+BUOYANCIES
+UPPER LOWER 1 LOWER 2 (3.80m)
+Start
+End
+Result
+(after correction)
+Test passes
+yes/no
+4. CYLINDERS
+Cylinder N°
+CO² weigh
+N² weigh
+Theoretical full weigh
+Noted full weigh
+Last cylinder testing
+Cylinder charging & testing date
+Cylinder head type & n°
+5. Tests carried out YES NO
+GI test
+Cylinder charging & testing
+Hoses changed
+Do not carry out overpressure test and floor seam test
+SURVITEC ZODIAC TEST AND SURVEY REPORT SIS SLIDE
+MES AND NON MES
+Date: _ _/_ _/ _ _ Station N°: _ _ _ _ _ REINSPECTION CERTIFICATE N°: _ _ _ _ _ _
+2.20 MT
+MES SIS
+XDC5FL91I31409-2013
+"GILBERTO MARIANO"
+9690494
+PORTUGAL
+50374
+DK99S Nº:59583
+02-2018
+02-2013
+6.995 KG
+0.140 KG
+2.200 KG
+WBG015
+X
+XX
+ATLANTICOLINE, S.A.
+YES	YES
+PORTSIDE
+17-02-2021
+OK
+6.993 KG
+2871434
+270 281
+230 246
+10:20
+11:20
+11:20
+12:20	14 Cº 1030 Hpa
+13 Cº 1030 Hpa
++1 Cº 0 Hpa
+230 246
+228 244
+-3 0
+- 2	-2
+20 01 2023 50937 2933224
+
+-- 1 of 2 --
+
+Ed.10-2020 Page 2/2
+SURVITEC ZODIAC TEST AND SURVEY REPORT SIS SLIDE
+MES AND NON MES
+6. SLIDE AND ACCESSORIES INSPECTION
+Buoyancies Checked R* Track Checked R*
+Inflatable structure Floor
+Reflective tape Storage bag Checked R*
+Relief valve Snap hook
+Relief valve cap Velcro tape
+Slide lower part protection
+(ESS with slide 3,80m)
+Delta shackle tightened + snap hook
+(slide 3,80m)
+Handles or boarding lifelines Labels/stickers
+Slide/bag connecting line Inflation system Checked R*
+Snap hook on lower part of slide CO² inlet valve
+Labels/stickers Hoses
+Knife Inflation valve
+Electrical lighting system
+Expiry date:
+Firing line Checked R*
+Length 1,70m
+R* = replacement
+7. INFORMATION ABOUT SLIDE AND EQUIPMENT CONDITION
+Yes No Yes No
+Is the slide wet ? Is the slide damaged ?
+Is the storage bag damaged ? Has the slide been inflated ?
+Nature and importance of damage noticed:
+Nature and importance of defaults noticed:
+Repairs carried out / remarks:
+8. PACKING OPERATIONS WITH DOUBLE CHECK FOR SECURITY – PACKER / CHECKER
+PACKING OPERATIONS Packer Checker PACKING OPERATIONS (suite) Packer Checker
+Slide label filled in White strap goes below cylinder
+Cylinder checked, head
+serviced Firing line upwards orientated
+Cylinder secured in sheath Slide folded as large as the cylinder
+and then rolled
+Hoses tightened / locked Zip ties 9 kg through velcro tapes (if
+applicable)
+Rapid firing line connected
+(bowline knot)
+Firing line placed between the 2
+velcro tapes
+Firing head protected Bag closed by means of snap hooks
+Light connected Firing line loop fixed to snap hook
+eye with zip tie 35Kg
+Slide vacuumed Bag label filled in
+Bag fixed to slide (in case of
+velcro tapes) & cylinder in Reinspection certificate filled in
+Station n°: Name of technician: Signature:
+Name of checker: Signature:
+Important: « Technician or packer » as well as « checker » are necessarily approved by Survitec SAS. Please contact Survitec SAS for
+approval if derogation is necessary - « PACKER » and « CHECKER » fields must always be filled in with initials or « N / A ».
+OK
+OK
+OK
+OK
+OK
+OK
+OK
+OK
+11-2025	1
+X
+X	X
+X
+D.M.
+D.M.
+D.M.
+D.M.
+D.M.
+D.M.
+D.M.
+D.M.
+D.M.
+D.M.
+D.M.
+D.M.
+D.M.
+D.M.
+D.M.
+D.M.
+D.M.	D.M.
+DUARTE MARQUES
+OK
+OK
+OK
+OK
+OK
+OK
+1
+OK
+----	----
+1
+31301111 - SER. KIT RAMP SIS
+J.C.
+J.C.
+J.C.
+J.C
+J.C
+J.C
+J.C
+J.C
+J.C.
+J.C
+J.C
+J.C
+J.C
+J.C.
+J.C
+J.C
+J.C
+J.C
+50937	JULIO CORREA
+
+-- 2 of 2 --
+
+
+
+
+########## PDF: ZODIAC SIS Nº XDC7FL43I314  STARBOARD REPORT (2023) 2933225.pdf (pages=1) ##########
+
+A member of
+InflAtAble SAfety And
+SurvIvAl equIpment
+trAde ASSocIAtIon lImIted
+ISSettA form no 197
+Certificate
+no.
+CertifiCate of re-inspeCtion
+Inflatable Liferaft
+Type: 	Serial Number: 	Date of Manufacture:
+Fabric Type: 	Capacity: 	Length of Painter:
+m/inside 	m/outside
+Max Stowage height:
+m
+Identification:
+Cylinders:
+Equipment:
+Tests:
+Verification:
+Flagstate of ship:
+IMO No.
+International call signal
+Name of ship:
+Ship owner: Signature
+For authorized servicing station
+Serial No. 	Contents CO2 	Contents N2 	Latest hyd. test
+Unit 	Type 	Serial No. 	Expiry date
+Emergency pack:
+EPIRB:
+HRU test:
+Radar Reflector:
+First aid kit:
+Nap-test 	Gas inflation test 	Floor seam test 	Load test davit launched
+Yes/No 	Yes/No 	Yes/No 	Yes/No
+Latest Test: 	Latest Test: 	Latest Test: 	Latest Test:
+Date of inspection: 	Service Station name and No. 	Date issued to ship:
+National Marine
+authority ID No.
+Remarks/modification:
+Unit 	Serial No. 	Date of Manufacture
+Humidity/CO2 Sensor:
+2933225
+This is to certify that the raft detailed below has been surveyed, controlled and tested in compliance with requirements from:
+DGRM and the manufacturer and in accordance with IMO resolution A.761 (18)
+SurvitecZodiac MES SIS XDC7FL43I314 Sep-2013
+Polyurethane 1 1 1 2
+WBG019 2.200kg 0.140kg Feb-2013
+XDC7FL43I314 Jan-2024
+No No No No
+20-Jan-2023
+50937:
+Orey Tecnica Azores 21-Jan-2023
+According to SOLAS regulation, this inflatable liferaft requires servicing within 12 months from the date of inspection (above).
+Julio Correa
+Portugal
+9690494
+CSMG
+GILBERTO MARIANO
+ATLANTICOLINE, S.A.
+Survitec Group, Kingsway, Dunmurry, Belfast, BT17 9AF, Northern Ireland
+Telephone: 44 (0) 28 9030 1531 FAX: 44 (0) 28 90621765
+Powered by TCPDF (www.tcpdf.org)
+
+-- 1 of 1 --
+
+
+
+
+########## PDF: ZODIAC SIS Nº XDC7FL43I314  STARBOARD REPORT (2023).pdf (pages=2) ##########
+
+Ed.10-2020 Page 1/2
+Type of SLIDE Ship name
+Stowage height Shipowner
+Serial N° Flag
+Date of manufacture IMO N°
+Last service date
+By station n°
+Last certificate n°
+1. INFLATION HOSES BLAST TEST
+2. RELIEF VALVE TEST *
+Start: BUOYANCIES
+End: UPPER LOWER 1 LOWER 2 (3.80m)
+Opening
+Closure
+* Opening/closure pressure of the relief valves according to the valve dot color. Refer to the service manual info
+sheet SM003, page 4 / PART I - Controls, SOLAS Tests
+3. PRESSURE TEST (WP test) Tolerance 5% for starting pressure
+Hour Temperature Atmospheric pressure
+Start T1 : P1 :
+End T2 : P2 :
+Difference
+Correction
+BUOYANCIES
+UPPER LOWER 1 LOWER 2 (3.80m)
+Start
+End
+Result
+(after correction)
+Test passes
+yes/no
+4. CYLINDERS
+Cylinder N°
+CO² weigh
+N² weigh
+Theoretical full weigh
+Noted full weigh
+Last cylinder testing
+Cylinder charging & testing date
+Cylinder head type & n°
+5. Tests carried out YES NO
+GI test
+Cylinder charging & testing
+Hoses changed
+Do not carry out overpressure test and floor seam test
+SURVITEC ZODIAC TEST AND SURVEY REPORT SIS SLIDE
+MES AND NON MES
+Date: _ _/_ _/ _ _ Station N°: _ _ _ _ _ REINSPECTION CERTIFICATE N°: _ _ _ _ _ _
+2.20 MT
+MES SIS
+09-2013
+"GILBERTO MARIANO"
+9690494
+PORTUGAL
+50374
+OK
+02-2018
+02-2013
+0.140 KG
+2.200 KG
+X
+XX
+ATLANTICOLINE, S.A.
+XDC7FL43I314
+WBG019
+7.010 KG
+7.008 KG
+DK99S Nº:59962
+YES	YES
+STARBOARD
+18-04-2022
+2871435
+11:35
+10:35
+270 287
+230 244
+11:35
+12:35
+13 Cº 1030 Hpa
+13 Cº 1030 Hpa
+0 Cº 0 Hpa
+0 0
+227 241
+230 244
+-1,3 %	-1,22 %
+20 01 2023 50937 2933225
+
+-- 1 of 2 --
+
+Ed.10-2020 Page 2/2
+SURVITEC ZODIAC TEST AND SURVEY REPORT SIS SLIDE
+MES AND NON MES
+6. SLIDE AND ACCESSORIES INSPECTION
+Buoyancies Checked R* Track Checked R*
+Inflatable structure Floor
+Reflective tape Storage bag Checked R*
+Relief valve Snap hook
+Relief valve cap Velcro tape
+Slide lower part protection
+(ESS with slide 3,80m)
+Delta shackle tightened + snap hook
+(slide 3,80m)
+Handles or boarding lifelines Labels/stickers
+Slide/bag connecting line Inflation system Checked R*
+Snap hook on lower part of slide CO² inlet valve
+Labels/stickers Hoses
+Knife Inflation valve
+Electrical lighting system
+Expiry date:
+Firing line Checked R*
+Length 1,70m
+R* = replacement
+7. INFORMATION ABOUT SLIDE AND EQUIPMENT CONDITION
+Yes No Yes No
+Is the slide wet ? Is the slide damaged ?
+Is the storage bag damaged ? Has the slide been inflated ?
+Nature and importance of damage noticed:
+Nature and importance of defaults noticed:
+Repairs carried out / remarks:
+8. PACKING OPERATIONS WITH DOUBLE CHECK FOR SECURITY – PACKER / CHECKER
+PACKING OPERATIONS Packer Checker PACKING OPERATIONS (suite) Packer Checker
+Slide label filled in White strap goes below cylinder
+Cylinder checked, head
+serviced Firing line upwards orientated
+Cylinder secured in sheath Slide folded as large as the cylinder
+and then rolled
+Hoses tightened / locked Zip ties 9 kg through velcro tapes (if
+applicable)
+Rapid firing line connected
+(bowline knot)
+Firing line placed between the 2
+velcro tapes
+Firing head protected Bag closed by means of snap hooks
+Light connected Firing line loop fixed to snap hook
+eye with zip tie 35Kg
+Slide vacuumed Bag label filled in
+Bag fixed to slide (in case of
+velcro tapes) & cylinder in Reinspection certificate filled in
+Station n°: Name of technician: Signature:
+Name of checker: Signature:
+Important: « Technician or packer » as well as « checker » are necessarily approved by Survitec SAS. Please contact Survitec SAS for
+approval if derogation is necessary - « PACKER » and « CHECKER » fields must always be filled in with initials or « N / A ».
+OK
+OK
+OK
+OK
+OK
+11-2025	1
+X
+X	X
+X
+D.M.
+D.M.
+D.M.
+D.M.
+D.M.
+D.M.
+D.M.
+D.M.
+D.M.
+D.M.
+D.M.
+D.M.
+D.M.
+D.M.
+D.M.
+D.M.
+D.M.	D.M.
+50374
+DUARTE MARQUES
+----
+OK
+OK
+OK
+OK
+1
+1
+31301111 - SER. KIT RAMP SIS
+----
+OK
+OK
+OK
+OK
+OK
+OK
+J.C.
+J.C.
+J.C.
+J.C
+J.C.
+J.C.
+J.C
+J.C
+J.C.
+J.C
+J.C.
+J.C
+J.C.
+J.C
+J.C
+J.C.
+J.C
+J.C.
+JULIO CORREA
+
+-- 2 of 2 --
+

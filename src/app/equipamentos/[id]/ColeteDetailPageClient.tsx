@@ -429,7 +429,6 @@ export default function ColeteDetailPageClient({ coleteId }: { coleteId: number 
         }) || []}
         certificateDocuments={data.certificado ? [{
           id: data.certificado.id,
-          certificadoNumero: data.certificado.numeroCertificado,
           dataInspecao: data.certificado.dataCertificado,
           dataProxInspecao: data.certificado.dataValidade,
           sourceYear: new Date(data.certificado.dataCertificado).getFullYear(),

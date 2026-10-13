@@ -401,7 +401,9 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
         id: `colete-certificado-${colete.certificado.id}`,
         kind: "certificate",
         title: `Certificado do colete ${colete.serial || `#${colete.id}`}`,
-        description: colete.certificado.numeroCertificado,
+        description: colete.certificado.emitidoPor
+          ? `Emitido por ${colete.certificado.emitidoPor}`
+          : "Certificado emitido",
         entityType: "colete",
         entityLabel: colete.serial || `#${colete.id}`,
         date: toIso(colete.certificado.dataCertificado),
@@ -467,7 +469,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
         documentType: "Certificado de colete",
         entityType: "colete",
         entityLabel: colete.serial || `#${colete.id}`,
-        reference: colete.certificado.numeroCertificado,
+        reference: null,
         issueDate: toIso(colete.certificado.dataCertificado),
         expiryDate: toIso(colete.certificado.dataValidade),
         status: colete.certificado.resultado || "emitido",
