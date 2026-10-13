@@ -21,7 +21,7 @@ import {
   Users,
   Wrench,
 } from "lucide-react";
-import { Bar, Doughnut, Line } from "react-chartjs-2";
+import { Bar, Doughnut } from "react-chartjs-2";
 import {
   Chart as ChartJS,
   ArcElement,
@@ -30,7 +30,6 @@ import {
   Filler,
   Legend,
   LinearScale,
-  LineElement,
   PointElement,
   Tooltip,
   type ChartOptions,
@@ -43,7 +42,6 @@ ChartJS.register(
   Filler,
   Legend,
   LinearScale,
-  LineElement,
   PointElement,
   Tooltip,
 );
@@ -56,6 +54,25 @@ const PALETTE = [
 
 type NamedTotal = { label: string; total: number };
 type IlhaTotal = { ilha: string; total: number };
+type DayTotal = { date: string; label: string; total: number };
+type MonthBreakdown = {
+  key: string;
+  label: string;
+  total: number;
+  porMarca: NamedTotal[];
+  porModelo: NamedTotal[];
+  porTipoNavio: NamedTotal[];
+};
+type InspectionBreakdown = {
+  total: number;
+  porMes: NamedTotal[];
+  porMarca: NamedTotal[];
+  porModelo: NamedTotal[];
+  porDia?: DayTotal[];
+  porTipoNavio?: NamedTotal[];
+  porMarcaModelo?: NamedTotal[];
+  porMesDetalhe?: MonthBreakdown[];
+};
 
 type Estatisticas = {
   geradoEm: string;
@@ -69,16 +86,21 @@ type Estatisticas = {
     total: number;
     porMarca: NamedTotal[];
     porModelo: NamedTotal[];
+    porMarcaModelo: NamedTotal[];
     porLotacao: { lotacao: number; total: number }[];
     porPackType: NamedTotal[];
     porIlha: IlhaTotal[];
     semNavio: number;
     conformidade: { conformes: number; expirarBreve: number; naoConformes: number; semArtigos: number };
+    inspecionadas: InspectionBreakdown;
   };
   navios: { total: number; porIlha: IlhaTotal[] };
   inspecoes: {
     total: number; anoAtual: number; mesAtual: number;
+    tipo: { jangadas: number; coletes: number; outros: number };
+    hoje: { total: number; jangadas: number; coletes: number };
     porMes: NamedTotal[]; porAno: { ano: string; total: number }[]; porStatus: NamedTotal[];
+    porDia: DayTotal[]; diasMais: DayTotal[]; diasMenos: DayTotal[];
   };
   ordens: {
     total: number;
@@ -102,6 +124,12 @@ type Estatisticas = {
     movimentos: { label: string; entradas: number; saidas: number }[];
   };
   clientes: { total: number; semContacto: number };
+  coletesInspecionados: InspectionBreakdown;
+  artigos: {
+    substituidosTotal: number;
+    substituidosPorMes: NamedTotal[];
+    substituidosPorReferencia: NamedTotal[];
+  };
   validadesEquipamentos: Record<string, { total: number; a30: number; a60: number; a90: number }>;
   certificados: { total: number; a30: number; a60: number; a90: number };
 };
@@ -216,6 +244,15 @@ export default function EstatisticasPage() {
     push("Jangadas", "Não Conformes", data.jangadas.conformidade.naoConformes);
     push("Jangadas", "Sem Artigos", data.jangadas.conformidade.semArtigos);
     data.jangadas.porMarca.forEach((m) => push("Jangadas por Marca", m.label, m.total));
+    data.jangadas.porMarcaModelo.forEach((m) => push("Jangadas por Marca + Modelo", m.label, m.total));
+    data.jangadas.inspecionadas.porMes.forEach((m) => push("Jangadas Inspecionadas por Mês", m.label, m.total));
+    data.jangadas.inspecionadas.porMarca.forEach((m) => push("Jangadas Inspecionadas por Marca", m.label, m.total));
+    data.jangadas.inspecionadas.porModelo.forEach((m) => push("Jangadas Inspecionadas por Modelo", m.label, m.total));
+    data.coletesInspecionados.porMes.forEach((m) => push("Coletes Inspecionados por Mês", m.label, m.total));
+    data.coletesInspecionados.porMarca.forEach((m) => push("Coletes Inspecionados por Marca", m.label, m.total));
+    data.coletesInspecionados.porModelo.forEach((m) => push("Coletes Inspecionados por Modelo", m.label, m.total));
+    data.artigos.substituidosPorReferencia.forEach((m) => push("Artigos Substituídos por Referência", m.label, m.total));
+    push("Artigos Substituídos", "Total", data.artigos.substituidosTotal);
     data.inspecoes.porMes.forEach((m) => push("Inspeções por Mês", m.label, m.total));
     data.faturacao.porMes.forEach((m) => push("Faturação por Mês", m.label, m.total));
     data.stock.porCategoria.forEach((c) => push("Stock por Categoria", c.categoria, c.total));
@@ -421,16 +458,6 @@ function Panel({ title, actions, children }: { title: string; actions?: ReactNod
   );
 }
 
-const lineOptions: ChartOptions<"line"> = {
-  responsive: true,
-  maintainAspectRatio: false,
-  plugins: { legend: { display: false } },
-  scales: {
-    x: { grid: { color: "rgba(148,163,184,0.12)" }, ticks: { color: "#94a3b8", font: { size: 10 } } },
-    y: { grid: { color: "rgba(148,163,184,0.12)" }, ticks: { color: "#94a3b8", font: { size: 10 } }, beginAtZero: true },
-  },
-};
-
 const barOptions: ChartOptions<"bar"> = {
   responsive: true,
   maintainAspectRatio: false,
@@ -462,6 +489,106 @@ function doughnutData(items: NamedTotal[]) {
   };
 }
 
+function JangadasInspecionadasPanel({ breakdown }: { breakdown: InspectionBreakdown }) {
+  const months = (breakdown.porMesDetalhe ?? []).filter((m) => m.total > 0);
+  const [selected, setSelected] = useState("");
+  const detail = months.find((m) => m.key === selected) ?? null;
+  return (
+    <>
+      <ChartCard title="Jangadas inspecionadas por mês" subtitle="Período selecionado" height={300}>
+        <Bar
+          options={barOptions}
+          data={{
+            labels: breakdown.porMes.map((m) => m.label),
+            datasets: [{ data: breakdown.porMes.map((m) => m.total), backgroundColor: "#0ea5e9", borderRadius: 4 }],
+          }}
+        />
+      </ChartCard>
+
+      <Panel
+        title="Jangadas inspecionadas — detalhe por mês"
+        actions={
+          <select
+            value={selected}
+            onChange={(e) => setSelected(e.target.value)}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 outline-none focus:border-indigo-400"
+          >
+            <option value="">Escolher mês…</option>
+            {months.map((m) => (
+              <option key={m.key} value={m.key}>
+                {m.label} ({m.total})
+              </option>
+            ))}
+          </select>
+        }
+      >
+        {detail ? (
+          <div className="space-y-4 p-5">
+            <p className="text-sm text-slate-600">
+              <b>{fmtNum(detail.total)}</b> jangadas inspecionadas em <b>{detail.label}</b>.
+            </p>
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+              <div>
+                <h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">Marca</h4>
+                <TableCount rows={detail.porMarca} labelHeader="Marca" />
+              </div>
+              <div>
+                <h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">Modelo</h4>
+                <TableCount rows={detail.porModelo} labelHeader="Modelo" />
+              </div>
+              <div>
+                <h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">Tipo de navio</h4>
+                <TableCount rows={detail.porTipoNavio} labelHeader="Tipo" />
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p className="p-5 text-sm text-slate-500">Escolhe um mês para ver marcas, modelos e tipos de navio.</p>
+        )}
+      </Panel>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <Panel title="Jangadas inspecionadas por marca">
+          <TableCount rows={breakdown.porMarca} labelHeader="Marca" />
+        </Panel>
+        <Panel title="Jangadas inspecionadas por modelo">
+          <TableCount rows={breakdown.porModelo} labelHeader="Modelo" />
+        </Panel>
+        <Panel title="Jangadas inspecionadas por tipo de navio">
+          <TableCount rows={breakdown.porTipoNavio ?? []} labelHeader="Tipo" />
+        </Panel>
+      </div>
+    </>
+  );
+}
+
+function ColetesInspecionadosPanel({ breakdown }: { breakdown: InspectionBreakdown }) {
+  return (
+    <>
+      <ChartCard title="Coletes inspecionados por mês" subtitle="Período selecionado" height={300}>
+        <Bar
+          options={barOptions}
+          data={{
+            labels: breakdown.porMes.map((m) => m.label),
+            datasets: [{ data: breakdown.porMes.map((m) => m.total), backgroundColor: "#10b981", borderRadius: 4 }],
+          }}
+        />
+      </ChartCard>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <Panel title="Coletes inspecionados por marca">
+          <TableCount rows={breakdown.porMarca} labelHeader="Marca" />
+        </Panel>
+        <Panel title="Coletes inspecionados por modelo">
+          <TableCount rows={breakdown.porModelo} labelHeader="Modelo" />
+        </Panel>
+        <Panel title="Coletes inspecionados por marca + modelo">
+          <TableCount rows={breakdown.porMarcaModelo ?? []} labelHeader="Marca · Modelo" />
+        </Panel>
+      </div>
+    </>
+  );
+}
+
 // ── Tabs ──────────────────────────────────────────────────────
 
 function VisaoGeral({ data }: { data: Estatisticas }) {
@@ -483,18 +610,15 @@ function VisaoGeral({ data }: { data: Estatisticas }) {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <ChartCard title="Inspeções por mês" subtitle="Período selecionado" height={300}>
-            <Line
-              options={lineOptions}
+            <Bar
+              options={barOptions}
               data={{
                 labels: data.inspecoes.porMes.map((m) => m.label),
                 datasets: [
                   {
                     data: data.inspecoes.porMes.map((m) => m.total),
-                    borderColor: "#4f46e5",
-                    backgroundColor: "rgba(79,70,229,0.15)",
-                    fill: true,
-                    tension: 0.35,
-                    pointRadius: 2,
+                    backgroundColor: "#4f46e5",
+                    borderRadius: 4,
                   },
                 ],
               }}
@@ -578,35 +702,49 @@ function Frota({ data }: { data: Estatisticas }) {
           <TableCount rows={data.jangadas.porPackType.slice(0, 15)} labelHeader="Pack" />
         </Panel>
       </div>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <ChartCard title="Jangadas por marca + modelo" subtitle="Top 12" height={380}>
+          <Bar
+            options={{ ...barOptions, indexAxis: "y" as const }}
+            data={{
+              labels: data.jangadas.porMarcaModelo.slice(0, 12).map((m) => m.label),
+              datasets: [{ data: data.jangadas.porMarcaModelo.slice(0, 12).map((m) => m.total), backgroundColor: "#8b5cf6", borderRadius: 4 }],
+            }}
+          />
+        </ChartCard>
+        <Panel title="Top marca + modelo">
+          <TableCount rows={data.jangadas.porMarcaModelo.slice(0, 15)} labelHeader="Marca · Modelo" />
+        </Panel>
+      </div>
     </>
   );
 }
 
 function Inspecoes({ data }: { data: Estatisticas }) {
+  const ins = data.inspecoes;
   return (
     <>
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Total Inspeções" value={fmtNum(data.inspecoes.total)} icon={FileCheck2} tone="indigo" />
-        <StatCard title="Ano Atual" value={fmtNum(data.inspecoes.anoAtual)} icon={TrendingUp} tone="emerald" />
-        <StatCard title="Mês Atual" value={fmtNum(data.inspecoes.mesAtual)} icon={CalendarClock} tone="sky" />
-        <StatCard title="Estados" value={fmtNum(data.inspecoes.porStatus.length)} icon={Activity} tone="violet" />
+        <StatCard title="Total Inspeções" value={fmtNum(ins.total)} subtitle={`${fmtNum(ins.tipo.jangadas)} jangadas · ${fmtNum(ins.tipo.coletes)} coletes`} icon={FileCheck2} tone="indigo" />
+        <StatCard title="Jangadas Inspecionadas" value={fmtNum(data.jangadas.inspecionadas.total)} icon={LifeBuoy} tone="sky" />
+        <StatCard title="Coletes Inspecionados" value={fmtNum(data.coletesInspecionados.total)} icon={ShieldCheck} tone="emerald" />
+        <StatCard title="Hoje" value={fmtNum(ins.hoje.total)} subtitle={`${fmtNum(ins.hoje.jangadas)} jangadas · ${fmtNum(ins.hoje.coletes)} coletes`} icon={CalendarClock} tone="violet" />
+      </div>
+
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard title="Ano Atual" value={fmtNum(ins.anoAtual)} icon={TrendingUp} tone="emerald" />
+        <StatCard title="Mês Atual" value={fmtNum(ins.mesAtual)} icon={CalendarClock} tone="sky" />
+        <StatCard title="Inspeções a Jangadas" value={fmtNum(ins.tipo.jangadas)} icon={LifeBuoy} tone="indigo" />
+        <StatCard title="Inspeções a Coletes" value={fmtNum(ins.tipo.coletes)} icon={ShieldCheck} tone="amber" />
       </div>
 
       <ChartCard title="Evolução de inspeções" subtitle="Período selecionado" height={320}>
-        <Line
-          options={lineOptions}
+        <Bar
+          options={barOptions}
           data={{
-            labels: data.inspecoes.porMes.map((m) => m.label),
-            datasets: [
-              {
-                data: data.inspecoes.porMes.map((m) => m.total),
-                borderColor: "#0ea5e9",
-                backgroundColor: "rgba(14,165,233,0.15)",
-                fill: true,
-                tension: 0.35,
-                pointRadius: 2,
-              },
-            ],
+            labels: ins.porMes.map((m) => m.label),
+            datasets: [{ data: ins.porMes.map((m) => m.total), backgroundColor: "#0ea5e9", borderRadius: 4 }],
           }}
         />
       </ChartCard>
@@ -616,14 +754,69 @@ function Inspecoes({ data }: { data: Estatisticas }) {
           <Bar
             options={barOptions}
             data={{
-              labels: data.inspecoes.porAno.map((a) => a.ano),
-              datasets: [{ data: data.inspecoes.porAno.map((a) => a.total), backgroundColor: "#4f46e5", borderRadius: 4 }],
+              labels: ins.porAno.map((a) => a.ano),
+              datasets: [{ data: ins.porAno.map((a) => a.total), backgroundColor: "#4f46e5", borderRadius: 4 }],
             }}
           />
         </ChartCard>
         <ChartCard title="Inspeções por estado" height={300}>
-          <Doughnut options={doughnutOptions} data={doughnutData(data.inspecoes.porStatus)} />
+          <Doughnut options={doughnutOptions} data={doughnutData(ins.porStatus)} />
         </ChartCard>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <ChartCard title="Inspeções por dia" subtitle="Período selecionado" height={320}>
+          <Bar
+            options={barOptions}
+            data={{
+              labels: ins.porDia.map((d) => d.label),
+              datasets: [{ data: ins.porDia.map((d) => d.total), backgroundColor: "#6366f1", borderRadius: 3 }],
+            }}
+          />
+        </ChartCard>
+        <div className="grid grid-cols-1 gap-6">
+          <Panel title="Dias com mais inspeções">
+            <TableCount rows={ins.diasMais} labelHeader="Dia" />
+          </Panel>
+          <Panel title="Dias com menos inspeções">
+            <TableCount rows={ins.diasMenos} labelHeader="Dia" />
+          </Panel>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <StatCard title="Artigos Substituídos" value={fmtNum(data.artigos.substituidosTotal)} icon={Package} tone="amber" />
+      </div>
+
+      <div className="pt-2">
+        <h3 className="text-sm font-bold text-slate-700">Jangadas inspecionadas</h3>
+        <p className="text-xs text-slate-500">Número de jangadas inspecionadas por mês, marca, modelo e tipo de navio.</p>
+      </div>
+      <JangadasInspecionadasPanel breakdown={data.jangadas.inspecionadas} />
+
+      <div className="pt-2">
+        <h3 className="text-sm font-bold text-slate-700">Coletes inspecionados</h3>
+        <p className="text-xs text-slate-500">Número de coletes inspecionados por mês, marca e modelo.</p>
+      </div>
+      <ColetesInspecionadosPanel breakdown={data.coletesInspecionados} />
+
+      <div className="pt-2">
+        <h3 className="text-sm font-bold text-slate-700">Artigos substituídos</h3>
+        <p className="text-xs text-slate-500">Artigos trocados nas inspeções, por mês e por referência.</p>
+      </div>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <ChartCard title="Artigos substituídos por mês" subtitle="Período selecionado" height={300}>
+          <Bar
+            options={barOptions}
+            data={{
+              labels: data.artigos.substituidosPorMes.map((m) => m.label),
+              datasets: [{ data: data.artigos.substituidosPorMes.map((m) => m.total), backgroundColor: "#f59e0b", borderRadius: 4 }],
+            }}
+          />
+        </ChartCard>
+        <Panel title="Top artigos substituídos">
+          <TableCount rows={data.artigos.substituidosPorReferencia.slice(0, 15)} labelHeader="Referência" />
+        </Panel>
       </div>
     </>
   );
@@ -641,18 +834,15 @@ function Operacoes({ data }: { data: Estatisticas }) {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <ChartCard title="Ordens abertas por mês" subtitle="Período selecionado" height={300}>
-          <Line
-            options={lineOptions}
+          <Bar
+            options={barOptions}
             data={{
               labels: data.ordens.porMes.map((m) => m.label),
               datasets: [
                 {
                   data: data.ordens.porMes.map((m) => m.total),
-                  borderColor: "#f59e0b",
-                  backgroundColor: "rgba(245,158,11,0.15)",
-                  fill: true,
-                  tension: 0.35,
-                  pointRadius: 2,
+                  backgroundColor: "#f59e0b",
+                  borderRadius: 4,
                 },
               ],
             }}

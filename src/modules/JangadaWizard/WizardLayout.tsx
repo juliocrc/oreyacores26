@@ -58,18 +58,13 @@ export default function WizardLayout({ children }: { children: React.ReactNode }
     appToast.info('Revisa o passo Resumo e clica em "Fechar Inspeção e Gravar" para finalizar.');
   }, [setStepByKey]);
 
-  // Keyboard shortcuts: Left/Right arrows for navigation, Ctrl+S for draft save, Ctrl+Enter to finish
+  // Keyboard shortcuts: Left/Right arrows for navigation, Ctrl+Enter to finish
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       const inInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable);
       if (e.key === 'Escape') {
         setShortcutsOpen(false);
-        return;
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
-        e.preventDefault();
-        window.dispatchEvent(new CustomEvent('wizard-save-draft'));
         return;
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -445,7 +440,6 @@ export default function WizardLayout({ children }: { children: React.ReactNode }
                 {[
                   { keys: ['→'], label: 'Seguinte passo' },
                   { keys: ['←'], label: 'Passo anterior' },
-                  { keys: ['Ctrl', 'S'], label: 'Guardar rascunho' },
                   { keys: ['Ctrl', 'Enter'], label: 'Finalizar inspeção' },
                   { keys: ['?'], label: 'Abrir/fechar este painel' },
                   { keys: ['Esc'], label: 'Fechar painel' },

@@ -27,6 +27,7 @@ export function getStepProgress(data: InspectionData, opts?: { hideOrcamento?: b
     reparacoes: stepReparacoesPercent(data),
     contentor: stepContentorPercent(data),
     orcamento: step7Percent(data),
+    artigos: stepArtigosSubstituidosPercent(data),
     resumo: step8Percent(data),
     certificados: step9Percent(data),
     historico: step10Percent(data),
@@ -178,6 +179,12 @@ function step7Percent(d: InspectionData) {
   if (aprovacao?.status === 'enviado') return { percent: 100, missing: [] };
   if (aprovacao?.status === 'rejeitado') return { percent: 60, missing: ['Rejeitado no módulo — ajustar e reenviar para análise'] };
   return { percent: 60, missing: ['Submeter o orçamento para análise'] };
+}
+
+function stepArtigosSubstituidosPercent(_d: InspectionData) {
+  // Passo informativo (read-only) para técnicos: a lista de artigos substituídos
+  // é derivada dos passos anteriores, pelo que nunca bloqueia o avanço.
+  return { percent: 100, missing: [] };
 }
 
 function step8Percent(d: InspectionData) {

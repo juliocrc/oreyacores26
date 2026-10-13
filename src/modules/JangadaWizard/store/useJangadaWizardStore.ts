@@ -10,6 +10,39 @@ function currentWizardSteps(state: WizardState) {
   return getWizardSteps(state.inspectionData, { hideOrcamento: state.hideOrcamento });
 }
 
+// Linhas de orçamento guardadas na inspeção usam o formato do servidor
+// (`precoUnitario`, por vezes sem `id`). Ao restaurar para o wizard, é preciso
+// converter para o formato do store (`unitPrice`) e garantir um `id` único em
+// cada linha — sem id, editar o preço de uma linha alterava todas as outras.
+function normalizeOrcamentoLinhas(linhas: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(linhas)) return [];
+
+  const seen = new Set<string>();
+  return linhas.map((raw, index) => {
+    const linha = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+    const referencia = String(linha.referencia ?? "");
+
+    let id = String(linha.id ?? "").trim();
+    if (!id) id = `linha-${referencia || "artigo"}-${index}`;
+    if (seen.has(id)) id = `${id}-${index}`;
+    seen.add(id);
+
+    const quantidade = Number(linha.quantidade ?? 0) || 0;
+    const unitPrice = Number(linha.unitPrice ?? linha.precoUnitario ?? 0) || 0;
+
+    return {
+      ...linha,
+      id,
+      referencia,
+      descricao: String(linha.descricao ?? ""),
+      quantidade,
+      unitPrice,
+      total: Math.round(quantidade * unitPrice * 100) / 100,
+      source: linha.source ?? "manual",
+    };
+  });
+}
+
 type WizardState = {
   // Navigation
   currentStep: number;
@@ -304,7 +337,12 @@ hruReference: draftData?.hruReference || raftData?.hruReferencia || '',
             })),
 
           // Orçamento (restaurado a partir do rascunho guardado)
-          orcamento: draftData?.orcamento || undefined,
+          orcamento: draftData?.orcamento
+            ? {
+                ...draftData.orcamento,
+                linhas: normalizeOrcamentoLinhas(draftData.orcamento.linhas),
+              }
+            : undefined,
 
           // Boletins de serviço aplicáveis (marca/modelo) e estado de aplicação
           applicableServiceBulletins: raftData?.applicableServiceBulletins || [],

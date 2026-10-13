@@ -320,21 +320,23 @@ async function saveDocument(params: {
   }
 }
 
-/** Quadro de inspeção DGRM/IVA de um navio → NAVIOS AÇORES/<navio>/<categoria>/ */
+/** Documento de navio → NAVIOS AÇORES/<navio>/[<categoria>/] */
 export function saveShipDocument(params: {
   shipName?: string | null;
-  category: ShipDocCategory;
+  category?: ShipDocCategory;
   filename: string;
   blob: Blob;
   quiet?: boolean;
+  label?: string;
 }): Promise<SaveOutcome> {
   const ship = sanitizeSegment(params.shipName) || "Sem navio";
+  const segments = params.category ? [NAVIOS_FOLDER, ship, params.category] : [NAVIOS_FOLDER, ship];
   return saveDocument({
-    segments: [NAVIOS_FOLDER, ship, params.category],
+    segments,
     filename: params.filename,
     blob: params.blob,
     quiet: params.quiet,
-    successMessage: (path) => `Guardado em ${path}`,
+    successMessage: (path) => `${params.label ? params.label + " — " : ""}Guardado em ${path}`,
   });
 }
 

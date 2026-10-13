@@ -13,7 +13,7 @@ import { getNavioLegalProfile } from '@/modules/navios/legalRequirements';
 import { getPescaCosteiraMandatoryEquipmentProfile } from '@/config/pescaCosteiraMandatoryEquipment';
 import { getRecreioMandatoryProfile, RECREIO_ZONA_OPTIONS } from '@/config/recreioMandatoryEquipment';
 import { normalizeManualNavioIsland } from '@/lib/navio-island-resolution';
-import { ensureFolderPermissionNow, saveColeteDocument, toastSavedPathIfPresent } from '@/lib/ship-downloads';
+import { ensureFolderPermissionNow, saveColeteDocument, saveShipDocument, toastSavedPathIfPresent } from '@/lib/ship-downloads';
 
 const ShipMap = dynamic(() => import('@/app/components/ShipMap'), { ssr: false });
 
@@ -1069,7 +1069,8 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
         );
       }
 
-      await saveColeteDocument({
+      await saveShipDocument({
+        shipName: data?.nome,
         filename: fileName,
         blob,
         label: 'Ficha de verificação de coletes',

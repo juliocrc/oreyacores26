@@ -31,7 +31,10 @@ const SIMPLE_TRAILING_FIELD_RE = /^(.*?)(?:\s+)?(\d{3,5}|não tem|nao tem|-)\s*$
 
 const COMPANY_LOCATIONS: Record<string, string[]> = {
   Azimute: ["Setúbal", "Vialonga"],
-  OTNI: ["ES Açores", "Vialonga"],
+  OTNI: ["ES Açores", "ES Alcantarilha", "ES Aveleda", "ES Vialonga", "Vialonga/Lisboa", "Vialonga"],
+  OILWATER: ["Lisboa"],
+  SOFEMA: ["Lisboa"],
+  SCOA: ["Lisboa"],
 };
 
 const ROW_PATTERNS = Object.entries(COMPANY_LOCATIONS)

@@ -586,6 +586,7 @@ model User {
   passwordHash String?
   role         UserRole  @default(USER)
   permissionsOverrideJson String?
+  activeSessionId String?
   googleId     String?   @unique
   image        String?
   lastLoginAt  DateTime?

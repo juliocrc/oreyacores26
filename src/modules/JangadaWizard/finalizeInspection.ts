@@ -3,6 +3,7 @@ import { appToast } from '@/lib/app-toast';
 import { enqueueOfflineSyncOperation } from '@/lib/offline-sync/client';
 import { parseMonthYearValue } from '@/lib/date-utils';
 import { isArticleNonExpiring, isArticleValidityRequired } from '@/modules/rafts/mandatoryPack';
+import { MIN_REABERTURA_JUSTIFICACAO } from '@/lib/inspecao-lock';
 
 export type FinishWarning = { text: string; stepKey: string; isCritical: boolean };
 
@@ -346,6 +347,7 @@ function buildSavePayload(inspectionData: any, inspecaoId: number | null, isFina
     artigosSubstituidos,
     orcamento: {
       linhas: (inspectionData.orcamento?.linhas || []).map((linha: any) => ({
+        id: linha.id || undefined,
         stockId: linha.stockId ?? null,
         referencia: linha.referencia || "",
         descricao: linha.descricao || "",
@@ -417,11 +419,50 @@ export async function persistInspection({ isFinal }: { isFinal: boolean }): Prom
     const method = inspecaoId ? "PUT" : "POST";
     const url = inspecaoId ? `/api/inspecoes?id=${inspecaoId}` : '/api/inspecoes';
 
-    const inspRes = await fetch(url, {
+    const sendSave = (body: unknown) => fetch(url, {
       method,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(body),
     });
+
+    let saveBody: unknown = payload;
+    let inspRes = await sendSave(saveBody);
+
+    // Inspeção finalizada: o servidor recusa a gravação (409) e pede uma
+    // reabertura explícita, com justificação, para que a correção fique
+    // registada em auditoria. Nesse caso pedimos a justificação e repetimos a
+    // gravação com o sinal de reabertura — o servidor volta a carimbar a
+    // inspeção e actualiza o histórico e a ficha da jangada.
+    if (inspRes.status === 409) {
+      const lockJson = await inspRes.json().catch(() => ({}));
+      if (lockJson?.motivo === 'pedido-de-reabertura') {
+        const certificado = String(inspectionData.certificadoNumero || '').trim();
+        const justificacao = typeof window !== 'undefined'
+          ? window.prompt(
+              `A inspeção${certificado ? ` do certificado ${certificado}` : ''} está finalizada e não pode ser alterada.` +
+              `\n\nPara a corrigir, escreva a justificação da reabertura (mínimo ${MIN_REABERTURA_JUSTIFICACAO} caracteres).` +
+              "\nA alteração fica registada em auditoria.",
+              "",
+            )
+          : null;
+
+        if (justificacao === null) {
+          store.setIsSaving(false);
+          appToast.info("Reabertura cancelada. A inspeção permanece inalterada.");
+          return;
+        }
+
+        const texto = justificacao.trim();
+        if (texto.length < MIN_REABERTURA_JUSTIFICACAO) {
+          store.setIsSaving(false);
+          appToast.error(`A justificação da reabertura tem de ter pelo menos ${MIN_REABERTURA_JUSTIFICACAO} caracteres.`, 7000);
+          return;
+        }
+
+        saveBody = { ...payload, reabrir: true, reaberturaJustificacao: texto };
+        inspRes = await sendSave(saveBody);
+      }
+    }
 
     if (!inspRes.ok) {
       const errorJson = await inspRes.json().catch(() => ({}));

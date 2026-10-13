@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { getAccessContext } from "@/lib/access-control";
+import { canEditPath } from "@/lib/user-permissions";
 import { extrairPortoDeMatricula } from "@/utils/portosRegisto";
 import { logAuditoria } from "@/lib/auditoria";
 import { isValidImo, isValidMmsi } from "@/lib/validators";
@@ -592,7 +593,8 @@ export async function POST(req: NextRequest) {
   try {
     const access = await getAccessContext();
     if (!access) return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
-    if (!access.isAdmin) return NextResponse.json({ error: "Sem permissão para criar navios." }, { status: 403 });
+    const canManageNavios = access.isAdmin || canEditPath(access.permissions, "/navios");
+    if (!canManageNavios) return NextResponse.json({ error: "Sem permissão para criar navios." }, { status: 403 });
 
     const body = await req.json();
     if (Array.isArray(body)) {

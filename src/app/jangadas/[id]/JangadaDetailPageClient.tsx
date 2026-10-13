@@ -1137,16 +1137,37 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
     }
   }
 
+  const [hasLocalInspectionDraft, setHasLocalInspectionDraft] = useState(false);
+
   React.useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get('startInspection') === '1') {
-        setInspectionToOpen(null);
-        setIsInspecting(true);
-        void marcarJangadaEmInspecao();
-      }
+    if (typeof window === 'undefined') return;
+
+    let draftExists = false;
+    try {
+      draftExists = Boolean(localStorage.getItem(`jangada-wizard-draft-${jangadaId}`));
+    } catch {
+      draftExists = false;
+    }
+    setHasLocalInspectionDraft(draftExists);
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('startInspection') === '1') {
+      setInspectionToOpen(null);
+      setIsInspecting(true);
+      void marcarJangadaEmInspecao();
+    } else if (params.get('continueInspection') === '1') {
+      setInspectionToOpen(null);
+      setIsInspecting(true);
     }
   }, []);
+
+  function handleStartOrContinueInspection() {
+    setInspectionToOpen(null);
+    setIsInspecting(true);
+    if (!hasLocalInspectionDraft) {
+      void marcarJangadaEmInspecao();
+    }
+  }
 
   const [artigos, setArtigos] = useState<Artigo[]>(dedupeRaftArticles(initialData?.artigos || []));
   const [newArtigo, setNewArtigo] = useState<Partial<Artigo>>({ name: '', quantidade: 1, validade: '', referencia: '', codigoFabricante: '', stockId: undefined });
@@ -2919,11 +2940,11 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                   Vistoria Registada
                 </button>
                 <button
-                  onClick={() => { setInspectionToOpen(null); setIsInspecting(true); void marcarJangadaEmInspecao(); }}
+                  onClick={handleStartOrContinueInspection}
                   className="flex items-center gap-2 px-6 py-3 rounded-xl font-extrabold text-white bg-emerald-600 hover:bg-emerald-700 transition-all shadow-md shadow-emerald-600/20 hover:scale-105"
                 >
                   <ClipboardCheck size={18} />
-                  Registar Vistoria
+                  {hasLocalInspectionDraft ? 'Continuar Inspeção' : 'Registar Vistoria'}
                 </button>
                 {currentUrl && (
                   <div className="hidden md:flex flex-col items-center gap-0.5 border-l border-slate-150 pl-3 shrink-0">
@@ -3687,11 +3708,11 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                   Vistoria Registada
                 </button>
                 <button
-                  onClick={() => { setInspectionToOpen(null); setIsInspecting(true); void marcarJangadaEmInspecao(); }}
+                  onClick={handleStartOrContinueInspection}
                   className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3.5 rounded-xl shadow-md shadow-emerald-500/10 flex items-center justify-center gap-2 transition-transform hover:scale-[1.02]"
                 >
                   <ClipboardCheck size={16} />
-                  Registar Vistoria
+                  {hasLocalInspectionDraft ? 'Continuar Inspeção' : 'Registar Vistoria'}
                 </button>
                 <button
                   onClick={() => setIsScheduleModalOpen(true)}

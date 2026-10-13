@@ -12,6 +12,7 @@ import {
   History,
   ShieldCheck,
   Box,
+  ListChecks,
   type LucideIcon,
 } from "lucide-react";
 import type { InspectionData } from "./types";
@@ -33,6 +34,7 @@ export const BASE_STEPS_BY_KEY: Record<string, WizardStep> = {
   reparacoes: { key: "reparacoes", title: "Reparações / Colagem", icon: Hammer },
   contentor: { key: "contentor", title: "Contentor", icon: Box },
   orcamento: { key: "orcamento", title: "Orçamento", icon: Receipt },
+  artigos: { key: "artigos", title: "Artigos Substituídos", icon: ListChecks },
   resumo: { key: "resumo", title: "Resumo Final", icon: CheckCircle },
   certificados: { key: "certificados", title: "Certificados", icon: FileText },
   historico: { key: "historico", title: "Histórico", icon: History },
@@ -68,8 +70,12 @@ export function getWizardSteps(
   // Equipamento de fecho do contentor antes do orçamento: os artigos marcados
   // aqui entram automaticamente nas linhas do orçamento.
   order.push("contentor", "orcamento", "resumo", "certificados", "historico");
-  const filtered = opts?.hideOrcamento ? order.filter((key) => key !== "orcamento") : order;
-  return filtered.map((key) => BASE_STEPS_BY_KEY[key]);
+  // Técnicos (role USER) não gerem preços: no lugar do Orçamento veem apenas a
+  // lista read-only dos artigos substituídos.
+  const mapped = opts?.hideOrcamento
+    ? order.map((key) => (key === "orcamento" ? "artigos" : key))
+    : order;
+  return mapped.map((key) => BASE_STEPS_BY_KEY[key]);
 }
 
 export function getStepNumberByKey(

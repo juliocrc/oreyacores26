@@ -319,7 +319,10 @@ export async function syncInspectionToOrdemServico(
     isIsentoIva,
   );
 
-  const aprovacaoStatus = orcamento?.aprovacaoWhatsApp?.status || null;
+  // A decisão/submissão pode vir mesmo sem linhas construídas no cliente (ex.: técnico
+  // que só regista os artigos substituídos e envia para a ordem). Nesse caso o orçamento
+  // é derivado dos artigos substituídos e o estado de submissão vem do próprio payload.
+  const aprovacaoStatus = input.orcamento?.aprovacaoWhatsApp?.status || null;
 
   const tipo = hasFailedTests ? "reparacao" : hasReplacements ? "manutencao" : "inspecao";
   const prioridade = hasFailedTests ? "critica" : hasReplacements ? "alta" : "normal";
@@ -378,8 +381,11 @@ export async function syncInspectionToOrdemServico(
         valorTotal,
         // A aprovação acontece no módulo de Orçamentos: a inspeção submete o
         // orçamento para análise ("Enviado"); decisão prévia só se existir.
+        // Técnicos (role USER) enviam os artigos sem construir linhas — o
+        // orçamento é então derivado dos artigos substituídos, mas a submissão
+        // (usarOrcamento + estado "enviado") continua a marcar a OT como Enviado.
         orcamentoStatus:
-          orcamento && input.isFinalSave && orcamento.usarOrcamento
+          input.isFinalSave && Boolean(input.orcamento?.usarOrcamento)
             ? aprovacaoStatus === "aprovado"
               ? "Aprovado"
               : aprovacaoStatus === "rejeitado"

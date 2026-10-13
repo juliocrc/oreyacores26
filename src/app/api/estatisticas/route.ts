@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getAccessContext } from "@/lib/access-control";
 
+export const maxDuration = 60;
+
 const MONTH_LABELS = [
   "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
   "Jul", "Ago", "Set", "Out", "Nov", "Dez",
@@ -122,6 +124,42 @@ function topEntries(map: Map<string, number>, limit?: number) {
   return typeof limit === "number" ? arr.slice(0, limit) : arr;
 }
 
+function monthSeries(items: Array<Date | null>, periodStart: Date, periodEnd: Date) {
+  const buckets = buildMonthBucketsBetween(periodStart, periodEnd);
+  const counts = new Map(buckets.map((b) => [b.key, 0]));
+  for (const date of items) {
+    if (!date) continue;
+    const key = bucketKeyOf(date);
+    if (counts.has(key)) counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  return buckets.map((b) => ({ label: b.label, total: counts.get(b.key) || 0 }));
+}
+
+function countByField<T>(items: T[], getter: (item: T) => string | null | undefined, fallback: string) {
+  return topEntries(
+    items.reduce((map, item) => {
+      const key = getter(item) || fallback;
+      return map.set(key, (map.get(key) || 0) + 1);
+    }, new Map<string, number>()),
+  );
+}
+
+function dayKeyOf(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function dailyCounts(items: Array<Date | null>) {
+  const counts = new Map<string, number>();
+  for (const date of items) {
+    if (!date) continue;
+    const key = dayKeyOf(date);
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  return Array.from(counts.entries())
+    .map(([date, total]) => ({ date, label: `${date.slice(8, 10)}/${date.slice(5, 7)}/${date.slice(2, 4)}`, total }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
 export async function GET(request: Request) {
   try {
     const access = await getAccessContext();
@@ -154,7 +192,8 @@ export async function GET(request: Request) {
     const [
       jangadas,
       navios,
-      clientes,
+      clienteTotal,
+      clientesSemContactoCnt,
       coletes,
       epirbs,
       fatos,
@@ -166,6 +205,7 @@ export async function GET(request: Request) {
       movimentacoes,
       servicos,
       certificadosValidade,
+      artigosSubstituidosRaw,
     ] = await Promise.all([
       prisma.jangada.findMany({
         select: {
@@ -181,18 +221,31 @@ export async function GET(request: Request) {
           artigos: { select: { validade: true } },
         },
       }),
-      prisma.navio.findMany({
-        select: {
-          id: true,
-          ilha: true,
-          tipoPesca: true,
-          tipoNavio: true,
-          matricula: true,
-          cliente: { select: { ilha: true, morada: true, localidade: true, codigoPostal: true } },
-        },
+      (async () => {
+        const base = await prisma.navio.findMany({
+          select: { id: true, ilha: true, clienteId: true, tipoNavio: true },
+        });
+        const clienteIds = [...new Set(base.map((n) => n.clienteId).filter((v): v is number => v != null))];
+        const clienteById = new Map(
+          clienteIds.length
+            ? (await prisma.cliente.findMany({
+                where: { id: { in: clienteIds } },
+                select: { id: true, ilha: true, morada: true, localidade: true, codigoPostal: true },
+              })).map((c) => [c.id, c] as const)
+            : [],
+        );
+        return base.map((n) => ({
+          id: n.id,
+          ilha: n.ilha,
+          tipoNavio: n.tipoNavio,
+          cliente: n.clienteId ? clienteById.get(n.clienteId) ?? null : null,
+        }));
+      })(),
+      prisma.cliente.count(),
+      prisma.cliente.count({
+        where: { OR: [{ email: null }, { email: "" }, { telefone: null, telmovel: null }] },
       }),
-      prisma.cliente.findMany({ select: { id: true, nome: true, email: true, telefone: true, telmovel: true } }),
-      prisma.colete.findMany({ select: { id: true, estado: true, dataProxInspecao: true, dataInspecao: true, shipId: true } }),
+      prisma.colete.findMany({ select: { id: true, estado: true, marca: true, modelo: true, dataProxInspecao: true, dataInspecao: true, shipId: true } }),
       prisma.epirb.findMany({ select: { id: true, estado: true, dataProxInspecao: true, shipId: true } }),
       prisma.fatoImersao.findMany({ select: { id: true, estado: true, dataProxInspecao: true, shipId: true } }),
       prisma.extintor.findMany({ select: { id: true, estado: true, dataProxRecarga: true, dataProxTesteHidraulico: true, shipId: true } }),
@@ -210,7 +263,7 @@ export async function GET(request: Request) {
         },
       }),
       prisma.inspecao.findMany({
-        select: { id: true, dataInspecao: true, dataProxInspecao: true, status: true, navioId: true },
+        select: { id: true, dataInspecao: true, dataProxInspecao: true, status: true, navioId: true, jangadaId: true, coleteId: true },
       }),
       prisma.ordemServico.findMany({
         select: {
@@ -247,6 +300,15 @@ export async function GET(request: Request) {
       }),
       prisma.serviceStation.findMany({ select: { id: true, codigo: true, nome: true } }),
       prisma.certificadoValidade.findMany({ select: { validade: true } }),
+      prisma.artigoJangada.findMany({
+        where: { inspecaoId: { not: null } },
+        select: {
+          name: true,
+          referencia: true,
+          quantidade: true,
+          inspecao: { select: { dataInspecao: true } },
+        },
+      }),
     ]);
 
     // ── Filtro temporal (aplica-se a inspeções, OT, faturação e movimentos) ──
@@ -273,6 +335,12 @@ export async function GET(request: Request) {
       .sort((a, b) => a.lotacao - b.lotacao);
     const jangadasPorPackType = topEntries(
       jangadas.reduce((map, j) => map.set(j.packType || "Sem pack", (map.get(j.packType || "Sem pack") || 0) + 1), new Map<string, number>()),
+    );
+    const jangadasPorMarcaModelo = topEntries(
+      jangadas.reduce((map, j) => {
+        const label = `${j.brand || "Sem marca"} · ${j.model || "Sem modelo"}`;
+        return map.set(label, (map.get(label) || 0) + 1);
+      }, new Map<string, number>()),
     );
 
     let conformes = 0;
@@ -355,6 +423,105 @@ export async function GET(request: Request) {
     const inspecoesPorStatus = topEntries(
       inspecoesFiltradas.reduce((map, i) => map.set(i.status || "Sem estado", (map.get(i.status || "Sem estado") || 0) + 1), new Map<string, number>()),
     );
+
+    const inspecoesJangada = inspecoesFiltradas.filter((i) => i.jangadaId != null);
+    const inspecoesColete = inspecoesFiltradas.filter((i) => i.coleteId != null && i.jangadaId == null);
+    const inspecoesTipo = {
+      jangadas: inspecoesJangada.length,
+      coletes: inspecoesColete.length,
+      outros: inspecoesFiltradas.length - inspecoesJangada.length - inspecoesColete.length,
+    };
+    const isToday = (date: Date | null) =>
+      !!date && date.getFullYear() === today.getFullYear() && date.getMonth() === today.getMonth() && date.getDate() === today.getDate();
+    const inspecoesHoje = {
+      total: inspecoesFiltradas.filter((i) => isToday(parseFlexibleDate(i.dataInspecao))).length,
+      jangadas: inspecoesJangada.filter((i) => isToday(parseFlexibleDate(i.dataInspecao))).length,
+      coletes: inspecoesColete.filter((i) => isToday(parseFlexibleDate(i.dataInspecao))).length,
+    };
+
+    // Inspeções por dia (dias com mais e menos inspeções)
+    const inspecoesPorDia = dailyCounts(inspecoesFiltradas.map((i) => parseFlexibleDate(i.dataInspecao)));
+    const inspecoesDiasOrdenados = [...inspecoesPorDia].sort((a, b) => b.total - a.total);
+    const inspecoesDiasMais = inspecoesDiasOrdenados.slice(0, 10);
+    const inspecoesDiasMenos = [...inspecoesDiasOrdenados].reverse().slice(0, 10);
+
+    // ── Equipamentos inspecionados (jangadas e coletes) ───────
+    const jangadaById = new Map(jangadas.map((j) => [j.id, j] as const));
+    const coleteById = new Map(coletes.map((c) => [c.id, c] as const));
+
+    const tipoNavioDaJangada = (jangadaId: number | null | undefined) => {
+      if (jangadaId == null) return null;
+      const j = jangadaById.get(jangadaId);
+      if (!j || j.shipId == null) return null;
+      return navioById.get(j.shipId)?.tipoNavio ?? null;
+    };
+
+    const jangadasInspecionadas = {
+      total: inspecoesJangada.length,
+      porMes: monthSeries(inspecoesJangada.map((i) => parseFlexibleDate(i.dataInspecao)), periodStart, periodEnd),
+      porDia: dailyCounts(inspecoesJangada.map((i) => parseFlexibleDate(i.dataInspecao))),
+      porMarca: countByField(inspecoesJangada, (i) => jangadaById.get(i.jangadaId as number)?.brand, "Sem marca"),
+      porModelo: countByField(inspecoesJangada, (i) => jangadaById.get(i.jangadaId as number)?.model, "Sem modelo"),
+      porTipoNavio: countByField(inspecoesJangada, (i) => tipoNavioDaJangada(i.jangadaId), "Sem navio"),
+      porMesDetalhe: buildMonthBucketsBetween(periodStart, periodEnd).map((b) => {
+        const items = inspecoesJangada.filter((i) => {
+          const dt = parseFlexibleDate(i.dataInspecao);
+          return dt ? bucketKeyOf(dt) === b.key : false;
+        });
+        return {
+          key: b.key,
+          label: b.label,
+          total: items.length,
+          porMarca: countByField(items, (i) => jangadaById.get(i.jangadaId as number)?.brand, "Sem marca"),
+          porModelo: countByField(items, (i) => jangadaById.get(i.jangadaId as number)?.model, "Sem modelo"),
+          porTipoNavio: countByField(items, (i) => tipoNavioDaJangada(i.jangadaId), "Sem navio"),
+        };
+      }),
+    };
+
+    const coletesInspecionados = {
+      total: inspecoesColete.length,
+      porMes: monthSeries(inspecoesColete.map((i) => parseFlexibleDate(i.dataInspecao)), periodStart, periodEnd),
+      porDia: dailyCounts(inspecoesColete.map((i) => parseFlexibleDate(i.dataInspecao))),
+      porMarca: countByField(inspecoesColete, (i) => (i.coleteId != null ? coleteById.get(i.coleteId)?.marca : null), "Sem marca"),
+      porModelo: countByField(inspecoesColete, (i) => (i.coleteId != null ? coleteById.get(i.coleteId)?.modelo : null), "Sem modelo"),
+      porMarcaModelo: (() => {
+        const map = new Map<string, number>();
+        for (const i of inspecoesColete) {
+          const c = i.coleteId != null ? coleteById.get(i.coleteId) : null;
+          const label = `${c?.marca || "Sem marca"} · ${c?.modelo || "Sem modelo"}`;
+          map.set(label, (map.get(label) || 0) + 1);
+        }
+        return topEntries(map);
+      })(),
+    };
+
+    // ── Artigos substituídos ──────────────────────────────────
+    const artigosSubstituidosFiltrados = artigosSubstituidosRaw.filter((a) =>
+      inRange(parseFlexibleDate(a.inspecao?.dataInspecao)),
+    );
+    const artigosSubstituidosTotal = artigosSubstituidosFiltrados.reduce(
+      (sum, a) => sum + Number(a.quantidade || 0),
+      0,
+    );
+    const artigosSubstituidosPorReferencia = topEntries(
+      artigosSubstituidosFiltrados.reduce((map, a) => {
+        const label = (a.referencia && a.referencia.trim()) || a.name || "Sem referência";
+        return map.set(label, (map.get(label) || 0) + Number(a.quantidade || 0));
+      }, new Map<string, number>()),
+      15,
+    );
+    const artigosSubstituidosPorMes = (() => {
+      const buckets = buildMonthBucketsBetween(periodStart, periodEnd);
+      const totals = new Map(buckets.map((b) => [b.key, 0]));
+      for (const a of artigosSubstituidosFiltrados) {
+        const dt = parseFlexibleDate(a.inspecao?.dataInspecao);
+        if (!dt) continue;
+        const key = bucketKeyOf(dt);
+        if (totals.has(key)) totals.set(key, (totals.get(key) || 0) + Number(a.quantidade || 0));
+      }
+      return buckets.map((b) => ({ label: b.label, total: totals.get(b.key) || 0 }));
+    })();
 
     // ── Ordens de serviço ─────────────────────────────────────
     const ordensPorStatus = topEntries(
@@ -538,7 +705,7 @@ export async function GET(request: Request) {
     };
 
     // Clientes sem contacto
-    const clientesSemContacto = clientes.filter((c) => !c.email || (!c.telefone && !c.telmovel)).length;
+    const clientesSemContacto = clientesSemContactoCnt;
 
     return NextResponse.json({
       geradoEm: new Date().toISOString(),
@@ -549,7 +716,7 @@ export async function GET(request: Request) {
       geral: {
         jangadas: jangadas.length,
         navios: navios.length,
-        clientes: clientes.length,
+        clientes: clienteTotal,
         inspecoes: inspecoesFiltradas.length,
         coletes: coletes.length,
         epirbs: epirbs.length,
@@ -564,11 +731,13 @@ export async function GET(request: Request) {
         total: jangadas.length,
         porMarca: jangadasPorMarca,
         porModelo: jangadasPorModelo,
+        porMarcaModelo: jangadasPorMarcaModelo,
         porLotacao: jangadasPorLotacao,
         porPackType: jangadasPorPackType,
         porIlha: jangadasPorIlha,
         semNavio: jangadasSemNavio,
         conformidade: { conformes, expirarBreve, naoConformes, semArtigos },
+        inspecionadas: jangadasInspecionadas,
       },
       navios: {
         total: navios.length,
@@ -578,9 +747,14 @@ export async function GET(request: Request) {
         total: inspecoesFiltradas.length,
         anoAtual: inspecoesAnoAtual,
         mesAtual: inspecoesMesAtual,
+        tipo: inspecoesTipo,
+        hoje: inspecoesHoje,
         porMes: inspecoesPorMes,
         porAno: inspecoesPorAno,
         porStatus: inspecoesPorStatus,
+        porDia: inspecoesPorDia,
+        diasMais: inspecoesDiasMais,
+        diasMenos: inspecoesDiasMenos,
       },
       ordens: {
         total: ordensFiltradas.length,
@@ -613,8 +787,14 @@ export async function GET(request: Request) {
         movimentos: movimentosPorMes,
       },
       clientes: {
-        total: clientes.length,
+        total: clienteTotal,
         semContacto: clientesSemContacto,
+      },
+      coletesInspecionados,
+      artigos: {
+        substituidosTotal: artigosSubstituidosTotal,
+        substituidosPorMes: artigosSubstituidosPorMes,
+        substituidosPorReferencia: artigosSubstituidosPorReferencia,
       },
       validadesEquipamentos,
       certificados,

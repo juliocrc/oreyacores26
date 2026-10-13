@@ -198,7 +198,32 @@ export const authConfig: NextAuthConfig = {
 
         // JWT slim: só identidade. Permissões resolvem-se no session callback / access-control.
         const shouldRefreshProfile = Boolean(user) || trigger === "update" || !token.sub || !token.role;
+
+        // Sessão única: quando não há refresh de perfil, valida o identificador
+        // desta sessão contra o registado no utilizador. Se outra sessão iniciou
+        // entretanto, devolver null termina esta e limpa o cookie.
         if (!shouldRefreshProfile) {
+          if (token.role !== "CLIENTE" && token.sub) {
+            const current = await prisma.user.findUnique({
+              where: { id: Number(token.sub) },
+              select: { activeSessionId: true },
+            });
+
+            if (current && current.activeSessionId && current.activeSessionId !== token.sessionId) {
+              return null;
+            }
+
+            if (current && !current.activeSessionId) {
+              // Sessões criadas antes desta funcionalidade adoptam-se na 1.ª utilização.
+              await prisma.user
+                .update({
+                  where: { id: Number(token.sub) },
+                  data: { activeSessionId: token.sessionId },
+                })
+                .catch(() => {});
+            }
+          }
+
           // remove payload legado se ainda existir no cookie
           if ("permissions" in token) delete token.permissions;
           return token;
@@ -216,9 +241,33 @@ export const authConfig: NextAuthConfig = {
             image: true,
             role: true,
             clienteId: true,
+            activeSessionId: true,
           },
         });
         if (!dbUser) return token;
+
+        // Login novo (ou update): esta passa a ser a única sessão ativa.
+        if (dbUser.role !== "CLIENTE") {
+          if (Boolean(user) || trigger === "update") {
+            if (dbUser.activeSessionId !== token.sessionId) {
+              await prisma.user
+                .update({
+                  where: { id: dbUser.id },
+                  data: { activeSessionId: token.sessionId },
+                })
+                .catch(() => {});
+            }
+          } else if (!dbUser.activeSessionId) {
+            await prisma.user
+              .update({
+                where: { id: dbUser.id },
+                data: { activeSessionId: token.sessionId },
+              })
+              .catch(() => {});
+          } else if (dbUser.activeSessionId !== token.sessionId) {
+            return null;
+          }
+        }
 
         token.sub = String(dbUser.id);
         token.email = dbUser.email;

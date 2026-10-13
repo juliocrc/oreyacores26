@@ -70,6 +70,32 @@ function removeElementChildren(parent: Element, localName: string) {
   children.forEach((child) => parent.removeChild(child));
 }
 
+// Ordem dos elementos dentro de <w:rPr> (sequência do schema CT_RPr). Inserir
+// fora de ordem pode fazer o Word ignorar o elemento.
+const RPR_ORDER = [
+  "rStyle", "rFonts", "b", "bCs", "i", "iCs", "caps", "smallCaps", "strike", "dstrike",
+  "outline", "shadow", "emboss", "imprint", "noProof", "snapToGrid", "vanish", "webHidden",
+  "color", "spacing", "w", "kern", "position", "sz", "szCs", "highlight", "u", "effect",
+  "bdr", "shd", "fitText", "vertAlign", "rtl", "cs", "em", "lang", "eastAsianLayout",
+  "specVanish", "oMath",
+];
+
+function insertInRprOrder(parent: Element, element: Element) {
+  const index = RPR_ORDER.indexOf(getLocalName(element));
+  if (parent?.childNodes) {
+    for (let i = 0; i < parent.childNodes.length; i += 1) {
+      const child = parent.childNodes[i];
+      if (child?.nodeType !== 1) continue;
+      const childIndex = RPR_ORDER.indexOf(getLocalName(child));
+      if (childIndex > index) {
+        parent.insertBefore(element, child);
+        return;
+      }
+    }
+  }
+  parent.appendChild(element);
+}
+
 function setCellText(cell: Element, value: string) {
   const doc = cell.ownerDocument;
   if (!doc) return;
@@ -77,7 +103,21 @@ function setCellText(cell: Element, value: string) {
   const templateParagraph = paragraphs[0] || null;
   const paragraphProperties = templateParagraph ? getChildElements(templateParagraph, "pPr")[0]?.cloneNode(true) : null;
   const templateRun = templateParagraph ? findDescendants(templateParagraph, "r")[0] : null;
-  const runProperties = templateRun ? getChildElements(templateRun, "rPr")[0]?.cloneNode(true) : null;
+  let runProperties = templateRun ? getChildElements(templateRun, "rPr")[0]?.cloneNode(true) : null;
+
+  // Em algumas linhas do modelo (nomeadamente a 1.ª linha de dados) o run não
+  // define <w:sz>, herdando o tamanho por omissão — maior que o resto da tabela.
+  // Nesses casos copiamos o tamanho definido nas propriedades do parágrafo.
+  const paragraphRpr = paragraphProperties
+    ? getChildElements(paragraphProperties as Element, "rPr")[0] || null
+    : null;
+  if (paragraphRpr && (!runProperties || getChildElements(runProperties as Element, "sz").length === 0)) {
+    if (!runProperties) runProperties = createWordElement(doc, "rPr");
+    const size = getChildElements(paragraphRpr, "sz")[0];
+    const sizeCs = getChildElements(paragraphRpr, "szCs")[0];
+    if (size) insertInRprOrder(runProperties as Element, size.cloneNode(true) as Element);
+    if (sizeCs) insertInRprOrder(runProperties as Element, sizeCs.cloneNode(true) as Element);
+  }
 
   removeElementChildren(cell, "p");
 

@@ -321,23 +321,32 @@ export function loadPausedInspectionDraftsByRaft(): Record<number, PausedInspect
   if (typeof window === "undefined") return {};
 
   const drafts: Record<number, PausedInspectionDraftMeta> = {};
+  const keyPrefix = "jangada-wizard-draft-";
 
   for (let index = 0; index < window.localStorage.length; index += 1) {
     const key = window.localStorage.key(index);
-    if (!key || !key.startsWith("jangada:") || !key.endsWith(":paused-inspection-draft")) continue;
+    if (!key || !key.startsWith(keyPrefix)) continue;
 
-    const raftIdRaw = key.split(":")[1];
-    const raftId = Number(raftIdRaw);
+    const raftId = Number(key.slice(keyPrefix.length));
     if (!Number.isFinite(raftId) || raftId <= 0) continue;
 
     try {
       const raw = window.localStorage.getItem(key);
       if (!raw) continue;
-      const parsed = JSON.parse(raw) as PausedInspectionDraftMeta;
-      if (!parsed?.savedAt) continue;
+      const parsed = JSON.parse(raw) as {
+        savedAt?: string | number;
+        currentStep?: number;
+        inspectionData?: Record<string, unknown>;
+      };
+      if (!parsed?.inspectionData || Object.keys(parsed.inspectionData).length === 0) continue;
+
+      const savedAt =
+        typeof parsed.savedAt === "number" ? parsed.savedAt : Date.parse(String(parsed.savedAt || ""));
+      if (!Number.isFinite(savedAt)) continue;
+
       drafts[raftId] = {
-        savedAt: parsed.savedAt,
-        inspectionWizardStep: Number(parsed.inspectionWizardStep || 0),
+        savedAt,
+        inspectionWizardStep: Number(parsed.currentStep || 0),
       };
     } catch {
       // ignorar rascunhos inválidos

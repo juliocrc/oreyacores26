@@ -180,8 +180,9 @@ await performOfflineAwareJsonRequest({
          });
       }
 
+      const navioId = inspectionData.shipId;
       reset();
-      router.push(`/equipamentos`);
+      router.push(navioId ? `/equipamentos?navio=${navioId}` : `/equipamentos`);
       router.refresh();
 
     } catch (err: unknown) {

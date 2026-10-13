@@ -152,7 +152,9 @@ export async function GET(_req: Request, context: { params: Promise<{ id: string
     const candidatePlace = String(navio.portoRegisto || navio.ilha || APP_CONFIG.defaultRegionLabel || "").trim();
     const inspectionPlace = (canonicalizeAzoresIsland(candidatePlace) || inferAzoresIslandFromPort(candidatePlace) || candidatePlace) as string;
     const inspectionPlaceAndDate = [inspectionPlace, formatDatePt(today)].filter(Boolean).join(", ");
-    const serviceStation = String(navio.serviceStation?.nome || APP_CONFIG.name || APP_CONFIG.issuerName).trim();
+    // "For Authorized Service Station / Estação de Serviço" fica em branco no
+    // certificado (não deve herdar o nome/região da estação).
+    const serviceStation = "";
 
     const buffer = await generateNavioColetesCertificateDocx({
       shipName: String(navio.nome || "").trim(),

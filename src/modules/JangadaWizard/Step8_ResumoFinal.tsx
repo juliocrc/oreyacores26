@@ -11,6 +11,7 @@ import { parseMonthYearValue } from '@/lib/date-utils';
 import { getIvaRate, calcIva, round2 } from '@/lib/iva';
 import { getWizardSteps, getStepIndexByKey } from './steps';
 import { setWizardFinisher } from './wizardFinisher';
+import { MIN_REABERTURA_JUSTIFICACAO } from '@/lib/inspecao-lock';
 import { isArticleNonExpiring, isArticleValidityRequired } from '@/modules/rafts/mandatoryPack';
 
 export default function Step8_ResumoFinal() {
@@ -443,6 +444,7 @@ export default function Step8_ResumoFinal() {
       artigosSubstituidos,
       orcamento: {
         linhas: (inspectionData.orcamento?.linhas || []).map((linha) => ({
+          id: linha.id || undefined,
           stockId: linha.stockId ?? null,
           referencia: linha.referencia || "",
           descricao: linha.descricao || "",
@@ -498,7 +500,72 @@ export default function Step8_ResumoFinal() {
         return;
       }
 
-      // 1. Atualiza Jangada (testes, etc). Campos já garantidos pela gravação da
+      // 1. Guarda / Finaliza Inspecao. Vai primeiro de propósito: se a inspeção
+      //    estiver finalizada, o servidor recusa (409) e a jangada e o navio
+      //    ficam intactos. Nesse caso pedimos a justificação de reabertura e
+      //    repetimos a gravação — a alteração fica registada em auditoria e o
+      //    servidor volta a carimbar a inspeção, o histórico e a ficha da jangada.
+      const method = inspecaoId ? "PUT" : "POST";
+      const url = inspecaoId ? `/api/inspecoes?id=${inspecaoId}` : '/api/inspecoes';
+
+      const sendSave = (body: unknown) => fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      let saveBody: unknown = payload;
+      let inspRes = await sendSave(saveBody);
+
+      if (inspRes.status === 409) {
+        const lockJson = await inspRes.json().catch(() => ({}));
+        if (lockJson?.motivo === 'pedido-de-reabertura') {
+          const certificado = String(inspectionData.certificadoNumero || '').trim();
+          const justificacao = typeof window !== 'undefined'
+            ? window.prompt(
+                `A inspeção${certificado ? ` do certificado ${certificado}` : ''} está finalizada e não pode ser alterada.` +
+                `\n\nPara a corrigir, escreva a justificação da reabertura (mínimo ${MIN_REABERTURA_JUSTIFICACAO} caracteres).` +
+                "\nA alteração fica registada em auditoria.",
+                "",
+              )
+            : null;
+
+          if (justificacao === null) {
+            appToast.info("Reabertura cancelada. A inspeção permanece inalterada.");
+            return;
+          }
+          const texto = justificacao.trim();
+          if (texto.length < MIN_REABERTURA_JUSTIFICACAO) {
+            appToast.error(`A justificação da reabertura tem de ter pelo menos ${MIN_REABERTURA_JUSTIFICACAO} caracteres.`, 7000);
+            return;
+          }
+          saveBody = { ...payload, reabrir: true, reaberturaJustificacao: texto };
+          inspRes = await sendSave(saveBody);
+        }
+      }
+
+      if (!inspRes.ok) {
+        const errorJson = await inspRes.json().catch(() => ({}));
+        throw new Error(
+          errorJson.error
+            || errorJson.message
+            || `Erro ao gravar a inspeção (Código ${inspRes.status})`
+        );
+      }
+
+      const savedInsp = await inspRes.json().catch(() => ({}));
+      if (savedInsp?.id) {
+        setInspecaoId(savedInsp.id);
+      }
+
+      // Avisa stockWarnings devolvidas pelo servidor (ex.: stock insuficiente
+      // para artigos substituídos na validação) — nº visível ao técnico.
+      const stockWarnings: string[] = Array.isArray(savedInsp?.stockWarnings)
+        ? savedInsp.stockWarnings.filter((w: unknown): w is string => typeof w === 'string' && Boolean(w.trim()))
+        : [];
+      stockWarnings.forEach((warning) => appToast.warning(`Stock: ${warning}`));
+
+      // 2. Atualiza Jangada (testes, etc). Campos já garantidos pela gravação da
       // inspeção (saveInspection escreve sempre numeroObra, cylinderSerial,
       // cylinderDataTeste, testeFS/NAP/GI/DL e signatureBase64 na jangada) não são
       // repetidos aqui — evitam dupla escrita do mesmo valor.
@@ -577,7 +644,7 @@ export default function Step8_ResumoFinal() {
         }
       }
 
-      // 2. Atualiza Navio se associado
+      // 3. Atualiza Navio se associado
       if (shipId) {
         try {
           const shipRes = await fetch(`/api/navios/${shipId}`, {
@@ -597,37 +664,6 @@ export default function Step8_ResumoFinal() {
           console.error("Erro ao atualizar dados do navio:", shipErr);
         }
       }
-
-      // 3. Guarda / Finaliza Inspecao
-      const method = inspecaoId ? "PUT" : "POST";
-      const url = inspecaoId ? `/api/inspecoes?id=${inspecaoId}` : '/api/inspecoes';
-      
-      const inspRes = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!inspRes.ok) {
-        const errorJson = await inspRes.json().catch(() => ({}));
-        throw new Error(
-          errorJson.error
-            || errorJson.message
-            || `Erro ao gravar a inspeção (Código ${inspRes.status})`
-        );
-      }
-
-      const savedInsp = await inspRes.json().catch(() => ({}));
-      if (savedInsp?.id) {
-        setInspecaoId(savedInsp.id);
-      }
-
-      // Avisa stockWarnings devolvidas pelo servidor (ex.: stock insuficiente
-      // para artigos substituídos na validação) — nº visível ao técnico.
-      const stockWarnings: string[] = Array.isArray(savedInsp?.stockWarnings)
-        ? savedInsp.stockWarnings.filter((w: unknown): w is string => typeof w === 'string' && Boolean(w.trim()))
-        : [];
-      stockWarnings.forEach((warning) => appToast.warning(`Stock: ${warning}`));
 
       if (isFinal) {
         if (jangadaId) {
@@ -665,10 +701,6 @@ export default function Step8_ResumoFinal() {
     }
   };
 
-  const handleSaveDraft = () => {
-    saveToBackend(false);
-  };
-
   const handleFinish = () => {
     const missing: string[] = [];
     if (!selectedTecnicoId) missing.push("Técnico responsável selecionado");
@@ -689,18 +721,6 @@ export default function Step8_ResumoFinal() {
     }
     saveToBackend(true);
   };
-
-  // Support Ctrl+S / "wizard-save-draft" and Ctrl+Enter / "wizard-finish-inspection"
-  useEffect(() => {
-    const onSave = () => handleSaveDraft();
-    const onFinish = () => handleFinish();
-    window.addEventListener('wizard-save-draft', onSave);
-    window.addEventListener('wizard-finish-inspection', onFinish);
-    return () => {
-      window.removeEventListener('wizard-save-draft', onSave);
-      window.removeEventListener('wizard-finish-inspection', onFinish);
-    };
-  }, [handleSaveDraft, handleFinish]);
 
   // Regista o handler de finalização para o WizardLayout conseguir fechar a
   // inspeção a partir de qualquer passo (ex: Histórico), mesmo com o Step8
@@ -957,17 +977,9 @@ export default function Step8_ResumoFinal() {
 
             <div className="flex gap-3">
               <button 
-                onClick={handleSaveDraft}
-                disabled={isSaving}
-                className="w-1/3 py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all bg-slate-700 hover:bg-slate-600 text-white shadow-md"
-              >
-                {isSaving ? "A Gravar..." : "Guardar Rascunho"}
-              </button>
-
-              <button 
                 onClick={handleFinish}
                 disabled={isSaving}
-                className={`w-2/3 py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${
+                className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${
                   Boolean(inspectionData.abate?.ativo)
                     ? 'bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/30'
                     : criticalCount === 0 

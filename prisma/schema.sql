@@ -426,6 +426,7 @@ CREATE TABLE IF NOT EXISTS "User" (
     "passwordHash" TEXT,
     "role" "UserRole" NOT NULL DEFAULT 'USER',
     "permissionsOverrideJson" TEXT,
+    "activeSessionId" TEXT,
     "googleId" TEXT,
     "image" TEXT,
     "lastLoginAt" TIMESTAMP(3),
