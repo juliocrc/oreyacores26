@@ -167,7 +167,13 @@ export default async function JangadaFichaSlidePage({
 
   return (
     <div className="bg-white text-slate-900 min-h-screen font-sans">
-      <div className="fixed top-4 right-4 print:hidden">
+      <div className="fixed top-4 right-4 flex items-center gap-2 print:hidden">
+        <a
+          href={`/api/jangadas/${numericId}/ficha-slide-excel`}
+          className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100"
+        >
+          Exportar Excel
+        </a>
         <PrintPageButton />
       </div>
 
