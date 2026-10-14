@@ -20,6 +20,7 @@ import { useSearchParams } from "next/navigation";
 import { formatDate } from "@/lib/date-utils";
 import { INSPECTION_STATUS_STYLES, type InspectionStatusColor } from "@/lib/inspection-status";
 import ClienteNaviosPanel from "./ClienteNaviosPanel";
+import ClienteJangadasPanel from "./ClienteJangadasPanel";
 
 type SearchMode = "nif" | "codigo";
 
@@ -30,7 +31,10 @@ type JangadaEstado = {
   model: string;
   capacity: number;
   owner: string;
+  navioId?: number | null;
   navioNome: string | null;
+  tipoPesca?: string | null;
+  isPesca?: boolean;
   dataInspecao: string | null;
   dataProxInspecao: string | null;
   status: { label: string; color: InspectionStatusColor; daysLeft: number | null };
@@ -41,6 +45,7 @@ type JangadaEstado = {
   certificadoPdfUrl: string | null;
   hruReferencia: string | null;
   hruValidade: string | null;
+  hruValidadeDias?: number | null;
   diasHru: number | null;
   radarReflector: string | null;
   radarReflectorValidade: string | null;
@@ -49,6 +54,12 @@ type JangadaEstado = {
   cylinderDataTeste: string | null;
   cylinderDataProxTeste: string | null;
   diasProxTesteCilindro: number | null;
+  workflowStatus?: {
+    state: "SEM_ESTADO" | "RECEIONADA" | "EM_INSPECAO" | "FINALIZADA" | "OUTRO";
+    label: string;
+    dataHora?: string | null;
+    queueStatus?: string | null;
+  };
 };
 
 type OrdemServicoResumo = {
@@ -284,6 +295,10 @@ export default function AreaClientePage() {
         )}
 
         {resultado && !loading && (
+          <ClienteJangadasPanel navios={resultado.navios} jangadas={resultado.jangadas} />
+        )}
+
+        {resultado && !loading && (
           <ClienteNaviosPanel navios={resultado.navios} />
         )}
 
@@ -437,12 +452,6 @@ export default function AreaClientePage() {
                               <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-lg border ${j.diasRadarReflector !== null && j.diasRadarReflector < 0 ? "bg-red-50 border-red-200 text-red-700" : "bg-white border-slate-200 text-slate-600"}`}>
                                 Radar {j.radarReflectorValidade ? formatDate(j.radarReflectorValidade) : ""}
                                 {j.diasRadarReflector !== null && j.diasRadarReflector < 0 ? " · expirado" : ""}
-                              </span>
-                            )}
-                            {j.cylinderDataProxTeste && (
-                              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-lg border ${j.diasProxTesteCilindro !== null && j.diasProxTesteCilindro < 0 ? "bg-red-50 border-red-200 text-red-700" : "bg-white border-slate-200 text-slate-600"}`}>
-                                Cilindro: próx. teste {j.cylinderDataProxTeste ? formatDate(j.cylinderDataProxTeste) : ""}
-                                {j.diasProxTesteCilindro !== null && j.diasProxTesteCilindro < 0 ? " · expirado" : ""}
                               </span>
                             )}
                           </div>

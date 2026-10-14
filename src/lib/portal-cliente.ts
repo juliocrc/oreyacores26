@@ -42,7 +42,8 @@ export async function buildPortalClienteData(clienteId: number) {
         })
       : [];
 
-  const jangadasFormatadas = jangadas.map((j) => {
+  const { getJangadaWorkflowStatus } = await (await import("@/lib/jangada-workflow-status"));
+  const jangadasFormatadas = await Promise.all(jangadas.map(async (j) => {
     const ultimaInspecao = inspecoes.find((i) => i.jangadaId === j.id) || null;
     const dataInspecao = ultimaInspecao?.dataInspecao
       ? new Date(ultimaInspecao.dataInspecao).toISOString()
@@ -53,6 +54,25 @@ export async function buildPortalClienteData(clienteId: number) {
     const statusInfo = getInspectionStatus(dataProxInspecao);
 
     const certNum = ultimaInspecao?.certificadoNumero || j.ultimoCertificadoNumero || null;
+
+    let workflow: {
+      state: string;
+      label: string;
+      dataHora: string | null;
+      queueStatus?: string | null;
+    } = { state: "SEM_ESTADO", label: "Sem estado na estação", dataHora: null };
+    try {
+      const wf = await getJangadaWorkflowStatus(j.id);
+      workflow = {
+        state: wf.state,
+        label: wf.labelPt,
+        dataHora: wf.dataHora ? wf.dataHora.toISOString() : null,
+        queueStatus: wf.queueStatus,
+      };
+    } catch {
+      workflow = { state: "SEM_ESTADO", label: "Sem estado na estação", dataHora: null };
+    }
+
     const navioObj = navios.find((n) => n.id === j.shipId);
     const isPesca = Boolean(
       navioObj?.tipoPesca &&
@@ -89,9 +109,9 @@ export async function buildPortalClienteData(clienteId: number) {
       radarReflectorValidade: j.radarReflectorValidade,
       cylinderSistema: j.cylinderSistema,
       cylinderDataTeste: j.cylinderDataTeste,
-      cylinderDataProxTeste: j.cylinderDataProxTeste,
-    };
-  });
+      workflowStatus: workflow,
+      };
+    }));
 
   const ordensServico = await prisma.ordemServico.findMany({
     where: { clienteId: cliente.id },
