@@ -70,7 +70,6 @@ export async function GET(req: NextRequest) {
       const dataProxInspecao = ultimaInspecao?.dataProxInspecao ? new Date(ultimaInspecao.dataProxInspecao).toISOString() : j.dataProxInspecao;
       const statusInfo = getInspectionStatus(dataProxInspecao);
 
-      const hasDigitalSignature = Boolean(ultimaInspecao?.signatureBase64 || ultimaInspecao?.clienteAssinaturaBase64);
       const certNum = ultimaInspecao?.certificadoNumero || j.ultimoCertificadoNumero || null;
       const navioObj = navios.find(n => n.id === j.shipId);
       const isPesca = Boolean(navioObj?.tipoPesca && navioObj.tipoPesca.toLowerCase() !== "não aplicável" && navioObj.tipoPesca.toLowerCase() !== "outro");
@@ -92,7 +91,7 @@ export async function GET(req: NextRequest) {
         diasParaProxima: statusInfo.daysLeft,
         ultimoCertificadoNumero: certNum,
         certificadoExternoNumero: j.certificadoExternoNumero,
-        certificadoPdfUrl: hasDigitalSignature && certNum ? `/api/certificados/pdf?serial=${encodeURIComponent(j.serial)}` : null,
+        certificadoPdfUrl: certNum ? `/api/certificados/pdf?serial=${encodeURIComponent(j.serial)}` : null,
         hruReferencia: j.hruReferencia,
         hruValidade: j.hruValidade,
         radarReflector: j.radarReflector,

@@ -52,9 +52,6 @@ export async function buildPortalClienteData(clienteId: number) {
       : j.dataProxInspecao;
     const statusInfo = getInspectionStatus(dataProxInspecao);
 
-    const hasDigitalSignature = Boolean(
-      ultimaInspecao?.signatureBase64 || ultimaInspecao?.clienteAssinaturaBase64,
-    );
     const certNum = ultimaInspecao?.certificadoNumero || j.ultimoCertificadoNumero || null;
     const navioObj = navios.find((n) => n.id === j.shipId);
     const isPesca = Boolean(
@@ -82,7 +79,7 @@ export async function buildPortalClienteData(clienteId: number) {
       certificadoExternoNumero: j.certificadoExternoNumero,
       certificadoExternoUrl: null as string | null,
       certificadoPdfUrl:
-        hasDigitalSignature && certNum
+        certNum
           ? `/api/certificados/pdf?serial=${encodeURIComponent(j.serial)}`
           : null,
       hruReferencia: j.hruReferencia,

@@ -32,7 +32,7 @@ export function certificadosFolderForYear(_year?: number | string | null): strin
   return CERTIFICADOS_FOLDER;
 }
 
-export type ShipDocCategory = "Quadros" | "DGRM" | "Declarações IVA";
+export type ShipDocCategory = "Quadros" | "DGRM" | "Declarações IVA" | "Certificados";
 
 type PermissionMode = "read" | "readwrite";
 

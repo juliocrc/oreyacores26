@@ -10,7 +10,8 @@ import { formatDateLongPt } from "@/lib/relatorios-page-helpers";
 import { User, Ship, FileText, ClipboardList, Settings, Mail, Phone, MapPin, Save, Search, Plus, Trash2, ExternalLink, AlertTriangle, Loader2, Building2, Receipt, History, MessageSquare, CreditCard, DollarSign, KeyRound } from "lucide-react";
 import { IVA_ISENCAO_CODES } from "@/lib/iva-isencao-codes";
 import { buildAddressLine } from "@/lib/client-address";
-import { saveShipDocument } from "@/lib/ship-downloads";
+import { saveShipDocument, ensureFolderPermissionNow } from "@/lib/ship-downloads";
+import { appToast } from "@/lib/app-toast";
 
 type Navio = { id: number; nome: string; matricula: string; portoRegisto?: string | null; ilha: string | null; tipoPesca: string; clienteId?: number | null; cliente?: { id: number; nome: string } | null };
 type Cliente = { id: number; nome: string; numeroCliente?: string | null; modoPagamento?: string | null; nif?: string | null; email?: string | null; telefone?: string | null; telmovel?: string | null; morada?: string | null; moradaNumero?: string | null; codigoPostal?: string | null; localidade?: string | null; ilha?: string | null; observacoes?: string | null; navios: Navio[] };
@@ -49,6 +50,7 @@ export default function ClienteDetalhePage() {
   const [generatingCode, setGeneratingCode] = useState(false);
   const [generatedCode, setGeneratedCode] = useState<{ code: string; expiresAt: string | null } | null>(null);
   const [generatedCodeError, setGeneratedCodeError] = useState<string | null>(null);
+  const [certificadoBusyNavioId, setCertificadoBusyNavioId] = useState<number | null>(null);
 
   // New Contact / Note state
   const [contactosLog, setContactosLog] = useState<Array<{ id: number; data: string; tipo: string; descricao: string; autor?: string }>>([]);
@@ -307,6 +309,48 @@ export default function ClienteDetalhePage() {
     });
   };
 
+  const base64ToBytes = (base64: string): Uint8Array<ArrayBuffer> => {
+    const binary = atob(base64);
+    const buffer = new ArrayBuffer(binary.length);
+    const bytes = new Uint8Array(buffer);
+    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  };
+
+  const gerarCertificadoCarimbado = async (navio: Navio) => {
+    if (certificadoBusyNavioId) return;
+    const permission = await ensureFolderPermissionNow();
+    if (permission === "not-configured") {
+      appToast.info("Defina a pasta de documentos no menu da conta para gravar na pasta do navio. Sem essa pasta, os ficheiros irão para Downloads.");
+    } else if (permission === "denied") {
+      appToast.warning("Sem autorização para a pasta de documentos. Autorize a pasta no menu da conta e repita.");
+    }
+    setCertificadoBusyNavioId(navio.id);
+    try {
+      const res = await fetch(`/api/navios/${navio.id}/certificados-carimbados`, { method: "POST" });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || "Falha ao gerar os certificados.");
+      const files: Array<{ filename: string; base64: string }> = data?.files || [];
+      if (!files.length) throw new Error("Nenhum certificado encontrado para este navio.");
+      for (const file of files) {
+        const blob = new Blob([base64ToBytes(file.base64)], { type: "application/pdf" });
+        await saveShipDocument({
+          shipName: data.shipName || navio.nome,
+          category: "Certificados",
+          filename: file.filename,
+          blob,
+          quiet: true,
+          label: "Certificado carimbado",
+        });
+      }
+      appToast.success(`${files.length} certificado(s) carimbado(s) gerado(s) para ${navio.nome}.`);
+    } catch (err) {
+      appToast.error("Erro ao gerar certificados: " + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setCertificadoBusyNavioId(null);
+    }
+  };
+
   const addContactoLog = (e: React.FormEvent) => {
     e.preventDefault();
     if (!novoContacto.descricao.trim()) return;
@@ -426,6 +470,17 @@ export default function ClienteDetalhePage() {
                         <Link href={`/criar-ot?clienteId=${cliente.id}&navioId=${navio.id}`} className="rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-600 hover:bg-indigo-100 transition">
                           <Plus size={12} className="inline mr-1" />Nova OS
                         </Link>
+                        <button
+                          onClick={() => gerarCertificadoCarimbado(navio)}
+                          disabled={certificadoBusyNavioId === navio.id}
+                          title="Gerar os certificados PDF com carimbo OREY e gravar na pasta do navio"
+                          className="rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 transition disabled:opacity-50"
+                        >
+                          {certificadoBusyNavioId === navio.id
+                            ? <Loader2 size={12} className="inline animate-spin mr-1" />
+                            : <FileText size={12} className="inline mr-1" />}
+                          Certificado carimbado
+                        </button>
                         <button onClick={() => disassociateNavio(navio.id)} disabled={busyNavio} className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100 transition disabled:opacity-50">Desassociar</button>
                       </div>
                     </div>

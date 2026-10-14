@@ -1,19 +1,29 @@
 "use client";
-import React, { useRef, useState, useEffect } from "react";
-import { Trash2, ShieldCheck, CreditCard, PenTool } from "lucide-react";
+import React, { useRef, useState, useEffect, useCallback } from "react";
+import { Trash2, ShieldCheck, CreditCard, PenTool, Stamp } from "lucide-react";
 
 type SignaturePadProps = {
   value?: string;
   onChange: (base64: string) => void;
   label?: string;
   allowCitizenCard?: boolean;
+  /** Caminho da imagem do carimbo oficial. */
+  stampSrc?: string;
 };
 
-export default function SignaturePad({ value, onChange, label = "Assinatura Digital", allowCitizenCard = true }: SignaturePadProps) {
+type PadMode = "draw" | "stamp" | "cc";
+
+export default function SignaturePad({
+  value,
+  onChange,
+  label = "Assinatura Digital",
+  allowCitizenCard = true,
+  stampSrc = "/carimbooreyazores.jpg",
+}: SignaturePadProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasDrawn, setHasDrawn] = useState(false);
-  const [mode, setMode] = useState<"draw" | "cc">("draw");
+  const [mode, setMode] = useState<PadMode>("draw");
   const [ccName, setCcName] = useState("");
   const [ccNumber, setCcNumber] = useState("");
   const [ccPin, setCcPin] = useState("");
@@ -39,6 +49,40 @@ export default function SignaturePad({ value, onChange, label = "Assinatura Digi
       img.src = value;
     }
   }, [value, hasDrawn, mode]);
+
+  const applyStamp = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const img = new Image();
+    img.onload = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const scale = Math.min(canvas.width / img.width, canvas.height / img.height) * 0.9;
+      const w = img.width * scale;
+      const h = img.height * scale;
+      ctx.drawImage(img, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
+      setHasDrawn(true);
+      setCcSigned(false);
+      onChange(canvas.toDataURL("image/png"));
+    };
+    img.onerror = () => {
+      // Fallback: usa a imagem diretamente como assinatura.
+      fetch(stampSrc)
+        .then((r) => r.blob())
+        .then((blob) => {
+          const reader = new FileReader();
+          reader.onloadend = () => onChange(typeof reader.result === "string" ? reader.result : "");
+          reader.readAsDataURL(blob);
+        })
+        .catch(() => onChange(""));
+    };
+    img.src = stampSrc;
+  }, [onChange, stampSrc]);
+
+  useEffect(() => {
+    if (mode === "stamp") applyStamp();
+  }, [mode, applyStamp]);
 
   const getCoordinates = (e: React.MouseEvent | React.TouchEvent) => {
     const canvas = canvasRef.current;
@@ -113,21 +157,32 @@ export default function SignaturePad({ value, onChange, label = "Assinatura Digi
     onChange(digitalSealData);
   };
 
+  const showCanvas = mode === "draw" || mode === "stamp";
+
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <label className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</label>
-        {allowCitizenCard && (
-          <div className="flex bg-slate-100 p-0.5 rounded-xl text-xs font-bold">
-            <button
-              type="button"
-              onClick={() => setMode("draw")}
-              className={`px-3 py-1 rounded-lg flex items-center gap-1.5 transition-all ${
-                mode === "draw" ? "bg-white text-indigo-700 shadow-sm" : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <PenTool size={13} /> Tátil
-            </button>
+        <div className="flex bg-slate-100 p-0.5 rounded-xl text-xs font-bold">
+          <button
+            type="button"
+            onClick={() => setMode("draw")}
+            className={`px-3 py-1 rounded-lg flex items-center gap-1.5 transition-all ${
+              mode === "draw" ? "bg-white text-indigo-700 shadow-sm" : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <PenTool size={13} /> Tátil
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("stamp")}
+            className={`px-3 py-1 rounded-lg flex items-center gap-1.5 transition-all ${
+              mode === "stamp" ? "bg-white text-indigo-700 shadow-sm" : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <Stamp size={13} /> Carimbo
+          </button>
+          {allowCitizenCard && (
             <button
               type="button"
               onClick={() => setMode("cc")}
@@ -137,13 +192,16 @@ export default function SignaturePad({ value, onChange, label = "Assinatura Digi
             >
               <CreditCard size={13} /> Cartão de Cidadão / CMD
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      {mode === "draw" ? (
+      {showCanvas ? (
         <div className="space-y-2">
-          <div className="flex items-center justify-end">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] text-slate-400 font-semibold">
+              {mode === "stamp" ? "Carimbo oficial OREY Açores aplicado como assinatura." : ""}
+            </span>
             {hasDrawn && (
               <button
                 type="button"
@@ -159,16 +217,16 @@ export default function SignaturePad({ value, onChange, label = "Assinatura Digi
               ref={canvasRef}
               width={500}
               height={160}
-              className="w-full h-40 touch-none cursor-crosshair rounded-xl bg-slate-50/50"
-              onMouseDown={startDrawing}
-              onMouseMove={draw}
-              onMouseUp={stopDrawing}
-              onMouseLeave={stopDrawing}
-              onTouchStart={startDrawing}
-              onTouchMove={draw}
-              onTouchEnd={stopDrawing}
+              className={`w-full h-40 rounded-xl bg-slate-50/50 ${mode === "draw" ? "touch-none cursor-crosshair" : ""}`}
+              onMouseDown={mode === "draw" ? startDrawing : undefined}
+              onMouseMove={mode === "draw" ? draw : undefined}
+              onMouseUp={mode === "draw" ? stopDrawing : undefined}
+              onMouseLeave={mode === "draw" ? stopDrawing : undefined}
+              onTouchStart={mode === "draw" ? startDrawing : undefined}
+              onTouchMove={mode === "draw" ? draw : undefined}
+              onTouchEnd={mode === "draw" ? stopDrawing : undefined}
             />
-            {!hasDrawn && !value && (
+            {mode === "draw" && !hasDrawn && !value && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-slate-400 text-xs font-medium">
                 Desenhe a assinatura aqui (com o dedo ou rato)
               </div>

@@ -14,6 +14,8 @@ export type InspectionCertificateInput = {
   technicianSignature?: string;
   clientName?: string;
   clientSignature?: string;
+  /** Carimbo oficial (imagem data URL) aplicado na área de assinatura do certificado. */
+  stampImage?: string;
 };
 
 function asString(value: unknown) {
@@ -207,6 +209,19 @@ export function buildInspectionCertificateDoc(input: InspectionCertificateInput)
   doc.setFontSize(8);
   doc.text(`Centro técnico: OREY · Técnico: ${asString(input.technician) || "—"}`, 12, 286);
   doc.text("Assinatura: __________________________", 130, 286);
+
+  // Carimbo oficial OREY na área de assinatura (canto inferior direito).
+  const stampImage = asString(input.stampImage);
+  if (/^data:image\/(png|jpe?g|webp);base64,/i.test(stampImage)) {
+    const stampFormat = stampImage.startsWith("data:image/jpeg") ? "JPEG" : "PNG";
+    const stampW = 56;
+    const stampH = stampW * (265 / 574);
+    try {
+      doc.addImage(stampImage, stampFormat, 130, 286 - 6 - stampH, stampW, stampH);
+    } catch {
+      // Carimbo é opcional: nunca deve impedir a geração do certificado.
+    }
+  }
 
   // Página de assinaturas: técnica do centro + representante do armador.
   const hasAnySignature =

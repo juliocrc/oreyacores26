@@ -38,6 +38,7 @@ type JangadaEstado = {
   ultimoCertificadoNumero: string | null;
   certificadoExternoNumero: string | null;
   certificadoExternoUrl: string | null;
+  certificadoPdfUrl: string | null;
   hruReferencia: string | null;
   hruValidade: string | null;
   diasHru: number | null;
@@ -401,9 +402,14 @@ export default function AreaClientePage() {
                           {(j.ultimoCertificadoNumero || j.certificadoExternoNumero) && (
                             <div className="space-y-1.5">
                               {j.ultimoCertificadoNumero && (
-                                <p className="text-xs text-slate-600 flex items-center gap-1.5">
+                                <p className="text-xs text-slate-600 flex items-center gap-1.5 flex-wrap">
                                   <FileText size={13} className="text-indigo-500 shrink-0" />
                                   Certificado: <span className="font-mono font-semibold">{j.ultimoCertificadoNumero}</span>
+                                  {j.certificadoPdfUrl && (
+                                    <a href={j.certificadoPdfUrl} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline font-bold inline-flex items-center gap-0.5">
+                                      descarregar <ExternalLink size={11} />
+                                    </a>
+                                  )}
                                 </p>
                               )}
                               {j.certificadoExternoNumero && (
