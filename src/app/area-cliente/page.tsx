@@ -21,6 +21,7 @@ import { formatDate } from "@/lib/date-utils";
 import { INSPECTION_STATUS_STYLES, type InspectionStatusColor } from "@/lib/inspection-status";
 import ClienteNaviosPanel from "./ClienteNaviosPanel";
 import ClienteJangadasPanel from "./ClienteJangadasPanel";
+import ClienteFichaPanel from "./ClienteFichaPanel";
 
 type SearchMode = "nif" | "codigo";
 
@@ -90,10 +91,23 @@ type FaturaResumo = {
     jangada: { id: number; serial: string; brand: string; model: string } | null;
   }>;
 };
-type PedidoCliente = { id: number; tipoAssistencia: string | null; descricao: string; estado: string; createdAt: string };
+type PedidoCliente = { id: number; tipoAssistencia: string | null; descricao: string; dataPreferida?: string | null; estado: string; createdAt: string };
 
 type RespostaClienteAuth = {
-  cliente: { id: number; nome: string; nif: string | null; numeroCliente: string | null; morada: string | null; ilha: string | null };
+  cliente: {
+    id: number;
+    nome: string;
+    nif: string | null;
+    numeroCliente: string | null;
+    email: string | null;
+    telefone: string | null;
+    telmovel: string | null;
+    morada: string | null;
+    moradaNumero: string | null;
+    codigoPostal: string | null;
+    localidade: string | null;
+    ilha: string | null;
+  };
   navios: Array<{ id: number; nome: string; matricula?: string; ilha?: string; tipoPesca?: string }>;
   jangadas: JangadaEstado[];
   ordensServico: OrdemServicoResumo[];
@@ -125,7 +139,7 @@ export default function AreaClientePage() {
   const [resultado, setResultado] = useState<RespostaClienteAuth | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
   const [pedidos, setPedidos] = useState<PedidoCliente[]>([]);
-  const [pedidoForm, setPedidoForm] = useState({ motivo: "Assistência técnica", descricao: "", prioridade: "normal", jangadaId: "" });
+  const [pedidoForm, setPedidoForm] = useState({ motivo: "Assistência técnica", descricao: "", prioridade: "normal", jangadaId: "", navioId: "", dataPreferida: "" });
   const [pedidoBusy, setPedidoBusy] = useState(false);
   const [pedidoMessage, setPedidoMessage] = useState<string | null>(null);
 
@@ -166,12 +180,12 @@ export default function AreaClientePage() {
     try {
       const res = await fetch("/api/portal/pedidos-assistencia", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clienteId: resultado.cliente.id, jangadaId: pedidoForm.jangadaId || undefined, motivo: pedidoForm.motivo, descricao: pedidoForm.descricao, prioridade: pedidoForm.prioridade }),
+        body: JSON.stringify({ clienteId: resultado.cliente.id, jangadaId: pedidoForm.jangadaId || undefined, navioId: pedidoForm.navioId || undefined, motivo: pedidoForm.motivo, descricao: pedidoForm.descricao, prioridade: pedidoForm.prioridade, dataPreferida: pedidoForm.dataPreferida || undefined }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Não foi possível enviar o pedido.");
       setPedidos((current) => [{ ...data.pedido, createdAt: data.pedido.createdAt }, ...current]);
-      setPedidoForm({ motivo: "Assistência técnica", descricao: "", prioridade: "normal", jangadaId: "" });
+      setPedidoForm({ motivo: "Assistência técnica", descricao: "", prioridade: "normal", jangadaId: "", navioId: "", dataPreferida: "" });
       setPedidoMessage("Pedido enviado. A nossa equipa irá responder logo que possível.");
     } catch (error) { setPedidoMessage(error instanceof Error ? error.message : "Erro ao enviar pedido."); }
     finally { setPedidoBusy(false); }
@@ -303,6 +317,10 @@ export default function AreaClientePage() {
         )}
 
         {resultado && !loading && (
+          <ClienteFichaPanel cliente={resultado.cliente} />
+        )}
+
+        {resultado && !loading && (
           <section className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-4">
             <form onSubmit={pedirAssistencia} className="rounded-3xl border border-indigo-100 bg-white p-6 sm:p-8 shadow-sm space-y-4">
               <div>
@@ -318,10 +336,20 @@ export default function AreaClientePage() {
                   <option value="normal">Prioridade normal</option><option value="urgente">Urgente</option>
                 </select>
               </div>
-              <select value={pedidoForm.jangadaId} onChange={(e) => setPedidoForm({ ...pedidoForm, jangadaId: e.target.value })} className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm font-medium text-slate-700">
-                <option value="">Selecionar jangada (opcional)</option>
-                {resultado.jangadas.map((jangada) => <option key={jangada.id} value={jangada.id}>{jangada.brand} {jangada.model} · {jangada.serial}</option>)}
-              </select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <select value={pedidoForm.navioId} onChange={(e) => setPedidoForm({ ...pedidoForm, navioId: e.target.value })} className="rounded-xl border border-slate-200 px-3 py-3 text-sm font-medium text-slate-700">
+                  <option value="">Selecionar navio (opcional)</option>
+                  {resultado.navios.map((navio) => <option key={navio.id} value={navio.id}>{navio.nome}{navio.matricula ? ` · ${navio.matricula}` : ""}</option>)}
+                </select>
+                <select value={pedidoForm.jangadaId} onChange={(e) => setPedidoForm({ ...pedidoForm, jangadaId: e.target.value })} className="rounded-xl border border-slate-200 px-3 py-3 text-sm font-medium text-slate-700">
+                  <option value="">Selecionar jangada (opcional)</option>
+                  {resultado.jangadas.map((jangada) => <option key={jangada.id} value={jangada.id}>{jangada.brand} {jangada.model} · {jangada.serial}</option>)}
+                </select>
+              </div>
+              <label className="flex flex-col gap-1 text-xs font-semibold text-slate-500">
+                Data preferida para a intervenção (opcional)
+                <input type="date" value={pedidoForm.dataPreferida} onChange={(e) => setPedidoForm({ ...pedidoForm, dataPreferida: e.target.value })} className="rounded-xl border border-slate-200 px-3 py-3 text-sm font-medium text-slate-700" />
+              </label>
               <textarea value={pedidoForm.descricao} onChange={(e) => setPedidoForm({ ...pedidoForm, descricao: e.target.value })} required rows={4} placeholder="Descreva o que necessita..." className="w-full resize-none rounded-xl border border-slate-200 px-3 py-3 text-sm text-slate-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" />
               <div className="flex items-center justify-between gap-3">
                 {pedidoMessage && <p className="text-xs font-semibold text-indigo-700">{pedidoMessage}</p>}
@@ -331,7 +359,7 @@ export default function AreaClientePage() {
             <div className="rounded-3xl border border-slate-200/60 bg-white p-6 sm:p-8 shadow-sm">
               <div className="flex items-center justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wider text-slate-500">Pedidos recentes</p><h2 className="mt-1 text-lg font-extrabold text-slate-800">Acompanhamento</h2></div><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{pedidos.length}</span></div>
               <div className="mt-5 space-y-3">
-                {pedidos.length === 0 ? <p className="text-sm text-slate-500">Ainda não existem pedidos de assistência.</p> : pedidos.slice(0, 4).map((pedido) => <div key={pedido.id} className="rounded-xl border border-slate-100 bg-slate-50 p-3"><div className="flex items-center justify-between gap-2"><p className="text-sm font-bold text-slate-700">{pedido.tipoAssistencia || "Assistência"}</p><span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-bold text-indigo-700">{pedido.estado}</span></div><p className="mt-1 line-clamp-2 text-xs text-slate-500">{pedido.descricao}</p></div>)}
+                {pedidos.length === 0 ? <p className="text-sm text-slate-500">Ainda não existem pedidos de assistência.</p> : pedidos.slice(0, 4).map((pedido) => <div key={pedido.id} className="rounded-xl border border-slate-100 bg-slate-50 p-3"><div className="flex items-center justify-between gap-2"><p className="text-sm font-bold text-slate-700">{pedido.tipoAssistencia || "Assistência"}</p><span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-bold text-indigo-700">{pedido.estado}</span></div><p className="mt-1 line-clamp-2 text-xs text-slate-500">{pedido.descricao}</p>{pedido.dataPreferida && <p className="mt-1 text-[11px] font-semibold text-indigo-600">Data preferida: {pedido.dataPreferida}</p>}</div>)}
               </div>
             </div>
           </section>

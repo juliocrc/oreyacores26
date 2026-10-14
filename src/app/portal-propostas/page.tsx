@@ -20,10 +20,16 @@ type EquipamentoChange = {
   changes?: Record<string, unknown>;
 };
 
+type AssocItem = { tipoEquipamento?: string; serial?: string };
+
 type ProposalDados = {
+  tipo?: string;
   navioId?: number;
+  clienteId?: number;
   pirotecnicosBordo?: unknown;
   equipamentos?: EquipamentoChange[];
+  itens?: AssocItem[];
+  campos?: Record<string, unknown>;
   estado?: string;
   decididoPor?: string | null;
   motivo?: string | null;
@@ -37,6 +43,12 @@ type ProposalNavio = {
   cliente: string | null;
 };
 
+type ProposalCliente = {
+  id: number;
+  nome: string;
+  nif: string | null;
+};
+
 type Proposal = {
   id: number;
   usuario?: string | null;
@@ -44,6 +56,32 @@ type Proposal = {
   createdAt: string;
   dados?: ProposalDados | null;
   navio?: ProposalNavio | null;
+  cliente?: ProposalCliente | null;
+};
+
+const TIPO_LABEL: Record<string, string> = {
+  equipamentos: "Equipamentos e pirotécnicos",
+  associacao: "Associação de equipamentos",
+  ficha: "Ficha e contactos",
+};
+
+const FICHA_FIELD_LABEL: Record<string, string> = {
+  email: "Email",
+  telefone: "Telefone fixo",
+  telmovel: "Telemóvel",
+  morada: "Morada",
+  moradaNumero: "Nº / andar",
+  codigoPostal: "Código postal",
+  localidade: "Localidade",
+  ilha: "Ilha",
+};
+
+const ASSOC_TIPO_LABEL: Record<string, string> = {
+  jangada: "Jangada",
+  colete: "Colete",
+  fato: "Fato de imersão",
+  epirb: "EPIRB",
+  extintor: "Extintor",
 };
 
 type EstadoFiltro = "TODAS" | "PENDENTE" | "APROVADA" | "REJEITADA";
@@ -150,6 +188,8 @@ export default function PortalPropostasPage() {
         p.navio?.nome,
         p.navio?.matricula,
         p.navio?.cliente,
+        p.cliente?.nome,
+        p.cliente?.nif,
         p.usuario,
         String(p.dados?.navioId ?? ""),
       ]
@@ -251,8 +291,20 @@ export default function PortalPropostasPage() {
             const pirotecnicos = Array.isArray(proposal.dados?.pirotecnicosBordo)
               ? (proposal.dados?.pirotecnicosBordo as unknown[])
               : [];
+            const itens = Array.isArray(proposal.dados?.itens) ? proposal.dados?.itens ?? [] : [];
+            const campos = proposal.dados?.campos && typeof proposal.dados.campos === "object" ? Object.entries(proposal.dados.campos) : [];
+            const tipo = proposal.dados?.tipo || "equipamentos";
             const expandido = expandedId === proposal.id;
             const emDecisao = rejeitarId === proposal.id;
+
+            const titulo =
+              tipo === "ficha"
+                ? proposal.cliente?.nome || `Cliente #${proposal.dados?.clienteId ?? "—"}`
+                : proposal.navio?.nome || `Navio #${proposal.dados?.navioId ?? "—"}`;
+            const subtitulo =
+              tipo === "ficha"
+                ? proposal.usuario || "Cliente"
+                : proposal.navio?.cliente || proposal.usuario || "Armador não identificado";
 
             return (
               <article key={proposal.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -263,14 +315,16 @@ export default function PortalPropostasPage() {
                     </div>
                     <div>
                       <h2 className="font-extrabold text-slate-800">
-                        {proposal.navio?.nome || `Navio #${proposal.dados?.navioId ?? "—"}`}
-                        {proposal.navio?.matricula && (
+                        {titulo}
+                        {tipo !== "ficha" && proposal.navio?.matricula && (
                           <span className="ml-2 text-xs font-semibold text-slate-400">{proposal.navio.matricula}</span>
                         )}
+                        <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">
+                          {TIPO_LABEL[tipo] || tipo}
+                        </span>
                       </h2>
                       <p className="mt-1 text-xs text-slate-500">
-                        {proposal.navio?.cliente || proposal.usuario || "Armador não identificado"} ·{" "}
-                        {formatDate(proposal.createdAt)}
+                        {subtitulo} · {formatDate(proposal.createdAt)}
                       </p>
                     </div>
                   </div>
@@ -284,13 +338,13 @@ export default function PortalPropostasPage() {
                 </div>
 
                 <p className="mt-4 text-sm text-slate-600">
-                  {pirotecnicos.length > 0
-                    ? `${pirotecnicos.length} registo(s) de pirotécnicos`
-                    : "Sem alterações de pirotécnicos"}{" "}
-                  ·{" "}
-                  {equipamentos.length > 0
-                    ? `${equipamentos.length} equipamento(s) atualizado(s)`
-                    : "Sem alterações de equipamentos"}
+                  {tipo === "ficha"
+                    ? `${campos.length} campo(s) da ficha`
+                    : tipo === "associacao"
+                      ? `${itens.length} equipamento(s) a associar`
+                      : `${pirotecnicos.length > 0 ? `${pirotecnicos.length} registo(s) de pirotécnicos` : "Sem alterações de pirotécnicos"} · ${
+                          equipamentos.length > 0 ? `${equipamentos.length} equipamento(s) atualizado(s)` : "Sem alterações de equipamentos"
+                        }`}
                 </p>
 
                 {proposal.dados?.observacoes && (
@@ -310,6 +364,45 @@ export default function PortalPropostasPage() {
 
                 {expandido && (
                   <div className="mt-3 space-y-4 rounded-xl border border-slate-100 bg-slate-50/60 p-4">
+                    {tipo === "ficha" && (
+                      <div>
+                        <p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-500">Ficha e contactos</p>
+                        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+                          <table className="w-full text-left text-xs">
+                            <thead className="bg-slate-50 text-slate-500">
+                              <tr>
+                                <th className="px-3 py-2 font-bold">Campo</th>
+                                <th className="px-3 py-2 font-bold">Novo valor</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {campos.map(([campo, valor]) => (
+                                <tr key={campo}>
+                                  <td className="px-3 py-2 font-semibold text-slate-700">{FICHA_FIELD_LABEL[campo] || campo}</td>
+                                  <td className="px-3 py-2 font-semibold text-slate-800">{renderValue(valor)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {tipo === "associacao" && (
+                      <div>
+                        <p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-500">Equipamentos a associar</p>
+                        <ul className="space-y-1">
+                          {itens.map((item, idx) => (
+                            <li key={idx} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700">
+                              <span className="font-bold">{ASSOC_TIPO_LABEL[item.tipoEquipamento || ""] || item.tipoEquipamento}</span>
+                              {" · "}
+                              <span className="font-mono">{item.serial}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
                     {equipamentos.length > 0 && (
                       <div>
                         <p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-500">

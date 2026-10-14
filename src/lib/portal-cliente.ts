@@ -11,7 +11,13 @@ export async function buildPortalClienteData(clienteId: number) {
       nome: true,
       nif: true,
       numeroCliente: true,
+      email: true,
+      telefone: true,
+      telmovel: true,
       morada: true,
+      moradaNumero: true,
+      codigoPostal: true,
+      localidade: true,
       ilha: true,
     },
   });
@@ -20,7 +26,7 @@ export async function buildPortalClienteData(clienteId: number) {
 
   const navios = await prisma.navio.findMany({
     where: { clienteId: cliente.id },
-    select: { id: true, nome: true, matricula: true, ilha: true, tipoPesca: true },
+    select: { id: true, nome: true, matricula: true, ilha: true, portoRegisto: true, tipoPesca: true, tipoNavio: true, comprimentoMetros: true },
   });
   const navioIds = navios.map((n) => n.id);
 

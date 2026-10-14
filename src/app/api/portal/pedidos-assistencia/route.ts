@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Dados inválidos." }, { status: 400 });
     }
 
-    const { clienteId, jangadaId, navioId, motivo, descricao, prioridade } = body;
+    const { clienteId, jangadaId, navioId, motivo, descricao, prioridade, dataPreferida } = body;
     const requestedClienteId = Number(clienteId);
     const sessionClienteId = session.user.clienteId != null ? Number(session.user.clienteId) : null;
     if (session.user.role !== "ADMIN" && (!sessionClienteId || requestedClienteId !== sessionClienteId)) {
@@ -28,18 +28,21 @@ export async function POST(req: NextRequest) {
     const jangada = jangadaId ? await prisma.jangada.findUnique({ where: { id: Number(jangadaId) } }) : null;
     const navio = navioId ? await prisma.navio.findUnique({ where: { id: Number(navioId) } }) : null;
 
+    const dataPreferidaNorm = String(dataPreferida || "").trim() || null;
+
     const novoPedido = await prisma.pedidoAssistencia.create({
       data: {
         nome: cliente?.nome || "Armador",
         email: cliente?.email || session.user.email || "",
-        telefone: "",
+        telefone: cliente?.telmovel || cliente?.telefone || "",
         navio: navio?.nome || jangada?.shipNameManual || "Embarcação",
         jangadaSerial: jangada?.serial || null,
         tipoAssistencia: String(motivo).trim(),
         descricao: String(descricao).trim(),
+        dataPreferida: dataPreferidaNorm,
         estado: "novo",
         origem: "portal_cliente",
-        metadados: JSON.stringify({ clienteId: requestedClienteId, prioridade: prioridade || "normal" }),
+        metadados: JSON.stringify({ clienteId: requestedClienteId, prioridade: prioridade || "normal", navioId: navio?.id ?? null }),
       },
     });
 
@@ -62,5 +65,5 @@ export async function GET() {
   const mine = pedidos.filter((pedido) => {
     try { return Number(JSON.parse(pedido.metadados || "{}").clienteId) === clienteId; } catch { return false; }
   });
-  return NextResponse.json({ pedidos: mine.map((pedido) => ({ id: pedido.id, tipoAssistencia: pedido.tipoAssistencia, descricao: pedido.descricao, estado: pedido.estado, createdAt: pedido.createdAt })) });
+  return NextResponse.json({ pedidos: mine.map((pedido) => ({ id: pedido.id, tipoAssistencia: pedido.tipoAssistencia, descricao: pedido.descricao, dataPreferida: pedido.dataPreferida, estado: pedido.estado, createdAt: pedido.createdAt })) });
 }
