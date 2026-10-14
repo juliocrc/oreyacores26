@@ -13,7 +13,8 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
   const cliente = await prisma.cliente.findUnique({ where: { id }, select: { id: true } });
   if (!cliente) return NextResponse.json({ error: "Cliente não encontrado." }, { status: 404 });
   const code = generateFiveDigitCode();
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-  await prisma.cliente.update({ where: { id }, data: { verificationCode: code, verificationCodeExpires: expiresAt } });
-  return NextResponse.json({ success: true, code, expiresAt: expiresAt.toISOString() });
+  // Código de acesso permanente: o administrador gera e fornece ao cliente.
+  // Mantém-se válido até o administrador gerar um novo código.
+  await prisma.cliente.update({ where: { id }, data: { verificationCode: code, verificationCodeExpires: null } });
+  return NextResponse.json({ success: true, code, expiresAt: null });
 }

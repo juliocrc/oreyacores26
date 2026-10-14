@@ -47,7 +47,7 @@ export default function ClienteDetalhePage() {
   const [declarationNavioId, setDeclarationNavioId] = useState<number | string>("");
   const [declarationIvaCode, setDeclarationIvaCode] = useState<string>("M05");
   const [generatingCode, setGeneratingCode] = useState(false);
-  const [generatedCode, setGeneratedCode] = useState<{ code: string; expiresAt: string } | null>(null);
+  const [generatedCode, setGeneratedCode] = useState<{ code: string; expiresAt: string | null } | null>(null);
   const [generatedCodeError, setGeneratedCodeError] = useState<string | null>(null);
 
   // New Contact / Note state
@@ -698,13 +698,13 @@ export default function ClienteDetalhePage() {
 
             <div className="mt-5 pt-4 border-t border-slate-200">
               <h4 className="font-bold text-slate-800 mb-1 flex items-center gap-2"><KeyRound size={16} className="text-blue-500" />Código de Acesso Portal</h4>
-              <p className="text-xs text-slate-500 mb-3">Gere um código de 5 dígitos para o cliente aceder ao portal. Comunique o código verbalmente ou por mensagem.</p>
+              <p className="text-xs text-slate-500 mb-3">Gere um código de 5 dígitos para o cliente aceder ao portal com o seu NIF. Comunique o código verbalmente ou por mensagem. Mantém-se válido até gerar um novo.</p>
               {generatedCodeError && <p className="text-sm text-red-600 mb-2">{generatedCodeError}</p>}
               {generatedCode ? (
                 <div className="rounded-xl bg-blue-50 border border-blue-200 p-4">
                   <p className="text-xs text-blue-600 font-semibold uppercase tracking-wider mb-1">Código Gerado</p>
                   <p className="text-3xl font-black text-blue-700 tracking-[0.3em] mb-1">{generatedCode.code}</p>
-                  <p className="text-xs text-blue-500">Válido até: {new Date(generatedCode.expiresAt).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })}</p>
+                  <p className="text-xs text-blue-500">{generatedCode.expiresAt ? `Válido até: ${new Date(generatedCode.expiresAt).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })}` : "Sem validade — o cliente entra com o NIF + este código."}</p>
                   <button onClick={() => setGeneratedCode(null)} className="mt-2 text-xs text-blue-600 underline font-semibold hover:text-blue-800">Gerar novo código</button>
                 </div>
               ) : (

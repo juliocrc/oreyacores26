@@ -45,6 +45,7 @@ export const authConfig: NextAuthConfig = {
          code: { type: "text" },
         userId: { type: "text" },
         phone: { type: "text" },
+        nif: { type: "text" },
       },
       async authorize(credentials) {
         const str = (value: unknown): string | undefined =>
@@ -56,61 +57,95 @@ export const authConfig: NextAuthConfig = {
         const emailRaw = str(credentials?.email);
         const password = str(credentials?.password);
         const phone = str(credentials?.phone);
+        const nif = str(credentials?.nif);
 
         if (loginType === "client") {
           const email = normalizeEmail(emailRaw);
+          const cleanCode = String(code ?? "").trim();
+          if (!cleanCode) return null;
 
-          const cliente = phone
-            ? await (async () => {
-                const match = await encontrarClientePorContacto(phone);
-                if (!match) return null;
-                return prisma.cliente.findUnique({
-                  where: { id: match.id },
-                  select: {
-                    id: true,
-                    nome: true,
-                    email: true,
-                    verificationCode: true,
-                    verificationCodeExpires: true,
-                  },
-                });
-              })()
-            : email
-              ? await prisma.cliente.findFirst({
-                  where: {
-                    email,
-                    verificationCode: { not: null },
-                  },
-                  select: {
-                    id: true,
-                    nome: true,
-                     email: true,
-                    verificationCode: true,
-                    verificationCodeExpires: true,
-                  }
-                })
-              : null;
+          const normalizeNif = (value: unknown) =>
+            String(value ?? "").replace(/[^0-9A-Za-z]/g, "").toUpperCase();
+
+          let cliente: {
+            id: number;
+            nome: string;
+            email: string | null;
+            verificationCode: string | null;
+            verificationCodeExpires: Date | null;
+          } | null = null;
+
+          if (nif) {
+            // Login do cliente por NIF + código de acesso gerado pelo administrador.
+            const cleanNif = normalizeNif(nif);
+            if (cleanNif) {
+              const candidates = await prisma.cliente.findMany({
+                where: { nif: { not: null }, verificationCode: { not: null } },
+                select: {
+                  id: true,
+                  nome: true,
+                  email: true,
+                  nif: true,
+                  verificationCode: true,
+                  verificationCodeExpires: true,
+                },
+              });
+              cliente =
+                candidates.find(
+                  (candidate) =>
+                    normalizeNif(candidate.nif) === cleanNif &&
+                    String(candidate.verificationCode).trim() === cleanCode,
+                ) ?? null;
+            }
+          } else if (phone) {
+            const match = await encontrarClientePorContacto(phone);
+            if (match) {
+              cliente = await prisma.cliente.findUnique({
+                where: { id: match.id },
+                select: {
+                  id: true,
+                  nome: true,
+                  email: true,
+                  verificationCode: true,
+                  verificationCodeExpires: true,
+                },
+              });
+            }
+          } else if (email) {
+            cliente = await prisma.cliente.findFirst({
+              where: {
+                email,
+                verificationCode: { not: null },
+              },
+              select: {
+                id: true,
+                nome: true,
+                email: true,
+                verificationCode: true,
+                verificationCodeExpires: true,
+              },
+            });
+          }
 
           if (!cliente || !cliente.verificationCode) return null;
 
-           if (String(cliente.verificationCode).trim() !== String(code).trim()) return null;
+          if (String(cliente.verificationCode).trim() !== cleanCode) return null;
 
           if (cliente.verificationCodeExpires) {
             const expiresTime = new Date(cliente.verificationCodeExpires).getTime();
-            const nowTime = Date.now();
-             if (nowTime > expiresTime) {
-              return null;
-            }
-          }
+            if (Date.now() > expiresTime) return null;
 
-          // Consume verification code
-          await prisma.cliente.update({
-            where: { id: cliente.id },
-            data: {
-              verificationCode: null,
-              verificationCodeExpires: null
-            }
-          });
+            // Código temporário (email/WhatsApp, 10 min): consome após uso.
+            // O código de acesso permanente do administrador (sem validade)
+            // mantém-se disponível para logins futuros.
+            await prisma.cliente.update({
+              where: { id: cliente.id },
+              data: {
+                verificationCode: null,
+                verificationCodeExpires: null,
+              },
+            });
+          }
 
           // Find or create User account on-the-fly
           let user = await prisma.user.findFirst({
