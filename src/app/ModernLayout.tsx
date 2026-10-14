@@ -171,6 +171,7 @@ const navSections: NavSection[] = [
     label: 'Administração',
     items: [
       { label: 'Utilizadores', href: '/utilizadores', icon: '👤', roles: ['ADMIN'] },
+      { label: 'Estações de Serviço', href: '/estacoes', icon: '🏭', roles: ['ADMIN'] },
       { label: 'OneDrive', href: '/onedrive', icon: '☁️', roles: ['ADMIN'] },
       { label: 'Registar', href: '/registar', icon: '➕', roles: ['ADMIN'] },
     ],
@@ -333,6 +334,7 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
     '/contactos-internos': 'contactos-internos',
     '/legislacao': 'legislacao',
     '/utilizadores': 'utilizadores',
+    '/estacoes': 'estacoes',
     '/registar': 'registar',
     '/backups': 'backups',
   };

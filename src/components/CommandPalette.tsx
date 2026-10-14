@@ -36,6 +36,7 @@ const QUICK_ACTIONS: QuickAction[] = [
   { id: "relatorios", label: "Relatórios", description: "Relatórios e estatísticas", href: "/relatorios", icon: "📊", keywords: ["relatorios", "relatorio", "estatisticas"] },
   { id: "logistica", label: "Logística", description: "Gestão logística", href: "/logistica", icon: "🚛", keywords: ["logistica", "transporte", "entregas"] },
   { id: "utilizadores", label: "Utilizadores", description: "Gestão de contas", href: "/utilizadores", icon: "⚙️", keywords: ["utilizadores", "users", "contas", "admin"] },
+  { id: "estacoes", label: "Estações de Serviço", description: "Gestão de estações e multi-estação", href: "/estacoes", icon: "🏭", keywords: ["estacoes", "estacao", "servico", "multi", "stations"] },
 ];
 
 const TYPE_ICONS: Record<string, string> = {
