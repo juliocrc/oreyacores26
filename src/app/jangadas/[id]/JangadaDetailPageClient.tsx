@@ -59,6 +59,7 @@ import InspectionCompareDialog from '@/components/InspectionCompareDialog';
 import HistoricaInspecaoDialog from '@/components/jangadas/HistoricaInspecaoDialog';
 import LiferaftDiagram from '@/components/jangadas/LiferaftDiagram';
 import CylindersPanel, { parseCylindersJson, type CylinderRow } from '@/components/jangadas/CylindersPanel';
+import CylindersEditor from '@/components/jangadas/CylindersEditor';
 import CamaraTestsPanel, { parseTesteCamarasJson } from '@/components/jangadas/CamaraTestsPanel';
 import { formatDate, getLocalDateKey, getLocalMidnight } from '@/lib/date-utils';
 import { buildInspectionIcs, downloadIcsFile } from '@/lib/ics';
@@ -1604,6 +1605,27 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
         }
       }
       return updated;
+    });
+  };
+
+  const handleCylindersChange = (rows: CylinderRow[]) => {
+    setEditForm((prev: JangadaFormData) => {
+      const primary = rows[0];
+      return {
+        ...prev,
+        cylindersJson: JSON.stringify(rows),
+        ...(primary
+          ? {
+              cylinderSerial: primary.serial ?? '',
+              cylinderCo2: primary.co2 ?? '',
+              cylinderN2: primary.n2 ?? '',
+              cylinderTara: primary.tara ?? '',
+              cylinderPesoBruto: primary.pesoBruto ?? '',
+              cylinderDataTeste: primary.dataTeste ?? '',
+              cylinderDataProxTeste: primary.dataProxTeste ?? '',
+            }
+          : {}),
+      } as JangadaFormData;
     });
   };
 
@@ -3390,6 +3412,29 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
               </h2>
 
               <div className="space-y-5">
+                {(() => {
+                  const parsedEdit = parseCylindersJson(editForm.cylindersJson);
+                  const parsedData = parseCylindersJson(data.cylindersJson);
+                  const fallbackRow: CylinderRow = {
+                    serial: data.cylinderSerial,
+                    co2: data.cylinderCo2,
+                    n2: data.cylinderN2,
+                    tara: data.cylinderTara,
+                    pesoBruto: data.cylinderPesoBruto,
+                    dataTeste: data.cylinderDataTeste,
+                    dataProxTeste: data.cylinderDataProxTeste,
+                  };
+                  const baseRows = parsedData.length ? parsedData : fallbackRow.serial ? [fallbackRow] : [];
+                  const isMulti = baseRows.length > 1 || parsedEdit.length > 1;
+                  if (isMulti) {
+                    return isEditing ? (
+                      <CylindersEditor cylinders={parsedEdit.length ? parsedEdit : baseRows} onChange={handleCylindersChange} />
+                    ) : (
+                      <CylindersPanel cylinders={baseRows} />
+                    );
+                  }
+                  return (
+                    <>
                 <div className="space-y-1">
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Nº de Série Cilindro</span>
                   {isEditing ? (
@@ -3566,21 +3611,10 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                       );
                     })()}
                   </div>
-                </div>
-
-                {(() => {
-                  const parsed = parseCylindersJson(data.cylindersJson);
-                  const fallback: CylinderRow = {
-                    serial: data.cylinderSerial,
-                    co2: data.cylinderCo2,
-                    n2: data.cylinderN2,
-                    tara: data.cylinderTara,
-                    pesoBruto: data.cylinderPesoBruto,
-                    dataTeste: data.cylinderDataTeste,
-                    dataProxTeste: data.cylinderDataProxTeste,
-                  };
-                  return <CylindersPanel cylinders={parsed} fallback={fallback} />;
+                    </>
+                  );
                 })()}
+                </div>
               </div>
             </div>
 
@@ -5023,6 +5057,10 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
 
         {activeTab === 'testeWP' && (() => {
           const lastInsp = lastInspecao || (data.inspecoes && data.inspecoes.length > 0 ? [...data.inspecoes].sort((a: any, b: any) => new Date(b.dataInspecao).getTime() - new Date(a.dataInspecao).getTime())[0] : null);
+          const camarasTests = parseTesteCamarasJson(data.testeCamarasJson) || parseTesteCamarasJson(editForm.testeCamaras);
+          const camTubes = camarasTests?.tubes || [];
+          const supTube = camTubes.find((t) => /up|f1/i.test(String(t.label || ''))) || camTubes[0];
+          const infTube = camTubes.find((t) => /low|f2/i.test(String(t.label || ''))) || camTubes[1];
           const rawWpSource = isEditing ? editForm : data;
           const wpSource = {
             ...rawWpSource,
@@ -5034,10 +5072,10 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
             testeWPTemperaturaFinal: rawWpSource.testeWPTemperaturaFinal || lastInsp?.testeWPTemperaturaFinal,
             testeWPPressaoAtmosfericaInicial: rawWpSource.testeWPPressaoAtmosfericaInicial || lastInsp?.testeWPPressaoAtmosfericaInicial,
             testeWPPressaoAtmosfericaFinal: rawWpSource.testeWPPressaoAtmosfericaFinal || lastInsp?.testeWPPressaoAtmosfericaFinal,
-            testeWPCamaraSuperiorInicio: rawWpSource.testeWPCamaraSuperiorInicio || lastInsp?.testeWPCamaraSuperiorInicio,
-            testeWPCamaraSuperiorFim: rawWpSource.testeWPCamaraSuperiorFim || lastInsp?.testeWPCamaraSuperiorFim,
-            testeWPCamaraInferiorInicio: rawWpSource.testeWPCamaraInferiorInicio || lastInsp?.testeWPCamaraInferiorInicio,
-            testeWPCamaraInferiorFim: rawWpSource.testeWPCamaraInferiorFim || lastInsp?.testeWPCamaraInferiorFim,
+            testeWPCamaraSuperiorInicio: rawWpSource.testeWPCamaraSuperiorInicio || lastInsp?.testeWPCamaraSuperiorInicio || supTube?.inicio,
+            testeWPCamaraSuperiorFim: rawWpSource.testeWPCamaraSuperiorFim || lastInsp?.testeWPCamaraSuperiorFim || supTube?.fim,
+            testeWPCamaraInferiorInicio: rawWpSource.testeWPCamaraInferiorInicio || lastInsp?.testeWPCamaraInferiorInicio || infTube?.inicio,
+            testeWPCamaraInferiorFim: rawWpSource.testeWPCamaraInferiorFim || lastInsp?.testeWPCamaraInferiorFim || infTube?.fim,
           };
           const wpDerived = buildWpDerivedValues({
             pressureUnit: wpSource.testeWPUnidadePressao,
@@ -5052,8 +5090,8 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
             lowerEnd: wpSource.testeWPCamaraInferiorFim,
           });
 
-          const camarasTests = parseTesteCamarasJson(data.testeCamarasJson) || parseTesteCamarasJson(editForm.testeCamaras);
-          const wpArcos = (camarasTests?.arcos || []).filter(
+          const camarasTestsBase = camarasTests;
+          const wpArcos = (camarasTestsBase?.arcos || []).filter(
             (a) => String(a.inicio ?? "") !== "" || String(a.fim ?? "") !== "",
           );
 
@@ -5251,7 +5289,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                             onChange={(e) => handleWpFieldChange('testeWP', e.target.value)}
                           />
                         ) : (
-                          <p className="font-semibold text-slate-800">{formatDate(data.testeWP)}</p>
+                          <p className="font-semibold text-slate-800">{fmtMonthYear(data.dataInspecao)}</p>
                         )}
                       </div>
 
@@ -5517,7 +5555,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                             onChange={(e) => handleWpFieldChange('testeWPCamaraSuperiorInicio', e.target.value)}
                           />
                         ) : (
-                          <p className="font-semibold text-slate-800">{data.testeWPCamaraSuperiorInicio || '—'} {data.testeWPUnidadePressao || 'mbar'}</p>
+                          <p className="font-semibold text-slate-800">{wpSource.testeWPCamaraSuperiorInicio || '—'} {wpSource.testeWPUnidadePressao || 'mbar'}</p>
                         )}
                       </div>
 
@@ -5531,7 +5569,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                             onChange={(e) => handleWpFieldChange('testeWPCamaraSuperiorFim', e.target.value)}
                           />
                         ) : (
-                          <p className="font-semibold text-slate-800">{data.testeWPCamaraSuperiorFim || '—'} {data.testeWPUnidadePressao || 'mbar'}</p>
+                          <p className="font-semibold text-slate-800">{wpSource.testeWPCamaraSuperiorFim || '—'} {wpSource.testeWPUnidadePressao || 'mbar'}</p>
                         )}
                       </div>
                     </div>
@@ -5587,7 +5625,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                             onChange={(e) => handleWpFieldChange('testeWPCamaraInferiorInicio', e.target.value)}
                           />
                         ) : (
-                          <p className="font-semibold text-slate-800">{data.testeWPCamaraInferiorInicio || '—'} {data.testeWPUnidadePressao || 'mbar'}</p>
+                          <p className="font-semibold text-slate-800">{wpSource.testeWPCamaraInferiorInicio || '—'} {wpSource.testeWPUnidadePressao || 'mbar'}</p>
                         )}
                       </div>
 
@@ -5601,7 +5639,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                             onChange={(e) => handleWpFieldChange('testeWPCamaraInferiorFim', e.target.value)}
                           />
                         ) : (
-                          <p className="font-semibold text-slate-800">{data.testeWPCamaraInferiorFim || '—'} {data.testeWPUnidadePressao || 'mbar'}</p>
+                          <p className="font-semibold text-slate-800">{wpSource.testeWPCamaraInferiorFim || '—'} {wpSource.testeWPUnidadePressao || 'mbar'}</p>
                         )}
                       </div>
                     </div>

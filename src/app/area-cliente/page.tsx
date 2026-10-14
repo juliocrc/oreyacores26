@@ -379,13 +379,13 @@ export default function AreaClientePage() {
                           <div className="grid grid-cols-2 gap-3 text-sm">
                             <div className="bg-white rounded-xl border border-slate-200 p-3">
                               <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                                <CalendarClock size={12} /> Última GI
+                                <CalendarClock size={12} /> Última Inspeção
                               </p>
                               <p className="font-bold text-slate-700 mt-0.5">{j.dataInspecao ? formatDate(j.dataInspecao) : "—"}</p>
                             </div>
                             <div className="bg-white rounded-xl border border-slate-200 p-3">
                               <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                                <Clock size={12} /> Próxima GI
+                                <Clock size={12} /> Próxima Inspeção
                               </p>
                               <p className="font-bold text-slate-700 mt-0.5">
                                 {j.dataProxInspecao ? formatDate(j.dataProxInspecao) : "—"}

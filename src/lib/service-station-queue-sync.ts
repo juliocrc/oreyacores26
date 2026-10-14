@@ -91,8 +91,12 @@ export async function syncServiceStationQueueForInspection(params: {
 
   // Nunca recuar o estado: se a jangada já está mais avançada no fluxo
   // (ex.: a secar ou pronta para entrega), o início de uma checklist não a faz
-  // voltar atrás.
-  if (!created && rank(target.status) > rank(targetStatus)) {
+  // voltar atrás. Considera todas as linhas ativas, não só a mais recente, para
+  // que eventuais duplicados não façam o quadro recuar.
+  const activeRank = rows
+    .filter((row) => !isDelivered(parseMeta(row.observacoes)))
+    .reduce((max, row) => Math.max(max, rank(row.status)), 0);
+  if (!created && activeRank > rank(targetStatus)) {
     return target.id;
   }
 
@@ -128,6 +132,21 @@ export async function syncServiceStationQueueForInspection(params: {
       observacoes: JSON.stringify(nextMeta),
     },
   });
+
+  // Ao finalizar a inspeção, fecha também eventuais linhas ativas duplicadas da
+  // mesma jangada: todas passam a "pronta para entrega" para que o quadro nunca
+  // fique preso em "Em inspeção" por causa de uma linha antiga.
+  if (params.phase === "finish") {
+    const duplicateIds = rows
+      .filter((row) => !isDelivered(parseMeta(row.observacoes)) && row.id !== target.id)
+      .map((row) => row.id);
+    if (duplicateIds.length > 0) {
+      await prisma.serviceStationQueue.updateMany({
+        where: { id: { in: duplicateIds } },
+        data: { status: "finalizada" },
+      });
+    }
+  }
 
   return target.id;
 }
