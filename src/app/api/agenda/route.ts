@@ -195,6 +195,27 @@ export async function GET(req: NextRequest) {
     allowedRaftSerials = rafts.map((r) => String(r.serial || "").trim()).filter(Boolean);
   }
 
+  // Ausências/férias ficam visíveis apenas para os técnicos da estação ativa.
+  // Quando a estação não tem técnicos na BD (ex.: Açores legado), mantém-se o
+  // comportamento anterior (todas as ausências), tal como o roster de fallback.
+  const stationScopeIds = activeStationId
+    ? [activeStationId]
+    : !access.isAdmin
+      ? (access.allowedStationIds.length ? access.allowedStationIds : [-1])
+      : [];
+  let allowedTechnicianKeys: Set<string> | null = null;
+  if (stationScopeIds.length > 0) {
+    const techs = await prisma.tecnico.findMany({
+      where: { serviceStationId: { in: stationScopeIds } },
+      select: { nome: true },
+    });
+    if (techs.length > 0) {
+      allowedTechnicianKeys = new Set(
+        techs.map((t) => getTechnicianKeyByName(t.nome)).filter(Boolean),
+      );
+    }
+  }
+
   const raftSerial = searchParams.get("raftSerial");
   if (raftSerial) {
     if (allowedRaftSerials && !allowedRaftSerials.includes(raftSerial)) {
@@ -228,11 +249,20 @@ export async function GET(req: NextRequest) {
   // Fetch technician absences/vacations and map them to Agenda events
   let absencesEvents: AgendaApiEvent[] = [];
   if (!raftSerial) {
-    const ausencias = await prisma.tecnicoAusencia.findMany({
+    const ausenciasRaw = await prisma.tecnicoAusencia.findMany({
+      include: { tecnico: { select: { nome: true } } },
       orderBy: { dataInicio: "desc" },
     });
+    const ausencias = allowedTechnicianKeys
+      ? ausenciasRaw.filter((aus) => {
+          if (allowedTechnicianKeys!.has(aus.tecnicoKey)) return true;
+          const name = aus.tecnico?.nome || getTechnicianNameByKey(aus.tecnicoKey) || aus.tecnicoKey;
+          const derived = getTechnicianKeyByName(name);
+          return derived ? allowedTechnicianKeys!.has(derived) : false;
+        })
+      : ausenciasRaw;
     absencesEvents = ausencias.map((aus) => {
-      const techName = getTechnicianNameByKey(aus.tecnicoKey) || aus.tecnicoKey;
+      const techName = aus.tecnico?.nome || getTechnicianNameByKey(aus.tecnicoKey) || aus.tecnicoKey;
       const title = aus.tipo === "ferias"
         ? `[FÉRIAS] ${techName}`
         : `[AUSÊNCIA] ${techName}${aus.motivo ? `: ${aus.motivo}` : ""}`;
@@ -466,13 +496,36 @@ export async function DELETE(req: NextRequest) {
 
     // Bulk cancel: mark all active AgendaEvento as cancelled (keeps history) and reset agendada service-station items
     if (body.deleteAll === true) {
+      const access = await getAccessContext();
+      const activeStationId = access ? resolveActiveServiceStationId(req, access) : null;
+      const scopeIds = activeStationId
+        ? [activeStationId]
+        : access && !access.isAdmin
+          ? (access.allowedStationIds.length ? access.allowedStationIds : [-1])
+          : [];
+      const scopedRafts = scopeIds.length
+        ? await prisma.jangada.findMany({
+            where: { serviceStationId: { in: scopeIds } },
+            select: { serial: true },
+          })
+        : null;
+      const scopedSerials = scopedRafts
+        ? scopedRafts.map((r) => String(r.serial || "").trim()).filter(Boolean)
+        : null;
+
       const [cancelled, resetQueue] = await Promise.all([
         prisma.agendaEvento.updateMany({
-          where: { status: { in: ["scheduled", "confirmed"] } },
+          where: {
+            status: { in: ["scheduled", "confirmed"] },
+            ...(scopedSerials ? { raftSerial: { in: scopedSerials } } : {}),
+          },
           data: { status: "cancelled" },
         }),
         prisma.serviceStationQueue.updateMany({
-          where: { status: "agendada" },
+          where: {
+            status: "agendada",
+            ...(scopeIds.length ? { serviceStationId: { in: scopeIds } } : {}),
+          },
           data: { status: "aguardar" },
         }),
       ]);

@@ -19,7 +19,7 @@ import { deleteJangadaById } from "@/lib/jangada-delete";
 import { canonicalizeDateFields } from "@/lib/date-display";
 import { normalizeArtigoValidade } from "@/lib/date-utils";
 import { computeInspectionDigest, shortDigest } from "@/lib/integrity-stamp";
-import { generateInspectionCertificateNumber } from "@/app/inspecoes/actions";
+import { generateInspectionCertificateNumber, resolveCertificateStationPrefix } from "@/app/inspecoes/actions";
 import { getInspectionSnapshot, saveInspectionSnapshot } from "@/lib/inspection-snapshots";
 import {
   canonicalizeCylinderSistema,
@@ -1498,7 +1498,10 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
           await saveInspectionSnapshot(existingInspection.certificadoNumero, id);
         } else {
           // Se não houver nenhuma inspeção para este id no histórico, cria uma nova
-          const certNum = await generateInspectionCertificateNumber(targetDataInspecao);
+          const certNum = await generateInspectionCertificateNumber(
+            targetDataInspecao,
+            await resolveCertificateStationPrefix({ raftId: id }),
+          );
 
           await prisma.inspecao.create({
             data: {

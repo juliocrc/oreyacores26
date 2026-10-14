@@ -19,6 +19,7 @@ type SanitizedContactoInternoPayload = {
   ativo?: boolean;
   fonte?: string | null;
   tecnicoId?: number | null;
+  serviceStationId?: number | null;
 };
 
 type ContactoInternoRecord = {
@@ -35,6 +36,7 @@ type ContactoInternoRecord = {
   observacoes: string | null;
   ativo: boolean;
   fonte: string | null;
+  serviceStationId: number | null;
 };
 
 type ContactoInternoDelegate = {
@@ -88,6 +90,14 @@ function sanitizeContactoInternoPayload(data: ContactoInternoInput): SanitizedCo
             ? Number(data.tecnicoId)
             : null
         : undefined,
+    serviceStationId:
+      data && Object.prototype.hasOwnProperty.call(data, "serviceStationId")
+        ? data.serviceStationId === "" || data.serviceStationId == null
+          ? null
+          : Number.isFinite(Number(data.serviceStationId))
+            ? Number(data.serviceStationId)
+            : null
+        : undefined,
   };
 }
 
@@ -101,7 +111,10 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
 
   const contacto = await contactoInternoModel.findUnique({
     where: { id },
-    include: { tecnico: { select: { id: true, nome: true, email: true } } },
+    include: {
+      tecnico: { select: { id: true, nome: true, email: true } },
+      serviceStation: { select: { id: true, codigo: true, nome: true } },
+    },
   });
   if (!contacto) {
     return NextResponse.json({ error: "Contacto interno não encontrado." }, { status: 404 });

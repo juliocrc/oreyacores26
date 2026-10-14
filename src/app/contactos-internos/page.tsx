@@ -18,7 +18,9 @@ type ContactoInterno = {
   ativo: boolean;
   fonte: string | null;
   tecnicoId: number | null;
+  serviceStationId: number | null;
   tecnico?: { id: number; nome: string; email: string | null } | null;
+  serviceStation?: { id: number; codigo: string; nome: string } | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -36,7 +38,10 @@ type ContactoForm = {
   observacoes: string;
   ativo: boolean;
   tecnicoId: string;
+  serviceStationId: string;
 };
+
+type ServiceStationOption = { id: number; codigo: string; nome: string };
 
 const INITIAL_FORM: ContactoForm = {
   categoria: "Colaborador",
@@ -51,6 +56,7 @@ const INITIAL_FORM: ContactoForm = {
   observacoes: "",
   ativo: true,
   tecnicoId: "",
+  serviceStationId: "",
 };
 
 function formatInlinePhone(value: string | null | undefined) {
@@ -74,6 +80,8 @@ export default function ContactosInternosPage() {
   const [form, setForm] = useState(INITIAL_FORM);
   const [tecnicos, setTecnicos] = useState<Array<{ id: number; nome: string; email: string | null }>>([]);
   const [tecnicoFiltro, setTecnicoFiltro] = useState("");
+  const [stations, setStations] = useState<ServiceStationOption[]>([]);
+  const [stationFiltro, setStationFiltro] = useState("");
 
   const loadContactos = useCallback(async () => {
     try {
@@ -84,6 +92,7 @@ export default function ContactosInternosPage() {
       if (empresa.trim()) params.set("empresa", empresa.trim());
       if (localizacao.trim()) params.set("localizacao", localizacao.trim());
       if (tecnicoFiltro) params.set("tecnicoId", tecnicoFiltro);
+      if (stationFiltro) params.set("serviceStationId", stationFiltro);
       params.set("ativo", showOnlyActive ? "true" : "");
 
       const response = await fetch(`/api/contactos-internos?${params.toString()}`);
@@ -99,12 +108,29 @@ export default function ContactosInternosPage() {
     } finally {
       setLoading(false);
     }
-  }, [categoria, empresa, localizacao, search, showOnlyActive, tecnicoFiltro]);
+  }, [categoria, empresa, localizacao, search, showOnlyActive, stationFiltro, tecnicoFiltro]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- setLoading(true) no início do fetch assíncrono controla o estado de carregamento.
     void loadContactos();
   }, [loadContactos]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch("/api/service-stations");
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!cancelled) setStations(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error(error);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -388,6 +414,7 @@ export default function ContactosInternosPage() {
                 <label className="text-sm text-slate-600">Empresa<input type="text" value={form.empresa} onChange={(event) => setForm((prev) => ({ ...prev, empresa: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" /></label>
                 <label className="text-sm text-slate-600">Localização<input type="text" value={form.localizacao} onChange={(event) => setForm((prev) => ({ ...prev, localizacao: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" /></label>
                 <label className="text-sm text-slate-600">Técnico ligado<select value={form.tecnicoId} onChange={(event) => setForm((prev) => ({ ...prev, tecnicoId: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"><option value="">Sem técnico ligado</option>{tecnicos.map((item) => <option key={item.id} value={String(item.id)}>{item.nome}</option>)}</select></label>
+                <label className="text-sm text-slate-600">Estação de serviço<select value={form.serviceStationId} onChange={(event) => setForm((prev) => ({ ...prev, serviceStationId: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"><option value="">Sem estação atribuída</option>{stations.map((item) => <option key={item.id} value={String(item.id)}>{item.nome} ({item.codigo})</option>)}</select></label>
                 <label className="text-sm text-slate-600">Email(s)<input type="text" value={form.email} onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))} placeholder="email@orey.com / outro@orey.com" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" /></label>
                 <label className="text-sm text-slate-600">Telemóvel<input type="text" value={form.telemovel} onChange={(event) => setForm((prev) => ({ ...prev, telemovel: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" /></label>
                 <label className="text-sm text-slate-600">Telefone fixo<input type="text" value={form.telefoneFixo} onChange={(event) => setForm((prev) => ({ ...prev, telefoneFixo: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" /></label>
@@ -415,12 +442,13 @@ export default function ContactosInternosPage() {
               </div>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
               <input type="text" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Pesquisar..." className="rounded-lg border border-slate-300 px-3 py-2 text-sm xl:col-span-2" />
               <select value={categoria} onChange={(event) => setCategoria(event.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm"><option value="">Todas as categorias</option>{categorias.map((item) => <option key={item} value={item}>{item}</option>)}</select>
               <select value={empresa} onChange={(event) => setEmpresa(event.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm"><option value="">Todas as empresas</option>{empresas.map((item) => <option key={item} value={item}>{item}</option>)}</select>
               <select value={localizacao} onChange={(event) => setLocalizacao(event.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm"><option value="">Todas as localizações</option>{localizacoes.map((item) => <option key={item} value={item}>{item}</option>)}</select>
               <select value={tecnicoFiltro} onChange={(event) => setTecnicoFiltro(event.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm"><option value="">Todos os técnicos</option><option value="none">Sem técnico ligado</option>{tecnicos.map((item) => <option key={item.id} value={String(item.id)}>{item.nome}</option>)}</select>
+              <select value={stationFiltro} onChange={(event) => setStationFiltro(event.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm"><option value="">Todas as estações</option><option value="none">Sem estação atribuída</option>{stations.map((item) => <option key={item.id} value={String(item.id)}>{item.nome} ({item.codigo})</option>)}</select>
             </div>
 
             <div className="mt-3 flex items-end justify-between gap-3">
@@ -453,7 +481,7 @@ export default function ContactosInternosPage() {
                               {group.contactos.map((contacto) => (
                                 <tr key={contacto.id} className="align-top">
                                   <td className="px-3 py-3"><div className="font-semibold text-slate-900"><Link href={`/contactos-internos/${contacto.id}`} className="hover:text-blue-700 hover:underline">{contacto.nome}</Link></div><div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500"><span>{contacto.categoria}</span></div>{contacto.email && <div className="mt-2 break-all text-xs text-slate-600">{contacto.email}</div>}{contacto.observacoes && <div className="mt-2 text-xs text-slate-500">{contacto.observacoes}</div>}</td>
-                                  <td className="px-3 py-3 text-slate-600"><div>{contacto.empresa || "—"}</div><div className="text-xs text-slate-500">{contacto.localizacao || "Sem localização"}</div></td>
+                                  <td className="px-3 py-3 text-slate-600"><div>{contacto.empresa || "—"}</div><div className="text-xs text-slate-500">{contacto.localizacao || "Sem localização"}</div>{contacto.serviceStation && <div className="mt-1 inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-semibold text-sky-700">{contacto.serviceStation.nome}</div>}</td>
                                   <td className="px-3 py-3 text-slate-600"><div className="whitespace-nowrap text-xs text-slate-600">Móvel: {formatInlinePhone(contacto.telemovel)}</div><div className="whitespace-nowrap text-xs text-slate-500">Fixo: {formatInlinePhone(contacto.telefoneFixo)}</div></td>
                                   <td className="px-3 py-3 text-slate-600"><div className="whitespace-nowrap">NOS: {contacto.extensaoNos || "—"}</div><div className="whitespace-nowrap text-xs text-slate-500">Vodafone: {contacto.extensaoVodafone || "—"}</div></td>
                                   <td className="px-3 py-3 text-slate-600">{contacto.tecnico ? (<div className="flex flex-col gap-1"><span className="inline-flex w-fit items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">Ligado</span><span className="text-xs font-medium text-slate-700">{contacto.tecnico.nome}</span></div>) : (<span className="text-xs text-slate-400">—</span>)}</td>

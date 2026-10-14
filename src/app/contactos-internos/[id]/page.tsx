@@ -20,7 +20,9 @@ type ContactoInterno = {
   ativo: boolean;
   fonte: string | null;
   tecnicoId: number | null;
+  serviceStationId: number | null;
   tecnico?: { id: number; nome: string; email: string | null } | null;
+  serviceStation?: { id: number; codigo: string; nome: string } | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -39,7 +41,10 @@ type ContactoForm = {
   ativo: boolean;
   fonte: string;
   tecnicoId: string;
+  serviceStationId: string;
 };
+
+type ServiceStationOption = { id: number; codigo: string; nome: string };
 
 function buildForm(contacto: ContactoInterno): ContactoForm {
   return {
@@ -56,6 +61,7 @@ function buildForm(contacto: ContactoInterno): ContactoForm {
     ativo: contacto.ativo,
     fonte: contacto.fonte || "",
     tecnicoId: contacto.tecnicoId != null ? String(contacto.tecnicoId) : "",
+    serviceStationId: contacto.serviceStationId != null ? String(contacto.serviceStationId) : "",
   };
 }
 
@@ -69,6 +75,7 @@ export default function ContactoInternoDetailPage() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [tecnicos, setTecnicos] = useState<Array<{ id: number; nome: string; email: string | null }>>([]);
+  const [stations, setStations] = useState<ServiceStationOption[]>([]);
 
   const isDirty = useMemo(() => {
     if (!contacto || !form) return false;
@@ -120,6 +127,23 @@ export default function ContactoInternoDetailPage() {
         }
         flat.sort((a, b) => a.nome.localeCompare(b.nome, "pt-PT", { sensitivity: "base" }));
         if (!cancelled) setTecnicos(flat);
+      } catch (error) {
+        console.error(error);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch("/api/service-stations");
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!cancelled) setStations(Array.isArray(data) ? data : []);
       } catch (error) {
         console.error(error);
       }
@@ -209,6 +233,11 @@ export default function ContactoInternoDetailPage() {
                 {contacto.tecnico && (
                   <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
                     Técnico: {contacto.tecnico.nome}
+                  </span>
+                )}
+                {contacto.serviceStation && (
+                  <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
+                    Estação: {contacto.serviceStation.nome}
                   </span>
                 )}
               </div>
@@ -310,6 +339,19 @@ export default function ContactoInternoDetailPage() {
                 <option value="">Sem técnico ligado</option>
                 {tecnicos.map((item) => (
                   <option key={item.id} value={String(item.id)}>{item.nome}</option>
+                ))}
+              </select>
+            </label>
+            <label className="text-sm text-slate-600">
+              Estação de serviço
+              <select
+                value={form.serviceStationId}
+                onChange={(event) => setForm((prev) => (prev ? { ...prev, serviceStationId: event.target.value } : prev))}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              >
+                <option value="">Sem estação atribuída</option>
+                {stations.map((item) => (
+                  <option key={item.id} value={String(item.id)}>{item.nome} ({item.codigo})</option>
                 ))}
               </select>
             </label>

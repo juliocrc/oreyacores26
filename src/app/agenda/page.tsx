@@ -17,11 +17,11 @@ import {
   type InspectionType,
 } from "@/types/agenda";
 import {
-  AZORES_TECHNICIANS,
-  MAX_DAILY_SCHEDULED_EVENTS,
   MAX_ACTIVE_RAFTS_PER_TECHNICIAN,
   normalizeTechnicianName,
 } from "@/lib/agenda-technicians";
+import { useTecnicos } from "@/hooks/useTecnicos";
+import { buildStationTechnicianRoster } from "@/lib/station-technicians";
 import type {
   InspectionEvent,
   InspectionCalendarProps,
@@ -31,6 +31,7 @@ import type {
   AgendaRaft,
   PanelRaft,
   NavioItem,
+  StaffTechnician,
 } from "@/types/agenda-page";
 import {
   normalizeText,
@@ -91,6 +92,13 @@ function AgendaPage() {
   const MAX_SIMULTANEOUS_INSPECTIONS = 6;
   const MAX_PAUSED_INSPECTIONS = 3;
 
+  const { data: tecnicosPayload } = useTecnicos("", false);
+  const stationTechnicians: StaffTechnician[] = useMemo(
+    () => buildStationTechnicianRoster(tecnicosPayload),
+    [tecnicosPayload],
+  );
+  const maxDailyScheduledEvents = stationTechnicians.length * MAX_ACTIVE_RAFTS_PER_TECHNICIAN;
+
   const countScheduledEventsForDay = (targetDate: Date, excludeId?: string | number) => {
     return events.filter((ev) => {
       const persisted = /^\d+$/.test(String(ev.id));
@@ -129,9 +137,9 @@ function AgendaPage() {
   };
 
   const suggestBestTechnician = (targetDate: Date, excludeId?: string | number) => {
-    const ranked = AZORES_TECHNICIANS
+    const ranked = stationTechnicians
       .map((tech) => {
-        const name = normalizeTechnicianName(tech.name);
+        const name = normalizeTechnicianName(tech.nome);
         const load = countTechnicianActiveForDay(targetDate, name, excludeId);
         return { name, load };
       })
@@ -549,8 +557,8 @@ const formatDate = (value?: string | null) => {
     const eventEnd = computeOperationalEnd(event.start, timing.durationMinutes);
 
     const scheduledCountForDay = countScheduledEventsForDay(event.start, isUpdate ? event.id : undefined);
-    if (scheduledCountForDay >= MAX_DAILY_SCHEDULED_EVENTS) {
-      alert(`Este dia já tem o máximo de ${MAX_DAILY_SCHEDULED_EVENTS} agendamentos (${AZORES_TECHNICIANS.length} técnicos × ${MAX_ACTIVE_RAFTS_PER_TECHNICIAN}). Escolha outro dia.`);
+    if (scheduledCountForDay >= maxDailyScheduledEvents) {
+      alert(`Este dia já tem o máximo de ${maxDailyScheduledEvents} agendamentos (${stationTechnicians.length} técnicos × ${MAX_ACTIVE_RAFTS_PER_TECHNICIAN}). Escolha outro dia.`);
       return;
     }
 
@@ -733,8 +741,8 @@ const formatDate = (value?: string | null) => {
     ]);
 
     const scheduledCountForDay = countScheduledEventsForDay(nextStart, updatedEvent.id);
-    if (scheduledCountForDay >= MAX_DAILY_SCHEDULED_EVENTS) {
-      alert(`Este dia já tem o máximo de ${MAX_DAILY_SCHEDULED_EVENTS} agendamentos (${AZORES_TECHNICIANS.length} técnicos × ${MAX_ACTIVE_RAFTS_PER_TECHNICIAN}). Escolha outro dia.`);
+    if (scheduledCountForDay >= maxDailyScheduledEvents) {
+      alert(`Este dia já tem o máximo de ${maxDailyScheduledEvents} agendamentos (${stationTechnicians.length} técnicos × ${MAX_ACTIVE_RAFTS_PER_TECHNICIAN}). Escolha outro dia.`);
       return;
     }
 
@@ -1285,8 +1293,8 @@ const formatDate = (value?: string | null) => {
                   </div>
 
                   <div className="space-y-4">
-                    {AZORES_TECHNICIANS.map((tech) => {
-                      const techEvents = events.filter(e => e.responsavel && e.responsavel.toLowerCase().includes(tech.name.toLowerCase()));
+                    {stationTechnicians.map((tech) => {
+                      const techEvents = events.filter(e => e.responsavel && e.responsavel.toLowerCase().includes(tech.nome.toLowerCase()));
                       
                       // Calculate load for the visible 7 days
                       let totalVisibleEvents = 0;
@@ -1316,8 +1324,8 @@ const formatDate = (value?: string | null) => {
                         <div key={tech.id} className="border-b border-slate-100 pb-5 last:border-0 last:pb-0">
                           <div className="flex flex-wrap items-center justify-between mb-3 gap-2">
                             <div>
-                              <span className="font-bold text-slate-800 text-sm">{tech.name}</span>
-                              <span className="text-xs text-slate-500 ml-1.5">({tech.role})</span>
+                              <span className="font-bold text-slate-800 text-sm">{tech.nome}</span>
+                              {tech.role ? <span className="text-xs text-slate-500 ml-1.5">({tech.role})</span> : null}
                             </div>
                             <div className="flex items-center gap-2">
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${loadColorClass}`}>
@@ -1336,8 +1344,8 @@ const formatDate = (value?: string | null) => {
                                 const evDate = e.start instanceof Date ? e.start : new Date(e.start);
                                 return evDate.toISOString().slice(0, 10) === dayStr;
                               });
-                              const hasAbsence = conflicts.some(c => c.type === 'technician_absence' && c.date === dayStr && c.description.includes(tech.name));
-                              const hasIslandConflict = conflicts.some(c => c.type === 'island_travel' && c.date === dayStr && c.description.includes(tech.name));
+                              const hasAbsence = conflicts.some(c => c.type === 'technician_absence' && c.date === dayStr && c.description.includes(tech.nome));
+                              const hasIslandConflict = conflicts.some(c => c.type === 'island_travel' && c.date === dayStr && c.description.includes(tech.nome));
                               
                               return (
                                 <div key={i} className={`rounded-xl border p-2 min-h-[100px] flex flex-col justify-between transition-all duration-200 hover:shadow-sm ${
@@ -1418,6 +1426,7 @@ const formatDate = (value?: string | null) => {
                   expiringByDay={agendaPanels.expiringByDay}
                    onDeleteEvent={handleDeleteEvent}
                    onEditEvent={handleEditEvent}
+                   technicians={stationTechnicians}
                 />
               )}
             </div>
@@ -1757,6 +1766,7 @@ const formatDate = (value?: string | null) => {
         editingEvent={editingEvent}
         onSaveEdit={handleSchedule}
         onCloseEdit={() => setEditingEvent(null)}
+        technicians={stationTechnicians}
       />
     </div>
   );

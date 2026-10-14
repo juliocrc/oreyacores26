@@ -151,7 +151,14 @@ export default function HistoricaInspecaoDialog({
   // Geração do próximo número de certificado (async)
   React.useEffect(() => {
     if (!isOpen || !isVistoriaAtual || !currentRaftData) return;
-    fetch(`/api/inspecoes?nextCertificate=1&referenceDate=${new Date().toISOString().slice(0, 10)}`)
+    const raftRef = currentRaftData as { id?: number; serial?: string } | null;
+    const params = new URLSearchParams({
+      nextCertificate: "1",
+      referenceDate: new Date().toISOString().slice(0, 10),
+    });
+    if (raftRef?.id) params.set("raftId", String(raftRef.id));
+    else if (raftRef?.serial) params.set("serial", String(raftRef.serial));
+    fetch(`/api/inspecoes?${params.toString()}`)
       .then(res => res.json())
       .then(resData => {
         if (resData.certificadoNumero) {

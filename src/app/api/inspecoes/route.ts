@@ -12,13 +12,15 @@ function buildSaveErrorResponse(context: ReturnType<typeof beginApiRequest>, err
   finishApiRequest(context, response.status);
   return withRequestId(response, context);
 }
-import { generateInspectionCertificateNumber, generateNextObraNumber, saveInspection } from "@/app/inspecoes/actions";
+import { generateInspectionCertificateNumber, generateNextObraNumber, resolveCertificateStationPrefix, saveInspection } from "@/app/inspecoes/actions";
 import { InspectionLockedError } from "@/lib/inspecao-lock";
 import { saveInspectionSnapshot } from '@/lib/inspection-snapshots';
 import { syncRaftChecklistDrivenArtigos } from "@/lib/checklist-sync";
 import { beginApiRequest, captureApiError, finishApiRequest, withRequestId } from '@/lib/observability';
 import { parseOrdemServicoMeta, toOrdemServicoMetaJson } from "@/lib/ordens-servico";
 import { getAccessContext } from "@/lib/access-control";
+import { resolveActiveServiceStationId } from "@/lib/station-selection";
+import { resolveStationPrefix } from "@/lib/service-station-input";
 import { logAuditoria } from "@/lib/auditoria";
 
 async function syncInspectionWithWorkOrder(ordemId: number, inspecaoId: number, artigosSubstituidos: Array<Record<string, unknown>>) {
@@ -115,8 +117,28 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     if (searchParams.get('nextCertificate') === '1') {
       const referenceDate = searchParams.get('referenceDate');
+      const raftIdParam = searchParams.get('raftId');
+      const serialParam = searchParams.get('serial');
+      let stationPrefix: string | null = null;
+      if (raftIdParam || serialParam) {
+        stationPrefix = await resolveCertificateStationPrefix({
+          raftId: raftIdParam ? Number(raftIdParam) : null,
+          serial: serialParam,
+        });
+      }
+      if (!stationPrefix) {
+        const access = await getAccessContext();
+        const activeStationId = access ? resolveActiveServiceStationId(request, access) : null;
+        if (activeStationId) {
+          const station = await prisma.serviceStation.findUnique({
+            where: { id: activeStationId },
+            select: { prefixo: true, codigo: true },
+          });
+          stationPrefix = station ? resolveStationPrefix(station) : null;
+        }
+      }
       const [certificadoNumero, numeroObra] = await Promise.all([
-        generateInspectionCertificateNumber(referenceDate),
+        generateInspectionCertificateNumber(referenceDate, stationPrefix),
         generateNextObraNumber(referenceDate),
       ]);
       return respond({ certificadoNumero, numeroObra }, undefined, { nextCertificate: true, referenceDate: referenceDate || null });

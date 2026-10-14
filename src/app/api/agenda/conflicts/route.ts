@@ -1,19 +1,51 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getAccessContext } from "@/lib/access-control";
+import { resolveActiveServiceStationId } from "@/lib/station-selection";
 import { getTechnicianKeyByName } from "@/lib/agenda-technicians";
 import { canonicalizeAzoresIsland } from "@/lib/azores-islands";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const access = await getAccessContext();
   if (!access) return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
 
-  const eventos = await prisma.agendaEvento.findMany({
+  const activeStationId = resolveActiveServiceStationId(req, access);
+  let allowedRaftSerials: string[] | null = null;
+  let allowedTechnicianKeys: Set<string> | null = null;
+
+  if (activeStationId) {
+    const [rafts, techs] = await Promise.all([
+      prisma.jangada.findMany({ where: { serviceStationId: activeStationId }, select: { serial: true } }),
+      prisma.tecnico.findMany({ where: { serviceStationId: activeStationId }, select: { nome: true } }),
+    ]);
+    allowedRaftSerials = rafts.map((r) => String(r.serial || "").trim()).filter(Boolean);
+    if (techs.length > 0) {
+      allowedTechnicianKeys = new Set(techs.map((t) => getTechnicianKeyByName(t.nome)).filter(Boolean));
+    }
+  } else if (!access.isAdmin) {
+    const scope = access.allowedStationIds.length ? access.allowedStationIds : [-1];
+    const [rafts, techs] = await Promise.all([
+      prisma.jangada.findMany({ where: { serviceStationId: { in: scope } }, select: { serial: true } }),
+      prisma.tecnico.findMany({ where: { serviceStationId: { in: scope } }, select: { nome: true } }),
+    ]);
+    allowedRaftSerials = rafts.map((r) => String(r.serial || "").trim()).filter(Boolean);
+    if (techs.length > 0) {
+      allowedTechnicianKeys = new Set(techs.map((t) => getTechnicianKeyByName(t.nome)).filter(Boolean));
+    }
+  }
+
+  const eventosRaw = await prisma.agendaEvento.findMany({
     where: { status: { in: ["scheduled", "confirmed"] } },
     orderBy: { date: "asc" },
   });
+  const eventos = allowedRaftSerials
+    ? eventosRaw.filter((ev) => allowedRaftSerials!.includes(ev.raftSerial))
+    : eventosRaw;
 
-  const absences = await prisma.tecnicoAusencia.findMany({});
+  const absencesRaw = await prisma.tecnicoAusencia.findMany({});
+  const absences = allowedTechnicianKeys
+    ? absencesRaw.filter((abs) => allowedTechnicianKeys!.has(abs.tecnicoKey))
+    : absencesRaw;
 
   // Resolve islands for event serials
   const eventSerials = eventos.map(e => e.raftSerial).filter(Boolean);

@@ -8,6 +8,7 @@ type Station = {
   nome: string;
   empresa: string | null;
   localizacao: string | null;
+  prefixo: string | null;
   territorioTipo: string;
   regiaoOperacional: string | null;
   ativo: boolean;
@@ -34,6 +35,7 @@ const EMPTY_FORM = {
   nome: "",
   empresa: "",
   localizacao: "",
+  prefixo: "",
   territorioTipo: "MAINLAND",
   regiaoOperacional: "",
   ativo: true,
@@ -93,6 +95,7 @@ export default function EstacoesPage() {
       nome: station.nome,
       empresa: station.empresa || "",
       localizacao: station.localizacao || "",
+      prefixo: station.prefixo || "",
       territorioTipo: station.territorioTipo || "MAINLAND",
       regiaoOperacional: station.regiaoOperacional || "",
       ativo: station.ativo,
@@ -221,6 +224,20 @@ export default function EstacoesPage() {
               />
             </label>
             <label className="text-sm text-slate-600">
+              Prefixo de numeração
+              <input
+                value={form.prefixo}
+                onChange={(e) => setForm((p) => ({ ...p, prefixo: e.target.value.toUpperCase() }))}
+                maxLength={4}
+                placeholder="AZ"
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm uppercase"
+              />
+              <span className="mt-1 block text-xs text-slate-400">
+                Usado nos certificados desta estação (ex.: {form.prefixo || "AZ"}
+                {String(new Date().getFullYear()).slice(-2)}-001). Vazio = derivado do código.
+              </span>
+            </label>
+            <label className="text-sm text-slate-600">
               Território
               <select
                 value={form.territorioTipo}
@@ -287,6 +304,7 @@ export default function EstacoesPage() {
           <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
               <th className="px-4 py-3">Código</th>
+              <th className="px-4 py-3">Prefixo</th>
               <th className="px-4 py-3">Nome</th>
               <th className="px-4 py-3">Empresa / Localização</th>
               <th className="px-4 py-3">Território / Região</th>
@@ -297,16 +315,17 @@ export default function EstacoesPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-slate-400">A carregar...</td>
+                <td colSpan={7} className="px-4 py-8 text-center text-slate-400">A carregar...</td>
               </tr>
             ) : ordered.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-slate-400">Sem estações.</td>
+                <td colSpan={7} className="px-4 py-8 text-center text-slate-400">Sem estações.</td>
               </tr>
             ) : (
               ordered.map((station) => (
                 <tr key={station.id} className="border-t border-slate-100">
                   <td className="px-4 py-3 font-mono text-xs font-semibold text-slate-700">{station.codigo}</td>
+                  <td className="px-4 py-3 font-mono text-xs font-semibold text-slate-500">{station.prefixo || "—"}</td>
                   <td className="px-4 py-3 font-semibold text-slate-900">{station.nome}</td>
                   <td className="px-4 py-3 text-slate-600">
                     {[station.empresa, station.localizacao].filter(Boolean).join(" · ") || "—"}

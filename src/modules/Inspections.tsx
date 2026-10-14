@@ -553,6 +553,11 @@ export default function Inspections() {
         if (String(quickInspection.date || "").trim()) {
           search.set("referenceDate", String(quickInspection.date).trim());
         }
+        if (String(quickInspection.raftId || "").trim()) {
+          search.set("raftId", String(quickInspection.raftId).trim());
+        } else if (String(quickInspection.jangadaSerial || "").trim()) {
+          search.set("serial", String(quickInspection.jangadaSerial).trim());
+        }
 
         const response = await fetch(`/api/inspecoes?${search.toString()}`);
         if (!response.ok) return;

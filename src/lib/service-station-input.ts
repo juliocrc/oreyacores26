@@ -9,6 +9,7 @@ export type ServiceStationInput = {
   nome: string;
   empresa: string | null;
   localizacao: string | null;
+  prefixo: string | null;
   territorioTipo: ServiceStationTerritory;
   regiaoOperacional: ServiceStationRegion | null;
   ativo: boolean;
@@ -34,6 +35,35 @@ export function normalizeStationCode(value: unknown): string {
     .toUpperCase()
     .replace(/[^A-Z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
+}
+
+// Prefixo curto usado na numeracao de documentos por estacao (ex.: "AZ" ->
+// AZ26-001). Aceita letras e digitos, ate 4 caracteres. Vazio -> null.
+export function normalizeStationPrefix(value: unknown): string | null {
+  const cleaned = String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "")
+    .slice(0, 4);
+  return cleaned || null;
+}
+
+// Deriva um prefixo a partir do codigo da estacao quando nao ha um explicito.
+export function deriveStationPrefix(codigo: unknown): string {
+  const code = normalizeStationCode(codigo);
+  const letters = code.replace(/[^A-Z]/g, "");
+  const base = (letters || code).replace(/_/g, "");
+  return base.slice(0, 2) || "XX";
+}
+
+// Prefixo efetivo de uma estacao: o campo `prefixo` se definido, senao derivado
+// do codigo. Usado na numeracao de certificados por estacao.
+export function resolveStationPrefix(station?: { prefixo?: string | null; codigo?: string | null } | null): string {
+  const explicit = normalizeStationPrefix(station?.prefixo);
+  if (explicit) return explicit;
+  return deriveStationPrefix(station?.codigo);
 }
 
 function trimOrNull(value: unknown): string | null {
@@ -67,6 +97,7 @@ export function parseServiceStationInput(body: unknown): { data?: ServiceStation
       nome,
       empresa: trimOrNull(raw.empresa),
       localizacao: trimOrNull(raw.localizacao),
+      prefixo: normalizeStationPrefix(raw.prefixo),
       territorioTipo,
       regiaoOperacional,
       ativo: raw.ativo === undefined ? true : Boolean(raw.ativo),

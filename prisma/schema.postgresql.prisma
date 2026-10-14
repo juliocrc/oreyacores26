@@ -303,8 +303,8 @@ model Cliente {
 }
 
 model ContactoInterno {
-  id               Int      @id @default(autoincrement())
-  categoria        String   @default("Colaborador")
+  id               Int             @id @default(autoincrement())
+  categoria        String          @default("Colaborador")
   empresa          String?
   localizacao      String?
   nome             String
@@ -314,12 +314,14 @@ model ContactoInterno {
   extensaoNos      String?
   extensaoVodafone String?
   observacoes      String?
-  ativo            Boolean  @default(true)
+  ativo            Boolean         @default(true)
   fonte            String?
   tecnicoId        Int?
-  tecnico          Tecnico? @relation(fields: [tecnicoId], references: [id], onDelete: SetNull)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  tecnico          Tecnico?        @relation(fields: [tecnicoId], references: [id], onDelete: SetNull)
+  serviceStationId Int?
+  serviceStation   ServiceStation? @relation(fields: [serviceStationId], references: [id])
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 
   @@index([categoria])
   @@index([empresa])
@@ -328,6 +330,7 @@ model ContactoInterno {
   @@index([ativo])
   @@index([fonte])
   @@index([tecnicoId])
+  @@index([serviceStationId])
 }
 
 model ServiceStation {
@@ -336,6 +339,7 @@ model ServiceStation {
   nome                 String
   empresa              String?
   localizacao          String?
+  prefixo              String?
   territorioTipo       ServiceStationTerritoryType @default(MAINLAND)
   regiaoOperacional    MainlandRegion?
   ativo                Boolean                     @default(true)
@@ -345,6 +349,7 @@ model ServiceStation {
   agendas              Agenda[]
   agendaEventos        AgendaEvento[]
   clientes             Cliente[]
+  contactosInternos    ContactoInterno[]
   jangadas             Jangada[]
   navios               Navio[]
   ordensServico        OrdemServico[]

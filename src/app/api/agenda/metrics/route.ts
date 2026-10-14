@@ -1,13 +1,33 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getAccessContext } from "@/lib/access-control";
+import { resolveActiveServiceStationId } from "@/lib/station-selection";
 import { normalizeInspectionType, normalizeEventStatus } from "@/types/agenda";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const access = await getAccessContext();
   if (!access) return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
 
-  const eventos = await prisma.agendaEvento.findMany({ orderBy: { date: "asc" } });
+  const activeStationId = resolveActiveServiceStationId(req, access);
+  let allowedRaftSerials: string[] | null = null;
+  if (activeStationId) {
+    const rafts = await prisma.jangada.findMany({
+      where: { serviceStationId: activeStationId },
+      select: { serial: true },
+    });
+    allowedRaftSerials = rafts.map((r) => String(r.serial || "").trim()).filter(Boolean);
+  } else if (!access.isAdmin) {
+    const rafts = await prisma.jangada.findMany({
+      where: { serviceStationId: { in: access.allowedStationIds.length ? access.allowedStationIds : [-1] } },
+      select: { serial: true },
+    });
+    allowedRaftSerials = rafts.map((r) => String(r.serial || "").trim()).filter(Boolean);
+  }
+
+  const eventosRaw = await prisma.agendaEvento.findMany({ orderBy: { date: "asc" } });
+  const eventos = allowedRaftSerials
+    ? eventosRaw.filter((ev) => allowedRaftSerials!.includes(ev.raftSerial))
+    : eventosRaw;
 
   const now = new Date();
   const next7 = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);

@@ -11,6 +11,7 @@ import { reverterMovimentosInspecao } from "@/lib/stock/inspecao-sync";
 import { saveInspectionSchema } from "@/lib/validation/inspecao-payload";
 import { getAccessContext } from "@/lib/access-control";
 import { evaluateInspectionEdit, isInspectionLocked, InspectionLockedError } from "@/lib/inspecao-lock";
+import { resolveStationPrefix } from "@/lib/service-station-input";
 
 type SaveInspectionReplacementItem = {
   stockId?: number | null;
@@ -83,26 +84,39 @@ orcamento?: {
   } | null;
 };
 
-function buildInspectionCertificatePrefix(referenceDate?: string | Date | null) {
+function buildInspectionCertificatePrefix(referenceDate?: string | Date | null, stationPrefix?: string | null) {
   const fallbackYear = new Date().getFullYear();
   const parsed = referenceDate instanceof Date
     ? referenceDate
     : (referenceDate ? new Date(referenceDate) : new Date());
 
   const resolvedYear = Number.isNaN(parsed.getTime()) ? fallbackYear : parsed.getFullYear();
-  return `AZ${String(resolvedYear).slice(-2)}`.toUpperCase();
+  const prefixToken = String(stationPrefix || "AZ")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Za-z0-9]/g, "")
+    .toUpperCase()
+    .slice(0, 4) || "AZ";
+  return `${prefixToken}${String(resolvedYear).slice(-2)}`.toUpperCase();
 }
 
 function parseInspectionCertificateSequence(value: unknown, prefix: string) {
   const normalizedValue = String(value || "").trim().toUpperCase();
-  const match = normalizedValue.match(/^([A-Z]{2}\d{2})-(\d{3})$/);
-  if (!match) return null;
-  if (match[1] !== prefix) return null;
-  return Number(match[2]);
+  const expected = `${prefix}-`;
+  if (!normalizedValue.startsWith(expected)) return null;
+  const suffix = normalizedValue.slice(expected.length);
+  if (!/^\d{3,}$/.test(suffix)) return null;
+  return Number(suffix);
 }
 
-export async function generateInspectionCertificateNumber(referenceDate?: string | Date | null) {
-  const prefix = buildInspectionCertificatePrefix(referenceDate);
+// Numero de certificado por estacao: <PREFIXO><AA>-<NNN> (ex.: AZ26-001).
+// O prefixo vem da estacao da jangada (ServiceStation.prefixo). Quando nao ha
+// estacao conhecida cai no legado "AZ" para nao quebrar a numeracao existente.
+export async function generateInspectionCertificateNumber(
+  referenceDate?: string | Date | null,
+  stationPrefix?: string | null,
+) {
+  const prefix = buildInspectionCertificatePrefix(referenceDate, stationPrefix);
 
   const [existingInspections, existingRafts] = await Promise.all([
     prisma.inspecao.findMany({
@@ -123,6 +137,31 @@ export async function generateInspectionCertificateNumber(referenceDate?: string
   }, 0);
 
   return `${prefix}-${String(maxSequence + 1).padStart(3, "0")}`;
+}
+
+// Resolve o prefixo da estacao a partir da jangada (por id ou serial). Serve
+// para numerar o certificado na serie correta quando a inspecao e criada.
+export async function resolveCertificateStationPrefix(params: {
+  raftId?: number | null;
+  serial?: string | null;
+}): Promise<string | null> {
+  const raftId = Number(params.raftId);
+  if (Number.isFinite(raftId) && raftId > 0) {
+    const raft = await prisma.jangada.findUnique({
+      where: { id: raftId },
+      select: { serviceStation: { select: { prefixo: true, codigo: true } } },
+    });
+    return raft?.serviceStation ? resolveStationPrefix(raft.serviceStation) : null;
+  }
+  const serial = String(params.serial || "").trim();
+  if (serial) {
+    const raft = await prisma.jangada.findFirst({
+      where: { serial: { equals: serial } },
+      select: { serviceStation: { select: { prefixo: true, codigo: true } } },
+    });
+    return raft?.serviceStation ? resolveStationPrefix(raft.serviceStation) : null;
+  }
+  return null;
 }
 
 export async function generateNextObraNumber(referenceDate?: string | Date | null) {
@@ -220,10 +259,10 @@ function normalizeReplacements(input: unknown) {
     } => Boolean(row));
 }
 
-async function normalizeCertificadoNumero(payload: SaveInspectionPayload) {
+async function normalizeCertificadoNumero(payload: SaveInspectionPayload, stationPrefix?: string | null) {
   const explicit = String(payload.certificadoNumero || "").trim();
   if (explicit) return explicit;
-  return generateInspectionCertificateNumber(payload.date || null);
+  return generateInspectionCertificateNumber(payload.date || null, stationPrefix);
 }
 
 export async function saveInspection(payload: SaveInspectionPayload) {
@@ -326,10 +365,13 @@ export async function saveInspection(payload: SaveInspectionPayload) {
   const existingInspection = Number.isFinite(inspectionId) && inspectionId > 0
     ? await prisma.inspecao.findUnique({ where: { id: inspectionId }, select: { id: true, certificadoNumero: true } })
     : null;
-  const certificadoNumero = await normalizeCertificadoNumero({
-    ...payload,
-    certificadoNumero: payload.certificadoNumero ?? existingInspection?.certificadoNumero,
-  });
+  const certificadoNumero = await normalizeCertificadoNumero(
+    {
+      ...payload,
+      certificadoNumero: payload.certificadoNumero ?? existingInspection?.certificadoNumero,
+    },
+    await resolveCertificateStationPrefix({ raftId: finalJangadaId, serial: jangadaSerial }),
+  );
 
   if (certificadoNumero) {
     const duplicateCondition = existingInspection ? Prisma.sql`AND id != ${existingInspection.id}` : Prisma.empty;

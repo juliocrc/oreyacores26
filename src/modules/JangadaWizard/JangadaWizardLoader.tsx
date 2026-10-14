@@ -63,7 +63,13 @@ export default function JangadaWizardLoader({
     const isDraft = Boolean(draftData?.id);
     if (isDraft) return;
 
-    const res = await fetch(`/api/inspecoes?nextCertificate=1&referenceDate=${new Date().toISOString().slice(0, 10)}`);
+    const params = new URLSearchParams({
+      nextCertificate: "1",
+      referenceDate: new Date().toISOString().slice(0, 10),
+    });
+    if (raftData?.id) params.set("raftId", String(raftData.id));
+    else if (raftData?.serial) params.set("serial", String(raftData.serial));
+    const res = await fetch(`/api/inspecoes?${params.toString()}`);
     if (!res.ok) return;
     const data = await res.json();
     const updates: Record<string, unknown> = {};

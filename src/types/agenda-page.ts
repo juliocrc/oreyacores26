@@ -26,6 +26,8 @@ export type InspectionEvent = {
 
 export type ExpiringRaftInfo = { label: string; shipName: string; expiryFlag: string };
 
+export type StaffTechnician = { id: number | string; nome: string; role?: string };
+
 export type InspectionCalendarProps = {
   events: InspectionEvent[];
   onSchedule: (event: InspectionEvent) => void;
@@ -36,6 +38,7 @@ export type InspectionCalendarProps = {
   expiringByDay?: Record<string, ExpiringRaftInfo[]>;
   onDeleteEvent?: (event: InspectionEvent) => void;
   onEditEvent?: (event: InspectionEvent) => void;
+  technicians?: StaffTechnician[];
 };
 
 export type NavioItem = { id: number; nome: string };

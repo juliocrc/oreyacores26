@@ -8,8 +8,8 @@ import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
 import { format, parse, startOfWeek, getDay } from "date-fns";
 import { pt } from "date-fns/locale/pt";
 import { EVENT_STATUS_LABELS, EVENT_STATUS_COLORS, type InspectionType } from "@/types/agenda";
+import type { StaffTechnician } from "@/types/agenda-page";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { AZORES_TECHNICIANS } from "@/lib/agenda-technicians";
 
 const locales = { pt: pt };
 const localizer = dateFnsLocalizer({
@@ -50,7 +50,17 @@ type InspectionCalendarProps = {
   onDeleteEvent?: (event: InspectionEvent) => void;
   onEditEvent?: (event: InspectionEvent) => void;
   expiringByDay?: Record<string, any[]>;
+  technicians?: StaffTechnician[];
 };
+
+const TECHNICIAN_PALETTE = [
+  { bg: "#38bdf8", border: "#0284c7" },
+  { bg: "#a78bfa", border: "#7c3aed" },
+  { bg: "#34d399", border: "#059669" },
+  { bg: "#fbbf24", border: "#d97706" },
+  { bg: "#f472b6", border: "#db2777" },
+  { bg: "#60a5fa", border: "#2563eb" },
+];
 
 const DnDCalendar = withDragAndDrop(Calendar) as any;
 
@@ -121,16 +131,19 @@ export default function InspectionCalendar({
   onExternalEventConsumed,
   onDeleteEvent,
   onEditEvent,
+  technicians = [],
 }: InspectionCalendarProps) {
   const [view, setView] = useState<"month" | "week" | "day">("week");
   const [date, setDate] = useState(new Date());
 
+  const rosterNames = useMemo(() => technicians.map((t) => t.nome), [technicians]);
+
   const resourceMap = useMemo(() => {
     return [
-      ...AZORES_TECHNICIANS.map(t => ({ resourceId: t.name, resourceTitle: t.name })),
+      ...rosterNames.map((name) => ({ resourceId: name, resourceTitle: name })),
       { resourceId: 'Sem Responsável', resourceTitle: 'Sem Responsável' }
     ];
-  }, []);
+  }, [rosterNames]);
 
   const mappedEvents = useMemo(() => {
     return events.map(e => ({
@@ -219,12 +232,17 @@ export default function InspectionCalendar({
       }
     }
 
-    if (event.responsavel?.toLowerCase().includes("julio")) {
-      backgroundColor = "#38bdf8"; // sky-400 for Julio
-      borderColor = "#0284c7";
-    } else if (event.responsavel?.toLowerCase().includes("alex")) {
-      backgroundColor = "#a78bfa"; // violet-400 for Alex
-      borderColor = "#7c3aed";
+    if (event.responsavel) {
+      const resp = String(event.responsavel).toLowerCase();
+      const idx = rosterNames.findIndex((name) => {
+        const normalized = name.toLowerCase();
+        return resp === normalized || resp.includes(normalized);
+      });
+      if (idx >= 0) {
+        const color = TECHNICIAN_PALETTE[idx % TECHNICIAN_PALETTE.length];
+        backgroundColor = color.bg;
+        borderColor = color.border;
+      }
     }
 
     // Distinguish vacations and absences in Calendar view with rose-500 color
@@ -260,15 +278,21 @@ export default function InspectionCalendar({
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-slate-800">Planeamento de Inspeções</h2>
-          <p className="text-sm text-slate-500 mt-1">Gere a agenda da equipa dos Açores (Julio & Alex)</p>
+          <p className="text-sm text-slate-500 mt-1">Gere a agenda da equipa desta estação</p>
         </div>
-        <div className="flex gap-2 text-sm font-medium">
-          <div className="flex items-center gap-2 rounded-full bg-sky-50 px-3 py-1 text-sky-700 border border-sky-100">
-            <span className="h-2 w-2 rounded-full bg-sky-400"></span> Julio Correia
-          </div>
-          <div className="flex items-center gap-2 rounded-full bg-violet-50 px-3 py-1 text-violet-700 border border-violet-100">
-            <span className="h-2 w-2 rounded-full bg-violet-400"></span> Alex Santos
-          </div>
+        <div className="flex flex-wrap gap-2 text-sm font-medium">
+          {technicians.map((tech, index) => {
+            const color = TECHNICIAN_PALETTE[index % TECHNICIAN_PALETTE.length];
+            return (
+              <div
+                key={tech.id}
+                className="flex items-center gap-2 rounded-full px-3 py-1"
+                style={{ color: color.border, backgroundColor: `${color.bg}1a`, border: `1px solid ${color.bg}55` }}
+              >
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color.bg }}></span> {tech.nome}
+              </div>
+            );
+          })}
         </div>
       </div>
 

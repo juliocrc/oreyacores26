@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logAuditoria } from "@/lib/auditoria";
 import { normalizeOptionalString, normalizePhone } from "@/lib/validators";
+import { getAccessContext } from "@/lib/access-control";
+import { resolveActiveServiceStationId } from "@/lib/station-selection";
 
 type ContactoInternoInput = Record<string, unknown> | null | undefined;
 
@@ -19,6 +21,7 @@ type SanitizedContactoInternoPayload = {
   ativo?: boolean;
   fonte?: string | null;
   tecnicoId?: number | null;
+  serviceStationId?: number | null;
 };
 
 type ContactoInternoRecord = {
@@ -35,6 +38,7 @@ type ContactoInternoRecord = {
   observacoes: string | null;
   ativo: boolean;
   fonte: string | null;
+  serviceStationId: number | null;
 };
 
 type ContactoInternoDelegate = {
@@ -90,6 +94,14 @@ function sanitizeContactoInternoPayload(data: ContactoInternoInput): SanitizedCo
             ? Number(data.tecnicoId)
             : null
         : undefined,
+    serviceStationId:
+      data && Object.prototype.hasOwnProperty.call(data, "serviceStationId")
+        ? data.serviceStationId === "" || data.serviceStationId == null
+          ? null
+          : Number.isFinite(Number(data.serviceStationId))
+            ? Number(data.serviceStationId)
+            : null
+        : undefined,
   };
 }
 
@@ -140,9 +152,25 @@ export async function GET(req: NextRequest) {
     where.tecnicoId = Number(tecnicoIdParam);
   }
 
+  const stationParam = searchParams.get("serviceStationId")?.trim();
+  if (stationParam === "none") {
+    where.serviceStationId = null;
+  } else if (stationParam && Number.isFinite(Number(stationParam))) {
+    where.serviceStationId = Number(stationParam);
+  } else {
+    const access = await getAccessContext();
+    const activeStationId = access ? resolveActiveServiceStationId(req, access) : null;
+    if (activeStationId) {
+      where.serviceStationId = activeStationId;
+    }
+  }
+
   const contactos = await contactoInternoModel.findMany({
     where,
-    include: { tecnico: { select: { id: true, nome: true, email: true } } },
+    include: {
+      tecnico: { select: { id: true, nome: true, email: true } },
+      serviceStation: { select: { id: true, codigo: true, nome: true } },
+    },
     orderBy: [
       { categoria: "asc" },
       { empresa: "asc" },
@@ -160,8 +188,13 @@ export async function POST(req: NextRequest) {
     const data = sanitizeContactoInternoPayload(body);
 
     if (!data.nome) {
-      return NextResponse.json({ error: "Nome do contacto é obrigatório." }, { status: 400 });
+      return NextResponse.json({ error: "Nome do contacto Ǹ obrigatório." }, { status: 400 });
     }
+
+    const access = await getAccessContext();
+    const activeStationId = access ? resolveActiveServiceStationId(req, access) : null;
+    const serviceStationId =
+      data.serviceStationId !== undefined ? data.serviceStationId : (activeStationId ?? null);
 
     const contacto = await contactoInternoModel.create({
       data: {
@@ -178,6 +211,7 @@ export async function POST(req: NextRequest) {
         ativo: data.ativo ?? true,
         fonte: data.fonte,
         tecnicoId: data.tecnicoId ?? null,
+        serviceStationId,
       },
     });
 

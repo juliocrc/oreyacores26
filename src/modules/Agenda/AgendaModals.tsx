@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAgendaStore } from '@/lib/store/useAgendaStore';
-import { AZORES_TECHNICIANS, normalizeTechnicianName } from '@/lib/agenda-technicians';
-import type { InspectionEvent } from '@/types/agenda-page';
+import { normalizeTechnicianName } from '@/lib/agenda-technicians';
+import type { InspectionEvent, StaffTechnician } from '@/types/agenda-page';
 import { getInspectionDefaults, normalizeInspectionType, type InspectionType } from '@/types/agenda';
 
 type AgendaModalsProps = {
@@ -9,9 +9,10 @@ type AgendaModalsProps = {
   editingEvent?: InspectionEvent | null;
   onSaveEdit: (event: InspectionEvent) => void;
   onCloseEdit: () => void;
+  technicians?: StaffTechnician[];
 };
 
-export default function AgendaModals({ handleQuickSchedule, editingEvent, onSaveEdit, onCloseEdit }: AgendaModalsProps) {
+export default function AgendaModals({ handleQuickSchedule, editingEvent, onSaveEdit, onCloseEdit, technicians = [] }: AgendaModalsProps) {
   const { 
     quickScheduleTarget, 
     setQuickScheduleTarget, 
@@ -78,7 +79,7 @@ export default function AgendaModals({ handleQuickSchedule, editingEvent, onSave
           <label className="block text-sm font-medium text-gray-700">Responsável
             <select value={editResponsavel} onChange={e => setEditResponsavel(normalizeTechnicianName(e.target.value))} className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-sm">
               <option value="">Sem responsável definido</option>
-              {AZORES_TECHNICIANS.map(tech => <option key={tech.id} value={tech.name}>{tech.name} · {tech.role}</option>)}
+              {technicians.map(tech => <option key={tech.id} value={tech.nome}>{tech.nome}{tech.role ? ` · ${tech.role}` : ''}</option>)}
             </select>
           </label>
           <div className="flex gap-2 mt-4">
@@ -123,21 +124,21 @@ export default function AgendaModals({ handleQuickSchedule, editingEvent, onSave
             onChange={e => setQuickScheduleResponsavel(normalizeTechnicianName(e.target.value))}
           >
             <option value="">Sem responsável definido</option>
-            {AZORES_TECHNICIANS.map((tech) => (
-              <option key={tech.id} value={tech.name}>{tech.name} · {tech.role}</option>
+            {technicians.map((tech) => (
+              <option key={tech.id} value={tech.nome}>{tech.nome}{tech.role ? ` · ${tech.role}` : ''}</option>
             ))}
           </select>
           <div className="mt-2 flex flex-wrap gap-2">
-            {AZORES_TECHNICIANS.map((tech) => {
-              const isActive = quickScheduleResponsavel === tech.name;
+            {technicians.map((tech) => {
+              const isActive = quickScheduleResponsavel === tech.nome;
               return (
                 <button
                   key={tech.id}
                   type="button"
-                  onClick={() => setQuickScheduleResponsavel(tech.name)}
+                  onClick={() => setQuickScheduleResponsavel(tech.nome)}
                   className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors ${isActive ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100'}`}
                 >
-                  {tech.name.split(' ')[0]}
+                  {tech.nome.split(' ')[0]}
                 </button>
               );
             })}
