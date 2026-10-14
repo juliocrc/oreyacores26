@@ -16,6 +16,10 @@ export type InspectionCertificateInput = {
   clientSignature?: string;
   /** Carimbo oficial (imagem data URL) aplicado na área de assinatura do certificado. */
   stampImage?: string;
+  /** Hash de integridade do certificado (sha256 truncado) para verificação pública. */
+  verificationHash?: string;
+  /** QR code (imagem data URL) que aponta para a página pública de verificação. */
+  verificationQr?: string;
 };
 
 function asString(value: unknown) {
@@ -220,6 +224,28 @@ export function buildInspectionCertificateDoc(input: InspectionCertificateInput)
       doc.addImage(stampImage, stampFormat, 130, 286 - 6 - stampH, stampW, stampH);
     } catch {
       // Carimbo é opcional: nunca deve impedir a geração do certificado.
+    }
+  }
+
+  // QR + hash de verificação (faixa inferior, entre "Centro técnico" e "Assinatura").
+  const verificationQr = asString(input.verificationQr);
+  const verificationHash = asString(input.verificationHash);
+  if (/^data:image\/(png|jpe?g|webp);base64,/i.test(verificationQr)) {
+    const qrSize = 11;
+    const qrX = 78;
+    const qrY = 274;
+    try {
+      doc.addImage(verificationQr, "PNG", qrX, qrY, qrSize, qrSize);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(6);
+      doc.setTextColor(90, 90, 90);
+      doc.text("Verificar autenticidade", qrX + qrSize + 2, qrY + 4);
+      if (verificationHash) {
+        doc.text(`Hash: ${verificationHash}`, qrX + qrSize + 2, qrY + 8);
+      }
+      doc.setTextColor(0, 0, 0);
+    } catch {
+      // QR é opcional.
     }
   }
 

@@ -3,6 +3,9 @@ import prisma from "@/lib/prisma";
 import { getAccessContext } from "@/lib/access-control";
 import { buildCertificatePdfBuffer, certificatePdfFileName } from "@/lib/certificate-pdf";
 import { buildInspectionCertificateInput } from "@/lib/certificate-input-from-jangada";
+import { withCertificateVerification } from "@/lib/certificate-verification";
+import { syncEmittedDocumentToOneDrive } from "@/lib/onedrive-sync";
+import { logAuditoria } from "@/lib/auditoria";
 
 export const runtime = "nodejs";
 
@@ -11,7 +14,7 @@ export const runtime = "nodejs";
  * Gera os certificados (PDF, com carimbo OREY) de todas as jangadas do navio e
  * devolve-os em base64 para o cliente os gravar na pasta do navio.
  */
-export async function POST(_req: Request, context: { params: Promise<{ id: string }> }) {
+export async function POST(req: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const access = await getAccessContext();
     if (!access) return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
@@ -22,9 +25,17 @@ export async function POST(_req: Request, context: { params: Promise<{ id: strin
       return NextResponse.json({ error: "ID de navio inválido." }, { status: 400 });
     }
 
+    const syncToOneDrive =
+      new URL(req.url).searchParams.get("syncOneDrive") === "1";
+
     const navio = await prisma.navio.findUnique({
       where: { id },
-      select: { id: true, nome: true, cliente: { select: { nome: true } } },
+      select: {
+        id: true,
+        nome: true,
+        cliente: { select: { nome: true } },
+        serviceStation: { select: { codigo: true } },
+      },
     });
     if (!navio) return NextResponse.json({ error: "Navio não encontrado." }, { status: 404 });
 
@@ -42,6 +53,7 @@ export async function POST(_req: Request, context: { params: Promise<{ id: strin
     }
 
     const shipName = navio.nome || "";
+    const stampStationCode = navio.serviceStation?.codigo || null;
     const seen = new Set<string>();
     const files: Array<{ filename: string; base64: string }> = [];
 
@@ -52,12 +64,15 @@ export async function POST(_req: Request, context: { params: Promise<{ id: strin
         include: { artigos: true },
       });
 
-      const input = buildInspectionCertificateInput({
-        jangada,
-        lastInspecao,
-        shipName,
-        ownerName: navio.cliente?.nome || jangada.owner || "",
-      });
+      const input = await withCertificateVerification(
+        buildInspectionCertificateInput({
+          jangada,
+          lastInspecao,
+          shipName,
+          ownerName: navio.cliente?.nome || jangada.owner || "",
+          stampStationCode,
+        }),
+      );
 
       const buffer = buildCertificatePdfBuffer(input);
       let filename = certificatePdfFileName(input);
@@ -67,7 +82,28 @@ export async function POST(_req: Request, context: { params: Promise<{ id: strin
       }
       seen.add(filename);
 
+      if (syncToOneDrive) {
+        try {
+          await syncEmittedDocumentToOneDrive({ kind: "externo", shipName, fileName: filename, buffer });
+        } catch (syncErr) {
+          console.warn("[certificados-carimbados] Erro ao sincronizar OneDrive:", syncErr);
+        }
+      }
+
       files.push({ filename, base64: buffer.toString("base64") });
+    }
+
+    try {
+      await logAuditoria({
+        tabela: "Navio",
+        tipoOperacao: "UPDATE",
+        idRegisto: id,
+        usuario: access.email || String(access.userId) || "sistema",
+        descricao: `Emissão de ${files.length} certificado(s) carimbado(s) do navio ${shipName || id}.`,
+        dadosDepois: { certificates: files.map((file) => file.filename) },
+      });
+    } catch {
+      // Auditoria é best-effort.
     }
 
     return NextResponse.json({ shipName, files });

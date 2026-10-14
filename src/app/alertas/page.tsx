@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Mail, MessageSquare, MessageSquareText, Phone, X, Loader2, Flame, Waves } from "lucide-react";
 import { formatDateAuto } from "@/lib/date-utils";
 
@@ -366,9 +367,9 @@ export default function AlertasPage() {
                             Abrir Extintores
                           </a>
                         ) : a.tipo === "fato" && a.id ? (
-                          <a className="text-sky-700 hover:underline font-semibold" href="/fatos-imersao">
+                          <Link className="text-sky-700 hover:underline font-semibold" href="/fatos-imersao">
                             Abrir Fatos de Imersão
-                          </a>
+                          </Link>
                         ) : a.jangadaId ? (
                           <div className="flex items-center gap-3">
                             <a className="text-blue-750 font-semibold hover:underline" href={`/jangadas/${a.jangadaId}`}>

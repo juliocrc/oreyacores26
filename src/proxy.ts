@@ -72,6 +72,7 @@ const ROTAS_LIVRES = [
   "/login",
   "/selecionar-tecnico",
   "/area-cliente",
+  "/verificar",
 ] as const;
 
 /**
@@ -133,6 +134,7 @@ const PUBLIC_PAGE_PREFIXES = [
   "/login",
   "/selecionar-tecnico",
   "/area-cliente",
+  "/verificar",
 ];
 
 export default async function proxy(req: NextRequest) {

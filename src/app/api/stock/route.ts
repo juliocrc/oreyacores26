@@ -172,6 +172,9 @@ export async function GET(req: NextRequest) {
     const activeStationId = resolveActiveServiceStationId(req, access);
 
     const where: Prisma.StockWhereInput = {};
+    // Cláusulas que têm de ser combinadas com AND, sem destruir o OR de âmbito
+    // por estação de serviço abaixo.
+    const andClauses: Prisma.StockWhereInput[] = [];
 
     if (activeStationId) {
       where.OR = [
@@ -217,12 +220,15 @@ export async function GET(req: NextRequest) {
     }
 
     if (busca) {
-      where.OR = [
-        { referencia: { contains: busca } },
-        { descricao: { contains: busca } },
-        { codigoFabricante: { contains: busca } },
-        { codigoBarras: { contains: busca } },
-      ];
+      // A busca vai para AND para não substituir o OR de âmbito por estação.
+      andClauses.push({
+        OR: [
+          { referencia: { contains: busca } },
+          { descricao: { contains: busca } },
+          { codigoFabricante: { contains: busca } },
+          { codigoBarras: { contains: busca } },
+        ],
+      });
     }
 
     const referenciaParam = searchParams.get("referencia"); if (referenciaParam) where.referencia = { contains: referenciaParam };
@@ -238,23 +244,25 @@ export async function GET(req: NextRequest) {
     }
 
     if (stockScope === "jangadas-ocean") {
-      where.AND = [
-        {
-          OR: [
-            { associavelJangada: true },
-            {
-              AND: [
-                { aplicavelMarcaJangada: { contains: "ocean safety" } },
-                { codigoFabricante: { not: null } },
-                { codigoFabricante: { not: "" } },
-              ],
-            },
-            {
-              categoria: { in: ["PRIMEIROS SOCORROS", "PIROTÉCNICOS", "CONSUMÍVEIS", "RAÇÕES", "ÁGUAS"] },
-            },
-          ],
-        },
-      ];
+      andClauses.push({
+        OR: [
+          { associavelJangada: true },
+          {
+            AND: [
+              { aplicavelMarcaJangada: { contains: "ocean safety" } },
+              { codigoFabricante: { not: null } },
+              { codigoFabricante: { not: "" } },
+            ],
+          },
+          {
+            categoria: { in: ["PRIMEIROS SOCORROS", "PIROTÉCNICOS", "CONSUMÍVEIS", "RAÇÕES", "ÁGUAS"] },
+          },
+        ],
+      });
+    }
+
+    if (andClauses.length) {
+      where.AND = andClauses;
     }
 
     const wantsPage = searchParams.has("page") || searchParams.get("paginated") === "1";
@@ -284,6 +292,7 @@ export async function GET(req: NextRequest) {
       observacoes: true,
       foto: includeFoto,
       codigoBarras: true,
+      serviceStationId: true,
     } as const;
 
     type StockListRow = {
@@ -340,11 +349,15 @@ export async function GET(req: NextRequest) {
     const map = new Map<string, any>();
     for (const rawItem of stock) {
       const item = mapRow(rawItem);
-      const key = String(item.referencia || item.descricao || item.id).trim().toLowerCase();
-      if (!key) {
+      const baseKey = String(item.referencia || item.descricao || item.id).trim().toLowerCase();
+      if (!baseKey) {
         map.set(`id-${item.id}`, item);
         continue;
       }
+      // A chave inclui a estação de serviço para não somar quantidades entre
+      // estações diferentes (o mesmo artigo pode existir em várias estações).
+      const stationKey = rawItem.serviceStationId == null ? "geral" : String(rawItem.serviceStationId);
+      const key = `${baseKey}|${stationKey}`;
       if (map.has(key)) {
         const existing = map.get(key)!;
         existing.quantidade = Number(existing.quantidade || 0) + Number(item.quantidade || 0);

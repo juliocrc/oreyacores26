@@ -1,6 +1,7 @@
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
+import reactHooks from "eslint-plugin-react-hooks";
 
 // Base config from Next.js plus a few tolerant overrides to allow
 // incremental migration (warn on explicit any) and enable lint-staged.
@@ -9,12 +10,28 @@ const eslintConfig = defineConfig([
   ...nextTs,
   // Project-level overrides
   {
+    plugins: { "react-hooks": reactHooks },
     rules: {
       // Relax this rule to 'warn' so we can progressively add types
       "@typescript-eslint/no-explicit-any": "warn",
       // Relax require-imports enforcement to allow legacy scripts during migration
       "@typescript-eslint/no-require-imports": "warn",
-      // React-hooks rule left at default to avoid requiring extra plugin here
+      // Exige (mas permite) um comentario a justificar `@ts-nocheck`.
+      "@typescript-eslint/ban-ts-comment": [
+        "error",
+        { "ts-nocheck": "allow-with-description", "ts-expect-error": "allow-with-description" },
+      ],
+      // O eslint-plugin-react-hooks v6 (React Compiler) introduz varias regras
+      // novas que assinalam padroes de fetching/memoizacao ja existentes em toda
+      // a app. Ficam em 'warn' para que `npm run lint` falhe apenas em erros
+      // reais, permitindo migrar os componentes incrementalmente. A regra de
+      // correcao (rules-of-hooks) permanece 'error'.
+      "react-hooks/set-state-in-effect": "warn",
+      "react-hooks/immutability": "warn",
+      "react-hooks/purity": "warn",
+      "react-hooks/preserve-manual-memoization": "warn",
+      "react-hooks/refs": "warn",
+      "react-hooks/use-memo": "warn",
     },
   },
   // Allow CommonJS utility scripts to use require() without lint errors

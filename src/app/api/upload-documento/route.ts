@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
     // Se for certificado externo e tivermos shipName/shipId, guardar na pasta do navio
     if (isExternalCert && buffer) {
       let resolvedShipName = shipName;
-      let resolvedDate = new Date();
+      const resolvedDate = new Date();
 
       if (!resolvedShipName && shipId && shipId !== "") {
         const navio = await prisma.navio.findUnique({

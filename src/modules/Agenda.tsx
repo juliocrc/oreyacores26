@@ -1,4 +1,4 @@
-// @ts-nocheck
+// @ts-nocheck - modulo legado com tipagem pendente de limpeza incremental
 // src/modules/Agenda.tsx
 "use client";
 import { useAgenda } from '@/hooks/useAgenda';

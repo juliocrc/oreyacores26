@@ -103,6 +103,8 @@ export function buildInspectionCertificateInput(params: {
   lastInspecao?: InspecaoForCertificate | null;
   shipName?: string | null;
   ownerName?: string | null;
+  /** Código da estação de serviço, para escolher o carimbo respetivo. */
+  stampStationCode?: string | null;
   /** Aplicar o carimbo na área de assinatura do certificado. Default: true. */
   stamp?: boolean;
 }): InspectionCertificateInput {
@@ -169,7 +171,7 @@ export function buildInspectionCertificateInput(params: {
             : "";
   }
 
-  const stampDataUrl = params.stamp === false ? null : getStampDataUrl();
+  const stampDataUrl = params.stamp === false ? null : getStampDataUrl(params.stampStationCode);
   const technicianSignature = isImageDataUrl(lastInspecao?.signatureBase64) ? lastInspecao.signatureBase64 : undefined;
 
   return {

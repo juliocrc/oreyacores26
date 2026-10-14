@@ -749,6 +749,7 @@ type Props = {
 export default function JangadaDetailPageClient({ jangadaId, initialData, ships }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { allowed: whatsappAllowed } = useWhatsAppAllowed();
   const [isInspecting, setIsInspecting] = useState(false);
   const [inspectionToOpen, setInspectionToOpen] = useState<Inspecao | null>(null);
   const [isVistoriaAtual, setIsVistoriaAtual] = useState(false);
@@ -1320,7 +1321,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
     url.searchParams.delete('action');
     window.history.replaceState({}, '', url.toString());
     return () => window.clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [pendingAction, loadingData]);
 
   if (loadingData) {
@@ -1503,8 +1504,6 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
       appToast.error("Não foi possível obter dados meteorológicos para essa data/hora.");
     }
   };
-
-  const { allowed: whatsappAllowed } = useWhatsAppAllowed();
 
   const sendWhatsAppAlert = () => {
     if (!whatsappAllowed) {

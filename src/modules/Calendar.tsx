@@ -273,7 +273,7 @@ export default function InspectionCalendar({
       </div>
 
       <div className="flex-1 overflow-hidden h-[700px]">
-        {/* @ts-ignore - react-big-calendar typings can be tricky with addons */}
+        {/* react-big-calendar typings can be tricky with addons */}
         <DnDCalendar
           key={view === 'day' ? 'with-resources' : 'no-resources'}
           localizer={localizer}

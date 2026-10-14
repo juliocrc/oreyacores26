@@ -285,7 +285,7 @@ export async function syncInspectionToOrdemServico(
     .join(" | ");
 
   let inspectionMaterials: SyncMaterial[] = [];
-  let valorMaoObra = 0;
+  const valorMaoObra = 0;
   let valorDesconto = 0;
   let isIsentoIva = false;
 

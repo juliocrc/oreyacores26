@@ -210,7 +210,7 @@ export default function LegislacaoPage() {
             </div>
           ) : ficheirosFiltrados.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">
-              Sem documentos carregados. Use "Carregar diploma" para adicionar.
+              Sem documentos carregados. Use &ldquo;Carregar diploma&rdquo; para adicionar.
             </div>
           ) : (
             <ul className="space-y-2">

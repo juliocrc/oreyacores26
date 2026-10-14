@@ -334,6 +334,14 @@ function formatFileSize(size?: number) {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function base64ToBytes(base64: string): Uint8Array<ArrayBuffer> {
+  const clean = base64.includes(',') ? base64.slice(base64.indexOf(',') + 1) : base64;
+  const binary = atob(clean);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
@@ -479,6 +487,7 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
   const [fatoImersaoSearch, setFatoImersaoSearch] = useState("");
   const [extintorSearch, setExtintorSearch] = useState("");
   const [generatingColeteCertificate, setGeneratingColeteCertificate] = useState(false);
+  const [generatingCertificadosCarimbados, setGeneratingCertificadosCarimbados] = useState(false);
   const [generatingColeteVerificationSheet, setGeneratingColeteVerificationSheet] = useState(false);
   const [legalTab, setLegalTab] = useState<'legal' | 'mandatory'>('legal');
 
@@ -1080,6 +1089,54 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
       alert(error?.message || 'Não foi possível gerar a ficha de verificação XLSX dos coletes.');
     } finally {
       setGeneratingColeteVerificationSheet(false);
+    }
+  };
+
+  const handleGerarCertificadosCarimbados = async () => {
+    if (!id || !data?.jangadas?.length) return;
+
+    const folderStatus = await ensureFolderPermissionNow();
+    setGeneratingCertificadosCarimbados(true);
+    try {
+      const response = await fetch(`/api/navios/${encodeURIComponent(String(id))}/certificados-carimbados`, {
+        method: 'POST',
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.error || 'Não foi possível gerar os certificados carimbados.');
+
+      const files = Array.isArray(payload?.files) ? payload.files : [];
+      if (!files.length) throw new Error('Não foi possível gerar os certificados carimbados.');
+
+      if (folderStatus !== 'granted') {
+        appToast.info(
+          folderStatus === 'not-configured'
+            ? 'Certificados gerados. Pasta de documentos não configurada — ficheiros vão para Downloads. Defina-a no menu da conta (canto superior direito).'
+            : 'Certificados gerados. Sem autorização para a pasta de documentos — ficheiros vão para Downloads.',
+        );
+      }
+
+      let savedCount = 0;
+      for (const file of files) {
+        const bytes = base64ToBytes(String(file?.base64 || ''));
+        if (!bytes.byteLength) continue;
+        const outcome = await saveShipDocument({
+          shipName: data?.nome,
+          category: 'Certificados',
+          filename: String(file?.filename || `certificado-navio-${id}.pdf`),
+          blob: new Blob([bytes], { type: 'application/pdf' }),
+          quiet: true,
+          label: 'Certificado carimbado',
+        });
+        if (outcome.saved) savedCount += 1;
+      }
+
+      appToast.success(
+        `Certificados carimbados gerados (${files.length}). Guardados na pasta: ${savedCount}.`,
+      );
+    } catch (error: any) {
+      alert(error?.message || 'Não foi possível gerar os certificados carimbados.');
+    } finally {
+      setGeneratingCertificadosCarimbados(false);
     }
   };
 
@@ -1694,7 +1751,7 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
             <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
             Agenda e Vistorias
           </a>
-          <a href='/navios' className="text-blue-600 hover:text-blue-800 underline text-sm font-medium">Voltar para a Lista</a>
+                <Link href="/navios" className="text-blue-600 hover:text-blue-800 underline text-sm font-medium">Voltar para a Lista</Link>
         </div>
       </div>
 
@@ -2864,6 +2921,18 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
             Jangadas Associadas
           </h2>
 
+          {data.jangadas && data.jangadas.length > 0 ? (
+            <button
+              type="button"
+              className="bg-green-700 hover:bg-green-800 text-white px-3 py-2 rounded text-sm font-medium shadow transition disabled:cursor-not-allowed disabled:bg-green-300"
+              onClick={handleGerarCertificadosCarimbados}
+              disabled={generatingCertificadosCarimbados}
+              title="Gerar os certificados PDF carimbados de todas as jangadas deste navio"
+            >
+              {generatingCertificadosCarimbados ? 'A gerar certificados...' : 'Certificados carimbados'}
+            </button>
+          ) : null}
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
             {/* Bloco 1: Associar Existente */}
             <div className="bg-white rounded-xl border border-green-200 p-4 shadow-sm">
@@ -3066,7 +3135,7 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
             >
               {associating ? 'A associar...' : 'Associar colete'}
             </button>
-            <a href="/equipamentos" className="text-xs text-blue-700 underline">Abrir lista geral</a>
+                <Link href="/equipamentos" className="text-xs text-blue-700 underline">Abrir lista geral</Link>
           </div>
         </div>
 
@@ -3226,7 +3295,7 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
             >
               {associating ? 'A associar...' : 'Associar fato'}
             </button>
-            <a href="/fatos-imersao" className="text-xs text-blue-700 underline">Abrir lista geral</a>
+                <Link href="/fatos-imersao" className="text-xs text-blue-700 underline">Abrir lista geral</Link>
           </div>
         </div>
 

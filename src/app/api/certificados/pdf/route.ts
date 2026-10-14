@@ -7,6 +7,8 @@ import { buildInspectionCertificateInput } from "@/lib/certificate-input-from-ja
 import type { InspectionCertificateInput } from "@/lib/inspection-certificate";
 import { syncEmittedDocumentToOneDrive } from "@/lib/onedrive-sync";
 import { saveExternalCertificadoToNavioFolder } from "@/lib/certificados-organizados";
+import { withCertificateVerification } from "@/lib/certificate-verification";
+import { logAuditoria } from "@/lib/auditoria";
 
 export const runtime = "nodejs";
 
@@ -28,7 +30,7 @@ export async function GET(request: Request) {
 
     const jangada = await prisma.jangada.findFirst({
       where: serial ? { serial } : { id: jangadaId as number },
-      include: { artigos: true },
+      include: { artigos: true, serviceStation: { select: { codigo: true } } },
     });
     if (!jangada) {
       return NextResponse.json({ error: "Jangada não encontrada." }, { status: 404 });
@@ -74,17 +76,38 @@ export async function GET(request: Request) {
     });
 
     const navio = jangada.shipId
-      ? await prisma.navio.findUnique({ where: { id: jangada.shipId }, select: { nome: true } })
+      ? await prisma.navio.findUnique({
+          where: { id: jangada.shipId },
+          select: { nome: true, serviceStation: { select: { codigo: true } } },
+        })
       : null;
 
-    const input = buildInspectionCertificateInput({
-      jangada,
-      lastInspecao,
-      shipName: jangada.shipNameManual || navio?.nome || "",
-    });
+    const input = await withCertificateVerification(
+      buildInspectionCertificateInput({
+        jangada,
+        lastInspecao,
+        shipName: jangada.shipNameManual || navio?.nome || "",
+        stampStationCode: jangada.serviceStation?.codigo || navio?.serviceStation?.codigo || null,
+      }),
+    );
 
     const buffer = buildCertificatePdfBuffer(input);
     const fileName = certificatePdfFileName(input);
+
+    if (user?.role === "CLIENTE") {
+      try {
+        await logAuditoria({
+          tabela: "Jangada",
+          tipoOperacao: "UPDATE",
+          idRegisto: jangada.id,
+          usuario: user.email || String(user.id),
+          descricao: `Cliente descarregou o certificado carimbado da jangada ${jangada.serial || jangada.id}.`,
+          dadosDepois: { certNumber: input.certNumber, verificationHash: input.verificationHash },
+        });
+      } catch {
+        // Auditoria é best-effort.
+      }
+    }
 
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
