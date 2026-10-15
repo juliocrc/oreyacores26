@@ -41,6 +41,10 @@ export async function GET(request: Request) {
 
     const targetJangadaId = jangadaIdFromInspecao ?? (jangadaId && Number.isFinite(jangadaId) ? jangadaId : null);
 
+    if (!serialParam && targetJangadaId == null) {
+      return NextResponse.json({ error: "Jangada não encontrada." }, { status: 404 });
+    }
+
     const jangada = await prisma.jangada.findFirst({
       where: serialParam ? { serial: serialParam } : { id: targetJangadaId as number },
       include: { artigos: true, serviceStation: { select: { codigo: true } } },
