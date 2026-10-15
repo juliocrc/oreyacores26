@@ -44,6 +44,7 @@ type JangadaEstado = {
   certificadoExternoNumero: string | null;
   certificadoExternoUrl: string | null;
   certificadoPdfUrl: string | null;
+  certificadoPdfPublicUrl?: string | null;
   hruReferencia: string | null;
   hruValidade: string | null;
   hruValidadeDias?: number | null;

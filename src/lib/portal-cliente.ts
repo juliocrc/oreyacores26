@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma";
 import { getInspectionStatus } from "@/lib/inspection-status";
+import { signCertificatePdfToken } from "@/lib/certificate-pdf-token";
 
 export type PortalClienteData = Awaited<ReturnType<typeof buildPortalClienteData>>;
 
@@ -107,6 +108,10 @@ export async function buildPortalClienteData(clienteId: number) {
       certificadoPdfUrl:
         certNum
           ? `/api/certificados/pdf?serial=${encodeURIComponent(j.serial)}`
+          : null,
+      certificadoPdfPublicUrl:
+        certNum && j.serial
+          ? `/api/certificados/pdf?serial=${encodeURIComponent(j.serial)}&t=${signCertificatePdfToken(j.serial)}`
           : null,
       hruReferencia: j.hruReferencia,
       hruValidade: j.hruValidade,

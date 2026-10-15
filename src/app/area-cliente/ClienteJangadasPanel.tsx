@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
-import { Anchor, Clock, FileCheck2, Ship } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Anchor, Check, Clock, Copy, FileCheck2, Ship } from "lucide-react";
 
 type WorkflowStatus = {
   state: "SEM_ESTADO" | "RECEIONADA" | "EM_INSPECAO" | "FINALIZADA" | "OUTRO";
@@ -26,6 +26,7 @@ type Jangada = {
   diasParaProxima: number | null;
   ultimoCertificadoNumero: string | null;
   certificadoPdfUrl: string | null;
+  certificadoPdfPublicUrl?: string | null;
   workflowStatus?: WorkflowStatus;
 };
 
@@ -63,6 +64,20 @@ const STATE_STYLE: Record<string, string> = {
 };
 
 export default function ClienteJangadasPanel({ navios, jangadas }: { navios: Navio[]; jangadas: Jangada[] }) {
+  const [copiedId, setCopiedId] = useState<number | null>(null);
+
+  const copyShareLink = async (j: Jangada) => {
+    if (!j.certificadoPdfPublicUrl) return;
+    const url = `${window.location.origin}${j.certificadoPdfPublicUrl}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedId(j.id);
+      setTimeout(() => setCopiedId((current) => (current === j.id ? null : current)), 2500);
+    } catch {
+      window.prompt("Copie o link do certificado:", url);
+    }
+  };
+
   const grouped = useMemo(() => {
     const map = new Map<number, { navio: Navio | null; items: Jangada[] }>();
     for (const n of navios) map.set(n.id, { navio: n, items: [] });
@@ -151,10 +166,20 @@ export default function ClienteJangadasPanel({ navios, jangadas }: { navios: Nav
                     </div>
 
                     {j.certificadoPdfUrl && (
-                      <div className="mt-3 flex justify-end">
+                      <div className="mt-3 flex flex-wrap justify-end gap-2">
                         <a href={j.certificadoPdfUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-white">
                           <FileCheck2 size={14} /> Ver certificado PDF
                         </a>
+                        {j.certificadoPdfPublicUrl && (
+                          <button
+                            type="button"
+                            onClick={() => copyShareLink(j)}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 px-3 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-50"
+                          >
+                            {copiedId === j.id ? <Check size={14} /> : <Copy size={14} />}
+                            {copiedId === j.id ? "Link copiado" : "Copiar link para partilhar"}
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>

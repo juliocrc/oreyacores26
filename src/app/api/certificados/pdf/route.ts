@@ -8,28 +8,41 @@ import type { InspectionCertificateInput } from "@/lib/inspection-certificate";
 import { syncEmittedDocumentToOneDrive } from "@/lib/onedrive-sync";
 import { saveExternalCertificadoToNavioFolder } from "@/lib/certificados-organizados";
 import { withCertificateVerification } from "@/lib/certificate-verification";
+import { verifyCertificatePdfToken } from "@/lib/certificate-pdf-token";
 import { logAuditoria } from "@/lib/auditoria";
 
 export const runtime = "nodejs";
 
 /**
- * GET ?serial=<serial> | ?jangadaId=<id>
+ * GET ?serial=<serial> | ?jangadaId=<id> | ?inspecaoId=<id>
  * Devolve o certificado PDF (carimbado) da jangada. Acessível à equipa OREY e ao
- * cliente dono da jangada (área de cliente).
+ * cliente dono da jangada (área de cliente), ou a quem apresente um token público
+ * assinado e não expirado (`?t=`) para o mesmo serial.
  */
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
-    const serial = url.searchParams.get("serial")?.trim();
+    const serialParam = url.searchParams.get("serial")?.trim();
     const jangadaIdRaw = url.searchParams.get("jangadaId");
     const jangadaId = jangadaIdRaw ? Number(jangadaIdRaw) : null;
+    const inspecaoIdRaw = url.searchParams.get("inspecaoId");
+    const inspecaoId = inspecaoIdRaw ? Number(inspecaoIdRaw) : null;
+    const publicToken = url.searchParams.get("t");
 
-    if (!serial && (!jangadaId || !Number.isFinite(jangadaId))) {
-      return NextResponse.json({ error: "Indique o serial ou a jangada." }, { status: 400 });
+    if (!serialParam && (!jangadaId || !Number.isFinite(jangadaId)) && (!inspecaoId || !Number.isFinite(inspecaoId))) {
+      return NextResponse.json({ error: "Indique o serial, a jangada ou a inspeção." }, { status: 400 });
     }
 
+    let jangadaIdFromInspecao: number | null = null;
+    if (inspecaoId && Number.isFinite(inspecaoId)) {
+      const ins = await prisma.inspecao.findUnique({ where: { id: inspecaoId }, select: { jangadaId: true } });
+      if (ins?.jangadaId) jangadaIdFromInspecao = ins.jangadaId;
+    }
+
+    const targetJangadaId = jangadaIdFromInspecao ?? (jangadaId && Number.isFinite(jangadaId) ? jangadaId : null);
+
     const jangada = await prisma.jangada.findFirst({
-      where: serial ? { serial } : { id: jangadaId as number },
+      where: serialParam ? { serial: serialParam } : { id: targetJangadaId as number },
       include: { artigos: true, serviceStation: { select: { codigo: true } } },
     });
     if (!jangada) {
@@ -40,7 +53,10 @@ export async function GET(request: Request) {
     const user = session?.user;
     const isStaff = Boolean(user?.id) && user?.role !== "CLIENTE";
 
-    let allowed = isStaff;
+    // Acesso público por token assinado (sem sessão), vinculado a este serial.
+    const tokenAllows = verifyCertificatePdfToken(publicToken, jangada.serial || "");
+
+    let allowed = isStaff || tokenAllows;
     if (!allowed && user?.role === "CLIENTE" && user.clienteId != null) {
       const cliente = await prisma.cliente.findUnique({
         where: { id: Number(user.clienteId) },

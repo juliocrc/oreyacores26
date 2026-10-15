@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getInspectionStatus } from "@/lib/inspection-status";
 import { getAuthSession } from "@/auth";
+import { signCertificatePdfToken } from "@/lib/certificate-pdf-token";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -92,6 +93,10 @@ export async function GET(req: NextRequest) {
         ultimoCertificadoNumero: certNum,
         certificadoExternoNumero: j.certificadoExternoNumero,
         certificadoPdfUrl: certNum ? `/api/certificados/pdf?serial=${encodeURIComponent(j.serial)}` : null,
+        certificadoPdfPublicUrl:
+          certNum && j.serial
+            ? `/api/certificados/pdf?serial=${encodeURIComponent(j.serial)}&t=${signCertificatePdfToken(j.serial)}`
+            : null,
         hruReferencia: j.hruReferencia,
         hruValidade: j.hruValidade,
         radarReflector: j.radarReflector,

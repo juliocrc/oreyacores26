@@ -98,6 +98,10 @@ const API_PUBLICAS_EXATAS = [
   "/api/whatsapp/webhook",
   "/api/comunicacoes/inbound",
   "/api/service-stations/public",
+  // O certificado PDF valida a sessão OU um token assinado com expiração dentro
+  // da própria rota (GET). O POST continua a exigir sessão. Deixar passar o
+  // middleware é necessário para o link público `?serial=...&t=...` funcionar.
+  "/api/certificados/pdf",
 ] as const;
 
 const API_PUBLICAS_POR_PREFIXO = [
