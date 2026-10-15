@@ -90,6 +90,9 @@ const navSections: NavSection[] = [
       { label: 'Oficina', href: '/oficina', icon: '🛠️', roles: ['ADMIN', 'USER'] },
       { label: 'Calibrações', href: '/calibracoes', icon: '🎚️', roles: ['ADMIN', 'USER'] },
       { label: 'Logística', href: '/logistica', icon: '🚚', roles: ['ADMIN'] },
+      { label: 'Porto de Ponta Delgada', href: '/porto-ponta-delgada', icon: '⚓', roles: ['ADMIN', 'USER'] },
+      { label: 'Navios de Contentores', href: '/contentores', icon: '🚢', roles: ['ADMIN', 'USER'] },
+      { label: 'OpenWaters', href: '/openwaters', icon: '🌊', roles: ['ADMIN', 'USER'] },
       { label: 'Alertas', href: '/alertas', icon: '🚨', roles: ['ADMIN', 'USER'] },
       {
         label: 'Pedidos de Assistência',
