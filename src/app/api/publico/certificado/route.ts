@@ -57,6 +57,7 @@ export async function GET(request: Request) {
         certNumber: input.certNumber || null,
         serial: input.raftSerial || null,
         inspectionDate: input.inspectionDate || null,
+        nextInspectionDate: lastInspecao?.dataProxInspecao || jangada.dataProxInspecao || null,
         shipName: input.shipName || null,
         technician: input.technician || null,
         status: input.status || null,

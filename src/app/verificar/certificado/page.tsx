@@ -2,11 +2,13 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { formatDate } from "@/lib/date-utils";
 
 type VerifyCertificate = {
   certNumber?: string | null;
   serial?: string | null;
   inspectionDate?: string | null;
+  nextInspectionDate?: string | null;
   shipName?: string | null;
   technician?: string | null;
   status?: string | null;
@@ -110,7 +112,8 @@ function VerificarCertificadoContent() {
             <Row label="Certificado n.º" value={result.certificate?.certNumber} />
             <Row label="N.º série" value={result.certificate?.serial} />
             <Row label="Navio" value={result.certificate?.shipName} />
-            <Row label="Data de inspeção" value={result.certificate?.inspectionDate} />
+            <Row label="Data de inspeção" value={formatDate(result.certificate?.inspectionDate)} />
+            <Row label="Próxima inspeção" value={formatDate(result.certificate?.nextInspectionDate)} />
             <Row label="Técnico" value={result.certificate?.technician} />
             <Row label="Resultado WP" value={result.certificate?.aprovacaoWp as string | undefined} />
             <Row label="Estado" value={result.certificate?.status} />
