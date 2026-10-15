@@ -34,7 +34,7 @@ export async function buildPortalClienteData(clienteId: number) {
   const jangadas = await prisma.jangada.findMany({
     where: {
       OR: [
-        { owner: { equals: cliente.nome, mode: "insensitive" } },
+        { owner: { equals: cliente.nome } },
         ...(navioIds.length > 0 ? [{ shipId: { in: navioIds } }] : []),
       ],
     },

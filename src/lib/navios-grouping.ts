@@ -23,6 +23,7 @@ export type NavioGroupingItem = {
   tipoPesca?: string | null;
   tipoNavio?: string | null;
   ilha?: string | null;
+  portoRegisto?: string | null;
   cliente?: NavioGroupingClient;
   serviceStation?: NavioGroupingStation;
 };
@@ -48,12 +49,44 @@ function comparePt(a: string, b: string) {
   return a.localeCompare(b, "pt", { sensitivity: "base" });
 }
 
-export function getNavioIslandLabel(navio: Pick<NavioGroupingItem, "ilha" | "cliente">): string {
-  const raw = String(navio.ilha || "").trim();
-  const az = canonicalizeAzoresIsland(raw) || inferAzoresIslandFromPort(raw);
+export function getNavioIslandLabel(navio: Pick<NavioGroupingItem, "ilha" | "cliente" | "portoRegisto" | "matricula">): string {
+  const ilhaRaw = String(navio.ilha || "").trim();
+  const portoRaw = String(navio.portoRegisto || "").trim();
+  const matriculaRaw = String(navio.matricula || "").trim();
+
+  const az = canonicalizeAzoresIsland(ilhaRaw) || inferAzoresIslandFromPort(portoRaw) || inferAzoresIslandFromPort(ilhaRaw);
   if (az) return az;
-  const manual = normalizeManualNavioIsland(raw);
-  return manual || "Sem ilha";
+
+  const combined = (portoRaw + " " + ilhaRaw + " " + matriculaRaw).toLowerCase();
+  if (
+    combined.includes("funchal") ||
+    combined.includes("madeira") ||
+    combined.includes("porto santo") ||
+    combined.includes("fnc") ||
+    combined.includes("mad-") ||
+    /^fnc/i.test(matriculaRaw) ||
+    /^ps/i.test(portoRaw)
+  ) {
+    return "Madeira";
+  }
+
+  const norteKeywords = ["porto", "leixões", "leixoes", "aveiro", "viana do castelo", "póvoa", "povoa", "matosinhos", "figueira da foz", "caminha", "vila do conde", "braga", "guimarães", "viana"];
+  if (norteKeywords.some((k) => combined.includes(k))) {
+    return "Norte";
+  }
+
+  const sulKeywords = ["faro", "portimão", "portimao", "lagos", "olhão", "olhao", "sines", "tavira", "albufeira", "sagres", "vila real", "quarteira", "sesimbra", "beja", "évora", "evora", "algarve"];
+  if (sulKeywords.some((k) => combined.includes(k))) {
+    return "Sul";
+  }
+
+  const centroKeywords = ["lisboa", "cascais", "peniche", "nazaré", "nazare", "setúbal", "setubal", "santarém", "santarem", "leiria", "coimbra", "almada", "barreiro", "sintra"];
+  if (centroKeywords.some((k) => combined.includes(k))) {
+    return "Centro";
+  }
+
+  if (portoRaw) return portoRaw;
+  return "Sul";
 }
 
 export function getNavioClientLabel(navio: Pick<NavioGroupingItem, "cliente">): string {

@@ -22,6 +22,8 @@ const MODULOS = [
   "/alertas",
   "/pedidos-assistencia",
   "/backups",
+  "/porto-ponta-delgada",
+  "/contentores",
   // Ordens de Serviço
   "/criar-ot",
   "/ordens-servico",

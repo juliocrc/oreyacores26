@@ -31,8 +31,8 @@ export async function POST(req: NextRequest) {
       const stockItem = await prisma.stock.findFirst({
         where: {
           OR: [
-            { referencia: { equals: code, mode: "insensitive" } },
-            { codigoBarras: { equals: code, mode: "insensitive" } },
+            { referencia: { equals: code } },
+            { codigoBarras: { equals: code } },
           ],
         },
       });

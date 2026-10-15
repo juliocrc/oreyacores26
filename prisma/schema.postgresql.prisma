@@ -1441,3 +1441,32 @@ enum CatalogTipoEquipamento {
   JANGADA
   FATO_IMERSAO
 }
+
+model PortoEscala {
+  id              Int       @id @default(autoincrement())
+  navioNome       String
+  matricula       String?
+  tipoCarga       String?
+  armador         String?
+  cais            String?
+  dataChegada     DateTime?
+  dataPartida     DateTime?
+  origemDestino   String?
+  estado          String    @default("Previsto")
+  observacoes     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model NavioContentorRoute {
+  id              Int       @id @default(autoincrement())
+  navioNome       String
+  operador        String
+  rota            String
+  frequencia      String?
+  capacidadeTeus  Int?
+  diasEscala      String?
+  observacoes     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}

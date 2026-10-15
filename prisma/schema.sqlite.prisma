@@ -1487,3 +1487,32 @@ model DeclaracaoIsencaoIva {
   @@index([ano])
   @@index([numeroSequencial])
 }
+
+model PortoEscala {
+  id              Int       @id @default(autoincrement())
+  navioNome       String
+  matricula       String?
+  tipoCarga       String?   // "Contentores", "Carga Geral", "Gás", "Combustível", "Pesca"
+  armador         String?
+  cais            String?   // "Cais 1", "Cais 2", etc.
+  dataChegada     DateTime?
+  dataPartida     DateTime?
+  origemDestino   String?
+  estado          String    @default("Previsto") // Previsto, Atracado, Partido, Cancelado
+  observacoes     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model NavioContentorRoute {
+  id              Int       @id @default(autoincrement())
+  navioNome       String
+  operador        String    // "Transinsular", "GS Lines", etc.
+  rota            String    // "Lisboa / Leixões - Ponta Delgada - Caniçal"
+  frequencia      String?   // "Semanal"
+  capacidadeTeus  Int?
+  diasEscala      String?   // "Terça-feira"
+  observacoes     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}

@@ -228,17 +228,17 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const where: Prisma.ClienteWhereInput = {};
 
-  const nome = searchParams.get("nome"); if (nome) where.nome = { contains: nome, mode: "insensitive" };
-  const numeroCliente = searchParams.get("numeroCliente"); if (numeroCliente) where.numeroCliente = { contains: numeroCliente, mode: "insensitive" };
-  const nif = searchParams.get("nif"); if (nif) where.nif = { contains: nif, mode: "insensitive" };
+  const nome = searchParams.get("nome"); if (nome) where.nome = { contains: nome };
+  const numeroCliente = searchParams.get("numeroCliente"); if (numeroCliente) where.numeroCliente = { contains: numeroCliente };
+  const nif = searchParams.get("nif"); if (nif) where.nif = { contains: nif };
   const ilhaRaw = searchParams.get("ilha");
   if (ilhaRaw) {
     const ilhaCanon = getCanonicalNavioLocationLabel(ilhaRaw) || ilhaRaw;
-    where.ilha = { contains: ilhaCanon, mode: "insensitive" };
+    where.ilha = { contains: ilhaCanon };
   }
-  const email = searchParams.get("email"); if (email) where.email = { contains: email, mode: "insensitive" };
-  const telefone = searchParams.get("telefone"); if (telefone) where.telefone = { contains: telefone, mode: "insensitive" };
-  const telmovel = searchParams.get("telmovel"); if (telmovel) where.telmovel = { contains: telmovel, mode: "insensitive" };
+  const email = searchParams.get("email"); if (email) where.email = { contains: email };
+  const telefone = searchParams.get("telefone"); if (telefone) where.telefone = { contains: telefone };
+  const telmovel = searchParams.get("telmovel"); if (telmovel) where.telmovel = { contains: telmovel };
   if (searchParams.get("missingContacts") === "true") {
     where.OR = [
       { email: null },

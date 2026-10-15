@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
           id: true, nome: true, nif: true, numeroCliente: true, morada: true, ilha: true,
         } })
       : await prisma.cliente.findFirst({
-      where: nif ? { nif: { equals: nif } } : { numeroCliente: { equals: codigo, mode: "insensitive" } },
+      where: nif ? { nif: { equals: nif } } : { numeroCliente: { equals: codigo } },
       select: {
         id: true,
         nome: true,
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
     const jangadas = await prisma.jangada.findMany({
       where: {
         OR: [
-          { owner: { equals: cliente.nome, mode: "insensitive" } },
+          { owner: { equals: cliente.nome } },
           ...(navioIds.length > 0 ? [{ shipId: { in: navioIds } }] : []),
         ],
       },

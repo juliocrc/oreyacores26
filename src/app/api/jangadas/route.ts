@@ -302,10 +302,7 @@ export async function POST(req: NextRequest) {
         if (cleanSerial) {
           const existingJangada = await prisma.jangada.findFirst({
             where: {
-              OR: [
-                { serial: cleanSerial },
-                { serial: { equals: cleanSerial, mode: 'insensitive' } }
-              ]
+              serial: cleanSerial
             }
           });
           if (existingJangada) {
