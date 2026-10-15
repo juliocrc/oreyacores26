@@ -3,11 +3,10 @@ import prisma from "@/lib/prisma";
 import { getAuthSession } from "@/auth";
 import { getAccessContext } from "@/lib/access-control";
 import { buildCertificatePdfBuffer, certificatePdfFileName } from "@/lib/certificate-pdf";
-import { buildInspectionCertificateInput } from "@/lib/certificate-input-from-jangada";
+import { buildCarimbadoCertificatePdf } from "@/lib/certificate-carimbado-pdf";
 import type { InspectionCertificateInput } from "@/lib/inspection-certificate";
 import { syncEmittedDocumentToOneDrive } from "@/lib/onedrive-sync";
 import { saveExternalCertificadoToNavioFolder } from "@/lib/certificados-organizados";
-import { withCertificateVerification } from "@/lib/certificate-verification";
 import { verifyCertificatePdfToken } from "@/lib/certificate-pdf-token";
 import { logAuditoria } from "@/lib/auditoria";
 
@@ -47,7 +46,7 @@ export async function GET(request: Request) {
 
     const jangada = await prisma.jangada.findFirst({
       where: serialParam ? { serial: serialParam } : { id: targetJangadaId as number },
-      include: { artigos: true, serviceStation: { select: { codigo: true } } },
+      include: { artigos: true, serviceStation: { select: { codigo: true, nome: true } } },
     });
     if (!jangada) {
       return NextResponse.json({ error: "Jangada não encontrada." }, { status: 404 });
@@ -98,21 +97,25 @@ export async function GET(request: Request) {
     const navio = jangada.shipId
       ? await prisma.navio.findUnique({
           where: { id: jangada.shipId },
-          select: { nome: true, serviceStation: { select: { codigo: true } } },
+          select: {
+            nome: true,
+            bandeira: true,
+            imo: true,
+            callSignal: true,
+            serviceStation: { select: { codigo: true, nome: true } },
+          },
         })
       : null;
 
-    const input = await withCertificateVerification(
-      buildInspectionCertificateInput({
-        jangada,
-        lastInspecao,
-        shipName: jangada.shipNameManual || navio?.nome || "",
-        stampStationCode: jangada.serviceStation?.codigo || navio?.serviceStation?.codigo || null,
-      }),
-    );
+    const station = jangada.serviceStation || navio?.serviceStation || null;
 
-    const buffer = buildCertificatePdfBuffer(input);
-    const fileName = certificatePdfFileName(input);
+    const { buffer, input, fileName } = await buildCarimbadoCertificatePdf({
+      jangada,
+      lastInspecao,
+      ship: navio,
+      shipName: jangada.shipNameManual || navio?.nome || "",
+      station,
+    });
 
     if (user?.role === "CLIENTE") {
       try {
@@ -148,9 +151,65 @@ export async function POST(request: Request) {
     const access = await getAccessContext();
     if (!access) return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
 
-    const body = (await request.json().catch(() => null)) as InspectionCertificateInput | null;
+    const body = (await request.json().catch(() => null)) as (InspectionCertificateInput & { jangadaId?: number }) | null;
     if (!body || typeof body !== "object") {
       return NextResponse.json({ error: "Dados do certificado inválidos." }, { status: 400 });
+    }
+
+    // Reconstrói a partir do template OREY quando conhecemos a jangada.
+    const jangadaId = Number.isFinite(body.jangadaId) ? Number(body.jangadaId) : null;
+    if (jangadaId) {
+      const jangada = await prisma.jangada.findUnique({
+        where: { id: jangadaId },
+        include: { artigos: true, serviceStation: { select: { codigo: true, nome: true } } },
+      });
+      if (jangada) {
+        const lastInspecao = await prisma.inspecao.findFirst({
+          where: { jangadaId: jangada.id },
+          orderBy: { dataInspecao: "desc" },
+          include: { artigos: true },
+        });
+        const navio = jangada.shipId
+          ? await prisma.navio.findUnique({
+              where: { id: jangada.shipId },
+              select: {
+                nome: true,
+                bandeira: true,
+                imo: true,
+                callSignal: true,
+                cliente: { select: { nome: true } },
+                serviceStation: { select: { codigo: true, nome: true } },
+              },
+            })
+          : null;
+        const station = jangada.serviceStation || navio?.serviceStation || null;
+        const built = await buildCarimbadoCertificatePdf({
+          jangada,
+          lastInspecao,
+          ship: navio,
+          shipName: jangada.shipNameManual || navio?.nome || body.shipName || "",
+          ownerName: navio?.cliente?.nome || jangada.owner || "",
+          station,
+        });
+        await syncEmittedDocumentToOneDrive({ kind: "certificado", fileName: built.fileName, buffer: built.buffer });
+        if (built.input.shipName) {
+          try {
+            await saveExternalCertificadoToNavioFolder(built.input.shipName, built.fileName, Buffer.from(built.buffer), {
+              serial: built.input.raftSerial || undefined,
+              date: built.input.inspectionDate ? new Date(built.input.inspectionDate) : undefined,
+            });
+          } catch (e) {
+            console.warn("Erro ao guardar certificado na pasta do navio:", e);
+          }
+        }
+        return new NextResponse(new Uint8Array(built.buffer), {
+          headers: {
+            "Content-Type": "application/pdf",
+            "Content-Disposition": `inline; filename="${built.fileName}"`,
+            "Cache-Control": "no-store",
+          },
+        });
+      }
     }
 
     const buffer = buildCertificatePdfBuffer(body);

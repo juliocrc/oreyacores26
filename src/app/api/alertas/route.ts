@@ -82,7 +82,10 @@ export async function GET() {
         select: {
           id: true,
           serial: true,
+          brand: true,
           model: true,
+          capacity: true,
+          shipId: true,
           shipNameManual: true,
           dataProxInspecao: true,
         },
@@ -95,9 +98,13 @@ export async function GET() {
           certificadoNumero: true,
           raftSerial: true,
           shipName: true,
+          shipOwner: true,
           dataProxInspecao: true,
           sourceYear: true,
           isMaisRecente: true,
+          jangada: {
+            select: { id: true, brand: true, model: true, capacity: true, shipId: true },
+          },
         },
         take: 5000,
         orderBy: { id: "desc" },
@@ -112,6 +119,8 @@ export async function GET() {
           dataPlaneadaInicio: true,
           dataAbertura: true,
           shipId: true,
+          clienteId: true,
+          cliente: { select: { nome: true, email: true, telmovel: true, telefone: true } },
           jangada: {
             select: {
               serial: true,
@@ -129,6 +138,9 @@ export async function GET() {
           serial: true,
           marca: true,
           modelo: true,
+          shipId: true,
+          ownerName: true,
+          ownerPhone: true,
           dataProxInspecao: true,
           dataValidadeBateria: true,
         },
@@ -169,18 +181,45 @@ export async function GET() {
       }),
     ]);
 
-    // Resolve ship names for pending orders, extintores and fatos
-    const shipIds = Array.from(new Set([...pendingOrders.map((o) => o.shipId), ...extintores.map((e) => e.shipId), ...fatos.map((f) => f.shipId)].filter((id): id is number => id !== null)));
+    // Resolve ship + cliente for pending orders, jangadas, epirbs, extintores and fatos
+    const shipIds = Array.from(
+      new Set(
+        [
+          ...pendingOrders.map((o) => o.shipId),
+          ...jangadas.map((j) => j.shipId),
+          ...certificados.map((c) => c.jangada?.shipId),
+          ...epirbs.map((e) => e.shipId),
+          ...extintores.map((e) => e.shipId),
+          ...fatos.map((f) => f.shipId),
+        ].filter((id): id is number => typeof id === "number"),
+      ),
+    );
     const ships = shipIds.length > 0
       ? await prisma.navio.findMany({
           where: { id: { in: shipIds } },
-          select: { id: true, nome: true },
+          select: {
+            id: true,
+            nome: true,
+            cliente: { select: { nome: true, email: true, telmovel: true, telefone: true } },
+          },
         })
       : [];
     const shipNameMap = new Map(ships.map((s) => [s.id, s.nome]));
+    const shipInfoMap = new Map(
+      ships.map((s) => [
+        s.id,
+        {
+          navioNome: s.nome,
+          clienteNome: s.cliente?.nome ?? null,
+          clienteEmail: s.cliente?.email ?? null,
+          clienteTelefone: s.cliente?.telmovel || s.cliente?.telefone || null,
+        },
+      ]),
+    );
 
     const alertasAssistencia = pendingOrders.map((o) => {
       const shipName = o.shipId ? shipNameMap.get(o.shipId) : null;
+      const info = o.shipId ? shipInfoMap.get(o.shipId) : undefined;
       const ref = shipName
         ? `Ordem nº ${o.numeroOrdem} - ${shipName}`
         : `Ordem nº ${o.numeroOrdem}`;
@@ -191,46 +230,77 @@ export async function GET() {
         data: o.dataPlaneadaInicio ? o.dataPlaneadaInicio.toISOString() : o.dataAbertura.toISOString(),
         jangadaSerial: o.jangada?.serial || null,
         ordemId: o.id,
+        navioNome: info?.navioNome ?? shipName ?? null,
+        clienteNome: o.cliente?.nome ?? info?.clienteNome ?? null,
+        clienteEmail: o.cliente?.email ?? info?.clienteEmail ?? null,
+        clienteTelefone:
+          o.cliente?.telmovel || o.cliente?.telefone || info?.clienteTelefone || null,
       };
     });
 
     const alertasInspecao = jangadas
       .filter((j) => isWithinDays(j.dataProxInspecao, 30))
-      .map((j) => ({
-        tipo: "inspecao" as const,
-        id: j.id,
-        referencia:
-          j.model?.trim() && j.serial?.trim()
-            ? `${j.model} (${j.serial})`
-            : j.serial || `Jangada ${j.id}`,
-        data: j.dataProxInspecao,
-        jangadaId: j.id,
-        jangadaSerial: j.serial,
-        status: j.shipNameManual || null,
-      }));
+      .map((j) => {
+        const info = j.shipId ? shipInfoMap.get(j.shipId) : undefined;
+        return {
+          tipo: "inspecao" as const,
+          id: j.id,
+          referencia:
+            j.model?.trim() && j.serial?.trim()
+              ? `${j.model} (${j.serial})`
+              : j.serial || `Jangada ${j.id}`,
+          data: j.dataProxInspecao,
+          jangadaId: j.id,
+          jangadaSerial: j.serial,
+          jangadaMarca: j.brand || null,
+          jangadaModelo: j.model || null,
+          jangadaCapacidade: j.capacity ?? null,
+          navioNome: info?.navioNome ?? j.shipNameManual ?? null,
+          clienteNome: info?.clienteNome ?? null,
+          clienteEmail: info?.clienteEmail ?? null,
+          clienteTelefone: info?.clienteTelefone ?? null,
+          status: info?.navioNome ?? j.shipNameManual ?? null,
+        };
+      });
 
     const alertasCertificado = certificados
       .filter((c) => c.isMaisRecente && isWithinDays(c.dataProxInspecao, 30))
-      .map((c) => ({
-        tipo: "certificado" as const,
-        id: c.id,
-        referencia: c.certificadoNumero || c.raftSerial || `Certificado ${c.id}`,
-        data: c.dataProxInspecao,
-        jangadaSerial: c.raftSerial,
-        sourceYear: c.sourceYear,
-        status: c.shipName || null,
-      }));
+      .map((c) => {
+        const info = c.jangada?.shipId ? shipInfoMap.get(c.jangada.shipId) : undefined;
+        return {
+          tipo: "certificado" as const,
+          id: c.id,
+          referencia: c.certificadoNumero || c.raftSerial || `Certificado ${c.id}`,
+          data: c.dataProxInspecao,
+          jangadaId: c.jangada?.id ?? null,
+          jangadaSerial: c.raftSerial,
+          jangadaMarca: c.jangada?.brand || null,
+          jangadaModelo: c.jangada?.model || null,
+          jangadaCapacidade: c.jangada?.capacity ?? null,
+          sourceYear: c.sourceYear,
+          navioNome: info?.navioNome ?? c.shipName ?? null,
+          clienteNome: info?.clienteNome ?? c.shipOwner ?? null,
+          clienteEmail: info?.clienteEmail ?? null,
+          clienteTelefone: info?.clienteTelefone ?? null,
+          status: info?.navioNome ?? c.shipName ?? null,
+        };
+      });
 
     const alertasEpirb = epirbs
       .filter((e) => isWithinDays(e.dataProxInspecao, 30) || isWithinDays(e.dataValidadeBateria, 30))
       .map((e) => {
         const isBatteryExpiring = isWithinDays(e.dataValidadeBateria, 30);
+        const info = e.shipId ? shipInfoMap.get(e.shipId) : undefined;
         return {
           tipo: "epirb" as const,
           id: e.id,
           referencia: `EPIRB ${[e.marca, e.modelo].filter(Boolean).join(" ")} (${e.serial})`,
           data: isBatteryExpiring ? e.dataValidadeBateria : e.dataProxInspecao,
           jangadaSerial: e.serial,
+          navioNome: info?.navioNome ?? null,
+          clienteNome: info?.clienteNome ?? e.ownerName ?? null,
+          clienteEmail: info?.clienteEmail ?? null,
+          clienteTelefone: info?.clienteTelefone ?? e.ownerPhone ?? null,
           status: isBatteryExpiring ? "Bateria a expirar" : "Inspeção a expirar",
         };
       });
@@ -244,6 +314,7 @@ export async function GET() {
         const testeDate = parseDateFlexible(x.dataProxTesteHidraulico)?.getTime() ?? Number.MAX_SAFE_INTEGER;
         const isRecarga = recarga && (!teste || recargaDate <= testeDate);
         const shipName = x.shipId ? shipNameMap.get(x.shipId) : null;
+        const info = x.shipId ? shipInfoMap.get(x.shipId) : undefined;
         const label = isRecarga ? "Recarga" : "Teste hidráulico";
         return {
           tipo: "extintor" as const,
@@ -252,6 +323,10 @@ export async function GET() {
           data: isRecarga ? x.dataProxRecarga : x.dataProxTesteHidraulico,
           extintorId: x.id,
           jangadaSerial: x.serial || null,
+          navioNome: info?.navioNome ?? null,
+          clienteNome: info?.clienteNome ?? null,
+          clienteEmail: info?.clienteEmail ?? null,
+          clienteTelefone: info?.clienteTelefone ?? null,
           status: shipName ? `${shipName} · ${label}` : `${label} · sem navio`,
           tipoAgente: x.tipoAgente || null,
         };
@@ -261,12 +336,17 @@ export async function GET() {
       .filter((f) => isWithinDays(f.dataProxInspecao, 30))
       .map((f) => {
         const shipName = f.shipId ? shipNameMap.get(f.shipId) : null;
+        const info = f.shipId ? shipInfoMap.get(f.shipId) : undefined;
         return {
           tipo: "fato" as const,
           id: f.id,
           referencia: `Fato de imersão ${[f.marca, f.modelo].filter(Boolean).join(" ")} (${f.serial || `#${f.id}`})`,
           data: f.dataProxInspecao,
           jangadaSerial: f.serial || null,
+          navioNome: info?.navioNome ?? null,
+          clienteNome: info?.clienteNome ?? null,
+          clienteEmail: info?.clienteEmail ?? null,
+          clienteTelefone: info?.clienteTelefone ?? null,
           status: shipName ? `${shipName} · Inspeção a expirar` : "Inspeção a expirar · sem navio",
         };
       });

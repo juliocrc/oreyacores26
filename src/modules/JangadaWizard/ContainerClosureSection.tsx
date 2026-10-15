@@ -1,6 +1,6 @@
 "use client";
-import React, { useMemo, useState } from 'react';
-import { Box, PackageCheck, TriangleAlert, Plus, Check, Link2, Search, Trash2 } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { Box, PackageCheck, TriangleAlert, Plus, Check, Link2, Trash2 } from 'lucide-react';
 import type { GlobalStockItem, InspectionData } from './types';
 import {
   buildClosureSuggestions,
@@ -8,6 +8,8 @@ import {
   getClosureStock,
   type ClosureItemState,
 } from './containerClosure';
+import { StockPickerSelect } from '@/components/shared/StockPicker';
+import { isClosureStockItem } from '@/lib/stock-picker';
 
 const formatPrice = (value: number) =>
   new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(value || 0);
@@ -18,38 +20,6 @@ const KIND_LABEL: Record<string, string> = {
   hru: "HRU (Disparador)",
   reparo: "Reparo do Contentor",
 };
-
-function normalizeText(value: string) {
-  return String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-}
-
-function isClosureStockItem(stock: GlobalStockItem): boolean {
-  const hay = normalizeText(`${stock.referencia} ${stock.descricao}`);
-  const cat = normalizeText(stock.categoria || "");
-  if (
-    cat &&
-    ["contentor", "cinta", "cintas", "fecho", "acessorio", "diversos"].some((token) => cat.includes(token))
-  ) {
-    return true;
-  }
-  return [
-    "cinta",
-    "strap",
-    "autocolante",
-    "selo",
-    "fita",
-    "saco",
-    "vacuo",
-    "anilha",
-    "etiqueta",
-    "vedante",
-    "protec",
-    "fecho",
-    "contentor",
-    "cintagem",
-    "correia",
-  ].some((token) => hay.includes(token));
-}
 
 export function ContainerClosureSection({
   inspectionData,
@@ -75,22 +45,12 @@ export function ContainerClosureSection({
     [selected, suggestionKeys],
   );
 
-  const [stockSearch, setStockSearch] = useState("");
-
   const closureStock = useMemo(() => globalStock.filter(isClosureStockItem), [globalStock]);
-  const filteredStock = useMemo(() => {
-    const query = normalizeText(stockSearch.trim());
-    if (!query) return closureStock;
-    return closureStock.filter((s) =>
-      normalizeText(`${s.referencia} ${s.descricao}`).includes(query),
-    );
-  }, [closureStock, stockSearch]);
 
   const selectedByKey = new Map(selected.map((s) => [s.key, s]));
 
   const addFromStock = (stock: GlobalStockItem) => {
     onToggle(closureStateFromStock(stock), true);
-    setStockSearch("");
   };
 
   return (
@@ -315,46 +275,14 @@ export function ContainerClosureSection({
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-700 mb-2">
             <Link2 size={13} /> Adicionar do Armazém (cintas, autocolantes, saco de vácuo, fita)
           </div>
-          {closureStock.length === 0 ? (
-            <p className="text-xs text-slate-400 italic">
-              Nenhum artigo de fecho encontrado no stock. Adicione as cintas/autocolantes ao stock primeiro.
-            </p>
-          ) : (
-            <div className="flex flex-col sm:flex-row gap-2">
-              <div className="relative flex-1">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Search size={14} className="text-slate-400" />
-                </div>
-                <input
-                  type="text"
-                  value={stockSearch}
-                  onChange={(e) => setStockSearch(e.target.value)}
-                  placeholder="Filtrar por referência ou descrição..."
-                  className="w-full border-slate-200 rounded-xl pl-9 pr-3 py-2 bg-slate-50 focus:bg-white text-sm"
-                />
-              </div>
-              <select
-                value=""
-                onChange={(e) => {
-                  const stockId = Number(e.target.value);
-                  if (!stockId) return;
-                  const stock = globalStock.find((g) => g.id === stockId);
-                  if (stock) addFromStock(stock);
-                }}
-                className="w-full sm:w-80 rounded-xl border-slate-200 px-3 py-2 bg-slate-50 focus:bg-white text-sm"
-              >
-                <option value="">Escolher artigo do stock...</option>
-                {filteredStock.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.referencia} — {s.descricao} {s.quantidade > 0 ? `(Qtd: ${s.quantidade})` : "(Sem Stock)"}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-          {closureStock.length > 0 && filteredStock.length === 0 && (
-            <p className="mt-2 text-xs text-slate-400 italic">Nenhum artigo de fecho corresponde à pesquisa.</p>
-          )}
+          <StockPickerSelect
+            items={closureStock}
+            onSelect={addFromStock}
+            placeholder="Escolher artigo do stock..."
+            searchPlaceholder="Filtrar por referência ou descrição..."
+            emptyMessage="Nenhum artigo de fecho encontrado no stock. Adicione as cintas/autocolantes ao stock primeiro."
+            showQuantity
+          />
           <p className="mt-2 text-[11px] text-slate-400">
             Pode adicionar vários autocolantes/selos: escolha novamente o artigo para criar mais uma linha.
           </p>

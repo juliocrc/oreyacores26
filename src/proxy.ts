@@ -128,7 +128,7 @@ function isStaticOrInternal(pathname: string) {
 
 function isAllowed(pathname: string) {
   if (pathname === "/") return true;
-  if ((ROTAS_LIVRES as readonly string[]).includes(pathname)) return true;
+  if ((ROTAS_LIVRES as readonly string[]).some((r) => pathname === r || pathname.startsWith(`${r}/`))) return true;
   return MODULOS.some((m) => pathname === m || pathname.startsWith(`${m}/`));
 }
 

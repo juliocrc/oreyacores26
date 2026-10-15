@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getAccessContext } from "@/lib/access-control";
 import { buildCertificatePdfBuffer, certificatePdfFileName } from "@/lib/certificate-pdf";
+import { buildCarimbadoCertificatePdf } from "@/lib/certificate-carimbado-pdf";
 import { sendEmail } from "@/lib/email-sender";
 import type { InspectionCertificateInput } from "@/lib/inspection-certificate";
 
@@ -49,8 +50,49 @@ export async function POST(request: Request) {
     });
     const enviadoPor = operador?.name || operador?.email || String(access.userId);
 
-    const fileName = certificatePdfFileName(certificate);
-    const pdf = buildCertificatePdfBuffer(certificate);
+    // Reconstrói o certificado a partir do template OREY quando conhecemos a
+    // jangada; caso contrário, usa o certificado enviado pelo cliente.
+    let fileName = certificatePdfFileName(certificate);
+    let pdf = buildCertificatePdfBuffer(certificate);
+
+    const jangadaId = Number.isFinite(body?.jangadaId) ? Number(body.jangadaId) : null;
+    if (jangadaId) {
+      const jangada = await prisma.jangada.findUnique({
+        where: { id: jangadaId },
+        include: { artigos: true, serviceStation: { select: { codigo: true, nome: true } } },
+      });
+      if (jangada) {
+        const lastInspecao = await prisma.inspecao.findFirst({
+          where: { jangadaId: jangada.id },
+          orderBy: { dataInspecao: "desc" },
+          include: { artigos: true },
+        });
+        const navio = jangada.shipId
+          ? await prisma.navio.findUnique({
+              where: { id: jangada.shipId },
+              select: {
+                nome: true,
+                bandeira: true,
+                imo: true,
+                callSignal: true,
+                cliente: { select: { nome: true } },
+                serviceStation: { select: { codigo: true, nome: true } },
+              },
+            })
+          : null;
+        const station = jangada.serviceStation || navio?.serviceStation || null;
+        const built = await buildCarimbadoCertificatePdf({
+          jangada,
+          lastInspecao,
+          ship: navio,
+          shipName: jangada.shipNameManual || navio?.nome || "",
+          ownerName: navio?.cliente?.nome || jangada.owner || "",
+          station,
+        });
+        pdf = built.buffer;
+        fileName = built.fileName;
+      }
+    }
 
     const result = await sendEmail({
       to,

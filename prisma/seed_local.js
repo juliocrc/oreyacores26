@@ -64,11 +64,11 @@ async function main() {
 
   // ── Técnicos + Users ─────────────────────────────────────────
   const tecnicos = [
-    { nome: 'João Ferreira', email: 'joao.ferreira@orey.com', stationCode: 'AVELEDA', password: 'orelhas', admin: true },
-    { nome: 'Rui Costa', email: 'rui.costa@orey.com', stationCode: 'AVELEDA', password: 'orelhas', admin: true },
+    { nome: 'Cristiano Gomes', email: 'cristiano.gomes@orey.com', stationCode: 'AVELEDA', password: 'orelhas', admin: true },
+    { nome: 'Willian Ribeiro', email: 'willian.ribeiro@orey.com', stationCode: 'AVELEDA', password: 'orelhas', admin: true },
+    { nome: 'Henrique Cardoso', email: 'henrique.cardoso@orey.com', stationCode: 'AVELEDA', password: 'orelhas' },
     { nome: 'Julio Correia', email: 'julio.correia@orey.com', stationCode: 'ACORES', password: 'orelhas' },
     { nome: 'Alex Santos', email: 'alex.santos@orey.com', stationCode: 'ACORES', password: 'orelhas' },
-    { nome: 'Manuel Silva', email: 'manuel.silva@orey.com', stationCode: 'ALCATARILHA', password: 'orelhas' },
     { nome: 'Alvaro Silva', email: 'alvaro.silva@orey.com', stationCode: 'ALCATARILHA', password: 'orelhas', admin: true },
     { nome: 'João Silvestre', email: 'joao.silvestre@orey.com', stationCode: 'ALCATARILHA', password: 'orelhas', admin: true },
   ];

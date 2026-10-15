@@ -44,6 +44,7 @@ const MARINESIA_BASE_URL = "https://api.marinesia.com";
 const MARINESIA_TIMEOUT_MS = 8000;
 const MARINESIA_TRACK_TIMEOUT_MS = 3500;
 const AISSTREAM_TIMEOUT_MS = 8000;
+const PELYR_TIMEOUT_MS = 8000;
 const AISHUB_TIMEOUT_MS = 8000;
 const AIS_SOFT_DEADLINE_MS = 5500;
 
@@ -52,7 +53,8 @@ const AIS_PROVIDER_PRIORITY: Record<string, number> = {
   openwaters_live: 1,
   openwaters: 2,
   aisstream: 3,
-  aishub: 4,
+  pelyr: 4,
+  aishub: 5,
 };
 
 function normalizeMmsi(value: unknown): string | null {
@@ -249,8 +251,10 @@ async function queryAisWebSocket(params: {
   mmsi: string;
   source: string;
   timeoutMs: number;
+  protocol?: string;
+  useBearer?: boolean;
 }): Promise<AisPositionResult> {
-  const { url, apiKey, mmsi, source, timeoutMs } = params;
+  const { url, apiKey, mmsi, source, timeoutMs, protocol, useBearer } = params;
 
   let WebSocket: typeof import('ws').WebSocket;
   try {
@@ -277,10 +281,25 @@ async function queryAisWebSocket(params: {
     }, timeoutMs);
 
     try {
-      socket = new WebSocket(url);
+      const wsOptions: import('ws').ClientOptions = {};
+      if (useBearer) {
+        wsOptions.headers = { Authorization: `Bearer ${apiKey}` };
+      }
+      socket = protocol ? new WebSocket(url, protocol, wsOptions) : new WebSocket(url, wsOptions);
 
       socket.on("open", () => {
         try {
+          if (source === 'pelyr') {
+            socket?.send(JSON.stringify({
+              type: 'subscribe',
+              id: `orey-${Date.now()}`,
+              params: {
+                mmsi: [mmsi],
+                fields: 'position',
+              },
+            }));
+            return;
+          }
           socket?.send(JSON.stringify({
             APIKey: apiKey,
             BoundingBoxes: [[[-90, -180], [90, 180]]],
@@ -296,6 +315,29 @@ async function queryAisWebSocket(params: {
         try {
           const buffer = Array.isArray(data) ? Buffer.concat(data) : Buffer.isBuffer(data) ? data : Buffer.from(data);
           const parsed = JSON.parse(buffer.toString());
+          if (source === 'pelyr') {
+            if (parsed?.type === 'position' && parsed?.data) {
+              const d = parsed.data;
+              const lat = parseNumeric(d.lat ?? d.latitude);
+              const lng = parseNumeric(d.lon ?? d.longitude);
+              if (lat !== null && lng !== null) {
+                finish({
+                  found: true,
+                  lat,
+                  lng,
+                  speed: parseNumeric(d.sog ?? d.speed),
+                  course: normalizeCourse(parseNumeric(d.cog ?? d.course)),
+                  heading: normalizeHeading(parseNumeric(d.heading ?? d.hdg)),
+                  navStatus: d.nav_status || d.navStatus ? String(d.nav_status || d.navStatus) : null,
+                  name: typeof d.shipname === 'string' || typeof d.name === 'string' ? String(d.shipname || d.name).trim() || null : null,
+                  updatedAt: typeof d.ts === 'string' || typeof d.timestamp === 'string' ? (d.ts || d.timestamp) : new Date().toISOString(),
+                  source: 'pelyr',
+                  precise: false,
+                });
+              }
+            }
+            return;
+          }
           const messageType = parsed.MessageType;
           const body = parsed.Message?.[messageType];
           const meta = parsed.MetaData;
@@ -350,6 +392,19 @@ async function queryOpenWatersLive(mmsi: string): Promise<AisPositionResult> {
     mmsi,
     source: 'openwaters_live',
     timeoutMs: OPENWATERS_TIMEOUT_MS,
+  });
+}
+
+async function queryPelyr(mmsi: string): Promise<AisPositionResult> {
+  const apiKey = process.env.PELYR_API_KEY;
+  if (!apiKey) return { found: false, source: 'pelyr', error: 'PELYR_API_KEY não configurada.' };
+  return queryAisWebSocket({
+    url: 'wss://stream.pelyr.com/v1/stream',
+    apiKey,
+    mmsi,
+    source: 'pelyr',
+    timeoutMs: PELYR_TIMEOUT_MS,
+    useBearer: true,
   });
 }
 

@@ -1,10 +1,12 @@
 "use client";
 import React from 'react';
 import { useJangadaWizardStore } from './store/useJangadaWizardStore';
-import { Plus, Trash2, Tag, Calendar, Hash, Search, AlertTriangle, ShieldCheck, BatteryFull } from 'lucide-react';
+import { Plus, Trash2, Tag, Calendar, Hash, AlertTriangle, ShieldCheck, BatteryFull } from 'lucide-react';
 import { getInspectionIntervalYears, getInspectionIntervalLabel, getSubstitutionMaxValidityDays } from '../rafts/inspectionInterval';
 import { parseMonthYearValue, toMonthYearString, maskMonthYearInput, formatMonthPt } from '@/lib/date-utils';
 import { getStepNumberByKey } from './steps';
+import { StockPickerSelect } from '@/components/shared/StockPicker';
+import { isComponentStockItem, isHruStockItem, isLightStockItem } from '@/lib/stock-picker';
 
 const checkValidityWarning = (validadeStr: string, dataProxInspecao: string, dataInspecao: string, brand: string, shipDetails: any) => {
   if (!validadeStr) return null;
@@ -124,48 +126,16 @@ export default function Step3_Componentes() {
   };
 
   // Filter stock for components
-  const componentStock = (inspectionData.globalStock || []).filter((s: any) => {
-    const cat = (s.categoria || '').toUpperCase();
-    const desc = (s.descricao || '').toLowerCase();
-    return cat.includes('VALV') || cat.includes('CILINDRO') || cat.includes('MANGUEIRA') ||
-      cat.includes('COMPONENTE') || cat.includes('BEXIGA') || cat.includes('GASKET') ||
-      cat.includes('OP_HEAD') || cat.includes('BOBBIN') || cat.includes('TUBO') ||
-      cat.includes('CABECA') || cat.includes('CABEÇA') || cat.includes('DISPARO') ||
-      desc.includes('valvula') || desc.includes('valve') || desc.includes('hose') ||
-      desc.includes('mangueira') || desc.includes('operating head') || desc.includes('op head') ||
-      desc.includes('cabeca') || desc.includes('cabeça') || desc.includes('disparo') ||
-      desc.includes('firing') || desc.includes('cylinder') || desc.includes('cilindro') ||
-      desc.includes('o-ring') || desc.includes('gasket') || desc.includes('vedante') ||
-      desc.includes('tubo');
-  });
-
   const rawStock = inspectionData.globalStock || [];
+  const componentStock = rawStock.filter(isComponentStockItem);
+
   // Filter stock for HRU (libertador hidrostático)
-  const filteredHruStock = rawStock.filter((s: any) => {
-    const cat = (s.categoria || '').toUpperCase();
-    const desc = (s.descricao || '').toLowerCase();
-    const ref = (s.referencia || '').toLowerCase();
-    const combined = `${cat} ${desc} ${ref}`;
-    return combined.includes('HRU') || combined.includes('LIBERTADOR') ||
-      combined.includes('HYDROSTATIC') || combined.includes('HIDROSTAT') ||
-      combined.includes('HAMMAR');
-  });
+  const filteredHruStock = rawStock.filter(isHruStockItem);
   const hruStock = filteredHruStock.length > 0 ? filteredHruStock : rawStock;
 
   // Filter stock for luzes / baterias do coberto
-  const filteredLightStock = rawStock.filter((s: any) => {
-    const cat = (s.categoria || '').toUpperCase();
-    const desc = (s.descricao || '').toLowerCase();
-    const ref = (s.referencia || '').toLowerCase();
-    const combined = `${cat} ${desc} ${ref}`;
-    return combined.includes('LUZ') || combined.includes('LIGHT') ||
-      combined.includes('BATERIA') || combined.includes('BATERY') ||
-      combined.includes('BATTERY') || combined.includes('LITHIUM') ||
-      combined.includes('LITIO') || combined.includes('PILHA');
-  });
+  const filteredLightStock = rawStock.filter(isLightStockItem);
   const lightStock = filteredLightStock.length > 0 ? filteredLightStock : rawStock;
-
-  const [stockSearch, setStockSearch] = React.useState<Record<string, string>>({});
 
   const HRU_TYPE_OPTIONS = [
     'DESCARTÁVEL',
@@ -258,17 +228,6 @@ export default function Step3_Componentes() {
   const luzInteriorItem = inspectionData.checklist?.['luz_interior_bateria'] || {};
   const luzExteriorStatus = checkExpiry(luzExteriorItem.validade || '', inspectionData.dataInspecao);
   const luzInteriorStatus = checkExpiry(luzInteriorItem.validade || '', inspectionData.dataInspecao);
-
-  const searchFilteredStock = (compId: string, items: any[]) => {
-    const q = (stockSearch[compId] || '').trim().toLowerCase();
-    if (!q) return items;
-    return items.filter((s: any) =>
-      (s.referencia || '').toLowerCase().includes(q) ||
-      (s.descricao || '').toLowerCase().includes(q) ||
-      (s.codigoFabricante || '').toLowerCase().includes(q) ||
-      (s.categoria || '').toLowerCase().includes(q)
-    );
-  };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
@@ -409,63 +368,14 @@ export default function Step3_Componentes() {
 
         <div className="mt-4 space-y-1.5">
           <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Artigo de Stock (HRU)</label>
-          {hruStock.length > 0 ? (
-            <>
-              <div className="relative mb-1.5">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Search size={14} className="text-slate-400" />
-                </div>
-                <input
-                  type="text"
-                  placeholder="Procurar por referência, descrição ou stock..."
-                  value={stockSearch['hru'] || ''}
-                  onChange={(e) => setStockSearch((prev) => ({ ...prev, hru: e.target.value }))}
-                  className="w-full border-slate-200 rounded-xl pl-9 pr-3 py-2.5 bg-slate-50 focus:bg-white text-sm transition-colors"
-                />
-              </div>
-              <div className="relative">
-                {searchFilteredStock('hru', hruStock).length === 0 ? (
-                  <>
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Tag size={14} className="text-slate-400" />
-                    </div>
-                    <div className="w-full border border-amber-200 bg-amber-50 rounded-xl pl-9 pr-3 py-2.5 text-xs text-amber-800">
-                      Nenhum artigo corresponde à pesquisa &quot;{stockSearch['hru'] || ''}&quot;.
-                      <button
-                        type="button"
-                        onClick={() => setStockSearch((prev) => ({ ...prev, hru: '' }))}
-                        className="ml-1 font-semibold underline"
-                      >
-                        Limpar pesquisa
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Tag size={14} className="text-slate-400" />
-                    </div>
-                    <select
-                      value={inspectionData.hruStockId || ""}
-                      onChange={(e) => { handleHruStockSelect(e.target.value); setStockSearch((prev) => ({ ...prev, hru: '' })); }}
-                      className="w-full border-slate-200 rounded-xl pl-9 pr-3 py-2.5 bg-slate-50 focus:bg-white text-sm transition-colors"
-                    >
-                      <option value="">Selecionar HRU do armazém...</option>
-                      {searchFilteredStock('hru', hruStock).map((s: any) => (
-                        <option key={s.id} value={s.id}>
-                          {s.referencia} - {s.descricao} {s.validade ? `(Val: ${toMonthYearString(s.validade)})` : ''} {s.quantidade > 0 ? `(Qtd: ${s.quantidade})` : '(Sem Stock)'}
-                        </option>
-                      ))}
-                    </select>
-                  </>
-                )}
-              </div>
-            </>
-          ) : (
-            <div className="w-full border border-dashed border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50 text-xs text-slate-400 italic">
-              Nenhum artigo HRU disponível no stock para esta categoria
-            </div>
-          )}
+          <StockPickerSelect
+            items={hruStock}
+            value={inspectionData.hruStockId || ""}
+            onSelect={(s) => handleHruStockSelect(String(s.id))}
+            placeholder="Selecionar HRU do armazém..."
+            emptyMessage="Nenhum artigo HRU disponível no stock para esta categoria"
+            showValidade
+          />
         </div>
 
         {hruExpiryStatus === 'expired' && (
@@ -553,63 +463,14 @@ export default function Step3_Componentes() {
               ) : (<>
               <div className="space-y-1.5">
                 <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Artigo de Stock (luz/bateria)</label>
-                {lightStock.length > 0 ? (
-                  <>
-                    <div className="relative mb-1.5">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <Search size={14} className="text-slate-400" />
-                      </div>
-                      <input
-                        type="text"
-                        placeholder="Procurar por referência, descrição ou stock..."
-                        value={stockSearch[itemId] || ''}
-                        onChange={(e) => setStockSearch((prev) => ({ ...prev, [itemId]: e.target.value }))}
-                        className="w-full border-slate-200 rounded-xl pl-9 pr-3 py-2.5 bg-slate-50 focus:bg-white text-sm transition-colors"
-                      />
-                    </div>
-                    <div className="relative">
-                      {searchFilteredStock(itemId, lightStock).length === 0 ? (
-                        <>
-                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <Tag size={14} className="text-slate-400" />
-                          </div>
-                          <div className="w-full border border-amber-200 bg-amber-50 rounded-xl pl-9 pr-3 py-2.5 text-xs text-amber-800">
-                            Nenhum artigo corresponde à pesquisa &quot;{stockSearch[itemId] || ''}&quot;.
-                            <button
-                              type="button"
-                              onClick={() => setStockSearch((prev) => ({ ...prev, [itemId]: '' }))}
-                              className="ml-1 font-semibold underline"
-                            >
-                              Limpar pesquisa
-                            </button>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <Tag size={14} className="text-slate-400" />
-                          </div>
-                          <select
-                            value={item.stockId || ""}
-                            onChange={(e) => { handleLightStockSelect(itemId, e.target.value); setStockSearch((prev) => ({ ...prev, [itemId]: '' })); }}
-                            className="w-full border-slate-200 rounded-xl pl-9 pr-3 py-2.5 bg-slate-50 focus:bg-white text-sm transition-colors"
-                          >
-                            <option value="">Selecionar luz/bateria do armazém...</option>
-                            {searchFilteredStock(itemId, lightStock).map((s: any) => (
-                              <option key={s.id} value={s.id}>
-                                {s.referencia} - {s.descricao} {s.validade ? `(Val: ${toMonthYearString(s.validade)})` : ''} {s.quantidade > 0 ? `(Qtd: ${s.quantidade})` : '(Sem Stock)'}
-                              </option>
-                            ))}
-                          </select>
-                        </>
-                      )}
-                    </div>
-                  </>
-                ) : (
-                  <div className="w-full border border-dashed border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50 text-xs text-slate-400 italic">
-                    Nenhuma luz/bateria disponível no stock
-                  </div>
-                )}
+                <StockPickerSelect
+                  items={lightStock}
+                  value={item.stockId || ""}
+                  onSelect={(s) => handleLightStockSelect(itemId, String(s.id))}
+                  placeholder="Selecionar luz/bateria do armazém..."
+                  emptyMessage="Nenhuma luz/bateria disponível no stock"
+                  showValidade
+                />
               </div>
               {item.referencia && (
                 <p className="text-[11px] font-semibold text-slate-500 flex items-center gap-1.5">
@@ -713,61 +574,14 @@ export default function Step3_Componentes() {
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Referência (P/N) do Stock</label>
-                  {componentStock.length > 0 && (
-                    <div className="relative mb-1">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <Search size={14} className="text-slate-400" />
-                      </div>
-                      <input
-                        type="text"
-                        placeholder="Procurar por referência, descrição ou fabricante..."
-                        value={stockSearch[comp.id] || ''}
-                        onChange={(e) => setStockSearch((prev) => ({ ...prev, [comp.id]: e.target.value }))}
-                        className="w-full border-slate-200 rounded-xl pl-9 pr-3 py-2 bg-slate-50 focus:bg-white text-xs transition-colors placeholder:text-slate-400"
-                      />
-                    </div>
-                  )}
-                  <div className="relative">
-                    {componentStock.length === 0 ? (
-                    <div className="w-full border border-dashed border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50 text-xs text-slate-400 italic">
-                      Nenhum artigo de stock disponível para esta categoria
-                    </div>
-                    ) : searchFilteredStock(comp.id, componentStock).length === 0 ? (
-                    <>
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <Tag size={14} className="text-slate-400" />
-                      </div>
-                      <div className="w-full border border-amber-200 bg-amber-50 rounded-xl pl-9 pr-3 py-2.5 text-xs text-amber-800">
-                        Nenhum artigo corresponde à pesquisa &quot;{stockSearch[comp.id] || ''}&quot;.
-                        <button
-                          type="button"
-                          onClick={() => setStockSearch((prev) => ({ ...prev, [comp.id]: '' }))}
-                          className="ml-1 font-semibold underline"
-                        >
-                          Limpar pesquisa
-                        </button>
-                      </div>
-                    </>
-                    ) : (
-                    <>
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <Tag size={14} className="text-slate-400" />
-                      </div>
-                      <select 
-                        value={comp.stockId || ""}
-                        onChange={(e) => handleStockSelect(comp.id, e.target.value)}
-                        className="w-full border-slate-200 rounded-xl pl-9 pr-3 py-2.5 bg-slate-50 focus:bg-white text-sm transition-colors"
-                      >
-                        <option value="" disabled>Selecionar peça do armazém...</option>
-                        {searchFilteredStock(comp.id, componentStock).map((s: any) => (
-                          <option key={s.id} value={s.id}>
-                            {s.referencia} - {s.descricao} {s.quantidade > 0 ? `(Qtd: ${s.quantidade})` : '(Sem Stock)'}
-                          </option>
-                        ))}
-                      </select>
-                    </>
-                    )}
-                  </div>
+                  <StockPickerSelect
+                    items={componentStock}
+                    value={comp.stockId || ""}
+                    onSelect={(s) => handleStockSelect(comp.id, String(s.id))}
+                    placeholder="Selecionar peça do armazém..."
+                    emptyMessage="Nenhum artigo de stock disponível para esta categoria"
+                    showQuantity
+                  />
                 </div>
 
                 <div className="space-y-1.5">

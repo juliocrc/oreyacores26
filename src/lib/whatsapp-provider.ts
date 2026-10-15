@@ -1,5 +1,6 @@
 import { buildWhatsAppUrl } from "./communications";
 import { sendZapierWhatsApp, isZapierWhatsAppConfigured } from "./zapier-webhook";
+import { isInfinireachConfigured, sendInfinireachWhatsApp } from "./infinireach-sms";
 import { getAuthSession } from "@/auth";
 import { isWhatsAppAllowedEmail, WHATSAPP_ALLOWED_USER_EMAIL } from "./whatsapp-allowed";
 
@@ -37,7 +38,7 @@ function getConfig() {
 
 export function whatsappApiConfigurado(): boolean {
   const { accessToken, phoneNumberId } = getConfig();
-  return Boolean((accessToken && phoneNumberId) || isZapierWhatsAppConfigured());
+  return Boolean((accessToken && phoneNumberId) || isZapierWhatsAppConfigured() || isInfinireachConfigured());
 }
 
 export function apiUrlBase(): string {
@@ -59,12 +60,20 @@ async function enviarWhatsAppCore(
 ): Promise<WhatsAppProviderResult> {
   const link = buildWhatsAppUrl(phoneRaw, mensagem);
 
+  if (isInfinireachConfigured()) {
+    const waRes = await sendInfinireachWhatsApp(phoneRaw, mensagem);
+    if (waRes.ok) {
+      return { ok: true, enviadoDeFacto: true, link };
+    }
+    return { ok: false, erro: waRes.error || "Erro no envio WhatsApp via InfiniReach.", link };
+  }
+
   if (isZapierWhatsAppConfigured()) {
     const zapRes = await sendZapierWhatsApp(phoneRaw, mensagem);
     if (zapRes.ok) {
       return { ok: true, enviadoDeFacto: true, link };
     }
-    return { ok: false, erro: zapRes.error || "Erro no envio WhatsApp via Zapier.", link };
+    return { ok: false, erro: zapRes.error || "Error no envio WhatsApp via Zapier.", link };
   }
 
   if (!whatsappApiConfigurado()) {

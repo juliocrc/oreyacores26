@@ -38,7 +38,8 @@ import {
   Smartphone,
   ShieldCheck,
   Clock,
-  Mail
+  Mail,
+  Link2
 } from 'lucide-react';
 import { appToast } from "@/lib/app-toast";
 import { useWhatsAppAllowed, WHATSAPP_ALLOWED_USER_EMAIL } from "@/lib/use-whatsapp-allowed";
@@ -51,7 +52,7 @@ import { findMatchingArticleForPackItem, dedupeRaftArticles, isArticleNonExpirin
 import { getTestRecommendations } from '@/modules/rafts/testRules';
 import { buildWpDerivedValues, convertMbarToUnit } from '@/lib/quadro-payload';
 import { fetchOreyWeatherAt } from '@/lib/orey-weather';
-import { saveShipDocument, saveCertificateDocument, yearFromDate, toastSavedPathIfPresent } from '@/lib/ship-downloads';
+import { saveShipDocument, saveCertificateDocument, yearFromDate, toastSavedPathIfPresent, ensureFolderPermissionNow } from '@/lib/ship-downloads';
 import { raftModelData } from '@/modules/rafts/raftModelData';
 import QrLabelGeneratorDialog from '@/components/jangadas/QrLabelGeneratorDialog';
 import { toMonthInput, formatMonthPt, parseMonthEnd } from '@/lib/date-utils';
@@ -67,6 +68,8 @@ import { formatValidityDisplay, normalizeMonthYearValue } from '@/lib/date-displ
 import { fmtPeso } from '@/lib/liferaft-diagram-helpers';
 import { getContainerClosureMatchBundle } from '@/modules/rafts/containerClosureStraps';
 import DgrmIdentificationForm, { type JangadaData as DgrmJangadaData } from '@/components/shared/DgrmIdentificationForm';
+import { StockPickerSelect } from '@/components/shared/StockPicker';
+import { isVacuumBagStockItem } from '@/lib/stock-picker';
 import CertificadoExternoDialog from '@/components/jangadas/CertificadoExternoDialog';
 import EnviarCertificadoDialog from '@/components/jangadas/EnviarCertificadoDialog';
 import type { InspectionCertificateInput } from '@/lib/inspection-certificate';
@@ -331,9 +334,40 @@ interface StockItem {
   codigoFabricante?: string;
   validade?: string;
   quantidade?: number;
+  precoVenda?: number;
   categoria?: string;
   associavelJangada: boolean;
   foto?: string | null;
+}
+
+interface ClosureInstalledItem {
+  kind?: string;
+  referencia?: string | null;
+  descricao?: string;
+  quantidade?: number;
+  stockId?: number | null;
+  partNumber?: string | null;
+  unitPrice?: number;
+}
+
+function parseClosureStraps(raw: unknown): ClosureInstalledItem[] {
+  try {
+    const parsed = typeof raw === "string"
+      ? (raw.trim() ? JSON.parse(raw) : [])
+      : Array.isArray(raw)
+        ? raw
+        : [];
+    return Array.isArray(parsed) ? (parsed as ClosureInstalledItem[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function closureKindFromStock(stock: StockItem): "hru" | "cinta" | "autocolante" {
+  const hay = `${stock.referencia || ""} ${stock.descricao || ""}`.toUpperCase();
+  if (/HRU|DISPARADOR|LIBERTA/.test(hay)) return "hru";
+  if (/CINTA|STRAP|CINTAG|CORREIA|AMARRA/.test(hay)) return "cinta";
+  return "autocolante";
 }
 
 interface ApplicableServiceBulletin {
@@ -786,7 +820,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
   const [syncLoading, setSyncLoading] = useState(false);
   // "certificado" | "quadro" enquanto o ficheiro esta a ser gerado no servidor.
   // Sem isto os botoes ficam seemingly inertes durante a geracao, que demora.
-  const [aGerarDoc, setAGerarDoc] = useState<'certificado' | 'quadro' | null>(null);
+  const [aGerarDoc, setAGerarDoc] = useState<'certificado' | 'quadro' | 'carimbado' | null>(null);
   const [dgrmExporting, setDgrmExporting] = useState(false);
   const [syncResult, setSyncResult] = useState<{ success: boolean; warning?: string; summary?: { added: number; updated: number; stockLinked: number; total: number }; hasSnapshot?: boolean; details?: string; packSource?: string } | null>(null);
   const [showSyncResult, setShowSyncResult] = useState(false);
@@ -1177,6 +1211,9 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
   const [newArtigo, setNewArtigo] = useState<Partial<Artigo>>({ name: '', quantidade: 1, validade: '', referencia: '', codigoFabricante: '', stockId: undefined });
   const [isAddingArtigo, setIsAddingArtigo] = useState(false);
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
+  const [vacuumBagStockId, setVacuumBagStockId] = useState<string>('');
+  const [vacuumBagQty, setVacuumBagQty] = useState<string>('1');
+  const [closureSaving, setClosureSaving] = useState(false);
 
   useEffect(() => {
     fetchStockItems();
@@ -2058,6 +2095,56 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
     }
   };
 
+  const handleGerarCertificadoCarimbado = async () => {
+    if (aGerarDoc) return;
+    // Abrir já o separador: o popup blocker exige um gesto do utilizador, que se
+    // perde depois do primeiro await.
+    const popup = window.open('', '_blank');
+    // Pedir/validar a autorização da pasta antes do fetch (idem: a activação do
+    // utilizador expira depois da ida-e-volta à rede).
+    const permission = await ensureFolderPermissionNow();
+    setAGerarDoc('carimbado');
+    try {
+      const res = await fetch(`/api/jangadas/${jangadaId}/certificado-carimbado`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const detail = await res.text().catch(() => '');
+        throw new Error(detail || 'Falha ao gerar o certificado carimbado.');
+      }
+
+      toastSavedPathIfPresent(res, 'Certificado carimbado');
+
+      const blob = await res.blob();
+      const disposition = res.headers.get('Content-Disposition') || '';
+      const match = disposition.match(/filename="?([^";]+)"?/i);
+      const filename = (match?.[1] || `${data.serial || 'certificado'}.pdf`).trim();
+
+      if (permission === 'granted') {
+        await saveCertificateDocument({
+          year: yearFromDate(lastInspecao?.dataInspecao || data.dataInspecao),
+          filename,
+          blob,
+          quiet: true,
+        });
+        appToast.success('Certificado carimbado guardado na pasta configurada.');
+      }
+
+      const url = URL.createObjectURL(blob);
+      if (popup) {
+        popup.location.href = url;
+      } else {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (error: unknown) {
+      popup?.close();
+      alert('Erro ao gerar o certificado carimbado: ' + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      setAGerarDoc(null);
+    }
+  };
+
   // Expor as exportações ao despachante de deep-link declarado acima.
   // Atribuição intencional durante o render: o despachante só corre num timeout.
   // eslint-disable-next-line react-hooks/refs
@@ -2203,6 +2290,48 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
     } finally {
       setDgrmExporting(false);
     }
+  };
+
+  const persistClosureItems = async (items: ClosureInstalledItem[]) => {
+    setClosureSaving(true);
+    try {
+      const res = await fetch(`/api/jangadas/${jangadaId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ closureStrapsJson: JSON.stringify(items) }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error || 'Falha ao guardar artigos de fecho');
+      }
+      await fetchJangadaData();
+    } catch (e: unknown) {
+      alert('Erro: ' + (e instanceof Error ? e.message : 'desconhecido'));
+    } finally {
+      setClosureSaving(false);
+    }
+  };
+
+  const addClosureFromStock = async (stock: StockItem, qty: number) => {
+    const current = parseClosureStraps(data.closureStrapsJson);
+    const next: ClosureInstalledItem[] = [
+      ...current,
+      {
+        kind: closureKindFromStock(stock),
+        referencia: stock.referencia || `STK-${stock.id}`,
+        descricao: stock.descricao || 'Saco de vácuo',
+        quantidade: Number(qty) || 1,
+        stockId: stock.id,
+        partNumber: stock.codigoFabricante || null,
+        unitPrice: Number(stock.precoVenda) || 0,
+      },
+    ];
+    await persistClosureItems(next);
+  };
+
+  const removeClosureItem = async (index: number) => {
+    const current = parseClosureStraps(data.closureStrapsJson);
+    await persistClosureItems(current.filter((_, i) => i !== index));
   };
 
   const addStrapToStock = async (strap: { strapQuantity: number; stockReference: string; description: string; containerFamily: string; completePartNumber?: string; upperPartNumber?: string; strapPartNumber?: string; containerLabel: string }) => {
@@ -2930,6 +3059,17 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                     ? <Loader2 size={18} className="animate-spin text-emerald-600" />
                     : <FileSpreadsheet size={18} className="text-emerald-600" />}
                   {aGerarDoc === 'certificado' ? 'A gerar...' : 'Gerar Certificado Excel'}
+                </button>
+                <button
+                  onClick={handleGerarCertificadoCarimbado}
+                  disabled={aGerarDoc !== null}
+                  title={aGerarDoc === 'carimbado' ? 'A gerar o certificado carimbado...' : 'Gera o certificado PDF carimbado, guarda-o na pasta e abre-o'}
+                  className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-all shadow-sm disabled:opacity-60 disabled:cursor-progress"
+                >
+                  {aGerarDoc === 'carimbado'
+                    ? <Loader2 size={18} className="animate-spin text-violet-600" />
+                    : <FileCheck size={18} className="text-violet-600" />}
+                  {aGerarDoc === 'carimbado' ? 'A gerar...' : 'Certificado Carimbado'}
                 </button>
                 <button
                   onClick={handleExportQuadroExcel}
@@ -4512,38 +4652,18 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                 </div>
                 <div>
                   <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Saco de Vácuo
-                  </span>
-                  {isEditing ? (
-                    <select
-                      className="w-full mt-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm bg-slate-50"
-                      value={editForm.testeNAP || ''}
-                      onChange={(e) => handleEditChange('testeNAP', e.target.value)}
-                    >
-                      <option value="">Selecionar...</option>
-                      <option value="SIM">Sim</option>
-                      <option value="NAO">Não</option>
-                    </select>
-                  ) : (
-                    <p className="mt-1 font-semibold text-slate-800">
-                      {data.testeNAP || '—'}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Anilha Final Retenida
+                    Comprimento da Retenida (m)
                   </span>
                   {isEditing ? (
                     <input
                       className="w-full mt-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm bg-slate-50"
                       value={editForm.painterLength || ''}
                       onChange={(e) => handleEditChange('painterLength', e.target.value)}
-                      placeholder="Ref. anilha / thimble"
+                      placeholder="Comprimento da retenida (m)"
                     />
                   ) : (
                     <p className="mt-1 font-semibold text-slate-800">
-                      {data.painterLength || '—'}
+                      {data.painterLength ? `${data.painterLength} m` : '—'}
                     </p>
                   )}
                 </div>
@@ -4632,27 +4752,65 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
             <div className="rounded-2xl bg-white border border-slate-200 shadow-sm p-5">
               <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
                 <Package size={18} className="text-purple-500" />
-                Artigos de Fecho Aplicados (Cintas · Autocolantes · Saco · Fita)
+                Artigos de Fecho Aplicados (Cintas · Autocolantes · Saco de Vácuo · Fita)
               </h3>
+
               {(() => {
-                let rawClosure: unknown = null;
-                try {
-                  const raw = data.closureStrapsJson;
-                  if (typeof raw === "string" && raw.trim()) rawClosure = JSON.parse(raw);
-                  else if (Array.isArray(raw)) rawClosure = raw;
-                } catch {
-                  rawClosure = null;
-                }
-                const closureInstalled = Array.isArray(rawClosure)
-                  ? (rawClosure as Array<{
-                      kind?: string;
-                      referencia?: string | null;
-                      descricao?: string;
-                      quantidade?: number;
-                      stockId?: number | null;
-                      partNumber?: string | null;
-                    }>).filter((item) => Number(item.quantidade) > 0)
-                  : [];
+                const vacuumBagStock = stockItems.filter(isVacuumBagStockItem);
+                return (
+                  <div className="mb-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3">
+                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">
+                      <Link2 size={13} /> Adicionar saco de vácuo do stock
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
+                      <div className="flex-1 min-w-[220px]">
+                        <StockPickerSelect
+                          items={vacuumBagStock}
+                          value={vacuumBagStockId}
+                          onSelect={(s) => setVacuumBagStockId(String(s.id))}
+                          placeholder="Escolher saco de vácuo do stock..."
+                          emptyMessage='Nenhum saco de vácuo encontrado no stock. Adicione primeiro um artigo com "saco de vácuo" na referência ou descrição.'
+                          showQuantity
+                        />
+                      </div>
+                      {vacuumBagStock.length > 0 && (
+                        <>
+                          <input
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={vacuumBagQty}
+                            onChange={(e) => setVacuumBagQty(e.target.value)}
+                            className="w-full sm:w-20 rounded-xl border border-slate-200 px-3 py-2 bg-white text-sm text-right"
+                            aria-label="Quantidade"
+                          />
+                          <button
+                            type="button"
+                            disabled={!vacuumBagStockId || closureSaving}
+                            onClick={() => {
+                              const stock = stockItems.find((s) => s.id === Number(vacuumBagStockId));
+                              if (!stock) return;
+                              void addClosureFromStock(stock, Number(vacuumBagQty) || 1).then(() => {
+                                setVacuumBagStockId('');
+                                setVacuumBagQty('1');
+                              });
+                            }}
+                            className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                          >
+                            {closureSaving ? 'A guardar...' : '+ Adicionar'}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {(() => {
+                const closureRaw = parseClosureStraps(data.closureStrapsJson);
+                const closureInstalled = closureRaw
+                  .map((item, idx) => ({ item, idx }))
+                  .filter(({ item }) => Number(item.quantidade) > 0);
                 const stockById = new Map(stockItems.map((s) => [s.id, s]));
                 const stockByRef = new Map(
                   stockItems
@@ -4680,7 +4838,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
 
                 return (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {closureInstalled.map((item, i) => {
+                    {closureInstalled.map(({ item, idx }) => {
                       const stock =
                         (item.stockId != null && stockById.get(Number(item.stockId))) ||
                         (item.referencia
@@ -4689,7 +4847,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                       const foto = stock?.foto || null;
                       return (
                         <div
-                          key={`${item.referencia || item.kind}-${i}`}
+                          key={`${item.referencia || item.kind}-${idx}`}
                           className="flex items-center gap-3 rounded-xl border border-slate-200 p-3 bg-white"
                         >
                           {foto ? (
@@ -4719,6 +4877,15 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                               {stock?.referencia ? ` · Stock ${stock.referencia}` : ""}
                             </p>
                           </div>
+                          <button
+                            type="button"
+                            disabled={closureSaving}
+                            onClick={() => { void removeClosureItem(idx); }}
+                            className="rounded-lg border border-slate-200 text-slate-400 hover:text-red-600 hover:border-red-200 px-2 py-1 shrink-0 disabled:opacity-50"
+                            title="Remover da jangada"
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         </div>
                       );
                     })}

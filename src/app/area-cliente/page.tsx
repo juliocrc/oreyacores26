@@ -212,7 +212,7 @@ export default function AreaClientePage() {
              Inicie sessão com o seu email e código para consultar jangadas, certificados, serviços e faturas.
           </p>
           <a
-            href="/login?callbackUrl=%2Farea-cliente"
+            href="/area-cliente/login"
             className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-6 py-3 text-sm font-bold text-white transition hover:bg-indigo-700"
           >
             <LogIn size={18} /> Iniciar sessão
@@ -261,7 +261,7 @@ export default function AreaClientePage() {
             {session?.user?.email && (
               <button
                 type="button"
-                onClick={() => signOut({ callbackUrl: "/login" })}
+                onClick={() => signOut({ callbackUrl: "/area-cliente/login" })}
                 className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-600 transition hover:bg-slate-50"
               >
                 <LogOut size={16} /> Terminar sessão

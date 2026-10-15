@@ -77,7 +77,7 @@ export default function EnviarCertificadoDialog({
       const res = await fetch("/api/certificados/pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(certificate),
+        body: JSON.stringify({ ...certificate, jangadaId }),
       });
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));

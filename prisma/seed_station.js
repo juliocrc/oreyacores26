@@ -20,14 +20,14 @@ const STATION_CONFIG = {
     tecnicos: [
       { nome: 'Ricardo Silva', email: 'ricardo.silva@orey.com', password: 'orelhas', admin: true },
       { nome: 'Willian Ribeiro', email: 'willian.ribeiro@orey.com', password: 'orelhas' },
-      { nome: 'Jorge Pinheiro', email: 'jorge.pinheiro@orey.com', password: 'orelhas' },
       { nome: 'Cristiano Gomes', email: 'cristiano.gomes@orey.com', password: 'orelhas' },
+      { nome: 'Henrique Cardoso', email: 'henrique.cardoso@orey.com', password: 'orelhas' },
     ],
     contactosInternos: [
       { categoria: 'Colaborador', empresa: 'Orey', localizacao: 'Aveleda', nome: 'Ricardo Silva', email: 'ricardo.silva@orey.com', telemovel: '912345001' },
       { categoria: 'Colaborador', empresa: 'Orey', localizacao: 'Aveleda', nome: 'Willian Ribeiro', email: 'willian.ribeiro@orey.com', telemovel: '912345002' },
-      { categoria: 'Colaborador', empresa: 'Orey', localizacao: 'Aveleda', nome: 'Jorge Pinheiro', email: 'jorge.pinheiro@orey.com', telemovel: '912345003' },
       { categoria: 'Colaborador', empresa: 'Orey', localizacao: 'Aveleda', nome: 'Cristiano Gomes', email: 'cristiano.gomes@orey.com', telemovel: '912345004' },
+      { categoria: 'Colaborador', empresa: 'Orey', localizacao: 'Aveleda', nome: 'Henrique Cardoso', email: 'henrique.cardoso@orey.com', telemovel: '912345005' },
     ],
     clientes: [
       { nome: 'Pesca Norte Lda', nif: '501234567', email: 'geral@pescanorte.pt', telmovel: '912345001', localidade: 'Póvoa de Varzim', tipoCliente: 'armador' },
@@ -61,7 +61,6 @@ const STATION_CONFIG = {
     regiaoOperacional: 'SUL',
     presets: { name: 'Orey Técnica Algarve - Alcantarilha', slug: 'oreyalgarve' },
     tecnicos: [
-      { nome: 'Manuel Silva', email: 'manuel.silva@orey.com', password: 'orelhas' },
       { nome: 'Alvaro Silva', email: 'alvaro.silva@orey.com', password: 'orelhas', admin: true },
       { nome: 'João Silvestre', email: 'joao.silvestre@orey.com', password: 'orelhas', admin: true },
     ],

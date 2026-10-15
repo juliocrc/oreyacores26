@@ -158,7 +158,7 @@ function StockPageContent() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const storedMode = window.localStorage.getItem("stockViewMode");
-    if (storedMode === "lista" || storedMode === "quadros" || storedMode === "detalhes") {
+    if (storedMode === "lista" || storedMode === "quadros" || storedMode === "detalhes" || storedMode === "matriz") {
       setViewMode(storedMode);
     }
   }, []);
@@ -2803,6 +2803,7 @@ Limpar todos os filtros
           {([
             { key: "quadros", label: "Quadros" },
             { key: "lista", label: "Lista" },
+            { key: "matriz", label: "Matriz" },
             { key: "detalhes", label: "Detalhes" }
           ] as const).map((mode) => (
             <button
@@ -2814,7 +2815,7 @@ Limpar todos os filtros
               {mode.label}
             </button>
           ))}
-          {viewMode !== "lista" && (
+          {viewMode !== "lista" && viewMode !== "matriz" && (
             <>
               <button
                 type="button"
@@ -3124,6 +3125,119 @@ Limpar todos os filtros
               </div>
             )}
           </div>
+        ) : viewMode === "matriz" ? (
+          (() => {
+            const items = itensFiltrados;
+            const estadoOf = (item: ItemStock) => (item.estadoArtigo || "Sem estado").trim() || "Sem estado";
+            const categoriaOf = (item: ItemStock) => (item.categoria || "Sem categoria").trim() || "Sem categoria";
+            const estados = Array.from(new Set(items.map(estadoOf))).sort((a, b) => a.localeCompare(b, "pt"));
+            const categorias = Array.from(new Set(items.map(categoriaOf))).sort((a, b) => a.localeCompare(b, "pt"));
+            const currency = new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" });
+            type MatrixCell = { count: number; qty: number; value: number };
+            const matrix = new Map<string, MatrixCell>();
+            for (const item of items) {
+              const cellKey = `${categoriaOf(item)}\u0000${estadoOf(item)}`;
+              const cell = matrix.get(cellKey) || { count: 0, qty: 0, value: 0 };
+              cell.count += 1;
+              cell.qty += Number(item.quantidade ?? 0);
+              cell.value += Number(item.quantidade ?? 0) * Number(item.precoVenda ?? 0);
+              matrix.set(cellKey, cell);
+            }
+            if (items.length === 0) {
+              return (
+                <div className="border border-dashed border-gray-300 rounded-lg bg-gray-50 p-6 text-center text-sm text-gray-500">
+                  Nenhum item de stock encontrado.
+                </div>
+              );
+            }
+            const totalQty = items.reduce((acc, item) => acc + Number(item.quantidade ?? 0), 0);
+            const totalValue = items.reduce((acc, item) => acc + Number(item.quantidade ?? 0) * Number(item.precoVenda ?? 0), 0);
+            return (
+              <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-900">Matriz categoria × estado</h3>
+                    <p className="text-xs text-gray-600">Visão compacta da distribuição do stock. Cada célula mostra artigos / unidades / valor.</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-[11px]">
+                    <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 font-semibold text-emerald-800">{totalQty} un.</span>
+                    <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-700">{currency.format(totalValue)}</span>
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full border-collapse text-xs">
+                    <thead>
+                      <tr>
+                        <th className="sticky left-0 z-10 border border-slate-200 bg-slate-100 px-3 py-2 text-left font-bold text-slate-700">Categoria</th>
+                        {estados.map((estado) => (
+                          <th key={estado} className="border border-slate-200 bg-slate-100 px-3 py-2 text-center font-bold text-slate-700">{estado}</th>
+                        ))}
+                        <th className="border border-slate-200 bg-slate-200 px-3 py-2 text-center font-bold text-slate-800">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {categorias.map((categoria) => {
+                        let rowQty = 0;
+                        let rowValue = 0;
+                        return (
+                          <tr key={categoria} className="odd:bg-white even:bg-slate-50/60">
+                            <td className="sticky left-0 z-10 border border-slate-200 bg-inherit px-3 py-2 font-semibold text-slate-800">{categoria}</td>
+                            {estados.map((estado) => {
+                              const cell = matrix.get(`${categoria}\u0000${estado}`);
+                              if (cell) {
+                                rowQty += cell.qty;
+                                rowValue += cell.value;
+                              }
+                              return (
+                                <td key={estado} className={`border border-slate-200 px-3 py-2 text-center ${cell ? "text-slate-800" : "text-slate-300"}`}>
+                                  {cell ? (
+                                    <span className="inline-flex flex-col leading-tight">
+                                      <span className="font-bold">{cell.count}</span>
+                                      <span className="text-[10px] text-slate-500">{cell.qty} un · {currency.format(cell.value)}</span>
+                                    </span>
+                                  ) : "—"}
+                                </td>
+                              );
+                            })}
+                            <td className="border border-slate-200 bg-slate-50 px-3 py-2 text-center font-bold text-slate-800">
+                              <span className="inline-flex flex-col leading-tight">
+                                <span>{rowQty} un</span>
+                                <span className="text-[10px] font-semibold text-slate-500">{currency.format(rowValue)}</span>
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <td className="sticky left-0 z-10 border border-slate-200 bg-slate-200 px-3 py-2 font-bold text-slate-800">Total</td>
+                        {estados.map((estado) => {
+                          const colItems = items.filter((item) => estadoOf(item) === estado);
+                          const colQty = colItems.reduce((acc, item) => acc + Number(item.quantidade ?? 0), 0);
+                          const colValue = colItems.reduce((acc, item) => acc + Number(item.quantidade ?? 0) * Number(item.precoVenda ?? 0), 0);
+                          return (
+                            <td key={estado} className="border border-slate-200 bg-slate-100 px-3 py-2 text-center font-bold text-slate-800">
+                              <span className="inline-flex flex-col leading-tight">
+                                <span>{colItems.length}</span>
+                                <span className="text-[10px] font-semibold text-slate-500">{colQty} un · {currency.format(colValue)}</span>
+                              </span>
+                            </td>
+                          );
+                        })}
+                        <td className="border border-slate-200 bg-slate-300 px-3 py-2 text-center font-bold text-slate-900">
+                          <span className="inline-flex flex-col leading-tight">
+                            <span>{items.length}</span>
+                            <span className="text-[10px] font-semibold text-slate-600">{totalQty} un · {currency.format(totalValue)}</span>
+                          </span>
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </section>
+            );
+          })()
         ) : (
           <div className="space-y-5">
             {stockPrioritySections.map((section) => (

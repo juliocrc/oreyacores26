@@ -223,7 +223,7 @@ function mergeIfPossible(worksheet: ExcelJS.Worksheet, range: string) {
   }
 }
 
-function applyCertificateMerges(worksheet: ExcelJS.Worksheet) {
+export function applyCertificateMerges(worksheet: ExcelJS.Worksheet) {
   // Requested fixed merges in generated Excel certificate.
   mergeIfPossible(worksheet, 'C41:D41');
   mergeIfPossible(worksheet, 'C43:D43');
@@ -312,7 +312,7 @@ function isThrowOverRaft(input: OreyCertificateTemplateInput) {
   });
 }
 
-function fillTemplate(worksheet: ExcelJS.Worksheet, input: OreyCertificateTemplateInput) {
+export function fillTemplate(worksheet: ExcelJS.Worksheet, input: OreyCertificateTemplateInput) {
   const checklist = input.checklist || {};
   const statusYesNo = asYesNoOrNA(input.status && !String(input.status).toLowerCase().includes('pend'));
   const napTestYesNo = asYesNoOrNA((checklist as Record<string, unknown>).teste_nap ?? (checklist as Record<string, unknown>).teste_wp ?? statusYesNo, 'NO');

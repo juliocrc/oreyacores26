@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logAuditoria } from "@/lib/auditoria";
+import { resolveContactoStationCode } from "@/lib/contactos-internos-stations";
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest) {
     const { 
       CONTACTOS_INTERNOS_PDF_SOURCE, 
       DEFAULT_CONTACTOS_INTERNOS_PDF_PATH, 
-      loadContactosInternosFromPdf 
+      loadContactosInternosFromPdf,
     } = await import("@/lib/contactos-internos-import");
     
     type ImportedContactoInterno = {
@@ -52,6 +53,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Liga cada contacto à estação correta a partir da localização do PDF.
+    const stationCodes = Array.from(
+      new Set(
+        contactos
+          .map((contacto: ImportedContactoInterno) => resolveContactoStationCode(contacto.localizacao))
+          .filter((code: string | null): code is string => Boolean(code))
+      )
+    );
+    const stations = stationCodes.length
+      ? await prisma.serviceStation.findMany({
+          where: { codigo: { in: stationCodes } },
+          select: { id: true, codigo: true },
+        })
+      : [];
+    const stationIdByCode = new Map(stations.map((station) => [station.codigo, station.id]));
+
     const importedIds = await prisma.$transaction(async (tx) => {
       const contactoInternoModel = (tx as unknown as { contactoInterno: ContactoInternoTransactionalDelegate }).contactoInterno;
 
@@ -60,12 +77,14 @@ export async function POST(req: NextRequest) {
       }
 
       const created = await Promise.all(
-        contactos.map((contacto: ImportedContactoInterno) =>
-          contactoInternoModel.create({
-            data: contacto,
+        contactos.map((contacto: ImportedContactoInterno) => {
+          const stationCode = resolveContactoStationCode(contacto.localizacao);
+          const serviceStationId = stationCode ? stationIdByCode.get(stationCode) ?? null : null;
+          return contactoInternoModel.create({
+            data: { ...contacto, serviceStationId },
             select: { id: true },
-          })
-        )
+          });
+        })
       );
 
       return created.map((item: { id: number }) => item.id);

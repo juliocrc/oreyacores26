@@ -27,6 +27,8 @@ type Jangada = {
   ultimoCertificadoNumero: string | null;
   certificadoPdfUrl: string | null;
   certificadoPdfPublicUrl?: string | null;
+  hruReferencia?: string | null;
+  hruValidade?: string | null;
   workflowStatus?: WorkflowStatus;
 };
 
@@ -128,6 +130,7 @@ export default function ClienteJangadasPanel({ navios, jangadas }: { navios: Nav
                         <p className="mt-1 text-xs text-slate-500">
                           Capacidade: {j.capacity} · {j.navioNome || "—"}
                           {j.ultimoCertificadoNumero && <span className="ml-2">· Cert: {j.ultimoCertificadoNumero}</span>}
+                          {j.hruReferencia && <span className="ml-2">· HRU Ref: {j.hruReferencia} {j.hruValidade ? `(Val: ${new Date(j.hruValidade).toLocaleDateString("pt-PT")})` : ""}</span>}
                         </p>
                       </div>
                       <span className={`rounded-full border px-3 py-1 text-xs font-bold ${STATE_STYLE[gs.state] || STATE_STYLE.SEM_ESTADO}`}>

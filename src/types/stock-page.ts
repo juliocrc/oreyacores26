@@ -24,7 +24,7 @@ export type ItemStock = {
   tiposPackAssociados?: string[];
 };
 
-export type ViewMode = "quadros" | "lista" | "detalhes";
+export type ViewMode = "quadros" | "lista" | "detalhes" | "matriz";
 
 export type MonthlyNeed = {
   month: string;

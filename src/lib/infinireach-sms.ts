@@ -15,12 +15,13 @@ export function isInfinireachConfigured(): boolean {
   return Boolean(infinireachKey() && infinireachFrom());
 }
 
-export async function sendInfinireachSms(
+export async function sendInfinireachMessage(
   phoneRaw: string,
   message: string,
+  channel: "sms" | "whatsapp" = "sms",
 ): Promise<{ ok: boolean; error?: string }> {
   if (!isInfinireachConfigured()) {
-    return { ok: false, error: "SMS não configurado. Faltam INFINIREACH_API_KEY / INFINIREACH_FROM." };
+    return { ok: false, error: "InfiniReach não configurado. Faltam INFINIREACH_API_KEY / INFINIREACH_FROM." };
   }
 
   const phone = normalizeE164(phoneRaw);
@@ -34,16 +35,16 @@ export async function sendInfinireachSms(
   try {
     const response = await fetch(`${BASE_URL}/api/v1/messages`, {
       method: "POST",
-headers: {
-          "Content-Type": "application/json",
-          "X-API-Key": infinireachKey(),
-        },
-        body: JSON.stringify({
-          to: phone,
-          message,
-          from: infinireachFrom(),
-        channel: "sms",
-        externalId: `orey-${Date.now()}`,
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-Key": infinireachKey(),
+      },
+      body: JSON.stringify({
+        to: phone,
+        message,
+        from: infinireachFrom(),
+        channel,
+        externalId: `orey-${channel}-${Date.now()}`,
       }),
     });
 
@@ -53,12 +54,26 @@ headers: {
         data && typeof data === "object" && "message" in data
           ? String((data as { message?: unknown }).message || "")
           : "";
-      console.error("[infinireach-sms] Falhou:", response.status, errorDetail);
-      return { ok: false, error: `Falha ao enviar SMS (${response.status}).` };
+      console.error(`[infinireach-${channel}] Falhou:`, response.status, errorDetail);
+      return { ok: false, error: `Falha ao enviar ${channel.toUpperCase()} (${response.status}).` };
     }
     return { ok: true };
   } catch (error) {
-    console.error("[infinireach-sms] Erro:", error);
-    return { ok: false, error: "Erro de rede ao enviar SMS." };
+    console.error(`[infinireach-${channel}] Erro:`, error);
+    return { ok: false, error: `Erro de rede ao enviar ${channel.toUpperCase()}.` };
   }
+}
+
+export async function sendInfinireachSms(
+  phoneRaw: string,
+  message: string,
+): Promise<{ ok: boolean; error?: string }> {
+  return sendInfinireachMessage(phoneRaw, message, "sms");
+}
+
+export async function sendInfinireachWhatsApp(
+  phoneRaw: string,
+  message: string,
+): Promise<{ ok: boolean; error?: string }> {
+  return sendInfinireachMessage(phoneRaw, message, "whatsapp");
 }

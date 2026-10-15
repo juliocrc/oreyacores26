@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getAccessContext } from "@/lib/access-control";
-import { buildCertificatePdfBuffer, certificatePdfFileName } from "@/lib/certificate-pdf";
-import { buildInspectionCertificateInput } from "@/lib/certificate-input-from-jangada";
-import { withCertificateVerification } from "@/lib/certificate-verification";
+import { buildCarimbadoCertificatePdf } from "@/lib/certificate-carimbado-pdf";
 import { syncEmittedDocumentToOneDrive } from "@/lib/onedrive-sync";
 import { logAuditoria } from "@/lib/auditoria";
 
@@ -33,8 +31,11 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
       select: {
         id: true,
         nome: true,
+        bandeira: true,
+        imo: true,
+        callSignal: true,
         cliente: { select: { nome: true } },
-        serviceStation: { select: { codigo: true } },
+        serviceStation: { select: { codigo: true, nome: true } },
       },
     });
     if (!navio) return NextResponse.json({ error: "Navio não encontrado." }, { status: 404 });
@@ -53,7 +54,7 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
     }
 
     const shipName = navio.nome || "";
-    const stampStationCode = navio.serviceStation?.codigo || null;
+    const station = navio.serviceStation || null;
     const seen = new Set<string>();
     const files: Array<{ filename: string; base64: string }> = [];
 
@@ -64,18 +65,16 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
         include: { artigos: true },
       });
 
-      const input = await withCertificateVerification(
-        buildInspectionCertificateInput({
-          jangada,
-          lastInspecao,
-          shipName,
-          ownerName: navio.cliente?.nome || jangada.owner || "",
-          stampStationCode,
-        }),
-      );
+      const { buffer, fileName: baseFileName } = await buildCarimbadoCertificatePdf({
+        jangada,
+        lastInspecao,
+        ship: navio,
+        shipName,
+        ownerName: navio.cliente?.nome || jangada.owner || "",
+        station,
+      });
 
-      const buffer = buildCertificatePdfBuffer(input);
-      let filename = certificatePdfFileName(input);
+      let filename = baseFileName;
       if (seen.has(filename)) {
         const serial = String(jangada.serial || jangada.id).replace(/[^\w.-]+/g, "-");
         filename = filename.replace(/\.pdf$/i, ` (${serial}).pdf`);

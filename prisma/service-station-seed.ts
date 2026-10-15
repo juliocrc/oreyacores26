@@ -174,11 +174,11 @@ export async function seedServiceStations(prisma: PrismaClient) {
 
   // Fallback technicians to guarantee each station has employees
   const fallbackTechs = [
-    { nome: "João Ferreira", email: "joao.ferreira@orey.com", stationCode: "AVELEDA" },
-    { nome: "Rui Costa", email: "rui.costa@orey.com", stationCode: "AVELEDA" },
+    { nome: "Cristiano Gomes", email: "cristiano.gomes@orey.com", stationCode: "AVELEDA" },
+    { nome: "Willian Ribeiro", email: "willian.ribeiro@orey.com", stationCode: "AVELEDA" },
+    { nome: "Henrique Cardoso", email: "henrique.cardoso@orey.com", stationCode: "AVELEDA" },
     { nome: "Julio Correia", email: "julio.correia@orey.com", stationCode: "ACORES" },
     { nome: "Alex Santos", email: "alex.santos@orey.com", stationCode: "ACORES" },
-    { nome: "Manuel Silva", email: "manuel.silva@orey.com", stationCode: "ALCATARILHA" },
   ];
 
   for (const t of fallbackTechs) {

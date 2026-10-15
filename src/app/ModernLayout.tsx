@@ -69,6 +69,13 @@ type LoginAlertEvent = {
   lastPath?: string;
 };
 
+type StationOption = {
+  id: number;
+  codigo: string | null;
+  nome: string;
+  localizacao?: string | null;
+};
+
 const navSections: NavSection[] = [
   {
     label: 'Operação',
@@ -236,6 +243,11 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
   const [accountAnchorEl, setAccountAnchorEl] = React.useState<null | HTMLElement>(null);
   const [activeStationCode, setActiveStationCode] = React.useState<string | null>(null);
+  const [stationOptions, setStationOptions] = React.useState<StationOption[]>([]);
+  const [activeStationId, setActiveStationId] = React.useState<number | null>(null);
+  const [canSelectStation, setCanSelectStation] = React.useState(false);
+  const [canViewAllStations, setCanViewAllStations] = React.useState(false);
+  const [savingStation, setSavingStation] = React.useState(false);
   const [assistenciaPendentes, setAssistenciaPendentes] = React.useState(0);
   const [loginAlertsQueue, setLoginAlertsQueue] = React.useState<LoginAlertEvent[]>([]);
   const [appToastQueue, setAppToastQueue] = React.useState<AppToastPayload[]>([]);
@@ -266,7 +278,7 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
     }
   }, []);
 
-  const isLoginPage = pathname === '/login';
+  const isLoginPage = pathname === '/login' || pathname === '/area-cliente/login';
   const isAreaClientePage = pathname === '/area-cliente';
   const isStandalonePage =
     isLoginPage || isAreaClientePage || pathname.startsWith('/estado-jangada');
@@ -373,16 +385,48 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
       .then(payload => {
         if (!active) return;
         setActiveStationCode(payload?.activeStation?.codigo || null);
+        setActiveStationId(typeof payload?.activeStationId === 'number' ? payload.activeStationId : null);
+        setStationOptions(Array.isArray(payload?.availableStations) ? payload.availableStations : []);
+        setCanSelectStation(Boolean(payload?.canSelectStation));
+        setCanViewAllStations(Boolean(payload?.canViewAllStations));
       })
       .catch(() => {
         if (!active) return;
         setActiveStationCode(null);
+        setActiveStationId(null);
+        setStationOptions([]);
+        setCanSelectStation(false);
+        setCanViewAllStations(false);
       });
 
     return () => {
       active = false;
     };
   }, [mounted, user]);
+
+  const handleSelectStation = React.useCallback(
+    async (stationId: number | null) => {
+      setSavingStation(true);
+      try {
+        const response = await fetch('/api/active-service-station', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stationId }),
+        });
+        if (response.ok) {
+          const payload = await response.json().catch(() => null);
+          setActiveStationId(payload?.activeStationId ?? stationId);
+          setActiveStationCode(payload?.activeStation?.codigo || null);
+          router.refresh();
+        }
+      } catch {
+        // Silently keep the previous station if the switch fails.
+      } finally {
+        setSavingStation(false);
+      }
+    },
+    [router],
+  );
 
   React.useEffect(() => {
     if (!mounted || !userIsAdmin) return;
@@ -876,6 +920,42 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
           {!isStandalonePage && canRenderInteractiveHeader ? <WorkModeToggle /> : null}
           {!isStandalonePage && canRenderInteractiveHeader ? <OfflineSyncButton /> : null}
           {!isStandalonePage && canRenderInteractiveHeader ? <GlobalSearch showTrigger /> : null}
+          {!isStandalonePage && canRenderInteractiveHeader && canSelectStation && stationOptions.length > 0 ? (
+            <FormControl
+              size="small"
+              sx={{
+                minWidth: 190,
+                mr: 1.5,
+                display: { xs: 'none', lg: 'block' },
+                '& .MuiOutlinedInput-root': {
+                  color: '#fff',
+                  borderRadius: 999,
+                  '& fieldset': { borderColor: 'rgba(255,255,255,0.4)' },
+                  '&:hover fieldset': { borderColor: 'rgba(255,255,255,0.65)' },
+                  '&.Mui-focused fieldset': { borderColor: '#fff' },
+                },
+                '& .MuiSvgIcon-root': { color: '#fff' },
+              }}
+            >
+              <Select
+                native
+                value={activeStationId ?? ''}
+                disabled={savingStation}
+                onChange={event => {
+                  const value = String(event.target.value);
+                  void handleSelectStation(value === '' ? null : Number(value));
+                }}
+                inputProps={{ 'aria-label': 'Selecionar estação de serviço' }}
+              >
+                {canViewAllStations ? <option value="">Visão global (todas as estações)</option> : null}
+                {stationOptions.map(station => (
+                  <option key={station.id} value={station.id}>
+                    {station.nome}
+                  </option>
+                ))}
+              </Select>
+            </FormControl>
+          ) : null}
           {!isStandalonePage && canRenderInteractiveHeader ? (
             <FormControl
               size="small"
