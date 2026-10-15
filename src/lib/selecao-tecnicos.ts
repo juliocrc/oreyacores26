@@ -1,6 +1,15 @@
 import prisma from "@/lib/prisma";
 import { APP_CONFIG } from "@/lib/app-config";
 import { normalizeEmail } from "@/lib/auth";
+import { buildVisibleServiceStationWhere } from "@/lib/service-station-visibility";
+
+export type EstacaoSelecionavel = {
+  id: number;
+  codigo: string;
+  nome: string;
+  localizacao: string | null;
+  empresa: string | null;
+};
 
 export type TecnicoSelecionavel = {
   /** Id do técnico — é este que vai no formulário. */
@@ -46,6 +55,19 @@ function lerRosterPermitido(): Set<string> {
  *
  * A estação configurada aparece primeiro para o arranque do dia-a-dia.
  */
+/**
+ * Estações de serviço onde é possível iniciar sessão. Na multi-estacão (tema
+ * `deluxe`) são todas as estações activas visíveis; caso contrário apenas a
+ * estação configurada.
+ */
+export async function listarEstacoesSelecionaveis(): Promise<EstacaoSelecionavel[]> {
+  return prisma.serviceStation.findMany({
+    where: buildVisibleServiceStationWhere({ ativo: true }),
+    orderBy: [{ nome: "asc" }],
+    select: { id: true, codigo: true, nome: true, localizacao: true, empresa: true },
+  });
+}
+
 export async function listarTecnicosSelecionaveis(): Promise<TecnicoSelecionavel[]> {
   const [tecnicos, estacoes, users] = await Promise.all([
     prisma.tecnico.findMany({

@@ -2,9 +2,12 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { Anchor } from "lucide-react";
-import prisma from "@/lib/prisma";
 import { APP_CONFIG } from "@/lib/app-config";
-import { listarTecnicosSelecionaveis } from "@/lib/selecao-tecnicos";
+import {
+  listarEstacoesSelecionaveis,
+  listarTecnicosSelecionaveis,
+  type EstacaoSelecionavel,
+} from "@/lib/selecao-tecnicos";
 import { getAuthSession } from "@/auth";
 import { SelecionarTecnicoForm } from "./SelecionarTecnicoForm";
 
@@ -37,16 +40,13 @@ export default async function SelecionarTecnicoPage({
     redirect(destino);
   }
 
-  let estacao: { id: number; codigo: string; nome: string } | null = null;
+  let estacoes: EstacaoSelecionavel[] = [];
   let databaseError: string | null = null;
 
   try {
-    estacao = await prisma.serviceStation.findFirst({
-      where: { codigo: APP_CONFIG.defaultServiceStationCode, ativo: true },
-      select: { id: true, codigo: true, nome: true },
-    });
+    estacoes = await listarEstacoesSelecionaveis();
   } catch (error) {
-    console.error("Failed to load the default service station when rendering technician selector.", error);
+    console.error("Failed to load the selectable service stations when rendering technician selector.", error);
     databaseError = "A base de dados não está disponível neste momento.";
   }
 
@@ -61,6 +61,21 @@ export default async function SelecionarTecnicoPage({
     databaseError ??= "Não foi possível carregar a lista de técnicos.";
   }
 
+  // Estação pré-selecionada: a estação configurada, desde que tenha técnicos;
+  // caso contrário a primeira estação com técnicos (para o ecrã nunca abrir
+  // vazio). Se não houver técnicos em lado nenhum, mantém a estação configurada.
+  const estacoesComTecnicos = new Set(
+    disponiveis
+      .map((tecnico) => tecnico.estacaoId)
+      .filter((id): id is number => typeof id === "number"),
+  );
+  const estacaoConfigurada =
+    estacoes.find((e) => e.codigo === APP_CONFIG.defaultServiceStationCode) ?? estacoes[0] ?? null;
+  const estacaoInicial =
+    (estacaoConfigurada && estacoesComTecnicos.has(estacaoConfigurada.id)
+      ? estacaoConfigurada
+      : estacoes.find((e) => estacoesComTecnicos.has(e.id)) ?? estacaoConfigurada) ?? null;
+
   return (
     <main className="flex min-h-screen items-center justify-center px-4 py-10 sm:py-16">
       {/* Halo suave por trás do cartão */}
@@ -73,7 +88,7 @@ export default async function SelecionarTecnicoPage({
         <header className="mb-8 text-center">
           <span className="ds-badge ds-badge-sea mb-5 inline-flex">
             <Anchor size={13} aria-hidden />
-            {estacao ? estacao.nome : APP_CONFIG.defaultServiceStationCode}
+            {APP_CONFIG.name}
           </span>
 
           <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
@@ -106,7 +121,12 @@ export default async function SelecionarTecnicoPage({
           </div>
         ) : (
           <Suspense fallback={<div className="ds-skeleton h-14" />}>
-            <SelecionarTecnicoForm tecnicos={disponiveis} callbackUrl={destino} />
+            <SelecionarTecnicoForm
+              tecnicos={disponiveis}
+              estacoes={estacoes}
+              estacaoInicialId={estacaoInicial?.id ?? null}
+              callbackUrl={destino}
+            />
           </Suspense>
         )}
 

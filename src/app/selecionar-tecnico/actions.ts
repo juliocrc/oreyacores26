@@ -28,6 +28,8 @@ export async function selecionarTecnico(
 ): Promise<SelecaoState> {
   const tecnicoIdRaw = String(formData.get("tecnicoId") ?? "").trim();
   const password = String(formData.get("password") ?? "");
+  const stationIdRaw = String(formData.get("stationId") ?? "").trim();
+  const stationIdEscolhida = Number.parseInt(stationIdRaw, 10);
 
   const tecnicoId = Number.parseInt(tecnicoIdRaw, 10);
   if (!Number.isInteger(tecnicoId) || tecnicoId <= 0) {
@@ -93,9 +95,20 @@ export async function selecionarTecnico(
       httpOnly: false,
     });
 
-    // A estação segue a pessoa: não há selector de estação no arranque.
-    if (tecnico.serviceStationId) {
-      cookieStore.set(ACTIVE_SERVICE_STATION_COOKIE, String(tecnico.serviceStationId), {
+    // A estação ativa é a escolhida no login; quando não há escolha (ex.: "Todas
+    // as estações"), recai na estação a que o técnico pertence. A multi-estacão
+    // já permite trocar de estação mais tarde, em `estacao-servico`.
+    let estacaoAtivaId = tecnico.serviceStationId ?? null;
+    if (Number.isInteger(stationIdEscolhida) && stationIdEscolhida > 0) {
+      const estacao = await prisma.serviceStation.findFirst({
+        where: { id: stationIdEscolhida, ativo: true },
+        select: { id: true },
+      });
+      if (estacao) estacaoAtivaId = estacao.id;
+    }
+
+    if (estacaoAtivaId) {
+      cookieStore.set(ACTIVE_SERVICE_STATION_COOKIE, String(estacaoAtivaId), {
         path: "/",
         sameSite: "lax",
         httpOnly: false,

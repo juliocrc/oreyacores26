@@ -13,6 +13,7 @@ jest.mock("@/lib/prisma", () => ({
   default: {
     tecnico: { findFirst: jest.fn() },
     user: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
+    serviceStation: { findFirst: jest.fn() },
   },
 }));
 
@@ -61,6 +62,59 @@ describe("selecionarTecnico", () => {
       redirect: false,
     }));
     expect(cookieStore.set).toHaveBeenCalledWith("orey_app_open", "1", expect.objectContaining({ path: "/" }));
+  });
+
+  test("usa a estação escolhida no login em vez da estação do técnico", async () => {
+    const cookieStore = { set: jest.fn() };
+    const { cookies } = await import("next/headers");
+    (cookies as jest.Mock).mockResolvedValue(cookieStore);
+
+    (prisma.tecnico.findFirst as jest.Mock).mockResolvedValue({
+      id: 7,
+      nome: "Julio Correia",
+      email: "julio.correia@orey.com",
+      serviceStationId: 12,
+    });
+    (prisma.serviceStation.findFirst as jest.Mock).mockResolvedValue({ id: 55 });
+    (prisma.user.findFirst as jest.Mock).mockResolvedValue({ id: 99 });
+    (prisma.user.update as jest.Mock).mockResolvedValue({ id: 99 });
+    (signIn as jest.Mock).mockResolvedValue(undefined);
+
+    const formData = new FormData();
+    formData.set("tecnicoId", "7");
+    formData.set("password", "segredo");
+    formData.set("stationId", "55");
+
+    await expect(selecionarTecnico({}, formData)).resolves.toEqual({ ok: true });
+    expect(prisma.serviceStation.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 55, ativo: true } }),
+    );
+    expect(cookieStore.set).toHaveBeenCalledWith("active_station_id", "55", expect.objectContaining({ path: "/" }));
+  });
+
+  test("recai na estação do técnico quando a estação escolhida é inválida", async () => {
+    const cookieStore = { set: jest.fn() };
+    const { cookies } = await import("next/headers");
+    (cookies as jest.Mock).mockResolvedValue(cookieStore);
+
+    (prisma.tecnico.findFirst as jest.Mock).mockResolvedValue({
+      id: 7,
+      nome: "Julio Correia",
+      email: "julio.correia@orey.com",
+      serviceStationId: 12,
+    });
+    (prisma.serviceStation.findFirst as jest.Mock).mockResolvedValue(null);
+    (prisma.user.findFirst as jest.Mock).mockResolvedValue({ id: 99 });
+    (prisma.user.update as jest.Mock).mockResolvedValue({ id: 99 });
+    (signIn as jest.Mock).mockResolvedValue(undefined);
+
+    const formData = new FormData();
+    formData.set("tecnicoId", "7");
+    formData.set("password", "segredo");
+    formData.set("stationId", "999");
+
+    await expect(selecionarTecnico({}, formData)).resolves.toEqual({ ok: true });
+    expect(cookieStore.set).toHaveBeenCalledWith("active_station_id", "12", expect.objectContaining({ path: "/" }));
   });
 
   test("devolve erro quando falta a palavra-passe", async () => {

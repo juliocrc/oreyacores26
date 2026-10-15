@@ -4,7 +4,7 @@ import * as React from "react";
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { ArrowRight, Loader2, MapPin } from "lucide-react";
 import { selecionarTecnico, type SelecaoState } from "./actions";
 
 type Tecnico = {
@@ -12,7 +12,18 @@ type Tecnico = {
   nome: string;
   email: string;
   estacao: string | null;
+  estacaoId: number | null;
 };
+
+type Estacao = {
+  id: number;
+  codigo: string;
+  nome: string;
+  localizacao: string | null;
+  empresa: string | null;
+};
+
+type EstacaoEscolhida = number | "todas";
 
 function subscribeNoop() {
   return () => undefined;
@@ -101,14 +112,19 @@ function Botao({ nome, email, estacao, tecnicoId, pronto, showPassword, onSelect
 
 export function SelecionarTecnicoForm({
   tecnicos,
+  estacoes,
+  estacaoInicialId,
   callbackUrl,
 }: {
   tecnicos: Tecnico[];
+  estacoes: Estacao[];
+  estacaoInicialId: number | null;
   callbackUrl: string;
 }) {
   const [estado, formAction] = useActionState<SelecaoState, FormData>(selecionarTecnico, {});
   const router = useRouter();
   const [selectedId, setSelectedId] = React.useState<number | null>(null);
+  const [estacaoId, setEstacaoId] = React.useState<EstacaoEscolhida>(estacaoInicialId ?? "todas");
 
   const hidratado = React.useSyncExternalStore(
     subscribeNoop,
@@ -122,19 +138,79 @@ export function SelecionarTecnicoForm({
     router.refresh();
   }, [estado.ok, callbackUrl, router]);
 
+  const visiveis = React.useMemo(
+    () => (estacaoId === "todas" ? tecnicos : tecnicos.filter((t) => t.estacaoId === estacaoId)),
+    [estacaoId, tecnicos],
+  );
+
+  const escolherEstacao = (id: EstacaoEscolhida) => {
+    setEstacaoId(id);
+    setSelectedId(null);
+  };
+
   return (
     <form action={formAction} className="flex flex-col gap-3">
       <input type="hidden" name="callbackUrl" value={callbackUrl} />
+      <input type="hidden" name="stationId" value={estacaoId === "todas" ? "" : String(estacaoId)} />
 
-      {tecnicos.map((tecnico) => (
-        <Botao
-          key={tecnico.tecnicoId}
-          {...tecnico}
-          pronto={hidratado}
-          showPassword={selectedId === tecnico.tecnicoId}
-          onSelect={(id) => setSelectedId(id)}
-        />
-      ))}
+      {estacoes.length > 0 ? (
+        <div className="mb-1">
+          <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink-subtle">
+            <MapPin size={13} aria-hidden />
+            Estação de serviço
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {estacoes.map((estacao) => {
+              const ativa = estacaoId === estacao.id;
+              return (
+                <button
+                  key={estacao.id}
+                  type="button"
+                  onClick={() => escolherEstacao(estacao.id)}
+                  aria-pressed={ativa}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    ativa
+                      ? "border-brand bg-brand text-white"
+                      : "border-line bg-surface text-ink-muted hover:border-brand-line hover:text-ink"
+                  }`}
+                >
+                  {estacao.codigo ? `${estacao.codigo} · ${estacao.nome}` : estacao.nome}
+                </button>
+              );
+            })}
+            {estacoes.length > 1 ? (
+              <button
+                type="button"
+                onClick={() => escolherEstacao("todas")}
+                aria-pressed={estacaoId === "todas"}
+                className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  estacaoId === "todas"
+                    ? "border-brand bg-brand text-white"
+                    : "border-line bg-surface text-ink-muted hover:border-brand-line hover:text-ink"
+                }`}
+              >
+                Todas
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {visiveis.length === 0 ? (
+        <p className="rounded-2xl border border-line bg-surface px-4 py-6 text-center text-sm text-ink-muted">
+          Sem técnicos nesta estação. Escolhe outra estação ou &quot;Todas&quot;.
+        </p>
+      ) : (
+        visiveis.map((tecnico) => (
+          <Botao
+            key={tecnico.tecnicoId}
+            {...tecnico}
+            pronto={hidratado}
+            showPassword={selectedId === tecnico.tecnicoId}
+            onSelect={(id) => setSelectedId(id)}
+          />
+        ))
+      )}
 
       {estado.erro ? (
         <p
