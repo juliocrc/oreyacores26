@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Anchor, Ship, Calendar, Plus, Search, MapPin, Clock, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Anchor, Ship, Calendar, Plus, Search, MapPin, Clock, Loader2, CheckCircle2, RefreshCw } from "lucide-react";
 import { formatDate } from "@/lib/date-utils";
 
 type Escala = {
@@ -36,6 +36,7 @@ export default function PortoPontaDelgadaPage() {
     observacoes: "",
   });
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   const fetchEscalas = async () => {
@@ -56,6 +57,22 @@ export default function PortoPontaDelgadaPage() {
   useEffect(() => {
     fetchEscalas();
   }, []);
+
+  const handleSync = async () => {
+    setSyncing(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/porto-ponta-delgada/sync", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro ao sincronizar.");
+      setEscalas(data.escalas || []);
+      setMessage(`Sincronização concluída! ${data.sincronizados} novas escalas de contentores adicionadas.`);
+    } catch (err: any) {
+      setMessage(err.message || "Erro na sincronização.");
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,6 +109,10 @@ export default function PortoPontaDelgadaPage() {
     }
   };
 
+  const atracadosCount = escalas.filter((e) => e.estado === "Atracado").length;
+  const previstosCount = escalas.filter((e) => e.estado === "Previsto").length;
+  const partidosCount = escalas.filter((e) => e.estado === "Partido").length;
+
   const filtered = escalas.filter((e) =>
     [e.navioNome, e.armador, e.cais, e.origemDestino, e.tipoCarga]
       .some((v) => String(v || "").toLowerCase().includes(search.toLowerCase()))
@@ -100,7 +121,7 @@ export default function PortoPontaDelgadaPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-sky-50 via-slate-50 to-indigo-50 p-4 sm:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
-        <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-3xl border border-slate-200/60 bg-white p-6 sm:p-8 shadow-sm">
+        <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 rounded-3xl border border-slate-200/60 bg-white p-6 sm:p-8 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="bg-sky-600 text-white rounded-2xl p-3 shadow-md shadow-sky-600/20">
               <Anchor size={28} />
@@ -108,15 +129,24 @@ export default function PortoPontaDelgadaPage() {
             <div>
               <p className="text-xs font-extrabold uppercase tracking-widest text-sky-600">Orey Açores · Portuário</p>
               <h1 className="text-2xl sm:text-3xl font-black text-slate-800">Porto de Ponta Delgada</h1>
-              <p className="text-sm text-slate-500 mt-0.5">Gestão de escalas, atracação, movimentos e operação marítima na Ilha de São Miguel.</p>
+              <p className="text-sm text-slate-500 mt-0.5">Gestão de entradas, partidas e navios em porto na Ilha de São Miguel.</p>
             </div>
           </div>
-          <button
-            onClick={() => setShowModal(true)}
-            className="inline-flex items-center gap-2 rounded-xl bg-sky-600 px-5 py-3 text-sm font-bold text-white shadow-md shadow-sky-600/20 transition hover:bg-sky-700"
-          >
-            <Plus size={18} /> Nova Escala
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={handleSync}
+              disabled={syncing}
+              className="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-bold text-sky-700 transition hover:bg-sky-100 disabled:opacity-50"
+            >
+              <RefreshCw size={16} className={syncing ? "animate-spin" : ""} /> {syncing ? "A sincronizar..." : "Sincronizar Contentores"}
+            </button>
+            <button
+              onClick={() => setShowModal(true)}
+              className="inline-flex items-center gap-2 rounded-xl bg-sky-600 px-5 py-3 text-sm font-bold text-white shadow-md shadow-sky-600/20 transition hover:bg-sky-700"
+            >
+              <Plus size={18} /> Nova Escala
+            </button>
+          </div>
         </header>
 
         {message && (
@@ -125,6 +155,24 @@ export default function PortoPontaDelgadaPage() {
             <span>{message}</span>
           </div>
         )}
+
+        <section className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-5 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">Navios em Porto (Atracados)</p>
+            <p className="mt-2 text-3xl font-black text-emerald-950">{atracadosCount}</p>
+            <p className="mt-1 text-xs font-semibold text-emerald-600">embarcações no cais</p>
+          </div>
+          <div className="rounded-2xl border border-sky-100 bg-sky-50 p-5 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-wide text-sky-700">Entradas Previstas</p>
+            <p className="mt-2 text-3xl font-black text-sky-950">{previstosCount}</p>
+            <p className="mt-1 text-xs font-semibold text-sky-600">escalas agendadas</p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Partidas Realizadas</p>
+            <p className="mt-2 text-3xl font-black text-slate-800">{partidosCount}</p>
+            <p className="mt-1 text-xs font-semibold text-slate-500">concluídas</p>
+          </div>
+        </section>
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
           <div className="relative flex-1 max-w-md">
@@ -150,7 +198,7 @@ export default function PortoPontaDelgadaPage() {
           <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-12 text-center text-slate-500">
             <Ship size={40} className="mx-auto text-slate-300 mb-3" />
             <p className="font-bold text-slate-700">Nenhuma escala registada</p>
-            <p className="text-xs text-slate-400 mt-1">Adicione uma nova escala para o Porto de Ponta Delgada.</p>
+            <p className="text-xs text-slate-400 mt-1">Adicione uma nova escala ou clique em "Sincronizar Contentores".</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -179,6 +227,11 @@ export default function PortoPontaDelgadaPage() {
                 {e.origemDestino && (
                   <p className="text-[11px] font-semibold text-sky-700 bg-sky-50 rounded-lg px-2.5 py-1.5">
                     Rota: {e.origemDestino}
+                  </p>
+                )}
+                {e.observacoes && (
+                  <p className="text-[11px] text-slate-500 italic">
+                    {e.observacoes}
                   </p>
                 )}
               </div>
@@ -239,7 +292,7 @@ export default function PortoPontaDelgadaPage() {
               </div>
               <label className="text-xs font-semibold text-slate-600 flex flex-col gap-1">
                 Origem / Destino (Rota)
-                <input type="text" value={form.origemDestino} onChange={(e) => setForm({ ...form, origedDestino: e.target.value } as any)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="Ex: Lisboa - Ponta Delgada - Leixões" />
+                <input type="text" value={form.origemDestino} onChange={(e) => setForm({ ...form, origemDestino: e.target.value })} className="rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="Ex: Lisboa - Ponta Delgada - Leixões" />
               </label>
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
                 <button type="button" onClick={() => setShowModal(false)} className="rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100">Cancelar</button>
