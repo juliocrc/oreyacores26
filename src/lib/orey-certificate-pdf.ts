@@ -70,7 +70,9 @@ export async function buildOreyCertificatePdfBuffer(
   // No certificado carimbado o nome da estação consta já no carimbo oficial,
   // pelo que a célula G48 (SERVICE_STATION_NAME) é omitida apenas nesta versão PDF.
   if (isImageDataUrl(options.stamp?.imageDataUrl)) {
-    worksheet.getCell("G48").value = null;
+    ["G48", "H48", "I48", "J48", "K48", "L48", "G49", "H49", "I49", "J49"].forEach((addr) => {
+      worksheet.getCell(addr).value = null;
+    });
   }
 
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
