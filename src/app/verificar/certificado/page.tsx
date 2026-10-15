@@ -1,7 +1,6 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 type VerifyCertificate = {
@@ -119,11 +118,7 @@ function VerificarCertificadoContent() {
         </>
       ) : null}
 
-      <div className="text-center">
-        <Link href="/" className="text-sm text-slate-500 hover:text-slate-800">
-          Voltar ao início
-        </Link>
-      </div>
+
     </main>
   );
 }

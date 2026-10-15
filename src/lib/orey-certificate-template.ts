@@ -327,13 +327,16 @@ export function fillTemplate(worksheet: ExcelJS.Worksheet, input: OreyCertificat
     asString((checklist as Record<string, unknown>).cilindro_co2) ||
     asString((checklist as Record<string, unknown>).ref_cilindro_co2);
 
+  const cleanBrand = asString(input.brand).replace(/\bRFD\b/gi, "").trim();
+  const cleanModel = asString(input.raftModel).replace(/\bRFD\b/gi, "").trim();
+
   setText(worksheet.getCell('K3'), input.certNumber);
   setText(worksheet.getCell('I5'), '');
   setText(worksheet.getCell('K4'), '');
-  setText(worksheet.getCell('C3'), input.brand);
+  setText(worksheet.getCell('C3'), cleanBrand);
 
   // Identification row — green cells
-  setText(worksheet.getCell('C13'), combineBrandAndModel(input.brand, input.raftModel));
+  setText(worksheet.getCell('C13'), combineBrandAndModel(cleanBrand, cleanModel));
   setText(worksheet.getCell('G13'), input.raftCapacity);
   setText(worksheet.getCell('I13'), input.raftSerial);
   setText(worksheet.getCell('K13'), formatMonthYearSlash(input.manufactureDate));

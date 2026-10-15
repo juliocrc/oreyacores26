@@ -90,20 +90,6 @@ export async function buildOreyCertificatePdfBuffer(
     } catch {
       // Carimbo é opcional: nunca deve impedir a geração.
     }
-
-    if (stationName) {
-      // Nome da estação em texto real, colado por cima do carimbo, com o mesmo
-      // tamanho das letras do certificado.
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(9);
-      doc.setTextColor(0, 0, 0);
-      const lines = doc.splitTextToSize(stationName, Math.max(10, width * 0.94));
-      const lineHeight = 9 * (25.4 / 72) * 1.1;
-      const startY = y + height / 2 - ((lines.length - 1) * lineHeight) / 2 + lineHeight * 0.35;
-      lines.forEach((line: string, index: number) => {
-        doc.text(line, x + width / 2, startY + index * lineHeight, { align: "center" });
-      });
-    }
   } else if (stationName) {
     // Sem imagem de carimbo: ainda assim inscreve o nome da estação.
     doc.setFont("helvetica", "bold");
@@ -112,14 +98,13 @@ export async function buildOreyCertificatePdfBuffer(
     doc.text(stationName, stampRegion.x + stampRegion.w / 2, stampRegion.y + stampRegion.h / 2, { align: "center" });
   }
 
-  // QR + hash de verificação no canto inferior direito (lado direito do rodapé).
+  // QR + hash de verificação no canto superior direito (fora de qualquer texto ou rodapé).
   const qr = options.verification?.qr;
   const hash = String(options.verification?.hash ?? "").trim();
   if (isImageDataUrl(qr)) {
-    const qrRegion = layout.cellRect(72, 10, 76, 12);
-    const qrSize = Math.max(8, Math.min(qrRegion.w, qrRegion.h) * 0.85);
-    const qrX = qrRegion.x + qrRegion.w - qrSize;
-    const qrY = qrRegion.y + Math.max(0, (qrRegion.h - qrSize) / 2);
+    const qrX = 172;
+    const qrY = 8;
+    const qrSize = 16;
     try {
       doc.addImage(qr, "PNG", qrX, qrY, qrSize, qrSize);
       doc.setFont("helvetica", "normal");
