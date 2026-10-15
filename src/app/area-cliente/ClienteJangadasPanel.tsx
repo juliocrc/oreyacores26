@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Anchor, Check, Clock, Copy, FileCheck2, Ship } from "lucide-react";
+import { formatDate, formatDateTime } from "@/lib/date-utils";
 
 type WorkflowStatus = {
   state: "SEM_ESTADO" | "RECEIONADA" | "EM_INSPECAO" | "FINALIZADA" | "OUTRO";
@@ -33,17 +34,6 @@ type Jangada = {
 };
 
 type Navio = { id: number; nome: string; matricula?: string; ilha?: string; tipoPesca?: string };
-
-function formatDate(value?: string | null) {
-  if (!value) return null;
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return null;
-  try {
-    return new Intl.DateTimeFormat("pt-PT", { dateStyle: "short", timeStyle: "short" }).format(d);
-  } catch {
-    return d.toLocaleString("pt-PT");
-  }
-}
 
 function determineGlobalState(j: Jangada) {
   const wf = j.workflowStatus?.state;
@@ -119,7 +109,7 @@ export default function ClienteJangadasPanel({ navios, jangadas }: { navios: Nav
             <div className="space-y-3">
               {group.items.map((j) => {
                 const gs = determineGlobalState(j);
-                const wfDataHora = formatDate(gs.dataHora || j.workflowStatus?.dataHora);
+                const wfDataHora = gs.dataHora || j.workflowStatus?.dataHora ? formatDateTime(gs.dataHora || j.workflowStatus?.dataHora) : null;
                 return (
                   <div key={j.id} className="rounded-2xl border border-slate-200 p-4 sm:p-5 transition hover:border-indigo-300 hover:bg-slate-50/40">
                     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -129,8 +119,7 @@ export default function ClienteJangadasPanel({ navios, jangadas }: { navios: Nav
                         </p>
                         <p className="mt-1 text-xs text-slate-500">
                           Capacidade: {j.capacity} · {j.navioNome || "—"}
-                          {j.ultimoCertificadoNumero && <span className="ml-2">· Cert: {j.ultimoCertificadoNumero}</span>}
-                          {j.hruReferencia && <span className="ml-2">· HRU Ref: {j.hruReferencia} {j.hruValidade ? `(Val: ${new Date(j.hruValidade).toLocaleDateString("pt-PT")})` : ""}</span>}
+                          {j.hruReferencia && <span className="ml-2">· HRU Ref: {j.hruReferencia} {j.hruValidade ? `(Val: ${formatDate(j.hruValidade)})` : ""}</span>}
                         </p>
                       </div>
                       <span className={`rounded-full border px-3 py-1 text-xs font-bold ${STATE_STYLE[gs.state] || STATE_STYLE.SEM_ESTADO}`}>
@@ -146,13 +135,13 @@ export default function ClienteJangadasPanel({ navios, jangadas }: { navios: Nav
                         <p className="flex items-center gap-1 text-xs font-bold text-slate-500">
                           <FileCheck2 size={12} /> Inspeção (última)
                         </p>
-                        <p className="mt-1 text-sm font-semibold text-slate-800">{formatDate(j.dataInspecao) || "—"}</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-800">{formatDate(j.dataInspecao)}</p>
                       </div>
                       <div className="rounded-xl bg-slate-50 p-3">
                         <p className="flex items-center gap-1 text-xs font-bold text-slate-500">
                           <Clock size={12} /> Próxima inspeção
                         </p>
-                        <p className="mt-1 text-sm font-semibold text-slate-800">{formatDate(j.dataProxInspecao) || "—"}</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-800">{formatDate(j.dataProxInspecao)}</p>
                         {j.diasParaProxima !== null && j.diasParaProxima !== undefined && (
                           <p className="text-[11px] text-slate-500 mt-0.5">
                             {j.diasParaProxima < 0 ? `há ${Math.abs(j.diasParaProxima)} dias` : j.diasParaProxima === 0 ? "hoje" : `em ${j.diasParaProxima} dias`}
