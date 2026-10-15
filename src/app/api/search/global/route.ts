@@ -12,277 +12,122 @@ function compactLabel(parts: Array<string | null | undefined>) {
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const q = url.searchParams.get("q")?.trim() || "";
+  const qLower = q.toLowerCase();
 
-  if (q.length < 2) return NextResponse.json([]);
+  if (qLower.length < 2) return NextResponse.json([]);
 
   try {
     const access = await getAccessContext();
     if (!access) return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
 
-    const [jangadas, navios, clientes, coletes, epirbs, fatosImersao, artigos, faturas, ordensServico, inspecoes, certificadosExtraidos, certificadosFatos] = await Promise.all([
-      prisma.jangada.findMany({
-        where: {
-          OR: [
-            { serial: { contains: q } },
-            { brand: { contains: q } },
-            { model: { contains: q } },
-            { shipNameManual: { contains: q } },
-            { owner: { contains: q } },
-            { ultimoCertificadoNumero: { contains: q } },
-            { certificadoExternoNumero: { contains: q } },
-            { certificadoNumeroOriginal: { contains: q } },
-          ]
-        },
-        take: 6,
-        orderBy: { updatedAt: 'desc' },
-      }),
-      prisma.navio.findMany({
-        where: {
-          OR: [
-            { nome: { contains: q } },
-            { matricula: { contains: q } },
-            { mmsi: { contains: q } },
-            { imo: { contains: q } },
-            { callSignal: { contains: q } },
-          ],
-        },
-        take: 6,
-        orderBy: { nome: 'asc' },
-      }),
-      prisma.cliente.findMany({
-        where: {
-          OR: [
-            { nome: { contains: q } },
-            { numeroCliente: { contains: q } },
-            { nif: { contains: q } },
-            { email: { contains: q } },
-          ],
-        },
-        take: 6,
-        orderBy: { nome: 'asc' },
-      }),
-      prisma.colete.findMany({
-        where: {
-          OR: [
-            { serial: { contains: q } },
-            { marca: { contains: q } },
-            { modelo: { contains: q } },
-            { estado: { contains: q } },
-          ],
-        },
-        take: 6,
-        orderBy: { updatedAt: 'desc' },
-      }),
-      prisma.epirb.findMany({
-        where: {
-          OR: [
-            { serial: { contains: q } },
-            { marca: { contains: q } },
-            { modelo: { contains: q } },
-            { hexId: { contains: q } },
-            { estado: { contains: q } },
-          ],
-        },
-        take: 6,
-        orderBy: { updatedAt: 'desc' },
-      }),
-      prisma.fatoImersao.findMany({
-        where: {
-          OR: [
-            { serial: { contains: q } },
-            { marca: { contains: q } },
-            { modelo: { contains: q } },
-            { designNo: { contains: q } },
-            { estado: { contains: q } },
-          ],
-        },
-        take: 6,
-        orderBy: { updatedAt: 'desc' },
-      }),
-      prisma.stock.findMany({
-        where: {
-          OR: [
-            { referencia: { contains: q } },
-            { descricao: { contains: q } },
-            { codigoBarras: { contains: q } },
-            { categoria: { contains: q } },
-            { codigoFabricante: { contains: q } },
-          ],
-        },
-        select: {
-          id: true,
-          referencia: true,
-          descricao: true,
-          categoria: true,
-          precoVenda: true,
-          serviceStation: { select: { nome: true } },
-        },
-        take: 6,
-        orderBy: { updatedAt: 'desc' },
-      }),
-      prisma.fatura.findMany({
-        where: {
-          cancelada: false,
-          OR: [
-            { numeroFatura: { contains: q } },
-            { cliente: { nome: { contains: q } } },
-            { pagamentoStatus: { contains: q } },
-          ],
-        },
-        select: {
-          id: true,
-          numeroFatura: true,
-          valorTotal: true,
-          pagamentoStatus: true,
-          dataEmissao: true,
-          cliente: { select: { nome: true, numeroCliente: true } },
-        },
-        take: 6,
-        orderBy: { dataEmissao: 'desc' },
-      }),
-      prisma.ordemServico.findMany({
-        where: {
-          OR: [
-            { numeroOrdem: { contains: q } },
-            { tecnicoResponsavel: { contains: q } },
-            { descricao: { contains: q } },
-            { status: { contains: q } },
-          ],
-        },
-        select: {
-          id: true,
-          numeroOrdem: true,
-          status: true,
-          jangada: {
-            select: {
-              serial: true,
-            },
-          },
-        },
-        take: 6,
-        orderBy: { updatedAt: 'desc' },
-      }),
-      prisma.inspecao.findMany({
-        where: {
-          certificadoNumero: { contains: q },
-        },
-        select: {
-          id: true,
-          certificadoNumero: true,
-          jangadaId: true,
-          jangadaSerial: true,
-          navioNome: true,
-          status: true,
-        },
-        take: 10,
-        orderBy: { dataInspecao: 'desc' },
-      }),
-      prisma.certificadoExtraido.findMany({
-        where: {
-          OR: [
-            { certificadoNumero: { contains: q } },
-            { fileName: { contains: q } },
-            { raftSerial: { contains: q } },
-          ],
-        },
-        select: {
-          id: true,
-          certificadoNumero: true,
-          fileName: true,
-          raftSerial: true,
-          shipName: true,
-          jangada: { select: { id: true } },
-        },
-        take: 8,
-        orderBy: { updatedAt: 'desc' },
-      }),
-      prisma.certificadoFatoImersao.findMany({
-        where: { numeroCertificado: { contains: q } },
-        select: {
-          id: true,
-          numeroCertificado: true,
-          fatoImersao: { select: { id: true, serial: true } },
-        },
-        take: 6,
-        orderBy: { dataCertificado: 'desc' },
-      }),
+    const [jangadas, navios, clientes, coletes, epirbs, fatosImersao, stockItems, faturas, ordensServico] = await Promise.all([
+      prisma.jangada.findMany({ take: 100, orderBy: { updatedAt: 'desc' } }),
+      prisma.navio.findMany({ take: 100, orderBy: { nome: 'asc' } }),
+      prisma.cliente.findMany({ take: 100, orderBy: { nome: 'asc' } }),
+      prisma.colete.findMany({ take: 100, orderBy: { updatedAt: 'desc' } }),
+      prisma.epirb.findMany({ take: 100, orderBy: { updatedAt: 'desc' } }),
+      prisma.fatoImersao.findMany({ take: 100, orderBy: { updatedAt: 'desc' } }),
+      prisma.stock.findMany({ take: 100, orderBy: { updatedAt: 'desc' } }),
+      prisma.fatura.findMany({ take: 100, orderBy: { dataEmissao: 'desc' }, include: { cliente: { select: { nome: true, numeroCliente: true } } } }),
+      prisma.ordemServico.findMany({ take: 100, orderBy: { updatedAt: 'desc' }, include: { jangada: { select: { serial: true } } } }),
     ]);
 
+    const filteredJangadas = jangadas.filter((j) =>
+      [j.serial, j.brand, j.model, j.shipNameManual, j.owner, j.ultimoCertificadoNumero, j.certificadoExternoNumero]
+        .some((val) => String(val || "").toLowerCase().includes(qLower))
+    ).slice(0, 6);
+
+    const filteredNavios = navios.filter((n) =>
+      [n.nome, n.matricula, n.mmsi, n.imo, n.callSignal, n.portoRegisto]
+        .some((val) => String(val || "").toLowerCase().includes(qLower))
+    ).slice(0, 6);
+
+    const filteredClientes = clientes.filter((c) =>
+      [c.nome, c.numeroCliente, c.nif, c.email, c.telefone]
+        .some((val) => String(val || "").toLowerCase().includes(qLower))
+    ).slice(0, 6);
+
+    const filteredColete = coletes.filter((c) =>
+      [c.serial, c.marca, c.modelo, c.estado]
+        .some((val) => String(val || "").toLowerCase().includes(qLower))
+    ).slice(0, 6);
+
+    const filteredEpirb = epirbs.filter((e) =>
+      [e.serial, e.marca, e.modelo, e.hexId, e.estado]
+        .some((val) => String(val || "").toLowerCase().includes(qLower))
+    ).slice(0, 6);
+
+    const filteredFatos = fatosImersao.filter((f) =>
+      [f.serial, f.marca, f.modelo, f.designNo, f.estado]
+        .some((val) => String(val || "").toLowerCase().includes(qLower))
+    ).slice(0, 6);
+
+    const filteredStock = stockItems.filter((s) =>
+      [s.referencia, s.descricao, s.codigoBarras, s.categoria, s.codigoFabricante]
+        .some((val) => String(val || "").toLowerCase().includes(qLower))
+    ).slice(0, 6);
+
+    const filteredFaturas = faturas.filter((f) =>
+      [f.numeroFatura, f.cliente?.nome, f.pagamentoStatus]
+        .some((val) => String(val || "").toLowerCase().includes(qLower))
+    ).slice(0, 6);
+
+    const filteredOs = ordensServico.filter((o) =>
+      [o.numeroOrdem, o.tecnicoResponsavel, o.descricao, o.status]
+        .some((val) => String(val || "").toLowerCase().includes(qLower))
+    ).slice(0, 6);
+
     const results = [
-      ...jangadas.map((j) => ({
+      ...filteredJangadas.map((j) => ({
         type: "Jangada",
         label: compactLabel([j.serial, [j.brand, j.model].filter(Boolean).join(" ")]),
         href: `/jangadas/${j.id}`,
       })),
-      ...navios.map((n) => ({
+      ...filteredNavios.map((n) => ({
         type: "Navio",
         label: compactLabel([n.nome, n.matricula, n.portoRegisto]),
         href: `/navios/${n.id}`,
       })),
-      ...clientes.map((c) => ({
+      ...filteredClientes.map((c) => ({
         type: "Cliente",
-        label: compactLabel([c.nome, c.numeroCliente, c.ilha]),
+        label: compactLabel([c.nome, c.numeroCliente ? `Cód. ${c.numeroCliente}` : null, c.nif ? `NIF ${c.nif}` : null]),
         href: `/clientes/${c.id}`,
       })),
-      ...coletes.map((c) => ({
-        type: "Colete",
+      ...filteredColete.map((c) => ({
+        type: "Equipamento",
         label: compactLabel([c.serial, [c.marca, c.modelo].filter(Boolean).join(" "), c.estado]),
-        href: `/equipamentos/${c.id}`,
+        href: `/coletes/${c.id}`,
       })),
-      ...epirbs.map((e) => ({
+      ...filteredEpirb.map((e) => ({
         type: "EPIRB",
         label: compactLabel([e.serial, [e.marca, e.modelo].filter(Boolean).join(" "), e.hexId]),
         href: `/epirbs/${e.id}`,
       })),
-      ...fatosImersao.map((f) => ({
-        type: "Fato Imersão",
-        label: compactLabel([f.serial, [f.marca, f.modelo].filter(Boolean).join(" "), f.estado]),
+      ...filteredFatos.map((f) => ({
+        type: "Fato de Imersão",
+        label: compactLabel([f.serial, [f.marca, f.modelo].filter(Boolean).join(" ")]),
         href: `/fatos-imersao/${f.id}`,
       })),
-      ...artigos.map((a: any) => ({
-        type: "Artigo",
-        label: compactLabel([a.referencia, a.descricao, a.categoria, a.serviceStation?.nome]),
-        href: `/stock/${a.id}`,
+      ...filteredStock.map((s) => ({
+        type: "Stock",
+        label: compactLabel([s.referencia, s.descricao, s.categoria]),
+        href: `/stock/${s.id}`,
       })),
-      ...faturas.map((f) => ({
+      ...filteredFaturas.map((f) => ({
         type: "Fatura",
-        label: compactLabel([f.numeroFatura, f.cliente?.nome, f.cliente?.numeroCliente, `€ ${Number(f.valorTotal || 0).toFixed(2)}`, f.pagamentoStatus]),
-        href: `/faturacao`,
+        label: compactLabel([f.numeroFatura, f.cliente?.nome, `€ ${Number(f.valorTotal || 0).toFixed(2)}`, f.pagamentoStatus]),
+        href: `/faturas`,
       })),
-      ...ordensServico.map((os: any) => ({
+      ...filteredOs.map((o) => ({
         type: "Ordem de Serviço",
-        label: compactLabel([os.numeroOrdem, os.jangada?.serial ? `Jangada ${os.jangada.serial}` : null, os.status]),
-        href: `/ordens-servico/${os.id}`,
-      })),
-      ...inspecoes.map((inspection) => ({
-        type: "Certificado",
-        label: compactLabel([
-          inspection.certificadoNumero,
-          inspection.jangadaSerial ? `Jangada ${inspection.jangadaSerial}` : null,
-          inspection.navioNome,
-        ]),
-        href: inspection.jangadaId ? `/jangadas/${inspection.jangadaId}` : `/inspecoes`,
-      })),
-      ...certificadosExtraidos.map((c) => ({
-        type: "Certificado Externo",
-        label: compactLabel([
-          c.certificadoNumero || c.fileName,
-          c.raftSerial ? `Jangada ${c.raftSerial}` : null,
-          c.shipName,
-        ]),
-        href: c.jangada?.id ? `/jangadas/${c.jangada.id}` : `/certificados-organizados`,
-      })),
-      ...certificadosFatos.map((c) => ({
-        type: "Certificado Fato",
-        label: compactLabel([c.numeroCertificado, c.fatoImersao?.serial ? `Fato ${c.fatoImersao.serial}` : null]),
-        href: c.fatoImersao?.id ? `/fatos-imersao/${c.fatoImersao.id}` : `/fatos-imersao`,
+        label: compactLabel([o.numeroOrdem ? `OS ${o.numeroOrdem}` : null, o.jangada?.serial ? `Jangada ${o.jangada.serial}` : null, o.status]),
+        href: `/ordens-servico/${o.id}`,
       })),
     ];
 
-    // Remove duplicates or clean up results
     return NextResponse.json(results);
-  } catch (error) {
-    console.error("Erro na pesquisa global", error);
-    return NextResponse.json({ error: "Falha ao pesquisar" }, { status: 500 });
+  } catch (err: any) {
+    console.error("[GET /api/search/global]", err);
+    return NextResponse.json({ error: err?.message || "Erro na pesquisa global." }, { status: 500 });
   }
 }
