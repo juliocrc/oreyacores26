@@ -74,7 +74,14 @@ export async function buildOreyCertificatePdfBuffer(
   }
 
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-  const layout = renderWorksheetToPdf(doc, worksheet, workbook, { pageWidthMm: 210, pageHeightMm: 297, maxScale: 1 });
+  const layout = renderWorksheetToPdf(doc, worksheet, workbook, {
+    pageWidthMm: 210,
+    pageHeightMm: 297,
+    maxScale: 1,
+    // Logótipo OREY no cabeçalho: largura fixa de 45 mm, proporção original
+    // (sem o esticar à caixa ancorada do template, que o achatava para ~6:1 -> 4.3:1).
+    logoWidthMm: 45,
+  });
 
   // Carimbo oficial na área "For authorized servicing station" (colunas I..L, linhas ~63..69).
   const stampImage = options.stamp?.imageDataUrl;
@@ -104,20 +111,27 @@ export async function buildOreyCertificatePdfBuffer(
     doc.text(stationName, stampRegion.x + stampRegion.w / 2, stampRegion.y + stampRegion.h / 2, { align: "center" });
   }
 
-  // QR + hash de verificação no canto superior direito (fora de qualquer texto ou rodapé).
+  // QR + hash de verificação: colocado acima do rótulo "Flag of Ship:" (coluna A,
+  // linhas 54..58), dimensionado para caber nessa zona sem sobrepor o texto SOLAS
+  // (que começa na coluna B) nem o bloco dos dados do navio em baixo.
   const qr = options.verification?.qr;
   const hash = String(options.verification?.hash ?? "").trim();
   if (isImageDataUrl(qr)) {
-    const qrX = 172;
-    const qrY = 8;
-    const qrSize = 16;
+    const qrRegion = layout.cellRect(54, 1, 58, 1);
+    const side = Math.min(qrRegion.w, qrRegion.h);
+    const qrX = qrRegion.x;
+    const qrY = qrRegion.y + qrRegion.h - side;
     try {
-      doc.addImage(qr, "PNG", qrX, qrY, qrSize, qrSize);
+      doc.addImage(qr, "PNG", qrX, qrY, side, side);
+
+      const noteRegion = layout.cellRect(57, 2, 58, 12);
+      const noteX = qrX + side + 1.5;
+      const noteCenterY = noteRegion.y + noteRegion.h / 2;
       doc.setFont("helvetica", "normal");
       doc.setFontSize(5);
       doc.setTextColor(90, 90, 90);
-      doc.text("Verificar autenticidade", qrX - 1, qrY + 3, { align: "right" });
-      if (hash) doc.text(`Hash: ${hash}`, qrX - 1, qrY + 6, { align: "right" });
+      doc.text("Verificar autenticidade", noteX, noteCenterY - 0.8, { align: "left" });
+      if (hash) doc.text(`Hash: ${hash}`, noteX, noteCenterY + 1.8, { align: "left" });
       doc.setTextColor(0, 0, 0);
     } catch {
       // QR opcional.

@@ -43,6 +43,8 @@ export type RenderWorksheetOptions = {
   logoDataUrl?: string | null;
   /** Não desenhar o logótipo do template. */
   skipLogo?: boolean;
+  /** Largura fixa (mm, página) do logótipo; mantém a proporção original e a posição ancorada. */
+  logoWidthMm?: number | null;
 };
 
 type MergeBounds = { top: number; left: number; bottom: number; right: number };
@@ -315,7 +317,13 @@ export function renderWorksheetToPdf(
 
       let width: number;
       let height: number;
-      if (range.br) {
+      const fixedLogoWidth = options.logoWidthMm;
+      if (typeof fixedLogoWidth === "number" && fixedLogoWidth > 0) {
+        const size = imageSizeFromDataUrl(dataUrl) || { width: 120, height: 60 };
+        const aspect = size.width > 0 ? size.height / size.width : 0.5;
+        width = fixedLogoWidth;
+        height = width * aspect;
+      } else if (range.br) {
         const brCol = (range.br.nativeCol ?? 0) + 1;
         const brRow = (range.br.nativeRow ?? 0) + 1;
         const br = layout.cellRect(brCol, brRow, brCol, brRow);

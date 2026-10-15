@@ -333,7 +333,7 @@ export function fillTemplate(worksheet: ExcelJS.Worksheet, input: OreyCertificat
   setText(worksheet.getCell('K3'), input.certNumber);
   setText(worksheet.getCell('I5'), '');
   setText(worksheet.getCell('K4'), '');
-  setText(worksheet.getCell('C3'), cleanBrand);
+  setText(worksheet.getCell('C3'), '');
 
   // Identification row — green cells
   setText(worksheet.getCell('C13'), combineBrandAndModel(cleanBrand, cleanModel));
