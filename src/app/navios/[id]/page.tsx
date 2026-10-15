@@ -8,7 +8,7 @@ import { formatCoordinate } from '@/lib/coordinates';
 import { formatValidityDisplay, parseFlexibleDateValue, toLocalIsoDateValue } from '@/lib/date-display';
 import { appToast } from '@/lib/app-toast';
 import { APP_CONFIG } from '@/lib/app-config';
-import { NAVIO_TIPO_NAVIO_OPTIONS, NAVIO_TIPO_PESCA_OPTIONS, normalizeNavioTipoCategoria } from '@/lib/navio-legal-types';
+import { NAVIO_TIPO_NAVIO_OPTIONS, NAVIO_TIPO_PESCA_OPTIONS, normalizeNavioTipoCategoria, parseRecreioZonaFromMatricula } from '@/lib/navio-legal-types';
 import { getNavioLegalProfile } from '@/modules/navios/legalRequirements';
 import { getPescaCosteiraMandatoryEquipmentProfile } from '@/config/pescaCosteiraMandatoryEquipment';
 import { getRecreioMandatoryProfile, RECREIO_ZONA_OPTIONS } from '@/config/recreioMandatoryEquipment';
@@ -1201,11 +1201,14 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
       ?? ((data?.jangadas?.length || 0) + (data?.coletes?.length || 0) + (data?.epirbs?.length || 0))
   );
   const smartTipoCategoria = normalizeNavioTipoCategoria(data?.tipoPesca, data?.matricula, data?.tipoNavio);
+  const smartRecreioZona = (data?.zonaNavegacao as string | null | undefined)
+    || parseRecreioZonaFromMatricula(data?.matricula)
+    || null;
   const smartPescaCosteiraMandatoryProfile = smartTipoCategoria === 'Pesca Costeira'
     ? getPescaCosteiraMandatoryEquipmentProfile(data?.comprimentoMetros)
     : null;
   const smartRecreioMandatoryProfile = smartTipoCategoria === 'Náutica de Recreio'
-    ? getRecreioMandatoryProfile(data?.zonaNavegacao)
+    ? getRecreioMandatoryProfile(smartRecreioZona)
     : null;
   const smartShowPescaCosteiraMandatoryTab = Boolean(smartPescaCosteiraMandatoryProfile);
   const smartShowRecreioMandatoryTab = Boolean(smartRecreioMandatoryProfile);
@@ -1488,14 +1491,17 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
   const lastAisLatitude = formatCoordinate(data.lat, "lat");
   const lastAisLongitude = formatCoordinate(data.lng, "lng");
   const hasLastAisLocation = lastAisLatitude !== "—" || lastAisLongitude !== "—";
-  const legalProfile = getNavioLegalProfile(data.tipoPesca, data.tipoNavio, data.matricula);
+  const legalProfile = getNavioLegalProfile(data.tipoPesca, data.tipoNavio, data.matricula, data.zonaNavegacao);
   const pescaCosteiraMandatoryProfile = tipoCategoria === 'Pesca Costeira'
     ? getPescaCosteiraMandatoryEquipmentProfile(data.comprimentoMetros)
     : null;
   const showPescaCosteiraMandatoryTab = Boolean(pescaCosteiraMandatoryProfile);
   const showPescaCosteiraHint = tipoCategoria === 'Pesca Costeira' && !showPescaCosteiraMandatoryTab;
+  const recreioZonaEfetiva = (data.zonaNavegacao as string | null | undefined)
+    || parseRecreioZonaFromMatricula(data.matricula)
+    || null;
   const recreioMandatoryProfile = tipoCategoria === 'Náutica de Recreio'
-    ? getRecreioMandatoryProfile(data.zonaNavegacao)
+    ? getRecreioMandatoryProfile(recreioZonaEfetiva)
     : null;
   const showRecreioMandatoryTab = Boolean(recreioMandatoryProfile);
   const showRecreioZonaHint = tipoCategoria === 'Náutica de Recreio' && !showRecreioMandatoryTab;
@@ -1726,7 +1732,14 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
                 <svg className="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
-                Cliente: <b className="text-indigo-900 font-semibold">{data.cliente.nome}</b>
+                Cliente:{" "}
+                <Link
+                  href={`/clientes/${data.cliente.id}`}
+                  className="text-indigo-900 font-semibold underline decoration-dotted underline-offset-2 hover:text-indigo-600"
+                  title="Abrir ficha do cliente"
+                >
+                  {data.cliente.nome}
+                </Link>
               </span>
             )}
           </div>
@@ -2442,9 +2455,11 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
                     <option key={z.key} value={z.key}>{z.label}</option>
                   ))}
                 </select>
-              ) : (data.zonaNavegacao
-                ? (RECREIO_ZONA_OPTIONS.find((z) => z.key === data.zonaNavegacao)?.label ?? data.zonaNavegacao)
-                : '-')}
+              ) : (() => {
+                if (!recreioZonaEfetiva) return '-';
+                const label = RECREIO_ZONA_OPTIONS.find((z) => z.key === recreioZonaEfetiva)?.label ?? recreioZonaEfetiva;
+                return data.zonaNavegacao ? label : `${label} (inferida da matrícula)`;
+              })()}
             </div>
             <div>
               <span className="font-semibold">Proprietário:</span>{" "}
@@ -2511,7 +2526,16 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
               HRU e refletor de radar são geridos na ficha da <b>jangada</b> associada. As coordenadas AIS acima são as que o mapa usa quando existem.
             </div>
             {data.cliente && (
-              <div><span className="font-semibold">Cliente:</span> {data.cliente.nome || '-'}</div>
+              <div>
+                <span className="font-semibold">Cliente:</span>{" "}
+                <Link
+                  href={`/clientes/${data.cliente.id}`}
+                  className="text-indigo-700 underline decoration-dotted underline-offset-2 hover:text-indigo-900"
+                  title="Abrir ficha do cliente"
+                >
+                  {data.cliente.nome || '-'}
+                </Link>
+              </div>
             )}
           </div>
         </div>

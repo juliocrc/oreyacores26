@@ -1,3 +1,5 @@
+import type { RecreioZonaKey } from "@/config/recreioMandatoryEquipment";
+
 export type NavioTipoCategoria =
   | "Pesca Local"
   | "Pesca Costeira"
@@ -41,6 +43,22 @@ export const NAVIO_TIPO_NAVIO_OPTIONS = [
   "Outro",
 ] as const;
 
+/**
+ * As embarcações de recreio usam o formato `<número de registo>-<tipo>PT`,
+ * em que o algarismo imediatamente antes de `PT` é o tipo / zona de navegação (1..5):
+ * 1: Oceânica · 2: Ao largo (200 mn) · 3: Costeira (40 mn) · 4: Costeira restrita · 5: Águas abrigadas.
+ * Ex.: 130593-5PT (recreio, tipo 5), 108367-4PT (recreio, tipo 4).
+ */
+export function isRecreioMatricula(matricula?: string | null): boolean {
+  return /(?:^|[-\s])[1-5]\s*PT$/i.test(String(matricula ?? "").trim());
+}
+
+export function parseRecreioZonaFromMatricula(matricula?: string | null): RecreioZonaKey | null {
+  const match = String(matricula ?? "").trim().match(/([1-5])\s*PT$/i);
+  if (!match) return null;
+  return `zona${Number(match[1]) - 1}` as RecreioZonaKey;
+}
+
 function normalizeText(value: string | null | undefined) {
   return String(value || "")
     .normalize("NFD")
@@ -82,7 +100,7 @@ export function normalizeNavioTipoCategoria(
     return "Marítimo Turística";
   }
 
-  if (haystack.includes("recreio")) {
+  if (haystack.includes("recreio") || isRecreioMatricula(matricula)) {
     return "Náutica de Recreio";
   }
 

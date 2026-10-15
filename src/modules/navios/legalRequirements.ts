@@ -1,4 +1,5 @@
-import { normalizeNavioTipoCategoria } from "@/lib/navio-legal-types";
+import { normalizeNavioTipoCategoria, parseRecreioZonaFromMatricula } from "@/lib/navio-legal-types";
+import { getRecreioMandatoryProfile } from "@/config/recreioMandatoryEquipment";
 
 export type NavioLegalProfileKey =
   | "pescaLocal"
@@ -181,10 +182,40 @@ const PROFILE_DATA: Record<NavioLegalProfileKey, Omit<NavioLegalProfile, "key">>
   },
 };
 
-export function getNavioLegalProfile(tipoPesca?: string | null, tipoNavio?: string | null, matricula?: string | null): NavioLegalProfile {
+export function getNavioLegalProfile(
+  tipoPesca?: string | null,
+  tipoNavio?: string | null,
+  matricula?: string | null,
+  zonaNavegacao?: string | null,
+): NavioLegalProfile {
   const key = detectProfile(tipoPesca, tipoNavio, matricula);
-  return {
+  const base: NavioLegalProfile = {
     key,
     ...PROFILE_DATA[key],
+  };
+
+  if (key !== "nauticaRecreio") return base;
+
+  // Zona de navegação: usa o campo guardado ou, em falta, infere-a da matrícula
+  // (formato `<nº>-<tipo>PT`, em que o algarismo é a zona de navegação 1..5).
+  const zonaProfile = getRecreioMandatoryProfile(zonaNavegacao)
+    || getRecreioMandatoryProfile(parseRecreioZonaFromMatricula(matricula));
+
+  if (!zonaProfile) return base;
+
+  return {
+    ...base,
+    label: `${base.label} · ${zonaProfile.shortLabel}`,
+    summary: `${base.summary} Categoria de navegação identificada: ${zonaProfile.shortLabel}.`,
+    legalNote: `${base.legalNote} A categoria/zona de navegação determina a dotação concreta — ver o separador "Meios obrigatórios".`,
+    requirements: [
+      {
+        category: "Categoria de navegação",
+        title: `Categoria identificada — ${zonaProfile.shortLabel}`,
+        detail: "Confirmar a categoria/zona de navegação no livrete e no registo da embarcação: é ela que fixa a dotação de salvação, pirotecnia e comunicações.",
+        emphasis: "review" as const,
+      },
+      ...base.requirements,
+    ],
   };
 }
