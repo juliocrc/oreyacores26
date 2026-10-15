@@ -17,3 +17,11 @@ supabase/.temp/
 .env.*
 .env.local*
 *.env
+
+# tooling de sessao / clones de trabalho (nunca vao para producao)
+/_tmp_*
+/marinetraffic-mcp-server/
+/android-sms-gateway/
+/genealogy/
+/navios de contentores/
+/carimbooreyazores.jpg
