@@ -94,7 +94,7 @@ export type SmsNotificationLog = {
   type: string;
   ativo: string;
   phone: string;
-  status: "sent" | "error" | "pending" | "skipped";
+  status: "sent" | "error" | "pending" | "skipped" | "draft";
   error?: string;
   message?: string;
 };
@@ -130,6 +130,35 @@ async function recordSmsLog(jangadaId: number, entry: SmsNotificationLog) {
     });
   } catch (error) {
     console.warn("[notify-jangada-sms] Erro ao registar log de SMS:", error);
+  }
+}
+
+/**
+ * Regista uma comunicação preparada (rascunho) para envio manual pelo operador.
+ * É o que substitui o antigo envio automático: o sistema nunca envia sozinho,
+ * apenas deixa a mensagem pronta na caixa de comunicações.
+ */
+async function registarComunicacaoPreparada(opts: {
+  jangadaId: number;
+  phone: string;
+  message: string;
+}): Promise<void> {
+  try {
+    await prisma.comunicacao.create({
+      data: {
+        tipo: "SMS",
+        canal: "auto-preparado",
+        destinatario: opts.phone,
+        mensagem: opts.message,
+        status: "rascunho",
+        refTipo: "Jangada",
+        refId: opts.jangadaId,
+        jangadaId: opts.jangadaId,
+        enviadoPor: "sistema",
+      },
+    });
+  } catch (error) {
+    console.warn("[notify-jangada-sms] Erro ao preparar comunicação:", error);
   }
 }
 
@@ -202,13 +231,37 @@ type NotifyOptions = {
   useConfig?: boolean; // respeita o gate "enabled" da config (false => sempre envia)
   confirmada?: boolean; // true quando o operador confirmou o envio pendente
   customText?: string; // mensagem editada pelo operador (ignora o template)
+  /**
+   * true  -> envia de facto o SMS (apenas em ações manuais do operador).
+   * false -> NÃO envia: prepara um rascunho para envio manual.
+   * Omitido -> usa a política global `ENVIO_AUTOMATICO_SMS_ATIVO` (desligada).
+   */
+  enviarAhora?: boolean;
+};
+
+/**
+ * Política global: por omissão o sistema NUNCA envia SMS/WhatsApp de forma
+ * automática (nem em mudanças de estado, nem por cron). Só envia quando o
+ * operador executa a ação. Pode ser reativado explicitamente definindo a
+ * variável de ambiente COMUNICACOES_AUTO_ENVIO_SMS=true.
+ */
+export const ENVIO_AUTOMATICO_SMS_ATIVO =
+  /^(1|true|sim|yes)$/i.test(String(process.env.COMUNICACOES_AUTO_ENVIO_SMS || "").trim());
+
+type NotifyResult = {
+  sent: boolean;
+  staged?: boolean;
+  pending?: boolean;
+  reason?: string;
+  phone?: string;
+  message?: string;
 };
 
 async function notifyJangada(
   jangadaId: number,
   type: SmsNotifyType,
   options?: NotifyOptions,
-): Promise<{ sent: boolean; pending?: boolean; reason?: string; phone?: string; message?: string }> {
+): Promise<NotifyResult> {
   try {
     const config = await getSmsConfig();
     const enabled = config.enabled?.[type];
@@ -239,6 +292,27 @@ async function notifyJangada(
       navio,
       ...(options?.vars || {}),
     });
+
+    // Envio automático desligado por política: prepara um rascunho em vez de
+    // enviar. O envio real só acontece com `enviarAhora: true` (ação manual).
+    const deveEnviar = options?.enviarAhora ?? ENVIO_AUTOMATICO_SMS_ATIVO;
+    if (!deveEnviar) {
+      await registarComunicacaoPreparada({ jangadaId, phone: contact.phone, message });
+      await recordSmsLog(jangadaId, {
+        type,
+        ativo: new Date().toISOString(),
+        phone: contact.phone,
+        status: "draft",
+        message,
+      });
+      return {
+        sent: false,
+        staged: true,
+        phone: contact.phone,
+        message,
+        reason: "Envio automático desativado — mensagem preparada para envio manual.",
+      };
+    }
 
     if (config.requerConfirmacao && options?.confirmada !== true) {
       await recordSmsLog(jangadaId, {
@@ -279,18 +353,19 @@ async function notifyJangada(
 
 export async function notifyJangadaRececionada(
   jangadaId: number,
-  options?: { expectedDeliveryDate?: string | Date | null; useConfig?: boolean; confirmada?: boolean },
+  options?: { expectedDeliveryDate?: string | Date | null; useConfig?: boolean; confirmada?: boolean; enviarAhora?: boolean },
 ) {
   return notifyJangada(jangadaId, "rececionada", {
     vars: { data: formatDataBr(options?.expectedDeliveryDate || null) },
     useConfig: options?.useConfig ?? true,
     confirmada: options?.confirmada ?? true,
+    enviarAhora: options?.enviarAhora,
   });
 }
 
 export async function notifyJangadaEnviada(
   jangadaId: number,
-  options?: { transitario?: string; trackingCode?: string; useConfig?: boolean; confirmada?: boolean },
+  options?: { transitario?: string; trackingCode?: string; useConfig?: boolean; confirmada?: boolean; enviarAhora?: boolean },
 ) {
   const transitario = String(options?.transitario || "").trim();
   const tracking = String(options?.trackingCode || "").trim();
@@ -301,30 +376,33 @@ export async function notifyJangadaEnviada(
     },
     useConfig: options?.useConfig ?? true,
     confirmada: options?.confirmada ?? true,
+    enviarAhora: options?.enviarAhora,
   });
 }
 
 export async function notifyJangadaProntaEntrega(
   jangadaId: number,
-  options?: { transitario?: string; useConfig?: boolean; confirmada?: boolean },
+  options?: { transitario?: string; useConfig?: boolean; confirmada?: boolean; enviarAhora?: boolean },
 ) {
   const transitario = String(options?.transitario || "").trim();
   return notifyJangada(jangadaId, "pronta_entrega", {
     vars: { transitario: transitario ? ` e será devolvida pelo transitário ${transitario}` : "" },
     useConfig: options?.useConfig ?? true,
     confirmada: options?.confirmada ?? true,
+    enviarAhora: options?.enviarAhora,
   });
 }
 
 export async function notifyJangadaLembreteValidade(
   jangadaId: number,
-  options?: { dataProxInspecao?: string | Date | null; useConfig?: boolean; confirmada?: boolean; customText?: string },
+  options?: { dataProxInspecao?: string | Date | null; useConfig?: boolean; confirmada?: boolean; customText?: string; enviarAhora?: boolean },
 ) {
   return notifyJangada(jangadaId, "lembrete_validade", {
     vars: { data: formatDataBr(options?.dataProxInspecao || null) },
     useConfig: options?.useConfig ?? true,
     confirmada: options?.confirmada ?? true,
     customText: options?.customText,
+    enviarAhora: options?.enviarAhora,
   });
 }
 

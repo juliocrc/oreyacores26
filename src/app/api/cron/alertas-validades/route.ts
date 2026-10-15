@@ -56,24 +56,41 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    const envios: Array<{ jangadaId: number; serial: string; sent: boolean; pending?: boolean; reason?: string }> = [];
+    // Por política, este cron NÃO envia SMS/WhatsApp automaticamente.
+    // Quando solicitado (enviar=1&secret=...), apenas PREPARA rascunhos para o
+    // operador enviar manualmente a partir da caixa de comunicações.
+    const preparacoes: Array<{ jangadaId: number; serial: string; preparado: boolean; reason?: string }> = [];
     if (enviar) {
       if (config.enabled.lembrete_validade === false) {
-        return NextResponse.json({ success: true, error: "Envio de lembretes desativado na configuração SMS." }, { status: 200 });
+        return NextResponse.json({ success: true, error: "Preparação de lembretes desativada na configuração SMS." }, { status: 200 });
       }
+      const hojeInicio = new Date();
+      hojeInicio.setHours(0, 0, 0, 0);
       for (const j of jangadasExpirando) {
-        const result = await tryNotifySms<{ sent: boolean; pending?: boolean; reason?: string }>(() =>
+        const jaPreparado = await prisma.comunicacao.findFirst({
+          where: {
+            jangadaId: j.id,
+            canal: "auto-preparado",
+            status: "rascunho",
+            createdAt: { gte: hojeInicio },
+          },
+          select: { id: true },
+        });
+        if (jaPreparado) {
+          preparacoes.push({ jangadaId: j.id, serial: j.serial, preparado: false, reason: "Já preparado hoje." });
+          continue;
+        }
+        const result = await tryNotifySms<{ sent: boolean; staged?: boolean; reason?: string }>(() =>
           notifyJangadaLembreteValidade(j.id, {
             dataProxInspecao: j.dataProxInspecao,
-            useConfig: true,
-            confirmada: false,
+            useConfig: false,
+            enviarAhora: false,
           }),
         );
-        envios.push({
+        preparacoes.push({
           jangadaId: j.id,
           serial: j.serial,
-          sent: Boolean(result?.sent),
-          pending: Boolean((result as { pending?: boolean })?.pending),
+          preparado: Boolean((result as { staged?: boolean })?.staged),
           reason: (result as { reason?: string })?.reason,
         });
       }
@@ -84,9 +101,8 @@ export async function GET(req: NextRequest) {
       verificadoEm: new Date().toISOString(),
       antecedenciaDias: diasAntecedencia,
       totalAlertasPendentes: alertasGerados.length,
-      totalEnviados: envios.filter((e) => e.sent).length,
-      totalPendentesConfirmacao: envios.filter((e) => e.pending).length,
-      envios: envios.length ? envios : undefined,
+      totalPreparados: preparacoes.filter((e) => e.preparado).length,
+      preparacoes: preparacoes.length ? preparacoes : undefined,
       alertas: alertasGerados,
     });
   } catch (error) {

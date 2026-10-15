@@ -86,6 +86,7 @@ export async function POST(req: NextRequest) {
         dataProxInspecao: dataProxInspecao || null,
         useConfig: false,
         confirmada: true,
+        enviarAhora: true,
         customText: customText.trim() || undefined,
       }),
     );
