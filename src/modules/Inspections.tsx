@@ -911,7 +911,7 @@ export default function Inspections() {
       foguetoes_paraquedas: { refs: ["20500023", "20577723"], articleTokens: ["paraquedas", "parachute rockets", "parachute rocket", "foguetoes", "foguetões"], validityField: "validade_paraquedas", quantity: 2, articleName: field.label },
       fachos_mao: { refs: ["20500035", "20577723"], articleTokens: ["facho", "fachos de mao", "fachos de mão", "handflares", "handflare"], validityField: "validade_fachos_mao", quantity: 2, articleName: field.label },
       potes_fumo: { refs: ["20500002"], articleTokens: ["pote de fumo", "potes de fumo", "smoke signals"], validityField: "validade_potes_fumo", quantity: 1, articleName: field.label },
-      pilhas_lanterna: { refs: ["20903168"], articleTokens: ["torch batteries", "pilhas para lanterna"], validityField: "validade_pilhas_lanterna", quantity: 4, articleName: field.label },
+      pilhas_lanterna: { articleTokens: ["torch batteries", "pilhas para lanterna"], validityField: "validade_pilhas_lanterna", quantity: 4, articleName: field.label },
       cinta_fecho: { refs: ["30202108"], articleTokens: ["bursting band", "cinta de fecho"], quantity: 1, articleName: field.label },
       saco_retenida: { refs: ["PAINTER-BAG"], articleTokens: ["painter line bag", "saco de retenida"], quantity: 1, articleName: field.label },
     };

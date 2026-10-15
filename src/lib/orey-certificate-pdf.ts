@@ -67,6 +67,12 @@ export async function buildOreyCertificatePdfBuffer(
 ): Promise<Buffer> {
   const { workbook, worksheet } = await loadFilledCertificateWorksheet(input);
 
+  // No certificado carimbado o nome da estação consta já no carimbo oficial,
+  // pelo que a célula G48 (SERVICE_STATION_NAME) é omitida apenas nesta versão PDF.
+  if (isImageDataUrl(options.stamp?.imageDataUrl)) {
+    worksheet.getCell("G48").value = null;
+  }
+
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const layout = renderWorksheetToPdf(doc, worksheet, workbook, { pageWidthMm: 210, pageHeightMm: 297, maxScale: 1 });
 

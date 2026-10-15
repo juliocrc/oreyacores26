@@ -3210,7 +3210,6 @@ const OPERATIONAL_TORCH_BATTERIES_ITEM: RaftTechnicalItem = {
   name: 'Torch Batteries',
   category: 'ILUMINAÇÃO',
   quantity: '4x',
-  reference: '20903168',
   notes: 'Regra operacional: substituir em todas as inspeções e controlar validade.',
 };
 

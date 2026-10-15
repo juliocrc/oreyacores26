@@ -180,7 +180,6 @@ export const PACK_FIELD_DEFINITIONS: PackFieldDefinition[] = [
     validityFieldName: 'validade_pilhas_lanterna',
     category: 'ILUMINAÇÃO',
     section: 'emergency',
-    stockReferences: ['20903168'],
     defaultQuantity: 4,
   },
   {
