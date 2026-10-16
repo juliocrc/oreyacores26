@@ -50,8 +50,8 @@ export async function POST(req: NextRequest) {
       total: Number(l.total) || 0,
     }));
     const subtotal = Math.max(0, Number(body.subtotal) || 0);
-    const ivaRate = Math.max(0, Number(body.ivaRate) || 0);
     const isIsentoIva = Boolean(body.isIsentoIva);
+    const ivaRate = isIsentoIva ? 0 : Math.max(0, Number(body.ivaRate) || 0);
     const validadeDias = Math.max(1, Number(body.validadeDias) || 15);
     const dataValidade = String(body.dataValidade || new Date().toLocaleDateString("pt-PT"));
     const ivaValor = round(subtotal * ivaRate);
