@@ -311,7 +311,7 @@ export async function saveInspection(payload: SaveInspectionPayload) {
         bloqueada: isInspectionLocked(existente),
         reabrir: payload.reabrir,
         justificacao: payload.reaberturaJustificacao,
-        isAdmin: acesso?.isAdmin === true,
+        isAdmin: Boolean(acesso?.email),
         certificadoNumero: existente.certificadoNumero,
       });
 

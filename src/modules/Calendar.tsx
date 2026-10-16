@@ -268,7 +268,10 @@ export default function InspectionCalendar({
   const onDropFromOutside = ({ start }: { start: string | Date }) => {
     if (!externalDragEvent) return;
     const startDate = new Date(start);
-    const endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // default 1 hour
+    const durationMs = externalDragEvent?.end && externalDragEvent?.start
+      ? Math.max(60 * 60 * 1000, new Date(externalDragEvent.end).getTime() - new Date(externalDragEvent.start).getTime())
+      : 60 * 60 * 1000;
+    const endDate = new Date(startDate.getTime() + durationMs);
     onSchedule({ ...externalDragEvent, start: startDate, end: endDate });
     if (onExternalEventConsumed) onExternalEventConsumed();
   };

@@ -198,7 +198,7 @@ export default function PortoPontaDelgadaPage() {
           <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-12 text-center text-slate-500">
             <Ship size={40} className="mx-auto text-slate-300 mb-3" />
             <p className="font-bold text-slate-700">Nenhuma escala registada</p>
-            <p className="text-xs text-slate-400 mt-1">Adicione uma nova escala ou clique em "Sincronizar Contentores".</p>
+            <p className="text-xs text-slate-400 mt-1">Adicione uma nova escala ou clique em &quot;Sincronizar Contentores&quot;.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

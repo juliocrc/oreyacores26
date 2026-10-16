@@ -24,7 +24,6 @@ const MODULOS = [
   "/backups",
   "/porto-ponta-delgada",
   "/contentores",
-  "/openwaters",
   // Ordens de Serviço
   "/criar-ot",
   "/ordens-servico",
