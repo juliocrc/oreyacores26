@@ -503,12 +503,12 @@ export default function AlertasPage() {
                           <div className="flex flex-wrap items-center gap-2">
                             {a.tipo === "assistencia" && a.ordemId && (
                               <>
-                                <Link
+                                <button
+                                  onClick={() => { window.location.assign(`/ordens-servico/${a.ordemId}`); }}
                                   className="inline-flex items-center rounded-lg bg-rose-100 text-rose-800 hover:bg-rose-200 px-3 py-1 font-bold text-xs transition-colors"
-                                  href={`/ordens-servico/${a.ordemId}`}
                                 >
                                   Controlar & Editar
-                                </Link>
+                                </button>
                                 <button
                                   onClick={() => handleQuickDelete(a.ordemId!)}
                                   className="inline-flex items-center rounded-lg bg-red-50 text-red-700 hover:bg-red-100 border border-red-200/50 px-3 py-1 font-bold text-xs transition-colors cursor-pointer"
