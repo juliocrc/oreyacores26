@@ -426,6 +426,7 @@ export function InspecaoDetalhesDialog({
         fsTestDone: snapshot.testeFS || '',
         giTestDone: snapshot.testeGI || '',
         dlTestDone: snapshot.testeDL || '',
+        technician: inspecao.responsavel || '',
         checklist: buildHistoricalChecklistPayload(),
         substituicoes: (snapshot?.artigos || inspecao.artigos || []).map((art: any) => ({
           descricao: art.name,
@@ -520,6 +521,7 @@ export function InspecaoDetalhesDialog({
         fsTestDone: snapshot.testeFS || '',
         giTestDone: snapshot.testeGI || '',
         dlTestDone: snapshot.testeDL || '',
+        technician: inspecao.responsavel || '',
         checklist: buildHistoricalChecklistPayload(),
         substituicoes: (snapshot?.artigos || inspecao.artigos || []).map((art: any) => ({
           descricao: art.name,

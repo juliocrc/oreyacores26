@@ -2051,6 +2051,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
         fsTestDone: data.testeFS || '',
         giTestDone: data.testeGI || '',
         dlTestDone: data.testeDL || '',
+        technician: lastInspecao?.responsavel || '',
         checklist: buildChecklistPayload(),
         substituicoes: (artigos || []).map((art) => ({
           descricao: art.name,
@@ -2208,6 +2209,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
         fsTestDone: data.testeFS || '',
         giTestDone: data.testeGI || '',
         dlTestDone: data.testeDL || '',
+        technician: lastInspecao?.responsavel || '',
         checklist: buildChecklistPayload(),
         substituicoes: (artigos || []).map((art) => ({
           descricao: art.name,

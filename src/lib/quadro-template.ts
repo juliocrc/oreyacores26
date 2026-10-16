@@ -50,7 +50,9 @@ export type QuadroTemplateInput = {
   fsTestDone?: unknown;
   giTestDone?: unknown;
   loadTestDone?: unknown;
+  dlTestDone?: unknown;
   napTestDate?: string;
+  technician?: string;
   fsTestDate?: string;
   giTestDate?: string;
   loadTestDate?: string;
@@ -253,23 +255,8 @@ function asYesNo(value: unknown, fallback = 'NO') {
   return fallback;
 }
 
-function asYesNoOrNA(value: unknown, fallback: 'YES' | 'NO' = 'NO'): 'YES' | 'NO' | 'N/A' {
-  if (typeof value === 'string') {
-    const normalized = value.trim().toLowerCase();
-    if (!normalized) return fallback;
-    if (['n/a', 'na', 'n.d', 'nd', 'não aplicável', 'nao aplicavel', 'not applicable'].includes(normalized)) return 'N/A';
-    if (['yes', 'sim', 'true', '1', 'y', 'ok', 'passou', 'aprovou', 'realizado', 'feito'].includes(normalized)) return 'YES';
-    if (['no', 'nao', 'não', 'false', '0', 'n', 'not_ok'].includes(normalized)) return 'NO';
-  }
-  if (typeof value === 'boolean') return value ? 'YES' : 'NO';
-  if (typeof value === 'number') return value ? 'YES' : 'NO';
-  return fallback;
-}
-
-function getTestDateCellValue(status: 'YES' | 'NO' | 'N/A', dateValue: string) {
-  if (status === 'YES') return dateValue;
-  if (status === 'N/A') return 'N/A';
-  return '';
+function getTestDateCellValue(status: string, dateValue: string) {
+  return status === 'YES' ? dateValue : '';
 }
 
 function buildPressureUnitText(unit: unknown) {
@@ -485,6 +472,7 @@ function fillTemplate(ws: ExcelJS.Worksheet, input: QuadroTemplateInput) {
   setCell(ws.getCell('G79'), formatDateDDMMYYYY(input.manufactureDate));
   setCell(ws.getCell('F81'), formatDateDDMMYYYY(input.inspectionDate));
   setCell(ws.getCell('C81'), SERVICE_STATION_NAME);
+  setCell(ws.getCell('H81'), input.technician);
 
   setCell(ws.getCell('E47'), input.packType);
   setCell(ws.getCell('F47'), input.packType);
@@ -511,10 +499,10 @@ function fillTemplate(ws: ExcelJS.Worksheet, input: QuadroTemplateInput) {
   setCenteredCell(ws.getCell('D75'), input.wpLowerCorrected || input.wpLowerEnd);
   setCenteredCell(ws.getCell('E75'), getPressureDropPercent(input, true));
 
-  const napDone = asYesNoOrNA(input.napTestDone, input.inspectionDate ? 'YES' : 'NO');
-  const fsDone = asYesNoOrNA(input.fsTestDone, 'NO');
-  const giDone = asYesNoOrNA(input.giTestDone, 'NO');
-  const loadDone = asYesNoOrNA(input.loadTestDone, 'NO');
+  const napDone = asYesNo(input.napTestDone, input.inspectionDate ? 'YES' : 'NO');
+  const fsDone = asYesNo(input.fsTestDone, 'NO');
+  const giDone = asYesNo(input.giTestDone, 'NO');
+  const loadDone = asYesNo(input.loadTestDone ?? input.dlTestDone, 'NO');
 
   setCell(ws.getCell('H46'), napDone);
   setCell(ws.getCell('H48'), fsDone);
