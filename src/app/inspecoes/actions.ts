@@ -129,14 +129,15 @@ export async function generateInspectionCertificateNumber(
     }),
   ]);
 
-  const maxSequence = [...existingInspections, ...existingRafts].reduce((max, row) => {
+  const used = new Set<number>();
+  for (const row of [...existingInspections, ...existingRafts]) {
     const candidate = 'certificadoNumero' in row ? row.certificadoNumero : row.ultimoCertificadoNumero;
     const parsed = parseInspectionCertificateSequence(candidate, prefix);
-    if (!Number.isFinite(parsed)) return max;
-    return Math.max(max, Number(parsed));
-  }, 0);
-
-  return `${prefix}-${String(maxSequence + 1).padStart(3, "0")}`;
+    if (Number.isFinite(parsed)) used.add(Number(parsed));
+  }
+  let next = 1;
+  while (used.has(next)) next += 1;
+  return `${prefix}-${String(next).padStart(3, "0")}`;
 }
 
 // Resolve o prefixo da estacao a partir da jangada (por id ou serial). Serve

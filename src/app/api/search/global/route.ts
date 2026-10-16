@@ -9,73 +9,81 @@ function compactLabel(parts: Array<string | null | undefined>) {
     .join(" · ");
 }
 
+function normalizeSearch(value: unknown) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const q = url.searchParams.get("q")?.trim() || "";
-  const qLower = q.toLowerCase();
+  const qSearch = normalizeSearch(q);
 
-  if (qLower.length < 2) return NextResponse.json([]);
+  if (qSearch.length < 2) return NextResponse.json([]);
 
   try {
     const access = await getAccessContext();
     if (!access) return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
 
     const [jangadas, navios, clientes, coletes, epirbs, fatosImersao, stockItems, faturas, ordensServico] = await Promise.all([
-      prisma.jangada.findMany({ take: 100, orderBy: { updatedAt: 'desc' } }),
-      prisma.navio.findMany({ take: 100, orderBy: { nome: 'asc' } }),
-      prisma.cliente.findMany({ take: 100, orderBy: { nome: 'asc' } }),
-      prisma.colete.findMany({ take: 100, orderBy: { updatedAt: 'desc' } }),
-      prisma.epirb.findMany({ take: 100, orderBy: { updatedAt: 'desc' } }),
-      prisma.fatoImersao.findMany({ take: 100, orderBy: { updatedAt: 'desc' } }),
-      prisma.stock.findMany({ take: 100, orderBy: { updatedAt: 'desc' } }),
-      prisma.fatura.findMany({ take: 100, orderBy: { dataEmissao: 'desc' }, include: { cliente: { select: { nome: true, numeroCliente: true } } } }),
-      prisma.ordemServico.findMany({ take: 100, orderBy: { updatedAt: 'desc' }, include: { jangada: { select: { serial: true } } } }),
+      prisma.jangada.findMany({ take: 5000, orderBy: { updatedAt: 'desc' } }),
+      prisma.navio.findMany({ take: 5000, orderBy: { nome: 'asc' } }),
+      prisma.cliente.findMany({ take: 5000, orderBy: { nome: 'asc' } }),
+      prisma.colete.findMany({ take: 5000, orderBy: { updatedAt: 'desc' } }),
+      prisma.epirb.findMany({ take: 5000, orderBy: { updatedAt: 'desc' } }),
+      prisma.fatoImersao.findMany({ take: 5000, orderBy: { updatedAt: 'desc' } }),
+      prisma.stock.findMany({ take: 5000, orderBy: { updatedAt: 'desc' } }),
+      prisma.fatura.findMany({ take: 5000, orderBy: { dataEmissao: 'desc' }, include: { cliente: { select: { nome: true, numeroCliente: true } } } }),
+      prisma.ordemServico.findMany({ take: 5000, orderBy: { updatedAt: 'desc' }, include: { jangada: { select: { serial: true } } } }),
     ]);
 
     const filteredJangadas = jangadas.filter((j) =>
-      [j.serial, j.brand, j.model, j.shipNameManual, j.owner, j.ultimoCertificadoNumero, j.certificadoExternoNumero]
-        .some((val) => String(val || "").toLowerCase().includes(qLower))
-    ).slice(0, 6);
+      [j.serial, j.brand, j.model, j.shipNameManual, j.owner, j.ultimoCertificadoNumero, j.certificadoExternoNumero, j.radarReflector, j.cylinderSerial]
+        .some((val) => normalizeSearch(val).includes(qSearch))
+    ).slice(0, 12);
 
     const filteredNavios = navios.filter((n) =>
-      [n.nome, n.matricula, n.mmsi, n.imo, n.callSignal, n.portoRegisto]
-        .some((val) => String(val || "").toLowerCase().includes(qLower))
-    ).slice(0, 6);
+      [n.nome, n.matricula, n.mmsi, n.imo, n.callSignal, n.portoRegisto, n.bandeira, n.proprietario, n.territorioGrupo]
+        .some((val) => normalizeSearch(val).includes(qSearch))
+    ).slice(0, 12);
 
     const filteredClientes = clientes.filter((c) =>
-      [c.nome, c.numeroCliente, c.nif, c.email, c.telefone]
-        .some((val) => String(val || "").toLowerCase().includes(qLower))
-    ).slice(0, 6);
+      [c.nome, c.numeroCliente, c.nif, c.email, c.telefone, c.telmovel, c.morada, c.localidade, c.ilha, c.codigoPostal, c.observacoes]
+        .some((val) => normalizeSearch(val).includes(qSearch))
+    ).slice(0, 12);
 
     const filteredColete = coletes.filter((c) =>
       [c.serial, c.marca, c.modelo, c.estado]
-        .some((val) => String(val || "").toLowerCase().includes(qLower))
-    ).slice(0, 6);
+        .some((val) => normalizeSearch(val).includes(qSearch))
+    ).slice(0, 12);
 
     const filteredEpirb = epirbs.filter((e) =>
       [e.serial, e.marca, e.modelo, e.hexId, e.estado]
-        .some((val) => String(val || "").toLowerCase().includes(qLower))
-    ).slice(0, 6);
+        .some((val) => normalizeSearch(val).includes(qSearch))
+    ).slice(0, 12);
 
     const filteredFatos = fatosImersao.filter((f) =>
       [f.serial, f.marca, f.modelo, f.designNo, f.estado]
-        .some((val) => String(val || "").toLowerCase().includes(qLower))
-    ).slice(0, 6);
+        .some((val) => normalizeSearch(val).includes(qSearch))
+    ).slice(0, 12);
 
     const filteredStock = stockItems.filter((s) =>
       [s.referencia, s.descricao, s.codigoBarras, s.categoria, s.codigoFabricante]
-        .some((val) => String(val || "").toLowerCase().includes(qLower))
-    ).slice(0, 6);
+        .some((val) => normalizeSearch(val).includes(qSearch))
+    ).slice(0, 12);
 
     const filteredFaturas = faturas.filter((f) =>
       [f.numeroFatura, f.cliente?.nome, f.pagamentoStatus]
-        .some((val) => String(val || "").toLowerCase().includes(qLower))
-    ).slice(0, 6);
+        .some((val) => normalizeSearch(val).includes(qSearch))
+    ).slice(0, 12);
 
     const filteredOs = ordensServico.filter((o) =>
       [o.numeroOrdem, o.tecnicoResponsavel, o.descricao, o.status]
-        .some((val) => String(val || "").toLowerCase().includes(qLower))
-    ).slice(0, 6);
+        .some((val) => normalizeSearch(val).includes(qSearch))
+    ).slice(0, 12);
 
     const results = [
       ...filteredJangadas.map((j) => ({
