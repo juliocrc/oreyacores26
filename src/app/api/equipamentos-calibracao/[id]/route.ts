@@ -1,11 +1,23 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
+import { getAccessContext } from "@/lib/access-control";
+import { resolveActiveServiceStationId } from "@/lib/station-selection";
 
-export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
+export async function PUT(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
+    const access = await getAccessContext();
+    if (!access) return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
+
     const { id: rawId } = await context.params;
     const id = Number(rawId);
     if (!id) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
+
+    const activeStationId = resolveActiveServiceStationId(request, access);
+    const antes = await prisma.calibracaoEquipamento.findUnique({ where: { id } });
+    if (!antes) return NextResponse.json({ error: "Registo não encontrado" }, { status: 404 });
+    if (activeStationId && antes.serviceStationId && antes.serviceStationId !== activeStationId) {
+      return NextResponse.json({ error: "Sem acesso a este registo noutra estação." }, { status: 403 });
+    }
 
     const body = await request.json();
     const { nome, referencia, tipo, dataCalibracao, dataProxCalibracao, certificadoNum, observacoes, ativo, certificadoUrl } = body;
@@ -22,6 +34,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         certificadoUrl: certificadoUrl !== undefined ? (certificadoUrl ? String(certificadoUrl).trim() : null) : undefined,
         ativo: ativo !== undefined ? !!ativo : undefined,
         observacoes: observacoes !== undefined ? (observacoes ? String(observacoes).trim() : null) : undefined,
+        serviceStationId: antes.serviceStationId == null && activeStationId ? activeStationId : undefined,
       },
     });
 
@@ -32,11 +45,21 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
   }
 }
 
-export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
+    const access = await getAccessContext();
+    if (!access) return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
+
     const { id: rawId } = await context.params;
     const id = Number(rawId);
     if (!id) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
+
+    const activeStationId = resolveActiveServiceStationId(request, access);
+    const antes = await prisma.calibracaoEquipamento.findUnique({ where: { id } });
+    if (!antes) return NextResponse.json({ error: "Registo não encontrado" }, { status: 404 });
+    if (activeStationId && antes.serviceStationId && antes.serviceStationId !== activeStationId) {
+      return NextResponse.json({ error: "Sem acesso a este registo noutra estação." }, { status: 403 });
+    }
 
     await prisma.calibracaoEquipamento.delete({
       where: { id },

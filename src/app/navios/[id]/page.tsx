@@ -3652,7 +3652,7 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
                     ) : aisPosition?.source === 'saved' ? (
                       <span className="inline-flex items-center gap-1.5">
                         <span className="h-2 w-2 rounded-full bg-blue-500" />
-                        Guardada (BD)
+                        Última localização conhecida
                       </span>
                     ) : (
                       <span className="text-slate-500">Sem posição</span>

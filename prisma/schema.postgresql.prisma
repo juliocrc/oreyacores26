@@ -380,6 +380,7 @@ model Navio {
   callSignal             String?
   lat                    Float?
   lng                    Float?
+  aisUpdatedAt           DateTime?
   hruReferencia          String?
   hruValidade            String?
   pirotecnicosBordoJson  String?
@@ -1149,6 +1150,7 @@ model CertificacaoFabricanteTecnico {
 
 model CalibracaoEquipamento {
   id                 Int      @id @default(autoincrement())
+  serviceStationId   Int?
   nome               String
   referencia         String   @unique
   tipo               String
@@ -1162,6 +1164,7 @@ model CalibracaoEquipamento {
   updatedAt          DateTime @updatedAt
 
   @@index([referencia])
+  @@index([serviceStationId])
 }
 
 model MovimentoEquipamento {
@@ -1461,6 +1464,7 @@ model PortoEscala {
 model NavioContentorRoute {
   id              Int       @id @default(autoincrement())
   navioNome       String
+  imo             String?
   operador        String
   rota            String
   frequencia      String?

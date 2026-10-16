@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { appToast } from "@/lib/app-toast";
+import { subscribeServiceStationSync } from "@/lib/service-station-sync";
 import type { CalibracaoFormState, CalibracaoRegisto } from "@/lib/calibracoes";
 
 export function useCalibracoes(options: { seedCompressor?: boolean } = {}) {
@@ -28,6 +29,12 @@ export function useCalibracoes(options: { seedCompressor?: boolean } = {}) {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- carregamento inicial dos registos a partir da API.
     void fetchItems();
+  }, [fetchItems]);
+
+  useEffect(() => {
+    return subscribeServiceStationSync(() => {
+      void fetchItems();
+    });
   }, [fetchItems]);
 
   const guardar = useCallback(

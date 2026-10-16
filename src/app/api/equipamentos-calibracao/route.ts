@@ -1,6 +1,8 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
+import { getAccessContext } from "@/lib/access-control";
+import { resolveActiveServiceStationId } from "@/lib/station-selection";
 import {
   TAREFAS_MANUTENCAO_COMPRESSOR,
   proximaDataManutencao,
@@ -8,8 +10,14 @@ import {
   tarefaPorTipo,
 } from "@/lib/compressor-manutencao";
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
+    const access = await getAccessContext();
+    if (!access) return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
+
+    const activeStationId = resolveActiveServiceStationId(request, access);
+    const enforcedStationId = activeStationId || access.stationId || access.allowedStationIds[0] || null;
+
     const { searchParams } = new URL(request.url);
     const tipo = searchParams.get('tipo');
     const ativo = searchParams.get('ativo');
@@ -44,6 +52,7 @@ export async function GET(request: Request) {
               observacoes: tarefa.observacoes,
               certificadoNum: "S/N: 321312566 | Cód: 1498160000",
               ativo: true,
+              serviceStationId: enforcedStationId,
             },
           });
           continue;
@@ -56,7 +65,8 @@ export async function GET(request: Request) {
           existente.tipo !== tarefa.tipo ||
           !existente.ativo ||
           (existente.observacoes ?? "") !== tarefa.observacoes ||
-          existente.dataProxCalibracao.getTime() !== dataProxCalibracao.getTime();
+          existente.dataProxCalibracao.getTime() !== dataProxCalibracao.getTime() ||
+          (existente.serviceStationId == null && enforcedStationId != null);
 
         if (precisaDeSync) {
           await prisma.calibracaoEquipamento.update({
@@ -67,6 +77,9 @@ export async function GET(request: Request) {
               dataProxCalibracao,
               observacoes: tarefa.observacoes,
               ativo: true,
+              ...(existente.serviceStationId == null && enforcedStationId != null
+                ? { serviceStationId: enforcedStationId }
+                : {}),
             },
           });
         }
@@ -74,6 +87,9 @@ export async function GET(request: Request) {
     }
 
     const where: Prisma.CalibracaoEquipamentoWhereInput = {};
+    if (enforcedStationId) {
+      where.OR = [{ serviceStationId: enforcedStationId }, { serviceStationId: null }];
+    }
     if (tipo) {
       where.tipo = tipo;
     }
@@ -93,8 +109,14 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const access = await getAccessContext();
+    if (!access) return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
+
+    const activeStationId = resolveActiveServiceStationId(request, access);
+    const enforcedStationId = activeStationId || access.stationId || access.allowedStationIds[0] || null;
+
     const body = await request.json();
     const { nome, referencia, tipo, dataCalibracao, dataProxCalibracao, certificadoNum, observacoes, certificadoUrl } = body;
 
@@ -133,6 +155,7 @@ export async function POST(request: Request) {
         certificadoUrl: certificadoUrl ? String(certificadoUrl).trim() : null,
         ativo: body.ativo !== false,
         observacoes: observacoes ? String(observacoes).trim() : null,
+        serviceStationId: enforcedStationId,
       },
     });
 

@@ -462,6 +462,7 @@ model Navio {
   callSignal             String?
   lat                    Float?
   lng                    Float?
+  aisUpdatedAt           DateTime?
   hruReferencia          String?
   hruValidade            String?
   pirotecnicosBordoJson  String?

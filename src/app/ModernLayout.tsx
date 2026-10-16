@@ -34,6 +34,7 @@ import { canonicalizePermissionPathPrefix } from '@/lib/permission-access';
 import { getAccessRoleLabel, hasElevatedAccess } from '@/lib/permission-access';
 import { LEGACY_OT_CREATION_ROUTE, OT_CREATION_ROUTE } from '@/lib/permissions-catalog';
 import { getServiceStationProfile } from '@/lib/service-station-profile';
+import { broadcastServiceStationSync } from '@/lib/service-station-sync';
 import { isEffectivelyOnline, subscribeForcedOfflineMode } from '@/lib/offline-sync/client';
 import { AppThemeName } from '@/theme';
 import GlobalSearch from '@/components/GlobalSearch';
@@ -419,6 +420,7 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
           const payload = await response.json().catch(() => null);
           setActiveStationId(payload?.activeStationId ?? stationId);
           setActiveStationCode(payload?.activeStation?.codigo || null);
+          broadcastServiceStationSync('station-change');
           router.refresh();
         }
       } catch {

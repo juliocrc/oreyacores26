@@ -663,6 +663,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
         callSignal: true,
         lat: true,
         lng: true,
+        aisUpdatedAt: true,
       },
     });
 
@@ -695,12 +696,15 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
     if (hasLiveCoords) {
       await prisma.navio.update({
         where: { id: navio.id },
-        data: { lat: live.lat, lng: live.lng },
+        data: { lat: live.lat, lng: live.lng, aisUpdatedAt: new Date() },
       });
     }
 
     const finalLat = hasLiveCoords ? live.lat : savedLat;
     const finalLng = hasLiveCoords ? live.lng : savedLng;
+    const savedUpdatedAt = navio.aisUpdatedAt
+      ? new Date(navio.aisUpdatedAt).toISOString()
+      : null;
 
     return NextResponse.json({
       navioId: navio.id,
@@ -716,7 +720,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
         heading: live.heading ?? null,
         navStatus: live.navStatus ?? null,
         name: live.name ?? null,
-        updatedAt: live.updatedAt ?? null,
+        updatedAt: hasLiveCoords ? (live.updatedAt ?? null) : savedUpdatedAt,
         source: hasLiveCoords ? live.source : savedLat !== null ? 'saved' : 'none',
         live: hasLiveCoords,
         precise: Boolean(live.precise),

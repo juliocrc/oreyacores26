@@ -467,6 +467,7 @@ model Navio {
   callSignal             String?
   lat                    Float?
   lng                    Float?
+  aisUpdatedAt           DateTime?
   hruReferencia          String?
   hruValidade            String?
   pirotecnicosBordoJson  String?
@@ -1325,7 +1326,8 @@ model CertificacaoFabricanteTecnico {
 
 model CalibracaoEquipamento {
   id                 Int      @id @default(autoincrement())
-  nome               String // ex: "Barómetro Digital Testo 511"
+  serviceStationId   Int?
+  nome               String // ex: "Bar�metro Digital Testo 511"
   referencia         String   @unique // ex: "BAR-01", "MAN-02"
   tipo               String // "barometro" | "manometro"
   dataCalibracao     DateTime
@@ -1339,6 +1341,7 @@ model CalibracaoEquipamento {
   updatedAt DateTime @updatedAt
 
   @@index([referencia])
+  @@index([serviceStationId])
 }
 
 model MovimentoEquipamento {
@@ -1489,30 +1492,31 @@ model DeclaracaoIsencaoIva {
 }
 
 model PortoEscala {
-  id              Int       @id @default(autoincrement())
-  navioNome       String
-  matricula       String?
-  tipoCarga       String?   // "Contentores", "Carga Geral", "Gás", "Combustível", "Pesca"
-  armador         String?
-  cais            String?   // "Cais 1", "Cais 2", etc.
-  dataChegada     DateTime?
-  dataPartida     DateTime?
-  origemDestino   String?
-  estado          String    @default("Previsto") // Previsto, Atracado, Partido, Cancelado
-  observacoes     String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id            Int       @id @default(autoincrement())
+  navioNome     String
+  matricula     String?
+  tipoCarga     String?
+  armador       String?
+  cais          String?
+  dataChegada   DateTime?
+  dataPartida   DateTime?
+  origemDestino String?
+  estado        String    @default("Previsto")
+  observacoes   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 }
 
 model NavioContentorRoute {
-  id              Int       @id @default(autoincrement())
-  navioNome       String
-  operador        String    // "Transinsular", "GS Lines", etc.
-  rota            String    // "Lisboa / Leixões - Ponta Delgada - Caniçal"
-  frequencia      String?   // "Semanal"
-  capacidadeTeus  Int?
-  diasEscala      String?   // "Terça-feira"
-  observacoes     String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id             Int      @id @default(autoincrement())
+  navioNome      String
+  imo            String?
+  operador       String
+  rota           String
+  frequencia     String?
+  capacidadeTeus Int?
+  diasEscala     String?
+  observacoes    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }

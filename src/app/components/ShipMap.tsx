@@ -94,7 +94,10 @@ export default function ShipMap({
                   {position?.updatedAt ? <div>Atualizado: {position.updatedAt}</div> : null}
                 </>
               ) : (
-                <div>Posição guardada</div>
+                <>
+                  <div><span className="font-semibold">Última localização conhecida</span></div>
+                  {position?.updatedAt ? <div>Atualizada: {position.updatedAt}</div> : null}
+                </>
               )}
             </div>
           </Popup>

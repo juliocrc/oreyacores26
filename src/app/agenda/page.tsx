@@ -22,6 +22,7 @@ import {
 } from "@/lib/agenda-technicians";
 import { useTecnicos } from "@/hooks/useTecnicos";
 import { buildStationTechnicianRoster } from "@/lib/station-technicians";
+import { subscribeServiceStationSync } from "@/lib/service-station-sync";
 import type {
   InspectionEvent,
   InspectionCalendarProps,
@@ -509,12 +510,17 @@ const formatDate = (value?: string | null) => {
           }
         }, 60000);
 
+        const unsubscribeStationSync = subscribeServiceStationSync(() => {
+          handleAgendaRefresh();
+        });
+
         window.addEventListener(AGENDA_REFRESH_EVENT, handleAgendaRefresh as EventListener);
         window.addEventListener("focus", handleAgendaRefresh);
         document.addEventListener("visibilitychange", handleVisibilityRefresh);
 
       return () => {
           window.clearInterval(refreshInterval);
+          unsubscribeStationSync();
           window.removeEventListener(AGENDA_REFRESH_EVENT, handleAgendaRefresh as EventListener);
           window.removeEventListener("focus", handleAgendaRefresh);
           document.removeEventListener("visibilitychange", handleVisibilityRefresh);
