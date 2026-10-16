@@ -106,23 +106,8 @@ function asYesNo(value: unknown) {
   return value ? 'YES' : 'NO';
 }
 
-function asYesNoOrNA(value: unknown, fallback: 'YES' | 'NO' = 'NO'): 'YES' | 'NO' | 'N/A' {
-  if (typeof value === 'string') {
-    const normalized = value.trim().toLowerCase();
-    if (!normalized) return fallback;
-    if (['n/a', 'na', 'n.d', 'nd', 'não aplicável', 'nao aplicavel', 'not applicable'].includes(normalized)) return 'N/A';
-    if (['yes', 'sim', 'true', '1', 'y', 'ok', 'passou', 'aprovou', 'realizado', 'feito'].includes(normalized)) return 'YES';
-    if (['no', 'nao', 'não', 'false', '0', 'n', 'not_ok'].includes(normalized)) return 'NO';
-  }
-  if (typeof value === 'boolean') return value ? 'YES' : 'NO';
-  if (typeof value === 'number') return value ? 'YES' : 'NO';
-  return fallback;
-}
-
-function getTestDateCellValue(status: 'YES' | 'NO' | 'N/A', dateValue: string) {
-  if (status === 'YES') return dateValue;
-  if (status === 'N/A') return 'N/A';
-  return '';
+function getTestDateCellValue(status: 'YES' | 'NO', dateValue: string) {
+  return status === 'YES' ? dateValue : '';
 }
 
 function normalizeFabricType(value: unknown) {
@@ -314,11 +299,11 @@ function isThrowOverRaft(input: OreyCertificateTemplateInput) {
 
 export function fillTemplate(worksheet: ExcelJS.Worksheet, input: OreyCertificateTemplateInput) {
   const checklist = input.checklist || {};
-  const statusYesNo = asYesNoOrNA(input.status && !String(input.status).toLowerCase().includes('pend'));
-  const napTestYesNo = asYesNoOrNA((checklist as Record<string, unknown>).teste_nap ?? (checklist as Record<string, unknown>).teste_wp ?? statusYesNo, 'NO');
-  const giTestYesNo = asYesNoOrNA((checklist as Record<string, unknown>).teste_gi, 'NO');
-  const fsTestYesNo = asYesNoOrNA((checklist as Record<string, unknown>).teste_fs, 'NO');
-  const loadTestYesNo = asYesNoOrNA((checklist as Record<string, unknown>).teste_dl, 'NO');
+  const statusYesNo = asYesNo(input.status && !String(input.status).toLowerCase().includes('pend'));
+  const napTestYesNo = asYesNo((checklist as Record<string, unknown>).teste_nap ?? (checklist as Record<string, unknown>).teste_wp ?? statusYesNo);
+  const giTestYesNo = asYesNo((checklist as Record<string, unknown>).teste_gi);
+  const fsTestYesNo = asYesNo((checklist as Record<string, unknown>).teste_fs);
+  const loadTestYesNo = asYesNo((checklist as Record<string, unknown>).teste_dl);
   const firstAidExpiry = findFirstValidity(checklist, ['validade_farmacia']);
   const hasFirstAid = asYesNo(checklist.ambulancia) === 'YES' || Boolean(firstAidExpiry) || Boolean(checklist.ref_farmacia) || Boolean(checklist.farmacia);
   const isThrowOver = isThrowOverRaft(input);

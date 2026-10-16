@@ -39,6 +39,21 @@ function imageFormat(dataUrl: string): "PNG" | "JPEG" | "WEBP" {
   return "JPEG";
 }
 
+/**
+ * Limpa a área G48:J49 do template (nome da estação). No certificado carimbado
+ * o nome já consta no carimbo oficial, pelo que a célula do template daria
+ * origem a uma repetição do nome.
+ */
+function clearStationNameArea(worksheet: ExcelJS.Worksheet) {
+  for (let row = 48; row <= 49; row += 1) {
+    for (let col = 7; col <= 10; col += 1) {
+      const cell = worksheet.getCell(row, col);
+      if (cell.isMerged && cell.master && cell.master.address !== cell.address) continue;
+      cell.value = null;
+    }
+  }
+}
+
 /** Lê o template OREY, preenche-o e devolve a worksheet pronta a renderizar. */
 async function loadFilledCertificateWorksheet(input: OreyCertificateTemplateInput) {
   const workbook = new ExcelJS.Workbook();
@@ -49,6 +64,7 @@ async function loadFilledCertificateWorksheet(input: OreyCertificateTemplateInpu
   }
   applyCertificateMerges(worksheet);
   fillTemplate(worksheet, input);
+  clearStationNameArea(worksheet);
   return { workbook, worksheet };
 }
 
@@ -68,8 +84,8 @@ export async function buildOreyCertificatePdfBuffer(
   const { workbook, worksheet } = await loadFilledCertificateWorksheet(input);
 
   // No certificado carimbado o nome da estação consta já no carimbo oficial,
-  // pelo que a célula G48 (SERVICE_STATION_NAME) é omitida apenas nesta versão PDF.
-  // Mantém a célula G48 intacta com o nome da estação do template.
+  // pelo que a área G48:J49 do template é limpa (ver clearStationNameArea) para
+  // não repetir o nome.
 
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const layout = renderWorksheetToPdf(doc, worksheet, workbook, {
