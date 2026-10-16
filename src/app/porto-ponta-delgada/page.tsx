@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useState } from "react";
 import { Anchor, Ship, Calendar, Plus, Search, MapPin, Clock, Loader2, CheckCircle2, RefreshCw } from "lucide-react";
@@ -113,6 +113,7 @@ export default function PortoPontaDelgadaPage() {
   const atracadosCount = escalas.filter((e) => e.estado === "Atracado").length;
   const previstosCount = escalas.filter((e) => e.estado === "Previsto").length;
   const partidosCount = escalas.filter((e) => e.estado === "Partido").length;
+  const cruzeirosCount = escalas.filter((e) => e.tipoCarga === "Cruzeiro").length;
 
   const filtered = escalas.filter((e) => {
     if (tipoFiltro === "contentores" && e.tipoCarga !== "Contentores") return false;
@@ -162,7 +163,7 @@ export default function PortoPontaDelgadaPage() {
           </div>
         )}
 
-        <section className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-5 shadow-sm">
             <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">Navios em Porto (Atracados)</p>
             <p className="mt-2 text-3xl font-black text-emerald-950">{atracadosCount}</p>
@@ -177,6 +178,11 @@ export default function PortoPontaDelgadaPage() {
             <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Partidas Realizadas</p>
             <p className="mt-2 text-3xl font-black text-slate-800">{partidosCount}</p>
             <p className="mt-1 text-xs font-semibold text-slate-500">concluídas</p>
+          </div>
+          <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-5 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-wide text-indigo-700">Navios de Cruzeiro</p>
+            <p className="mt-2 text-3xl font-black text-indigo-950">{cruzeirosCount}</p>
+            <p className="mt-1 text-xs font-semibold text-indigo-600">escalas registadas</p>
           </div>
         </section>
 
@@ -194,6 +200,23 @@ export default function PortoPontaDelgadaPage() {
           <div className="text-sm font-semibold text-slate-600">
             Total de escalas: <span className="font-black text-slate-800">{filtered.length}</span>
           </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {[
+            { key: "todos", label: "Todos" },
+            { key: "contentores", label: "Contentores" },
+            { key: "cruzeiros", label: "Cruzeiros" },
+            { key: "outros", label: "Outros" },
+          ].map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTipoFiltro(t.key)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${tipoFiltro === t.key ? "bg-sky-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
 
         {loading ? (
