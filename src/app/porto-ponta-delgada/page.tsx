@@ -22,6 +22,7 @@ export default function PortoPontaDelgadaPage() {
   const [escalas, setEscalas] = useState<Escala[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [tipoFiltro, setTipoFiltro] = useState<string>("todos");
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({
     navioNome: "",
@@ -113,10 +114,15 @@ export default function PortoPontaDelgadaPage() {
   const previstosCount = escalas.filter((e) => e.estado === "Previsto").length;
   const partidosCount = escalas.filter((e) => e.estado === "Partido").length;
 
-  const filtered = escalas.filter((e) =>
-    [e.navioNome, e.armador, e.cais, e.origemDestino, e.tipoCarga]
-      .some((v) => String(v || "").toLowerCase().includes(search.toLowerCase()))
-  );
+  const filtered = escalas.filter((e) => {
+    if (tipoFiltro === "contentores" && e.tipoCarga !== "Contentores") return false;
+    if (tipoFiltro === "cruzeiros" && e.tipoCarga !== "Cruzeiro") return false;
+    if (tipoFiltro === "outros" && (e.tipoCarga === "Contentores" || e.tipoCarga === "Cruzeiro")) return false;
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return [e.navioNome, e.armador, e.cais, e.origemDestino, e.tipoCarga]
+      .some((v) => String(v || "").toLowerCase().includes(q));
+  });
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-sky-50 via-slate-50 to-indigo-50 p-4 sm:p-8">

@@ -33,6 +33,14 @@ export default function MapaContentoresPage() {
   const [escalas, setEscalas] = useState<Escala[]>([]);
   const [loading, setLoading] = useState(true);
   const [date, setDate] = useState("2026-10-16");
+  const [selectedShip, setSelectedShip] = useState<string | null>(null);
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const s = params.get("ship");
+      if (s) setSelectedShip(s);
+    } catch {}
+  }, []);
 
   useEffect(() => {
     fetch("/api/porto-ponta-delgada", { cache: "no-store" })
@@ -100,7 +108,7 @@ export default function MapaContentoresPage() {
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm" style={{ height: 420 }}>
-          <MapaDynamic date={date} rows={rows} portsInUse={portsInUse} />
+          <MapaDynamic date={date} rows={rows} portsInUse={portsInUse} selectedShip={selectedShip} />
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
@@ -142,7 +150,7 @@ export default function MapaContentoresPage() {
 }
 
 // Dynamic leaflet map, client-only
-function MapaDynamic(props: { date: string; rows: any[]; portsInUse: string[] }) {
+function MapaDynamic(props: { date: string; rows: any[]; portsInUse: string[]; selectedShip: string | null }) {
   const [mod, setMod] = useState<any>(null);
   useEffect(() => {
     (async () => {
