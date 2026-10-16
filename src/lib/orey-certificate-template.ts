@@ -4,6 +4,8 @@ import ExcelJS from 'exceljs';
 import * as XLSX from 'xlsx';
 import { toDateKey } from '@/lib/date-utils';
 import { loadTemplateBuffer } from '@/lib/template-loader';
+import QRCode from "qrcode";
+import crypto from "node:crypto";
 
 type XlsxLoadArg = Parameters<ExcelJS.Xlsx['load']>[0];
 
@@ -38,6 +40,8 @@ export type OreyCertificateTemplateInput = {
   radarReflector?: string;
   radarReflectorExpiry?: string;
   technician?: string;
+  verificationHash?: string;
+  verificationQr?: string;
   status?: string;
   checklist?: Record<string, unknown>;
 };
@@ -470,6 +474,39 @@ export async function buildOreyCertificateArtifacts(input: OreyCertificateTempla
 
   applyCertificateMerges(worksheet);
   fillTemplate(worksheet, input);
+
+  // QR de verificação (Excel): insere imagem no canto inferior esquerdo, alinhado
+  // com a zona do PDF (linhas 54-58, coluna A). Se não vier QR do cliente,
+  // gera a partir do hash de verificação (ou calcula um hash a partir dos
+  // campos essenciais) para manter o Excel coerente com o PDF.
+  try {
+    const suppliedQr = String(input.verificationQr || "").trim();
+    let qrDataUrl = suppliedQr;
+    if (!qrDataUrl) {
+      const hash =
+        String(input.verificationHash || "").trim() ||
+        crypto
+          .createHash("sha256")
+          .update(
+            [input.certNumber ?? "", input.raftSerial ?? "", input.inspectionDate ?? "", input.shipName ?? "", input.technician ?? ""].join("|"),
+          )
+          .digest("hex")
+          .slice(0, 16);
+      const base = String(process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/+$/, "");
+      const serial = encodeURIComponent(input.raftSerial || "");
+      const url = `${base}/verificar/certificado?serial=${serial}&h=${hash}`;
+      qrDataUrl = await QRCode.toDataURL(url, { margin: 0, width: 220, errorCorrectionLevel: "M" });
+    }
+    if (qrDataUrl && qrDataUrl.startsWith("data:image")) {
+      const base64 = qrDataUrl.split(",")[1];
+      const imageId = workbook.addImage({ buffer: Buffer.from(base64, "base64") as any, extension: "png" });
+      worksheet.addImage(imageId, { tl: { col: 0, row: 53 }, ext: { width: 90, height: 90 } });
+      const hashCell = worksheet.getCell("B54");
+      hashCell.value = "Verificar autenticidade";
+    }
+  } catch {
+    // QR opcional: nunca deve impedir a geração do Excel.
+  }
 
   // Pedido operacional: gerar o certificado Excel sem o logo da marca da jangada.
   // Mantemos os dados técnicos e layout original, apenas sem inserir imagem de marca.
