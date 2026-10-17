@@ -736,12 +736,14 @@ export async function saveInspection(payload: SaveInspectionPayload) {
         });
 
         for (const linha of budgetLines) {
-          const stockId = Number(linha.stockId);
-          const qty = Math.max(1, Number(linha.quantidade) || 1);
-          const stock = await tx.stock.findUnique({
-            where: { id: stockId },
-            select: { id: true, quantidade: true, quantidadeReservada: true, quantidadeMinima: true, referencia: true, descricao: true },
-          });
+           const stockId = Number(linha.stockId);
+           const qty = Math.max(1, Number(linha.quantidade) || 1);
+           const stock = Number.isInteger(stockId) && stockId > 0
+             ? await tx.stock.findUnique({
+               where: { id: stockId },
+               select: { id: true, quantidade: true, quantidadeReservada: true, quantidadeMinima: true, referencia: true, descricao: true },
+             })
+             : null;
           if (!stock) {
             stockWarnings.push(
               `Artigo de stock não encontrado para ${linha.referencia || `artigo ${stockId}`} — movimento registado como pendente.`,
@@ -811,10 +813,13 @@ export async function saveInspection(payload: SaveInspectionPayload) {
             continue;
           }
 
-          const stock = await tx.stock.findUnique({
-            where: { id: item.stockId },
-            select: { id: true, quantidade: true, referencia: true },
-          });
+           const itemStockId = Number(item.stockId);
+           const stock = Number.isInteger(itemStockId) && itemStockId > 0
+             ? await tx.stock.findUnique({
+               where: { id: itemStockId },
+               select: { id: true, quantidade: true, referencia: true },
+             })
+             : null;
 
           if (!stock) {
             stockWarnings.push(`Artigo de stock não encontrado para ${item.referencia || item.name} — substituição registada sem movimento de stock.`);

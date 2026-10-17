@@ -535,7 +535,6 @@ model Jangada {
   cylinderSistema                      String?
   cylinderCabecaDisparoRef             String?
   cylinderCabecaDisparoSerial          String?
-  fabricType                           String?
   cylinderCabecaDisparoDescricao       String?
   cylinderTuboCamaraSuperiorRef        String?
   cylinderTuboCamaraSuperiorDescricao  String?

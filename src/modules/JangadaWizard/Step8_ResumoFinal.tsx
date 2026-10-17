@@ -103,7 +103,7 @@ export default function Step8_ResumoFinal() {
 
     if (!hasCert) {
       const tecnico = tecnicos.find(t => String(t.id) === String(selectedTecnicoId));
-      return `O técnico ${tecnico?.nome || ''} não tem certificação válida do fabricante ${brand} para esta balsa.`;
+      return `Aviso: o técnico ${tecnico?.nome || ''} não tem certificação válida do fabricante ${brand} para esta balsa. A inspeção pode ser gravada mesmo assim.`;
     }
     return null;
   };
@@ -431,7 +431,7 @@ export default function Step8_ResumoFinal() {
       // Inspeção Fields
       status: isFinal ? (inspectionData.abate?.ativo ? "Condenada" : "Concluída") : "Draft",
       responsavel: inspectionData.responsavel || "Operador",
-       applyStockMovements: isFinal,
+        applyStockMovements: false,
        signatureBase64: inspectionData.signatureBase64 || null,
        clienteAssinaturaBase64: inspectionData.clienteAssinaturaBase64 || null,
        clienteNomeAssinatura: inspectionData.clienteNomeAssinatura || null,
@@ -878,7 +878,7 @@ export default function Step8_ResumoFinal() {
                   const warning = checkTechnicianCertification();
                   if (warning) {
                     return (
-                      <div className="text-xs font-semibold text-amber-700 flex items-center gap-1.5 mt-2 bg-amber-50 p-2 rounded-xl border border-amber-200">
+                      <div className="text-xs font-semibold text-amber-900 flex items-center gap-1.5 mt-2 bg-amber-100 p-2 rounded-xl border border-amber-300">
                         <AlertTriangle size={16} className="shrink-0" />
                         <span>{warning}</span>
                       </div>

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
-import { buildDatabaseErrorResponse, extractErrorMessage } from "@/lib/database-errors";
+  import { buildDatabaseErrorResponse, extractErrorMessage, getDatabaseUnavailableMessage, isDatabaseUnavailableError } from "@/lib/database-errors";
 import { reverterMovimentosInspecao } from "@/lib/stock/inspecao-sync";
 
 function buildSaveErrorResponse(context: ReturnType<typeof beginApiRequest>, error: unknown, fallback: string) {
@@ -47,7 +47,7 @@ async function syncInspectionWithWorkOrder(ordemId: number, inspecaoId: number, 
 
       for (const item of artigosSubstituidos) {
         const sId = Number(item.stockId || 0);
-        if (!sId) continue;
+        if (!Number.isInteger(sId) || sId <= 0) continue;
 
         // Find stock details
         const stockItem = await prisma.stock.findUnique({
@@ -267,7 +267,7 @@ export async function POST(req: NextRequest) {
         dataProxInspecao: body?.dataProxInspecao ?? body?.nextInspectionDate ?? null,
         shipId: body?.shipId ?? body?.navioId ?? null,
         raftId: body?.raftId ?? body?.jangadaId ?? null,
-        applyStockMovements: body?.applyStockMovements ?? true,
+        applyStockMovements: false, // temporariamente desativado ate historico completo
       };
 
       const saved = await saveInspection(payload);
@@ -299,7 +299,17 @@ export async function POST(req: NextRequest) {
       return respond({ error: error.message, motivo: error.motivo, requerReabertura: true }, { status: 409 });
     }
     captureApiError(context, error);
-    return buildSaveErrorResponse(context, error, 'Erro ao criar inspecao');
+    captureApiError(context, error);
+    if (isDatabaseUnavailableError(error)) {
+      const response = NextResponse.json({ error: getDatabaseUnavailableMessage(), code: "DATABASE_UNAVAILABLE" }, { status: 503 });
+      finishApiRequest(context, response.status);
+      return withRequestId(response, context);
+    }
+    const createLines = error instanceof Error ? error.message.split(/\n/).map((s) => s.trim()).filter(Boolean) : [];
+    const createDetail = createLines.find((l) => /constraint|foreign key|not null|unique|invalid input|column/i.test(l)) || createLines[0] || 'Erro ao criar inspecao';
+    const createResponse = NextResponse.json({ error: createDetail }, { status: 500 });
+    finishApiRequest(context, createResponse.status);
+    return withRequestId(createResponse, context);
   }
 }
 
@@ -352,7 +362,17 @@ export async function PUT(req: NextRequest) {
       return respond({ error: error.message, motivo: error.motivo, requerReabertura: true }, { status: 409 });
     }
     captureApiError(context, error);
-    return buildSaveErrorResponse(context, error, 'Erro ao atualizar inspecao');
+    captureApiError(context, error);
+    if (isDatabaseUnavailableError(error)) {
+      const response = NextResponse.json({ error: getDatabaseUnavailableMessage(), code: "DATABASE_UNAVAILABLE" }, { status: 503 });
+      finishApiRequest(context, response.status);
+      return withRequestId(response, context);
+    }
+    const updateLines = error instanceof Error ? error.message.split(/\n/).map((s) => s.trim()).filter(Boolean) : [];
+    const updateDetail = updateLines.find((l) => /constraint|foreign key|not null|unique|invalid input|column/i.test(l)) || updateLines[0] || 'Erro ao atualizar inspecao';
+    const updateResponse = NextResponse.json({ error: updateDetail }, { status: 500 });
+    finishApiRequest(context, updateResponse.status);
+    return withRequestId(updateResponse, context);
   }
 }
 
