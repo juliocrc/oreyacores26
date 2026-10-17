@@ -1,11 +1,7 @@
 import { jsPDF } from 'jspdf';
-import { applyPlugin } from 'jspdf-autotable';
+import 'jspdf-autotable';
 import type { QuadroTemplateInput } from './quadro-template';
 import { collectSubstitutedArticles } from './quadro-template';
-
-// jspdf-autotable v5 deixou de registar o plugin por side-effect; e preciso
-// aplicar explicitamente para repor doc.autoTable()/doc.lastAutoTable.
-applyPlugin(jsPDF);
 
 function formatMonthYearSlash(value: unknown) {
   const raw = String(value ?? '').trim();

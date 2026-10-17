@@ -37,9 +37,8 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error('Erro ao gerar quadro PDF:', error);
-    const detail = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
-      { error: `Não foi possível gerar o quadro PDF: ${detail}` },
+      { error: 'Não foi possível gerar o quadro PDF.' },
       { status: 500 }
     );
   }
