@@ -1,21 +1,10 @@
 import { logAuditoria } from "@/lib/auditoria";
 import { readAuditoriaJson, writeAuditoriaJson } from "@/lib/auditorias-storage";
-import { toMonthYearString } from "@/lib/date-utils";
 
 export type InspectionChecklistValues = Record<string, string | number | boolean>;
 type InspectionChecklistStore = Record<string, InspectionChecklistValues>;
 
 const INSPECTION_CHECKLIST_STORE_FILE = "_meta/jangadas-inspection-checklist-values.json";
-
-/**
- * Valores legados foram gravados como texto de Date ("Wed Feb 04 2026 ...") ou
- * "DD/MM/AAAA". Ao ler o store normalizamos as chaves de validade para
- * "MM/AAAA", para nunca aparecerem datas em formato inglês na ficha.
- */
-function normalizeValidadeValue(key: string, value: string): string {
-  if (!/^(validade_|.*_validade$|hru_val$|cyl_test_val$)/i.test(key)) return value;
-  return toMonthYearString(value) || value;
-}
 
 export function normalizeInspectionChecklistValues(raw: unknown): InspectionChecklistValues {
   if (!raw) return {};
@@ -35,9 +24,7 @@ export function normalizeInspectionChecklistValues(raw: unknown): InspectionChec
 
   return Object.entries(parsed as Record<string, unknown>).reduce<InspectionChecklistValues>((acc, [key, value]) => {
     if (!key) return acc;
-    if (typeof value === "string") {
-      acc[key] = normalizeValidadeValue(key, value);
-    } else if (typeof value === "number" || typeof value === "boolean") {
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
       acc[key] = value;
     }
     return acc;

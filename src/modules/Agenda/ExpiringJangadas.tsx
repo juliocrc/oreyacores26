@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { format } from 'date-fns';
-import { formatItemValidity } from '@/lib/date-display';
+import { formatValidityDisplay } from '@/lib/date-display';
 
 /**
  * Component that fetches expiring jangada articles and displays a daily summary.
@@ -52,7 +52,7 @@ export default function ExpiringJangadas() {
               <ul className="ml-4 list-disc list-inside text-xs text-slate-600">
                 {data[date]?.map((item, idx) => (
                   <li key={idx}>
-                    Jangada <strong>{item.serial}</strong> – {item.articleName} (validade {formatItemValidity(item.validade)})
+                    Jangada <strong>{item.serial}</strong> – {item.articleName} (validade {formatValidityDisplay(item.validade)})
                   </li>
                 ))}
               </ul>
