@@ -3778,7 +3778,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
 
               <div className="space-y-5">
                 <div className="space-y-1">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Referência HRU</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Tipo de HRU</span>
                   {isEditing ? (
                     <input 
                       className="w-full border-slate-200 rounded-xl px-4 py-2 bg-slate-50 text-sm"
