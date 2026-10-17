@@ -133,102 +133,11 @@ async function findBestStockMatch(
   return null;
 }
 
-type StockRow = {
-  id: number;
-  referencia: string;
-  descricao: string;
-  quantidade: number;
-  associavelJangada: boolean;
-  aplicavelMarcaJangada: string | null;
-  aplicavelModeloJangada: string | null;
-  codigoFabricante?: string | null;
-  validade?: string | null;
-};
-
 /**
- * Encontra o melhor registo de stock para um artigo arbitrário da jangada
- * (não apenas itens obrigatórios do pack), por referência, código de
- * fabricante ou nome/descrição.
+ * Sincroniza a lista de artigos físicos da jangada (ArtigoJangada) 
+ * com o que é esperado pelo Tipo de Pack (SOLAS A/B, etc) e Lotação.
+ * Quando `linkStock` é true, resolve e grava o stockId FK em cada artigo.
  */
-function findStockForArticle(
-  article: { name?: string | null; referencia?: string | null; codigoFabricante?: string | null },
-  allStock: StockRow[],
-): number | null {
-  const ref = normalizeRef(article.referencia);
-  if (ref) {
-    const byRef = allStock.find((s) => normalizeRef(s.referencia) === ref);
-    if (byRef) return byRef.id;
-  }
-
-  const code = normalizeRef(article.codigoFabricante);
-  if (code) {
-    const byCode = allStock.find((s) => normalizeRef(s.codigoFabricante) === code);
-    if (byCode) return byCode.id;
-  }
-
-  const name = normalizeText(article.name);
-  if (name) {
-    const exact = allStock.find((s) => normalizeText(s.descricao) === name);
-    if (exact) return exact.id;
-
-    const soft = allStock.find((s) => {
-      const desc = normalizeText(s.descricao);
-      if (!desc) return false;
-      return desc.includes(name) || name.includes(desc);
-    });
-    if (soft) return soft.id;
-  }
-
-  return null;
-}
-
-/**
- * Liga ao catálogo de stock todos os artigos físicos da jangada
- * (inspecaoId == null) que ainda não tenham stockId. Preenche também a
- * validade em falta a partir do stock, sem nunca sobrescrever a existente.
- */
-export async function linkPhysicalArticlesToStock(
-  jangadaId: number,
-  allStockInput?: StockRow[],
-): Promise<{ linked: number; validadeAtualizada: number }> {
-  const raft = await prisma.jangada.findUnique({
-    where: { id: jangadaId },
-    include: { artigos: true },
-  });
-  if (!raft) return { linked: 0, validadeAtualizada: 0 };
-
-  const allStock = allStockInput && allStockInput.length ? allStockInput : await fetchStock();
-  if (!allStock.length) return { linked: 0, validadeAtualizada: 0 };
-
-  const unlinked = raft.artigos.filter((a) => a.inspecaoId == null && a.stockId == null);
-  let linked = 0;
-  let validadeAtualizada = 0;
-
-  for (const art of unlinked) {
-    const stockId = findStockForArticle(art, allStock);
-    if (!stockId) continue;
-    const stock = allStock.find((s) => s.id === stockId);
-
-    const updateData: Prisma.ArtigoJangadaUncheckedUpdateInput = {
-      stockId,
-      updatedAt: new Date(),
-    };
-
-    if (stock?.validade) {
-      const validity = normalizeArtigoValidade(stock.validade);
-      const current = normalizeArtigoValidade(art.validade);
-      if (validity && !current) {
-        updateData.validade = validity;
-        validadeAtualizada++;
-      }
-    }
-
-    await prisma.artigoJangada.update({ where: { id: art.id }, data: updateData });
-    linked++;
-  }
-
-  return { linked, validadeAtualizada };
-}
 export async function syncRaftArticlesWithPackType(
   jangadaId: number,
   options?: SyncOptions,
@@ -251,18 +160,10 @@ export async function syncRaftArticlesWithPackType(
   const expectedItems = resolvedPack.items;
 
   if (expectedItems.length === 0) {
-    // Sem pack definido: ainda assim liga os artigos físicos existentes ao stock.
-    let linked = 0;
-    let validade = 0;
-    if (linkStock) {
-      const res = await linkPhysicalArticlesToStock(jangadaId);
-      linked = res.linked;
-      validade = res.validadeAtualizada;
-    }
     return {
       success: true,
       warning: "Nenhum artigo de pack definido para este tipo de pack.",
-      summary: { added: 0, updated: 0, stockLinked: linked, validadeAtualizada: validade, removed: 0, total: 0 },
+      summary: { added: 0, updated: 0, stockLinked: 0, validadeAtualizada: 0, removed: 0, total: 0 },
       packSource: resolvedPack.source,
     };
   }
@@ -429,22 +330,11 @@ export async function syncRaftArticlesWithPackType(
 
   const checklistArtigos = await syncRaftChecklistDrivenArtigos(jangadaId);
 
-  // Liga também os artigos físicos que não fazem parte do pack obrigatório
-  // (ex.: pás, rampa, kit de reparação) ao respetivo registo de stock.
-  let extraLinked = 0;
-  if (linkStock && allStock.length) {
-    const linked = await linkPhysicalArticlesToStock(jangadaId, allStock);
-    extraLinked = linked.linked;
-    summary.stockLinked += linked.linked;
-    summary.validadeAtualizada += linked.validadeAtualizada;
-  }
-
   return {
     success: true,
     summary,
     packSource: resolvedPack.source,
     checklistDriven: checklistArtigos.summary,
-    articlesLinked: extraLinked,
   };
 }
 
@@ -594,7 +484,6 @@ async function fetchStock() {
         associavelJangada: true,
         aplicavelMarcaJangada: true,
         aplicavelModeloJangada: true,
-        codigoFabricante: true,
         validade: true,
       },
     });

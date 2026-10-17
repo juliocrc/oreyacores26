@@ -41,11 +41,9 @@ const SERVICE_BULLETIN_STATUS_VALUES: ServiceBulletinStatus[] = [
 type JangadaObservacoesStore = Record<string, string>;
 
 type CertificadoComValididades = {
-  id?: number | null;
   sourceYear?: number | null;
   fileName?: string;
   certificadoNumero?: string | null;
-  dataInspecao?: string | null;
   validities?: Array<{ item?: string; validade?: string }>;
 };
 
@@ -1122,22 +1120,12 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       ownerDisplay = ownerDisplayValue || null;
     }
 
-    // Ficha da jangada: usar apenas o certificado mais recente do ANO CORRENTE.
-    // Os certificados de anos anteriores (ex.: 2025) ficam apenas no histórico.
-    const currentYear = new Date().getFullYear();
-    const certsAnoCorrente = [
-      ...(Array.isArray(jangada.certificadosExtraidos) ? (jangada.certificadosExtraidos as unknown as CertificadoComValididades[]) : []),
-      ...(jangada.certificadoAtivo ? [jangada.certificadoAtivo as unknown as CertificadoComValididades] : []),
-    ]
-      .filter((c) => Number(c?.sourceYear) === currentYear)
-      .sort((a, b) => {
-        const da = String(a?.dataInspecao || "");
-        const db = String(b?.dataInspecao || "");
-        if (da !== db) return da < db ? 1 : -1;
-        return Number(b?.id || 0) - Number(a?.id || 0);
-      });
-
-    const certsFicha = certsAnoCorrente.slice(0, 1);
+    const certs2025 = [
+      ...(Array.isArray(jangada.certificadosExtraidos) ? (jangada.certificadosExtraidos as unknown as CertificadoComValididades[]) : []).filter(
+        (c) => Number(c?.sourceYear) === 2025
+      ),
+      ...(jangada.certificadoAtivo && Number(jangada.certificadoAtivo?.sourceYear) === 2025 ? [jangada.certificadoAtivo as unknown as CertificadoComValididades] : []),
+    ];
 
     const dedupe = new Set<string>();
     const artigosDerivados: Array<{
@@ -1150,7 +1138,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       sourceCertificadoNumero?: string;
     }> = [];
 
-    for (const cert of certsFicha) {
+    for (const cert of certs2025) {
       const rows = Array.isArray(cert?.validities) ? cert.validities : [];
       for (const row of rows) {
         const item = String(row?.item || "").trim();
