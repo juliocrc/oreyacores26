@@ -335,7 +335,7 @@ function normalizeMonthYear(value: unknown): string | null {
 
 function buildJangadaUpdateData(
   input: Record<string, unknown>,
-  current?: { brand?: string | null; model?: string | null; packType?: string | null } | null,
+  current?: { brand?: string | null; model?: string | null; packType?: string | null; capacity?: number | null } | null,
 ) {
   const allowedStringFields = [
     "brand",
@@ -508,6 +508,15 @@ function buildJangadaUpdateData(
       const parsed = Number(serviceStationId);
       if (Number.isFinite(parsed)) data.serviceStationId = parsed;
     }
+  }
+
+  if (current) {
+    if (data.brand === null || data.brand === "") data.brand = current.brand || "RFD";
+    if (data.model === null || data.model === "") data.model = current.model || "SURVIVA";
+    if (data.packType === null || data.packType === "") data.packType = current.packType || "R";
+  }
+  if (data.capacity === undefined || data.capacity === null || Number.isNaN(Number(data.capacity))) {
+    data.capacity = current?.capacity ?? 6;
   }
 
   return data;

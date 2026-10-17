@@ -369,11 +369,14 @@ export async function resolveMandatoryPackItemsForRaftAsync(context: {
   if (packType) {
     const customPack = await findCustomPackTypeByName(packType, { includeInactive: true });
     if (customPack) {
-      return {
-        source: "custom" as const,
-        customPack,
-        items: buildCustomPackMandatoryItems(customPack, context.capacity),
-      };
+      const items = buildCustomPackMandatoryItems(customPack, context.capacity);
+      if (items.length > 0) {
+        return {
+          source: "custom" as const,
+          customPack,
+          items,
+        };
+      }
     }
   }
 
