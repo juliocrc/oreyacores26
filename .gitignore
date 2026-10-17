@@ -146,7 +146,7 @@ populate_queue.js
 run_sync_stock.cjs
 add_missing_stock.cjs
 fix_duplicate_references.cjs
-_tmp_*
+_tmp_*.cjs
 test-script.ps1
 
 # Local-only seed scripts (contain secrets) - do not commit

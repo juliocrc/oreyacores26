@@ -1,0 +1,46 @@
+{
+  "jangadas": [
+    {
+      "id": 2166,
+      "serial": "XDC8GH36D919",
+      "model": "MES-MIS TO SR V",
+      "shipId": 14948,
+      "dataProxInspecao": "2027-04-14"
+    },
+    {
+      "id": 2167,
+      "serial": "XDC8GH37D919",
+      "model": "MES-MIS TO SR V",
+      "shipId": 14948,
+      "dataProxInspecao": "2027-04-14"
+    },
+    {
+      "id": 2168,
+      "serial": "XDC0GH99D919",
+      "model": "ESS MES-SIS TO SR V",
+      "shipId": 14948,
+      "dataProxInspecao": "2027-04-14"
+    },
+    {
+      "id": 2169,
+      "serial": "XDC6GH79D919",
+      "model": "MES MIS 4.8M",
+      "shipId": 14948,
+      "dataProxInspecao": "2027-04-14"
+    },
+    {
+      "id": 2170,
+      "serial": "XDC8GH40D919",
+      "model": "MES MIS 4.8M",
+      "shipId": 14948,
+      "dataProxInspecao": "2027-04-14"
+    }
+  ],
+  "catalog": [
+    {
+      "id": 3969,
+      "marca": "ZODIAC",
+      "modelo": "MES MIS 4.8M"
+    }
+  ]
+}
