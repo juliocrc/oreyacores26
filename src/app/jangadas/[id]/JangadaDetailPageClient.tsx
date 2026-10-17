@@ -426,7 +426,6 @@ export interface JangadaFormData {
   cylinderDataProxTeste?: string;
   cylinderCabecaDisparoRef?: string;
   cylinderCabecaDisparoSerial?: string;
-  cylinderCabecaDisparoValidade?: string;
   cylinderTuboCamaraSuperiorRef?: string;
   cylinderTuboCamaraInferiorRef?: string;
   valvulasAlivio?: string;
@@ -821,7 +820,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
   const [syncLoading, setSyncLoading] = useState(false);
   // "certificado" | "quadro" enquanto o ficheiro esta a ser gerado no servidor.
   // Sem isto os botoes ficam seemingly inertes durante a geracao, que demora.
-  const [aGerarDoc, setAGerarDoc] = useState<'certificado' | 'quadro' | 'quadro-pdf' | 'carimbado' | null>(null);
+  const [aGerarDoc, setAGerarDoc] = useState<'certificado' | 'quadro' | 'carimbado' | null>(null);
   const [dgrmExporting, setDgrmExporting] = useState(false);
   const [syncResult, setSyncResult] = useState<{ success: boolean; warning?: string; summary?: { added: number; updated: number; stockLinked: number; total: number }; hasSnapshot?: boolean; details?: string; packSource?: string } | null>(null);
   const [showSyncResult, setShowSyncResult] = useState(false);
@@ -2097,105 +2096,6 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
     }
   };
 
-  const handleExportQuadroPdf = async () => {
-    if (aGerarDoc) return;
-    setAGerarDoc('quadro-pdf');
-    try {
-      const derivedWp = buildWpDerivedValues({
-        pressureUnit: data.testeWPUnidadePressao,
-        startTime: data.testeWPHoraInicio,
-        tempInitial: data.testeWPTemperaturaInicial,
-        tempFinal: data.testeWPTemperaturaFinal,
-        baroInitial: data.testeWPPressaoAtmosfericaInicial,
-        baroFinal: data.testeWPPressaoAtmosfericaFinal,
-        upperStart: data.testeWPCamaraSuperiorInicio,
-        upperEnd: data.testeWPCamaraSuperiorFim,
-        lowerStart: data.testeWPCamaraInferiorInicio,
-        lowerEnd: data.testeWPCamaraInferiorFim,
-      });
-
-      const payload = {
-        numeroObra: data.numeroObra || '',
-        certNumber: data.ultimoCertificadoNumero || lastInspecao?.certificadoNumero || '',
-        inspectionDate: lastInspecao?.dataInspecao || data.dataInspecao || '',
-        nextInspectionDate: lastInspecao?.dataProxInspecao || data.dataProxInspecao || '',
-        shipName: data.shipNameManual || linkedShip?.nome || '',
-        brand: data.brand || '',
-        raftModel: data.model || '',
-        raftCapacity: data.capacity || '',
-        raftSerial: data.serial || '',
-        manufactureDate: data.dataFabrico || '',
-        cylinderSerial: data.cylinderSerial || '',
-        cylinderGrossWeight: data.cylinderPesoBruto || '',
-        cylinderTara: data.cylinderTara || '',
-        cylinderTare: data.cylinderTara || '',
-        cylinderCo2: data.cylinderCo2 || '',
-        cylinderN2: data.cylinderN2 || '',
-        cylinderHydroTestDate: data.cylinderDataTeste || '',
-        packType: data.packType || '',
-        pressureUnit: data.testeWPUnidadePressao || 'inh2o',
-        tempInitial: data.testeWPTemperaturaInicial || '',
-        tempFinal: data.testeWPTemperaturaFinal || '',
-        baroInitial: data.testeWPPressaoAtmosfericaInicial || '',
-        baroFinal: data.testeWPPressaoAtmosfericaFinal || '',
-        wpStartTime: data.testeWPHoraInicio || '',
-        wpEndTime: data.testeWPHoraFim || '',
-        wpUpperStart: data.testeWPCamaraSuperiorInicio || '',
-        wpUpperEnd: data.testeWPCamaraSuperiorFim || '',
-        wpUpperCorrected: derivedWp.upper.correctedEndDisplay || '',
-        wpUpperDrop: derivedWp.upper.dropDisplay || '',
-        wpUpperDropPercent: derivedWp.upper.dropPercentDisplay || '',
-        wpLowerStart: data.testeWPCamaraInferiorInicio || '',
-        wpLowerEnd: data.testeWPCamaraInferiorFim || '',
-        wpLowerCorrected: derivedWp.lower.correctedEndDisplay || '',
-        wpLowerDrop: derivedWp.lower.dropDisplay || '',
-        wpLowerDropPercent: derivedWp.lower.dropPercentDisplay || '',
-        napTestDone: data.testeNAP || '',
-        fsTestDone: data.testeFS || '',
-        giTestDone: data.testeGI || '',
-        dlTestDone: data.testeDL || '',
-        technician: lastInspecao?.responsavel || '',
-        checklist: buildChecklistPayload(),
-        substituicoes: (artigos || []).map((art) => ({
-          descricao: art.name,
-          referencia: art.referencia || undefined,
-          quantidade: art.quantidade,
-          validade: art.validade || undefined,
-          codigoFabricante: art.codigoFabricante || undefined
-        }))
-      };
-
-      const res = await fetch('/api/exportar-raft-pdf', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error('Falha ao gerar o ficheiro PDF: ' + errorText);
-      }
-
-      toastSavedPathIfPresent(res, 'Quadro PDF');
-
-      const blob = await res.blob();
-      const inspectionDate = new Date(payload.inspectionDate);
-      const month = String(inspectionDate.getMonth() + 1).padStart(2, '0');
-      const year = inspectionDate.getFullYear();
-      const monthYear = `${month} ${year}`;
-      await saveShipDocument({
-        shipName: payload.shipName,
-        category: 'Quadros',
-        filename: `${payload.raftSerial} ${payload.raftModel} ${payload.raftCapacity}P (${monthYear}).pdf`,
-        blob,
-      });
-    } catch (error: unknown) {
-      alert('Erro ao exportar quadro PDF: ' + (error instanceof Error ? error.message : String(error)));
-    } finally {
-      setAGerarDoc(null);
-    }
-  };
-
   const handleGerarCertificadoCarimbado = async () => {
     if (aGerarDoc) return;
     // Abrir já o separador: o popup blocker exige um gesto do utilizador, que se
@@ -3185,17 +3085,6 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                   {aGerarDoc === 'quadro' ? 'A gerar...' : 'Gerar Quadro Excel'}
                 </button>
                 <button
-                  onClick={handleExportQuadroPdf}
-                  disabled={aGerarDoc !== null}
-                  title={aGerarDoc === 'quadro-pdf' ? 'A gerar o quadro PDF...' : undefined}
-                  className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-all shadow-sm disabled:opacity-60 disabled:cursor-progress"
-                >
-                  {aGerarDoc === 'quadro-pdf'
-                    ? <Loader2 size={18} className="animate-spin text-purple-600" />
-                    : <FileText size={18} className="text-purple-600" />}
-                  {aGerarDoc === 'quadro-pdf' ? 'A gerar...' : 'Gerar Quadro PDF'}
-                </button>
-                <button
                   onClick={() => printJangadaLabel()}
                   className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-white bg-slate-800 hover:bg-slate-700 transition-all shadow-sm"
                 >
@@ -4115,21 +4004,6 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                     />
                   ) : (
                     <p className="font-semibold text-slate-800">{data.cylinderCabecaDisparoSerial || '—'}</p>
-                  )}
-                </div>
-
-                <div className="space-y-1">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Validade Cabeça Disparo</span>
-                  {isEditing ? (
-                    <input
-                      type="text"
-                      className="w-full border-slate-200 rounded-xl px-4 py-2 bg-slate-50 text-sm"
-                      placeholder="MM-AAAA ou AAAA-MM"
-                      value={editForm.cylinderCabecaDisparoValidade || ''}
-                      onChange={(e) => handleEditChange('cylinderCabecaDisparoValidade', e.target.value)}
-                    />
-                  ) : (
-                    <p className="font-semibold text-slate-800">{data.cylinderCabecaDisparoValidade || '—'}</p>
                   )}
                 </div>
 

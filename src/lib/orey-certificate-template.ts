@@ -46,7 +46,7 @@ export type OreyCertificateTemplateInput = {
   checklist?: Record<string, unknown>;
 };
 
-const SERVICE_STATION_NAME = '';
+const SERVICE_STATION_NAME = 'OREY TÉCNICA - SERVIÇOS NAVAIS, LDA       50937';
 
 function asString(value: unknown) {
   return String(value ?? '').trim();

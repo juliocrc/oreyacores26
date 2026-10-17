@@ -103,8 +103,7 @@ export async function POST(_req: Request, context: { params: Promise<{ id: strin
       },
     });
   } catch (error) {
-    const errMessage = error instanceof Error ? error.message : String(error);
     console.error("[POST /api/jangadas/[id]/certificado-carimbado]", error);
-    return NextResponse.json({ error: `Não foi possível gerar o certificado carimbado: ${errMessage}` }, { status: 500 });
+    return NextResponse.json({ error: "Não foi possível gerar o certificado carimbado." }, { status: 500 });
   }
 }

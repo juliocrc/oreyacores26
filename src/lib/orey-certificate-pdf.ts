@@ -40,23 +40,18 @@ function imageFormat(dataUrl: string): "PNG" | "JPEG" | "WEBP" {
 }
 
 /**
- * Limpa as células do template que trazem o nome da estação (G48:J49 e
- * I61:L61). No certificado carimbado o nome já consta no carimbo oficial /
- * é escrito por cima deste, pelo que manter estas células daria origem a uma
- * repetição do nome.
+ * Limpa a área G48:J49 do template (nome da estação). No certificado carimbado
+ * o nome já consta no carimbo oficial, pelo que a célula do template daria
+ * origem a uma repetição do nome.
  */
 function clearStationNameArea(worksheet: ExcelJS.Worksheet) {
-  const clearCell = (row: number, col: number) => {
-    const cell = worksheet.getCell(row, col);
-    if (cell.isMerged && cell.master && cell.master.address !== cell.address) return;
-    cell.value = null;
-  };
-  // G48:J49 — nome da estação no bloco do cabeçalho.
   for (let row = 48; row <= 49; row += 1) {
-    for (let col = 7; col <= 10; col += 1) clearCell(row, col);
+    for (let col = 7; col <= 10; col += 1) {
+      const cell = worksheet.getCell(row, col);
+      if (cell.isMerged && cell.master && cell.master.address !== cell.address) continue;
+      cell.value = null;
+    }
   }
-  // I61:L61 — segundo nome da estação, imediatamente acima do carimbo.
-  clearCell(61, 9);
 }
 
 /** Lê o template OREY, preenche-o e devolve a worksheet pronta a renderizar. */
@@ -117,25 +112,12 @@ export async function buildOreyCertificatePdfBuffer(
     }
     const x = stampRegion.x + (stampRegion.w - width) / 2;
     const y = stampRegion.y + (stampRegion.h - height) / 2;
-     try {
-       doc.addImage(stampImage, imageFormat(stampImage), x, y, width, height);
-     } catch {
-       // Carimbo é opcional: nunca deve impedir a geração.
-     }
-     if (stationName) {
-       // Tape sobre a frase impressa no carimbo, usando o mesmo tamanho de letra.
-       const tapeW = width * 0.9;
-       const tapeH = height * 0.35;
-       const tapeX = x + (width - tapeW) / 2;
-       const tapeY = y + (height - tapeH) / 2;
-       doc.setFillColor(255, 255, 255);
-       doc.rect(tapeX, tapeY, tapeW, tapeH, "F");
-       doc.setFont("helvetica", "bold");
-       doc.setFontSize(9);
-       doc.setTextColor(0, 0, 0);
-       doc.text(stationName, x + width / 2, y + height / 2, { align: "center" });
-     }
-   } else if (stationName) {
+    try {
+      doc.addImage(stampImage, imageFormat(stampImage), x, y, width, height);
+    } catch {
+      // Carimbo é opcional: nunca deve impedir a geração.
+    }
+  } else if (stationName) {
     // Sem imagem de carimbo: ainda assim inscreve o nome da estação.
     doc.setFont("helvetica", "bold");
     doc.setFontSize(9);

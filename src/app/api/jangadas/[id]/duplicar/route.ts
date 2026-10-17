@@ -59,7 +59,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
       packType: original.packType,
       containerModel: original.containerModel,
       containerSize: original.containerSize,
-      fabricType: (original as any).fabricType,
+      fabricType: original.fabricType,
       shipId: original.shipId,
       shipNameManual: original.shipNameManual,
       cylinderSerial: original.cylinderSerial,
