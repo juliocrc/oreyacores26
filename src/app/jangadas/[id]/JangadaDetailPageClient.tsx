@@ -479,7 +479,9 @@ function fmtMonthYear(v: unknown): string {
     const mo = String(Number(m[2])).padStart(2, '0');
     return `${mo}/${m[1]}`;
   }
-  return s || '—';
+  // Valores legados gravados como texto de Date ("Wed Feb 04 2026 ...") ou
+  // "DD/MM/AAAA": normalizar sempre para MM/AAAA.
+  return formatMonthPt(s);
 }
 
 function espelhoValidadeBadge(v: unknown): { cls: string; label: string } {
@@ -487,16 +489,17 @@ function espelhoValidadeBadge(v: unknown): { cls: string; label: string } {
     return { cls: 'bg-slate-100 text-slate-500 border-slate-300', label: 'Sem data' };
   }
   const s = String(v).trim();
-  const m = s.match(/^(\d{4})-(\d{1,2})/);
+  const m = s.match(/^(\d{4})-(\d{1,2})/) || formatMonthPt(s).match(/^(\d{1,2})\/(\d{4})$/);
   if (!m) return { cls: 'bg-slate-100 text-slate-600 border-slate-300', label: s };
-  const year = Number(m[1]);
-  const month = Number(m[2]);
+  const isIso = m[1].length === 4;
+  const year = Number(isIso ? m[1] : m[2]);
+  const month = Number(isIso ? m[2] : m[1]);
   if (!year || !month || month < 1 || month > 12) {
     return { cls: 'bg-slate-100 text-slate-600 border-slate-300', label: s };
   }
-  const end = new Date(year, month - 1, 1);
+  // A validade expira no último dia do mês.
+  const end = new Date(year, month, 0, 23, 59, 59, 999);
   const now = new Date();
-  now.setHours(0, 0, 0, 0);
   const days = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
   if (days < 0) return { cls: 'bg-red-100 text-red-700 border-red-300', label: 'Expirado' };
   if (days <= 30) return { cls: 'bg-amber-100 text-amber-800 border-amber-300', label: `Crítico (${days}d)` };

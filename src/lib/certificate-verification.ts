@@ -4,29 +4,63 @@ import { getBaseUrl } from "./auth";
 import type { InspectionCertificateInput } from "./inspection-certificate";
 
 /**
+ * Campos que entram no hash de integridade. É deliberadamente um tipo estrutural
+ * mínimo para poder ser usado tanto pelo certificado PDF (a partir da BD) como
+ * pelo certificado Excel (a partir do payload), garantindo o MESMO hash/QR.
+ */
+export type CertificateVerificationSource = {
+  certNumber?: string | null;
+  raftSerial?: string | null;
+  inspectionDate?: string | null;
+  shipName?: string | null;
+  technician?: string | null;
+  clientName?: string | null;
+  checklist?: Record<string, unknown> | null;
+};
+
+/**
  * Hash de integridade do certificado (sha256 truncado). Não é uma assinatura
  * criptográfica — serve apenas para detetar alterações aos campos essenciais
  * entre o PDF emitido e os dados atuais no sistema.
  */
-export function computeCertificateVerificationHash(input: InspectionCertificateInput): string {
-  const checklist = (input.checklist || {}) as Record<string, unknown>;
+export function computeCertificateVerificationHashFrom(source: CertificateVerificationSource): string {
+  const checklist = (source.checklist || {}) as Record<string, unknown>;
   const canonical = [
-    input.certNumber ?? "",
-    input.raftSerial ?? "",
-    input.inspectionDate ?? "",
-    input.shipName ?? "",
-    input.technician ?? "",
-    input.clientName ?? "",
+    source.certNumber ?? "",
+    source.raftSerial ?? "",
+    source.inspectionDate ?? "",
+    source.shipName ?? "",
+    source.technician ?? "",
+    source.clientName ?? "",
     String(checklist.aprovacao_wp ?? ""),
   ].join("|");
   return crypto.createHash("sha256").update(canonical).digest("hex").slice(0, 16);
 }
 
+export function computeCertificateVerificationHash(input: InspectionCertificateInput): string {
+  return computeCertificateVerificationHashFrom(input);
+}
+
 /** URL pública de verificação do certificado. */
-export function buildCertificateVerificationUrl(input: InspectionCertificateInput, hash: string): string {
+export function buildCertificateVerificationUrlFor(
+  serial: string | null | undefined,
+  hash: string,
+): string {
   const base = getBaseUrl().replace(/\/+$/, "");
-  const serial = encodeURIComponent(input.raftSerial || "");
-  return `${base}/verificar/certificado?serial=${serial}&h=${hash}`;
+  return `${base}/verificar/certificado?serial=${encodeURIComponent(serial || "")}&h=${hash}`;
+}
+
+export function buildCertificateVerificationUrl(input: InspectionCertificateInput, hash: string): string {
+  return buildCertificateVerificationUrlFor(input.raftSerial, hash);
+}
+
+/** QR code (data URL) da página de verificação, com as opções canónicas. */
+export async function generateCertificateVerificationQr(url: string): Promise<string | undefined> {
+  try {
+    return await QRCode.toDataURL(url, { margin: 0, width: 220, errorCorrectionLevel: "M" });
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -37,16 +71,9 @@ export function buildCertificateVerificationUrl(input: InspectionCertificateInpu
 export async function withCertificateVerification(
   input: InspectionCertificateInput,
 ): Promise<InspectionCertificateInput> {
-  const hash = computeCertificateVerificationHash(input);
-  let verificationQr: string | undefined;
-  try {
-    verificationQr = await QRCode.toDataURL(buildCertificateVerificationUrl(input, hash), {
-      margin: 0,
-      width: 220,
-      errorCorrectionLevel: "M",
-    });
-  } catch {
-    verificationQr = undefined;
-  }
+  const hash = computeCertificateVerificationHashFrom(input);
+  const verificationQr = await generateCertificateVerificationQr(
+    buildCertificateVerificationUrlFor(input.raftSerial, hash),
+  );
   return { ...input, verificationHash: hash, verificationQr };
 }

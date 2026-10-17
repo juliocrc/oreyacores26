@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Calendar, ClipboardCheck, Package, Ship, Anchor, Cylinder, ShieldAlert, Activity, Info, Printer, FileSpreadsheet, Edit, Save, X as XIcon, RotateCcw, ArrowLeftRight, MinusCircle, PlusCircle, AlertCircle } from 'lucide-react';
 import { computeNextInspectionDate, needsThreeYearRule } from '../../lib/inspectionUtils';
 import { formatDate, calculateQueda, formatMonthYear } from '@/lib/inspecao-detalhes-dialog-helpers';
-import { formatValidityDisplay } from '@/lib/date-display';
+import { formatItemValidity, formatValidityDisplay } from '@/lib/date-display';
 import { fmtPeso } from '@/lib/liferaft-diagram-helpers';
 import { buildWpDerivedValues, buildQuadroChecklistPayload } from '@/lib/quadro-payload';
 import { saveShipDocument, saveCertificateDocument, yearFromDate, toastSavedPathIfPresent } from '@/lib/ship-downloads';
@@ -83,7 +83,7 @@ export function InspecaoDetalhesDialog({
         <td style="padding: 4px 8px; text-align: left;">${art.referencia || '—'}</td>
         <td style="padding: 4px 8px; text-align: left;">${art.codigoFabricante || '—'}</td>
         <td style="padding: 4px 8px; text-align: center;">${art.quantidade}</td>
-        <td style="padding: 4px 8px; font-weight: 600; text-align: left;">${art.validade ? formatValidityDisplay(art.validade) : '—'}</td>
+        <td style="padding: 4px 8px; font-weight: 600; text-align: left;">${art.validade ? formatItemValidity(art.validade) : '—'}</td>
       </tr>
     `).join('');
 

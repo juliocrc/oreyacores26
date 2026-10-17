@@ -37,7 +37,7 @@ export async function GET(request: Request) {
     const navio = jangada.shipId
       ? await prisma.navio.findUnique({
           where: { id: jangada.shipId },
-          select: { nome: true },
+          select: { nome: true, cliente: { select: { nome: true } } },
         })
       : null;
 
@@ -45,6 +45,9 @@ export async function GET(request: Request) {
       jangada,
       lastInspecao,
       shipName: jangada.shipNameManual || navio?.nome || "",
+      // Igual à emissão (certificado carimbado e Excel): sem isto o hash
+      // recomputado diverge do que foi impresso no QR.
+      ownerName: navio?.cliente?.nome || jangada.owner || "",
       stamp: false,
     });
 

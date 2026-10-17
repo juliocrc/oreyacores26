@@ -599,9 +599,16 @@ export function formatMonthPt(value: unknown): string {
   const mmYy = str.match(/^(\d{1,2})\/(\d{2})$/);
   if (mmYy) return `${mmYy[1]}/${2000 + Number(mmYy[2])}`;
 
+  // DD/MM/YYYY -> "MM/YYYY" (validade é sempre mês/ano)
+  const dmY = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (dmY) {
+    const month = Number(dmY[2]);
+    if (month >= 1 && month <= 12) return `${String(month).padStart(2, '0')}/${dmY[3]}`;
+  }
+
   // Fallback: use UTC components to avoid timezone shift.
   const d = new Date(str);
-  if (Number.isNaN(d.getTime())) return str;
+  if (Number.isNaN(d.getTime())) return '—';
   const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
   const yyyy = d.getUTCFullYear();
   return `${mm}/${yyyy}`;

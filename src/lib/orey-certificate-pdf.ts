@@ -1,14 +1,10 @@
 import jsPDF from "jspdf";
-import ExcelJS from "exceljs";
-import { loadTemplateBuffer } from "@/lib/template-loader";
+import type ExcelJS from "exceljs";
 import {
-  applyCertificateMerges,
-  fillTemplate,
+  loadFilledCertificateWorksheet,
   type OreyCertificateTemplateInput,
 } from "@/lib/orey-certificate-template";
 import { imageSizeFromDataUrl, renderWorksheetToPdf } from "@/lib/xlsx-worksheet-render";
-
-type XlsxLoadArg = Parameters<ExcelJS.Xlsx["load"]>[0];
 
 export type OreyCertificatePdfStamp = {
   /** Imagem do carimbo oficial (data URL). */
@@ -57,20 +53,6 @@ function clearStationNameArea(worksheet: ExcelJS.Worksheet) {
   clearCell(61, 9);
 }
 
-/** Lê o template OREY, preenche-o e devolve a worksheet pronta a renderizar. */
-async function loadFilledCertificateWorksheet(input: OreyCertificateTemplateInput) {
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load((await loadTemplateBuffer("template certificado orey.xltx")) as unknown as XlsxLoadArg);
-  const worksheet = workbook.getWorksheet("CERTIFICADO") || workbook.worksheets[0];
-  if (!worksheet) {
-    throw new Error("Folha CERTIFICADO não encontrada no template Orey.");
-  }
-  applyCertificateMerges(worksheet);
-  fillTemplate(worksheet, input);
-  clearStationNameArea(worksheet);
-  return { workbook, worksheet };
-}
-
 /**
  * Gera o certificado PDF reconstruindo fielmente o template Excel
  * (`template certificado orey.xltx`): preenche as células identificadas pelo
@@ -85,6 +67,7 @@ export async function buildOreyCertificatePdfBuffer(
   options: BuildOreyCertificatePdfOptions = {},
 ): Promise<Buffer> {
   const { workbook, worksheet } = await loadFilledCertificateWorksheet(input);
+  clearStationNameArea(worksheet);
 
   // No certificado carimbado o nome da estação consta já no carimbo oficial,
   // pelo que a área G48:J49 do template é limpa (ver clearStationNameArea) para

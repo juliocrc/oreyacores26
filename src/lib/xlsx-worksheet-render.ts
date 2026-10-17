@@ -10,7 +10,8 @@ import type jsPDF from "jspdf";
  * é depois escalado (fit-to-page) e deslocado pelas margens da página.
  */
 
-const EMU_PER_MM = 914400 / 25.4;
+export const EMU_PER_MM = 914400 / 25.4;
+export const PX_PER_MM = 96 / 25.4;
 
 export type WorksheetLayout = {
   scale: number;
@@ -59,6 +60,79 @@ function toMmFromColumnWidth(width: number | undefined, defaultWidth: number): n
 function toMmFromRowHeight(height: number | undefined, defaultHeight: number): number {
   const pt = Number.isFinite(height) && (height as number) > 0 ? (height as number) : defaultHeight;
   return (pt * 25.4) / 72;
+}
+
+function getWorksheetDefaults(worksheet: Worksheet) {
+  const properties = worksheet.properties || {};
+  return {
+    defaultColWidth: Number(properties.defaultColWidth) || 9.0546875,
+    defaultRowHeight: Number(properties.defaultRowHeight) || 13.2,
+  };
+}
+
+function columnWidthMm(worksheet: Worksheet, col: number): number {
+  const { defaultColWidth } = getWorksheetDefaults(worksheet);
+  return toMmFromColumnWidth(worksheet.getColumn(col).width, defaultColWidth);
+}
+
+function rowHeightMm(worksheet: Worksheet, row: number): number {
+  const { defaultRowHeight } = getWorksheetDefaults(worksheet);
+  return toMmFromRowHeight(worksheet.getRow(row).height, defaultRowHeight);
+}
+
+/**
+ * Retângulo (mm, com origem em A1) de uma região de células — a mesma métrica
+ * usada por `computeWorksheetLayout`, mas em coordenadas da folha (sem escala
+ * nem margens) para ancorar imagens no Excel com a geometria do PDF.
+ */
+export function worksheetRegionRectMm(
+  worksheet: Worksheet,
+  top: number,
+  left: number,
+  bottom: number,
+  right: number,
+): { x: number; y: number; w: number; h: number } {
+  let x = 0;
+  for (let col = 1; col < left; col++) x += columnWidthMm(worksheet, col);
+  let w = 0;
+  for (let col = left; col <= right; col++) w += columnWidthMm(worksheet, col);
+  let y = 0;
+  for (let row = 1; row < top; row++) y += rowHeightMm(worksheet, row);
+  let h = 0;
+  for (let row = top; row <= bottom; row++) h += rowHeightMm(worksheet, row);
+  return { x, y, w, h };
+}
+
+/**
+ * Converte um ponto (mm, com origem em A1) na âncora ExcelJS
+ * (`nativeCol`/`nativeRow` 0-based e offsets em EMU) — o formato aceite por
+ * `worksheet.addImage`/`getImages()`.
+ */
+export function worksheetAnchorAtMm(
+  worksheet: Worksheet,
+  xMm: number,
+  yMm: number,
+): { nativeCol: number; nativeColOff: number; nativeRow: number; nativeRowOff: number } {
+  let col = 1;
+  let offsetX = xMm;
+  for (; col <= 1000; col++) {
+    const width = columnWidthMm(worksheet, col);
+    if (offsetX < width || width <= 0) break;
+    offsetX -= width;
+  }
+  let row = 1;
+  let offsetY = yMm;
+  for (; row <= 100000; row++) {
+    const height = rowHeightMm(worksheet, row);
+    if (offsetY < height || height <= 0) break;
+    offsetY -= height;
+  }
+  return {
+    nativeCol: col - 1,
+    nativeColOff: Math.max(0, Math.round(offsetX * EMU_PER_MM)),
+    nativeRow: row - 1,
+    nativeRowOff: Math.max(0, Math.round(offsetY * EMU_PER_MM)),
+  };
 }
 
 function parseCellAddress(address: string): { col: number; row: number } {

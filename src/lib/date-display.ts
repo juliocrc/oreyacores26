@@ -125,6 +125,19 @@ export function formatValidityDisplay(value?: string | null, fallback = '—') {
 }
 
 /**
+ * Validade de artigos/consumíveis — sempre MM/AAAA (expira no último dia do
+ * mês). Também normaliza valores legados gravados como texto de Date
+ * ("Wed Feb 04 2026 ..."). Devolve o fallback se não for interpretável.
+ */
+export function formatItemValidity(value?: string | null, fallback = '—') {
+	if (!value) return fallback;
+	const normalized = normalizeMonthYearValue(value);
+	if (!normalized) return fallback;
+	const [year, month] = normalized.split('-');
+	return `${month}/${year}`;
+}
+
+/**
  * Canonicaliza uma data para armazenamento interno: YYYY-MM-DD (com dia) ou YYYY-MM (mês/ano).
  * Devolve '' se não for possível interpretar.
  */

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { AlertTriangle, Droplets, UtensilsCrossed, Package, Ship, Calendar, Flame, Printer, RadioTower, Waves } from "lucide-react";
-import { formatValidityDisplay } from "@/lib/date-display";
+import { formatItemValidity } from "@/lib/date-display";
 
 type ValidityItem = {
   id: number;
@@ -61,7 +61,7 @@ export default function RelatorioValidadesPage() {
         <td>${esc(desc)}</td>
         <td>${esc(detail)}</td>
         <td class="c">${item.quantidade != null ? item.quantidade : "-"}</td>
-        <td class="c">${esc(formatValidityDisplay(item.validade || item.dataProxInspecao))}</td>
+        <td class="c">${esc(formatItemValidity(item.validade || item.dataProxInspecao))}</td>
       </tr>`;
     };
 
@@ -176,7 +176,7 @@ export default function RelatorioValidadesPage() {
                     <div className="flex items-center gap-2 text-xs">
                       <Calendar size={12} className="text-slate-400" />
                       <span className="font-semibold text-red-600">
-                        {formatValidityDisplay(item.validade || item.dataProxInspecao)}
+                        {formatItemValidity(item.validade || item.dataProxInspecao)}
                       </span>
                       {item.quantidade != null && <span className="text-slate-500">Qtd: {item.quantidade}</span>}
                     </div>

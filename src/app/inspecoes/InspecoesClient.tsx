@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useCallback } from "react";
 import { Search, FileText, ChevronDown, ChevronRight, Activity, Calendar, Download, Loader2, CheckCircle2, Timer, XCircle, ListChecks } from "lucide-react";
 import Link from "next/link";
-import { formatValidityDisplay } from "@/lib/date-display";
+import { formatItemValidity, formatValidityDisplay } from "@/lib/date-display";
 
 type InspecaoData = {
   id: number;
@@ -345,7 +345,7 @@ export default function InspecoesClient({ initialData, totalCount, pageSize }: P
                                           </div>
                                           {art.validade && (
                                             <div className="text-xs text-emerald-600 font-medium mt-1">
-                                              Validade: {formatValidityDisplay(art.validade)}
+                                              Validade: {formatItemValidity(art.validade)}
                                             </div>
                                           )}
                                         </div>

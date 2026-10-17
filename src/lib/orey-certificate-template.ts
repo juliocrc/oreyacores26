@@ -5,8 +5,17 @@ import * as XLSX from 'xlsx';
 import { toDateKey } from '@/lib/date-utils';
 import { stripFirstAidForPack, resolveDocumentPackType } from '@/config/packTemplates';
 import { loadTemplateBuffer } from '@/lib/template-loader';
-import QRCode from "qrcode";
-import crypto from "node:crypto";
+import {
+  buildCertificateVerificationUrlFor,
+  computeCertificateVerificationHashFrom,
+  generateCertificateVerificationQr,
+} from '@/lib/certificate-verification';
+import {
+  PX_PER_MM,
+  imageSizeFromDataUrl,
+  worksheetAnchorAtMm,
+  worksheetRegionRectMm,
+} from '@/lib/xlsx-worksheet-render';
 
 type XlsxLoadArg = Parameters<ExcelJS.Xlsx['load']>[0];
 
@@ -464,7 +473,12 @@ function configureCertificatePrintLayout(worksheet: ExcelJS.Worksheet) {
   };
 }
 
-export async function buildOreyCertificateArtifacts(input: OreyCertificateTemplateInput) {
+/**
+ * Carrega o template CERTIFICADO e preenche-o (merges + células + layout de
+ * impressão A4). É a fonte única de verdade partilhada pelo .xlsx e pelo .pdf,
+ * para que os dois documentos fiquem idênticos.
+ */
+export async function loadFilledCertificateWorksheet(input: OreyCertificateTemplateInput) {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load((await loadTemplateBuffer('template certificado orey.xltx')) as unknown as XlsxLoadArg);
 
@@ -475,42 +489,105 @@ export async function buildOreyCertificateArtifacts(input: OreyCertificateTempla
 
   applyCertificateMerges(worksheet);
   fillTemplate(worksheet, input);
+  configureCertificatePrintLayout(worksheet);
+  return { workbook, worksheet };
+}
 
-  // QR de verificação (Excel): insere imagem no canto inferior esquerdo, alinhado
-  // com a zona do PDF (linhas 54-58, coluna A). Se não vier QR do cliente,
-  // gera a partir do hash de verificação (ou calcula um hash a partir dos
-  // campos essenciais) para manter o Excel coerente com o PDF.
+/** Hash público de verificação (idêntico ao do certificado PDF/carimbado). */
+export function resolveCertificateVerificationHash(input: OreyCertificateTemplateInput): string {
+  const provided = asString(input.verificationHash);
+  if (provided) return provided;
+  return computeCertificateVerificationHashFrom({
+    certNumber: input.certNumber,
+    raftSerial: input.raftSerial,
+    inspectionDate: input.inspectionDate,
+    shipName: input.shipName,
+    technician: input.technician,
+    clientName: input.owner,
+    checklist: input.checklist,
+  });
+}
+
+/**
+ * Coloca o QR de verificação no Excel com a MESMA geometria do PDF: região das
+ * linhas 54-58 da coluna A, encostado em baixo, com a nota de autenticidade em
+ * B57/B58.
+ */
+async function applyVerificationQr(
+  workbook: ExcelJS.Workbook,
+  worksheet: ExcelJS.Worksheet,
+  input: OreyCertificateTemplateInput,
+) {
+  const hash = resolveCertificateVerificationHash(input);
+  const suppliedQr = asString(input.verificationQr);
+  const qrDataUrl =
+    suppliedQr.startsWith('data:image')
+      ? suppliedQr
+      : (await generateCertificateVerificationQr(buildCertificateVerificationUrlFor(input.raftSerial, hash))) || '';
+  if (!qrDataUrl.startsWith('data:image')) return;
+
+  const region = worksheetRegionRectMm(worksheet, 54, 1, 58, 1);
+  const sideMm = Math.min(region.w, region.h);
+  if (!(sideMm > 0)) return;
+
+  const anchor = worksheetAnchorAtMm(worksheet, region.x, region.y + region.h - sideMm);
+  const sidePx = sideMm * PX_PER_MM;
+  const base64 = qrDataUrl.split(',')[1] || '';
+  const imageId = workbook.addImage({ buffer: Buffer.from(base64, 'base64') as never, extension: 'png' });
+  worksheet.addImage(imageId, {
+    tl: anchor,
+    ext: { width: sidePx, height: sidePx },
+    editAs: 'oneCell',
+  } as never);
+
+  const noteStyle = { size: 5, color: { argb: 'FF555555' } };
+  const note = worksheet.getCell('B57');
+  note.value = 'Verificar autenticidade';
+  note.font = { ...(note.font || {}), ...noteStyle } as ExcelJS.Font;
+  const hashNote = worksheet.getCell('B58');
+  hashNote.value = `Hash: ${hash}`;
+  hashNote.font = { ...(hashNote.font || {}), ...noteStyle } as ExcelJS.Font;
+}
+
+/**
+ * Re-ancora o logótipo do template à largura usada pelo PDF (45 mm), mantendo o
+ * canto superior esquerdo definido no template.
+ */
+function applyLogoWidth(workbook: ExcelJS.Workbook, worksheet: ExcelJS.Worksheet, widthMm: number) {
+  const [logo] = worksheet.getImages();
+  if (!logo) return;
+  const media = workbook.getImage(Number(logo.imageId)) as { buffer?: unknown; extension?: unknown } | undefined;
+  const rawBuffer = media?.buffer;
+  if (!rawBuffer) return;
+  const extension = String(media?.extension || 'jpeg').toLowerCase();
+  const mime = extension === 'png' ? 'png' : extension === 'gif' ? 'gif' : 'jpeg';
+  const dataUrl = `data:image/${mime};base64,${Buffer.from(rawBuffer as Buffer).toString('base64')}`;
+  const size = imageSizeFromDataUrl(dataUrl);
+  const aspect = size && size.width > 0 ? size.height / size.width : 0.46;
+  const range = logo.range as unknown as {
+    br?: unknown;
+    ext?: { width: number; height: number };
+  };
+  range.br = undefined;
+  range.ext = { width: widthMm * PX_PER_MM, height: widthMm * aspect * PX_PER_MM };
+}
+
+export async function buildOreyCertificateArtifacts(input: OreyCertificateTemplateInput) {
+  const { workbook, worksheet } = await loadFilledCertificateWorksheet(input);
+
+  // QR de verificação, com a geometria do PDF (linhas 54-58, coluna A).
   try {
-    const suppliedQr = String(input.verificationQr || "").trim();
-    let qrDataUrl = suppliedQr;
-    if (!qrDataUrl) {
-      const hash =
-        String(input.verificationHash || "").trim() ||
-        crypto
-          .createHash("sha256")
-          .update(
-            [input.certNumber ?? "", input.raftSerial ?? "", input.inspectionDate ?? "", input.shipName ?? "", input.technician ?? ""].join("|"),
-          )
-          .digest("hex")
-          .slice(0, 16);
-      const base = String(process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/+$/, "");
-      const serial = encodeURIComponent(input.raftSerial || "");
-      const url = `${base}/verificar/certificado?serial=${serial}&h=${hash}`;
-      qrDataUrl = await QRCode.toDataURL(url, { margin: 0, width: 220, errorCorrectionLevel: "M" });
-    }
-    if (qrDataUrl && qrDataUrl.startsWith("data:image")) {
-      const base64 = qrDataUrl.split(",")[1];
-      const imageId = workbook.addImage({ buffer: Buffer.from(base64, "base64") as any, extension: "png" });
-      worksheet.addImage(imageId, { tl: { col: 0, row: 53 }, ext: { width: 90, height: 90 } });
-      const hashCell = worksheet.getCell("B54");
-      hashCell.value = "Verificar autenticidade";
-    }
+    await applyVerificationQr(workbook, worksheet, input);
   } catch {
     // QR opcional: nunca deve impedir a geração do Excel.
   }
 
-  // Pedido operacional: gerar o certificado Excel sem o logo da marca da jangada.
-  // Mantemos os dados técnicos e layout original, apenas sem inserir imagem de marca.
+  // Logótipo com a mesma largura do PDF carimbado (45 mm).
+  try {
+    applyLogoWidth(workbook, worksheet, 45);
+  } catch {
+    // Logótipo opcional.
+  }
 
   // Remove green fills from all cells
   worksheet.eachRow({ includeEmpty: true }, (row) => {
@@ -520,9 +597,6 @@ export async function buildOreyCertificateArtifacts(input: OreyCertificateTempla
       }
     });
   });
-
-  // Configure page setup for A4 printing
-  configureCertificatePrintLayout(worksheet);
 
   const written = await workbook.xlsx.writeBuffer();
   const buffer = Buffer.isBuffer(written) ? written : Buffer.from(written as ArrayBuffer);
