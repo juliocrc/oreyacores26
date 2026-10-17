@@ -40,10 +40,12 @@ function imageFormat(dataUrl: string): "PNG" | "JPEG" | "WEBP" {
 }
 
 /**
- * Limpa as células do template que trazem o nome da estação (G48:J49 e
- * I61:L61). No certificado carimbado o nome já consta no carimbo oficial /
- * é escrito por cima deste, pelo que manter estas células daria origem a uma
- * repetição do nome.
+ * Limpa as células do template que repetem o nome da estação junto ao carimbo
+ * (I61:L61). No certificado carimbado o nome já é escrito por cima do carimbo
+ * oficial, pelo que manter esta célula daria origem a uma repetição.
+ *
+ * O bloco G48:J48 (linha "Service station name and No.") é mantido, por pedido
+ * operacional, para mostrar o nome e o n.º da estação de serviço.
  */
 function clearStationNameArea(worksheet: ExcelJS.Worksheet) {
   const clearCell = (row: number, col: number) => {
@@ -51,11 +53,7 @@ function clearStationNameArea(worksheet: ExcelJS.Worksheet) {
     if (cell.isMerged && cell.master && cell.master.address !== cell.address) return;
     cell.value = null;
   };
-  // G48:J49 — nome da estação no bloco do cabeçalho.
-  for (let row = 48; row <= 49; row += 1) {
-    for (let col = 7; col <= 10; col += 1) clearCell(row, col);
-  }
-  // I61:L61 — segundo nome da estação, imediatamente acima do carimbo.
+  // I61:L61 — nome da estação, imediatamente acima do carimbo.
   clearCell(61, 9);
 }
 

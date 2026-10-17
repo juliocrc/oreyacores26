@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server';
 import { buildQuadroPDFArtifacts } from '@/lib/quadro-pdf-template';
+import { getAccessContext } from '@/lib/access-control';
 import { saveQuadroToNavioFolder } from '@/lib/certificados-organizados';
 
 export const runtime = 'nodejs';
 
 export async function POST(request: Request) {
   try {
+    // Paridade com /api/exportar-raft: o quadro contém dados de inspeção,
+    // por isso a sessão é obrigatória também no PDF.
+    const access = await getAccessContext();
+    if (!access) return NextResponse.json({ error: 'Sessão obrigatória.' }, { status: 401 });
+
     const payload = await request.json();
     const { buffer, fileName } = await buildQuadroPDFArtifacts(payload);
 

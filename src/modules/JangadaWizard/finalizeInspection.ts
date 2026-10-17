@@ -75,7 +75,8 @@ export function computeFinishWarnings(inspectionData: any): FinishWarning[] {
     if (item.validade) {
       const vParsed = parseMonthYearValue(item.validade);
       if (!vParsed) return;
-      const expDate = new Date(vParsed.year, vParsed.month - 1, 1);
+      // A validade é MM/AAAA e conta até ao ÚLTIMO dia do mês.
+      const expDate = new Date(vParsed.year, vParsed.month, 0, 23, 59, 59, 999);
       const diffTime = expDate.getTime() - insDate.getTime();
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       if (diffDays < 0) {

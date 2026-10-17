@@ -93,7 +93,8 @@ const getStockAvailableForLabel = (globalStock: any[], label: string, refs?: str
 function getDaysRemaining(validadeStr: string, refDate: Date): number | null {
   const parsed = parseMonthYear(validadeStr);
   if (!parsed) return null;
-  const expDate = new Date(parsed.year, parsed.month - 1, 1);
+  // A validade é MM/AAAA e conta até ao ÚLTIMO dia do mês.
+  const expDate = new Date(parsed.year, parsed.month, 0, 23, 59, 59, 999);
   const diffTime = expDate.getTime() - refDate.getTime();
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 };
@@ -107,7 +108,8 @@ const getAnteriorValidityStatus = (
 ) => {
   const parsed = parseMonthYear(String(validadeOriginal || ''));
   if (!parsed) return null;
-  const expDate = new Date(parsed.year, parsed.month - 1, 1);
+  // A validade é MM/AAAA e conta até ao ÚLTIMO dia do mês.
+  const expDate = new Date(parsed.year, parsed.month, 0, 23, 59, 59, 999);
 
   let proxStr = dataProxInspecao;
   if (!proxStr && dataInspecao) {

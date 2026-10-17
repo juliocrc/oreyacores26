@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs';
 import { toDateKey } from '@/lib/date-utils';
 import { loadTemplateBuffer } from '@/lib/template-loader';
+import { stripFirstAidForPack, resolveDocumentPackType } from '@/config/packTemplates';
 
 type XlsxLoadArg = Parameters<ExcelJS.Xlsx['load']>[0];
 
@@ -105,7 +106,7 @@ const SUBSTITUTION_DEFINITIONS: SubstitutionDefinition[] = [
 ];
 
 export function collectSubstitutedArticles(input: QuadroTemplateInput): QuadroSubstitutedArticle[] {
-  const checklist = input.checklist || {};
+  const checklist = stripFirstAidForPack(input.checklist || {}, input.packType);
   const seen = new Set<string>();
   const result: QuadroSubstitutedArticle[] = [];
 
@@ -226,7 +227,7 @@ function anoDaInspecao(value: unknown) {
  * Formato pedido: MARCA, MODELO, LOTAÇÃO, NÚMERO DE SÉRIE e ANO DE INSPEÇÃO.
  * Ex.: "SURVITEC - 8MR - 14587 - SR-2231 - 2026.xlsx"
  */
-function buildQuadroFileName(input: QuadroTemplateInput & Record<string, unknown>) {
+export function buildQuadroFileName(input: QuadroTemplateInput & Record<string, unknown>) {
   const marca = sanitizeFriendlyFileNameSegment(input.brand);
   const modelo = sanitizeFriendlyFileNameSegment(input.raftModel);
   const lotacao = sanitizeFriendlyFileNameSegment(input.numeroObra);
@@ -460,6 +461,8 @@ function clearWorksheetFills(ws: ExcelJS.Worksheet) {
 function fillTemplate(ws: ExcelJS.Worksheet, input: QuadroTemplateInput) {
   clearWorksheetFills(ws);
 
+  const documentPackType = resolveDocumentPackType(input.packType, (input.checklist || {}) as Record<string, unknown>);
+
   setCell(ws.getCell('I3'), input.numeroObra);
   setCell(ws.getCell('I5'), input.certNumber);
 
@@ -474,8 +477,8 @@ function fillTemplate(ws: ExcelJS.Worksheet, input: QuadroTemplateInput) {
   setCell(ws.getCell('C81'), SERVICE_STATION_NAME);
   setCell(ws.getCell('H81'), input.technician);
 
-  setCell(ws.getCell('E47'), input.packType);
-  setCell(ws.getCell('F47'), input.packType);
+  setCell(ws.getCell('E47'), documentPackType);
+  setCell(ws.getCell('F47'), documentPackType);
 
   setCell(ws.getCell('I56'), input.cylinderSerial);
   setCell(ws.getCell('I58'), formatWeightKg(input.cylinderGrossWeight));
@@ -515,7 +518,7 @@ function fillTemplate(ws: ExcelJS.Worksheet, input: QuadroTemplateInput) {
   setCell(ws.getCell('J51'), getTestDateCellValue(giDone, formatMonthYearSlash(input.giTestDate || defaultTestDate)));
   setCell(ws.getCell('J53'), getTestDateCellValue(loadDone, formatMonthYearSlash(input.loadTestDate || defaultTestDate)));
 
-  const checklist = input.checklist || {};
+  const checklist = stripFirstAidForPack(input.checklist || {}, input.packType);
   const batteryModel = inferBatteryModel(checklist.modelo_bateria || checklist.ref_bateria);
 
   const statusMappings: Array<[string, string]> = [
@@ -669,7 +672,15 @@ function configureQuadroPrintLayout(ws: ExcelJS.Worksheet) {
   };
 }
 
-export async function buildQuadroInspectionArtifacts(input: QuadroTemplateInput) {
+/**
+ * Carrega o template QUADRO, preenche-o e configura o layout de impressão.
+ * É a fonte única de verdade partilhada pelo .xlsx e pelo .pdf, para que os
+ * dois documentos fiquem idênticos (mesmas células, mesmo printArea A4, 1 página).
+ */
+export async function loadFilledQuadroWorksheet(input: QuadroTemplateInput): Promise<{
+  workbook: ExcelJS.Workbook;
+  worksheet: ExcelJS.Worksheet;
+}> {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load((await loadTemplateBuffer('template quadro.xlsx')) as unknown as XlsxLoadArg);
 
@@ -681,6 +692,12 @@ export async function buildQuadroInspectionArtifacts(input: QuadroTemplateInput)
 
   fillTemplate(worksheet, input);
   configureQuadroPrintLayout(worksheet);
+
+  return { workbook, worksheet };
+}
+
+export async function buildQuadroInspectionArtifacts(input: QuadroTemplateInput) {
+  const { workbook } = await loadFilledQuadroWorksheet(input);
 
   // Add "Artigos a Expirar" sheet
   const expiringSheet = workbook.addWorksheet('Artigos a Expirar');
@@ -701,7 +718,7 @@ export async function buildQuadroInspectionArtifacts(input: QuadroTemplateInput)
 }
 
 function addExpiringArticlesSheet(ws: ExcelJS.Worksheet, input: QuadroTemplateInput) {
-  const checklist = input.checklist || {};
+  const checklist = stripFirstAidForPack(input.checklist || {}, input.packType);
   const insDate = input.inspectionDate ? new Date(input.inspectionDate) : new Date();
   const nextInsDate = input.nextInspectionDate ? new Date(input.nextInspectionDate) : null;
   
@@ -747,7 +764,8 @@ function addExpiringArticlesSheet(ws: ExcelJS.Worksheet, input: QuadroTemplateIn
     const [vYear, vMonth] = valStr.split('-').map(Number);
     if (!vYear || !vMonth) return;
     
-    const expDate = new Date(vYear, (vMonth || 1) - 1, 1);
+    // A validade é MM/AAAA e conta até ao ÚLTIMO dia do mês (23:59:59.999).
+    const expDate = new Date(vYear, vMonth, 0, 23, 59, 59, 999);
     const diffTime = expDate.getTime() - refDate.getTime();
     const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     

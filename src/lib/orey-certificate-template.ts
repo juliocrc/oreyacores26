@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import ExcelJS from 'exceljs';
 import * as XLSX from 'xlsx';
 import { toDateKey } from '@/lib/date-utils';
+import { stripFirstAidForPack, resolveDocumentPackType } from '@/config/packTemplates';
 import { loadTemplateBuffer } from '@/lib/template-loader';
 import QRCode from "qrcode";
 import crypto from "node:crypto";
@@ -45,8 +46,6 @@ export type OreyCertificateTemplateInput = {
   status?: string;
   checklist?: Record<string, unknown>;
 };
-
-const SERVICE_STATION_NAME = '';
 
 function asString(value: unknown) {
   return String(value ?? '').trim();
@@ -302,7 +301,8 @@ function isThrowOverRaft(input: OreyCertificateTemplateInput) {
 }
 
 export function fillTemplate(worksheet: ExcelJS.Worksheet, input: OreyCertificateTemplateInput) {
-  const checklist = input.checklist || {};
+  const documentPackType = resolveDocumentPackType(input.packType, (input.checklist || {}) as Record<string, unknown>);
+  const checklist = stripFirstAidForPack(input.checklist || {}, input.packType);
   const statusYesNo = asYesNo(input.status && !String(input.status).toLowerCase().includes('pend'));
   const napTestYesNo = asYesNo((checklist as Record<string, unknown>).teste_nap ?? (checklist as Record<string, unknown>).teste_wp ?? statusYesNo);
   const giTestYesNo = asYesNo((checklist as Record<string, unknown>).teste_gi);
@@ -373,7 +373,7 @@ export function fillTemplate(worksheet: ExcelJS.Worksheet, input: OreyCertificat
   setText(worksheet.getCell('L18'), '');
 
   // Keep C27:E27 untouched in the template.
-  setText(worksheet.getCell('G27'), input.packType);
+  setText(worksheet.getCell('G27'), documentPackType);
   setText(worksheet.getCell('I27'), input.raftSerial);
   setText(worksheet.getCell('K27'), formatDateDDMMYYYY(input.nextInspectionDate));
 
@@ -410,7 +410,8 @@ export function fillTemplate(worksheet: ExcelJS.Worksheet, input: OreyCertificat
   setText(worksheet.getCell('L43'), getTestDateCellValue(loadTestYesNo, napTestDate));
 
   setText(worksheet.getCell('C48'), formatDateDDMMYYYY(input.inspectionDate));
-  setText(worksheet.getCell('G48'), SERVICE_STATION_NAME);
+  // G48:J48 — nome e n.º da estação de serviço. Mantém-se o valor do template
+  // ("OREY TÉCNICA - SERVIÇOS NAVAIS, LDA       50937"); não sobrescrever.
   setText(worksheet.getCell('K48'), formatDateDDMMYYYY(input.nextInspectionDate));
   setText(worksheet.getCell('F51'), 'REPORT ANNEXED');
 
