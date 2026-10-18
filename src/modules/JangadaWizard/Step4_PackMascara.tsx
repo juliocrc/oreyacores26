@@ -237,6 +237,68 @@ export default function Step4_PackMascara() {
   };
 
   const [stockDialogKey, setStockDialogKey] = React.useState<string | null>(null);
+  const [wizardBarcodeSearch, setWizardBarcodeSearch] = React.useState('');
+  const [isWizardScanOpen, setIsWizardScanOpen] = React.useState(false);
+  const wizardScannerRef = React.useRef<any>(null);
+
+  React.useEffect(() => {
+    const startWizardCamera = async () => {
+      try {
+        const { Html5Qrcode } = await import("html5-qrcode");
+        const html5QrCode = new Html5Qrcode("reader-wizard-pack");
+        wizardScannerRef.current = html5QrCode;
+        await html5QrCode.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: { width: 250, height: 250 } },
+          (decodedText) => {
+            handleWizardScanCode(decodedText);
+            setIsWizardScanOpen(false);
+          },
+          () => {}
+        );
+      } catch (err) {
+        console.error("Camera error (Wizard Pack):", err);
+        setIsWizardScanOpen(false);
+      }
+    };
+
+    const stopWizardCamera = () => {
+      try {
+        if (wizardScannerRef.current) {
+          wizardScannerRef.current.stop().catch(() => {});
+          wizardScannerRef.current = null;
+        }
+      } catch {}
+    };
+
+    if (isWizardScanOpen) {
+      void startWizardCamera();
+    } else {
+      stopWizardCamera();
+    }
+
+    return () => {
+      stopWizardCamera();
+    };
+  }, [isWizardScanOpen]);
+
+  const handleWizardScanCode = (code: string) => {
+    const cleanCode = code.trim();
+    if (!cleanCode || !stockDialogKey) return;
+    const dialogItem = mandatoryItems.find((i) => i.checklistName === stockDialogKey);
+    const candidates = getStockCandidatesForLabel(inspectionData.globalStock, dialogItem?.label || '', (dialogItem as any)?.stockReferences);
+    
+    const matched = candidates.find((s: any) => s.referencia === cleanCode || s.codigoBarras === cleanCode || s.lote === cleanCode) ||
+      candidates.find((s: any) => String(s.referencia || '').toLowerCase().includes(cleanCode.toLowerCase()) || String(s.codigoBarras || '').toLowerCase().includes(cleanCode.toLowerCase()));
+
+    if (matched) {
+      applyStockItem(stockDialogKey, matched);
+      setStockDialogKey(null);
+      setWizardBarcodeSearch('');
+    } else {
+      setWizardBarcodeSearch(cleanCode);
+    }
+  };
 
   const applyStockItem = (key: string, stockItem: any) => {
     if (!stockItem) return;
@@ -670,7 +732,44 @@ export default function Step4_PackMascara() {
                 </button>
               </div>
 
-              <div className="p-4 max-h-[50vh] overflow-y-auto space-y-2">
+              <div className="p-4 border-b border-slate-100 flex flex-col gap-2">
+                <div className="flex gap-2">
+                  <input
+                    autoFocus
+                    placeholder="Ler código de barras, referência ou lote..."
+                    value={wizardBarcodeSearch}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setWizardBarcodeSearch(val);
+                      if (val.trim().length >= 3) {
+                        handleWizardScanCode(val.trim());
+                      }
+                    }}
+                    className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-200 outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setIsWizardScanOpen(true)}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all"
+                  >
+                    📷 Câmara
+                  </button>
+                </div>
+                {isWizardScanOpen && (
+                  <div className="relative w-full h-48 bg-black rounded-xl overflow-hidden">
+                    <div id="reader-wizard-pack" className="w-full h-full"></div>
+                    <button
+                      type="button"
+                      onClick={() => setIsWizardScanOpen(false)}
+                      className="absolute top-2 right-2 z-10 bg-black/60 text-white px-2 py-1 rounded-lg text-xs"
+                    >
+                      Fechar câmara
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-4 max-h-[45vh] overflow-y-auto space-y-2">
                 {candidates.length === 0 ? (
                   <div className="text-center py-10 text-slate-500 text-sm">
                     <PackageSearch size={32} className="mx-auto mb-2 text-slate-300" />

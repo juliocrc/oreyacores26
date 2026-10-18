@@ -36,7 +36,7 @@ function getBodyParagraphs(body: XmlNode): XmlElement[] {
 /**
  * Clear all <w:r> runs inside a paragraph, put text into the first run.
  */
-function setParagraphText(para: XmlElement, text: string): void {
+function setParagraphText(para: XmlElement, text: string, bold = false): void {
   const runs: XmlElement[] = [];
 
   for (const child of Array.from(para.childNodes)) {
@@ -59,21 +59,33 @@ function setParagraphText(para: XmlElement, text: string): void {
   }
 
   if (runs.length > 0) {
-    // Put text in first run
     const first = runs[0];
     const docOwner = first.ownerDocument;
     if (!docOwner) throw new Error("paragraph has no owner document");
+    let rPr = Array.from(first.childNodes).find((n) => isW(n, "rPr")) as XmlElement | undefined;
+    if (bold) {
+      if (!rPr) {
+        rPr = docOwner.createElementNS(W, "w:rPr");
+        first.insertBefore(rPr, first.firstChild);
+      }
+      let b = Array.from(rPr.childNodes).find((n) => isW(n, "b")) as XmlElement | undefined;
+      if (!b) {
+        b = docOwner.createElementNS(W, "w:b");
+        rPr.appendChild(b);
+      }
+    }
     const t = docOwner.createElementNS(W, "w:t");
     t.textContent = text;
-    // Preserve spaces
     t.setAttribute("xml:space", "preserve");
     first.appendChild(t);
   } else {
-    // No runs exist — create one
     const docOwner = para.ownerDocument;
     if (!docOwner) throw new Error("paragraph has no owner document");
     const run = docOwner.createElementNS(W, "w:r");
     const rPr = docOwner.createElementNS(W, "w:rPr");
+    if (bold) {
+      rPr.appendChild(docOwner.createElementNS(W, "w:b"));
+    }
     run.appendChild(rPr);
     const t = docOwner.createElementNS(W, "w:t");
     t.textContent = text;
@@ -86,10 +98,10 @@ function setParagraphText(para: XmlElement, text: string): void {
 /**
  * Set the text of all paragraphs inside a cell (clearing runs, setting first).
  */
-function setCellText(cell: XmlElement, text: string): void {
+function setCellText(cell: XmlElement, text: string, bold = false): void {
   for (const child of Array.from(cell.childNodes)) {
     if (isW(child, "p")) {
-      setParagraphText(child as XmlElement, text);
+      setParagraphText(child as XmlElement, text, bold);
     }
   }
 }
@@ -244,9 +256,9 @@ export async function generateDgrmDocx(
     if (rows.length > 1) {
       const row1 = rows[1];
       const cells = getRowCells(row1);
-      if (cells.length > 0) setCellText(cells[0], fab);
-      if (cells.length > 1) setCellText(cells[1], local);
-      if (cells.length > 2) setCellText(cells[2], cert);
+      if (cells.length > 0) setCellText(cells[0], fab, true);
+      if (cells.length > 1) setCellText(cells[1], local, true);
+      if (cells.length > 2) setCellText(cells[2], cert, true);
     }
 
     // Row 3: inspection date, ship name, report number
@@ -254,11 +266,11 @@ export async function generateDgrmDocx(
       const row3 = rows[3];
       const cells = getRowCells(row3);
       if (cells.length > 0)
-        setCellText(cells[0], formatPeriodicReviewDate(data.dataInspecao));
+        setCellText(cells[0], formatPeriodicReviewDate(data.dataInspecao), true);
       if (cells.length > 1)
-        setCellText(cells[1], data.shipName || data.shipNameManual || "");
+        setCellText(cells[1], data.shipName || data.shipNameManual || "", true);
       if (cells.length > 2)
-        setCellText(cells[2], data.ultimoCertificadoNumero || "");
+        setCellText(cells[2], data.ultimoCertificadoNumero || "", true);
     }
 
     // Last row: owner name in all cells
@@ -266,6 +278,10 @@ export async function generateDgrmDocx(
     const ownerText = data.ownerDisplay || data.owner || "";
     for (const cell of getRowCells(lastRow)) {
       setCellSingleParagraphText(cell, ownerText);
+      // set bold on the text inside last row cells
+      for (const p of Array.from(cell.childNodes)) {
+        if (isW(p, "p")) setParagraphText(p as XmlElement, ownerText, true);
+      }
     }
   }
 

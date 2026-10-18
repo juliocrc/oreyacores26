@@ -41,6 +41,7 @@ import GlobalSearch from '@/components/GlobalSearch';
 import OfflineSyncButton from '@/components/OfflineSyncButton';
 import WorkModeToggle from '@/components/WorkModeToggle';
 import PWAInstallBanner from '@/components/PWAInstallBanner';
+import QrReaderModal from '@/components/shared/QrReaderModal';
 import { useAppThemeController } from './providers';
 
 const drawerWidth = 244;
@@ -78,31 +79,37 @@ type StationOption = {
 };
 
 const navSections: NavSection[] = [
-  {
-    label: 'Operação',
-    items: [
-      { label: 'Agenda', href: '/agenda', icon: '🗓️', roles: ['ADMIN', 'USER'] },
       {
         label: 'Estação de Serviço',
-        href: '/estacao-servico',
-        icon: '🏭',
-        roles: ['ADMIN', 'USER'],
+        items: [
+          { label: 'Agenda', href: '/agenda', icon: '🗓️', roles: ['ADMIN', 'USER'] },
+          {
+            label: 'Estação de Serviço',
+            href: '/estacao-servico',
+            icon: '🏭',
+            roles: ['ADMIN', 'USER'],
+          },
+          {
+            label: 'Estatísticas da Estação',
+            href: '/estatisticas',
+            icon: '📊',
+            roles: ['ADMIN', 'USER'],
+          },
+          { label: 'Oficina', href: '/oficina', icon: '🛠️', roles: ['ADMIN', 'USER'] },
+          { label: 'Calibrações', href: '/calibracoes', icon: '🎚️', roles: ['ADMIN', 'USER'] },
+          { label: 'Logística', href: '/logistica', icon: '🚚', roles: ['ADMIN'] },
+          { label: 'Porto de Ponta Delgada', href: '/porto-ponta-delgada', icon: '⚓', roles: ['ADMIN', 'USER'] },
+          { label: 'Navios de Contentores', href: '/contentores', icon: '🚢', roles: ['ADMIN', 'USER'] },
+          { label: 'Alertas', href: '/alertas', icon: '🚨', roles: ['ADMIN', 'USER'] },
+          {
+            label: 'Pedidos de Assistência',
+            href: '/pedidos-assistencia',
+            icon: '📩',
+            roles: ['ADMIN', 'USER'],
+          },
+          { label: 'Backups', href: '/backups', icon: '💾', roles: ['ADMIN'] },
+        ],
       },
-      { label: 'Oficina', href: '/oficina', icon: '🛠️', roles: ['ADMIN', 'USER'] },
-      { label: 'Calibrações', href: '/calibracoes', icon: '🎚️', roles: ['ADMIN', 'USER'] },
-      { label: 'Logística', href: '/logistica', icon: '🚚', roles: ['ADMIN'] },
-      { label: 'Porto de Ponta Delgada', href: '/porto-ponta-delgada', icon: '⚓', roles: ['ADMIN', 'USER'] },
-      { label: 'Navios de Contentores', href: '/contentores', icon: '🚢', roles: ['ADMIN', 'USER'] },
-      { label: 'Alertas', href: '/alertas', icon: '🚨', roles: ['ADMIN', 'USER'] },
-      {
-        label: 'Pedidos de Assistência',
-        href: '/pedidos-assistencia',
-        icon: '📩',
-        roles: ['ADMIN', 'USER'],
-      },
-      { label: 'Backups', href: '/backups', icon: '💾', roles: ['ADMIN'] },
-    ],
-  },
   {
     label: 'Ordens de Serviço',
     items: [
@@ -255,6 +262,7 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
   const [loginAlertsQueue, setLoginAlertsQueue] = React.useState<LoginAlertEvent[]>([]);
   const [appToastQueue, setAppToastQueue] = React.useState<AppToastPayload[]>([]);
   const [mounted, setMounted] = React.useState(false);
+  const [qrModalOpen, setQrModalOpen] = React.useState(false);
   const [documentsRootName, setDocumentsRootName] = React.useState<string | null>(null);
   const isOnline = React.useSyncExternalStore(
     subscribeOnlineStatus,
@@ -921,6 +929,27 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
           >
             Pedir Assistência
           </Button>
+          {!isStandalonePage && canRenderInteractiveHeader ? (
+            <Button
+              color="inherit"
+              variant="outlined"
+              onClick={() => setQrModalOpen(true)}
+              sx={{
+                mr: 1.5,
+                borderColor: 'rgba(255,255,255,0.5)',
+                color: 'white',
+                borderRadius: '999px',
+                fontWeight: 700,
+                fontSize: '12px',
+                textTransform: 'none',
+                px: 2,
+                py: 0.75,
+                '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.1)' },
+              }}
+            >
+              📸 Ler QR Code
+            </Button>
+          ) : null}
           {!isStandalonePage && canRenderInteractiveHeader ? <WorkModeToggle /> : null}
           {!isStandalonePage && canRenderInteractiveHeader ? <OfflineSyncButton /> : null}
           {!isStandalonePage && canRenderInteractiveHeader ? <GlobalSearch showTrigger /> : null}
@@ -1196,6 +1225,7 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
       </Snackbar>
       <CommandPalette />
       <PWAInstallBanner />
+      <QrReaderModal open={qrModalOpen} onClose={() => setQrModalOpen(false)} />
       {/* Keyframe for online indicator pulse */}
       <style>{`
         @keyframes pulse-green {
