@@ -643,9 +643,15 @@ function fillTemplate(ws: ExcelJS.Worksheet, input: QuadroTemplateInput) {
     : '';
   if (bateriaLitioPresente) setCell(ws.getCell('F26'), bateriaLitioPresente);
 
-  setCell(ws.getCell('F23'), batteryModel);
+  // F23 não leva código de bateria rígido fixo (retirado 20903168)
+  setCell(ws.getCell('F23'), '');
   setCell(ws.getCell('F37'), input.contentorClosureText);
-  setCell(ws.getCell('F41'), input.contentorPainterLength || checklist.comprimento_retenida);
+  // F40: comprimento da retenida
+  setCell(ws.getCell('F40'), input.contentorPainterLength || checklist.comprimento_retenida);
+  // F36: referência das cintas de fecho e quantidade entre parênteses (ex: "REF (1)")
+  const cintaRef = checklist.ref_cinta_fecho || '';
+  const cintaQtd = checklist.qtd_cinta_fecho || '1';
+  setCell(ws.getCell('F36'), cintaRef ? `${cintaRef} (${cintaQtd})` : '');
 }
 
 function configureQuadroPrintLayout(ws: ExcelJS.Worksheet) {
