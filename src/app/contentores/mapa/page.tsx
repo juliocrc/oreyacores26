@@ -55,6 +55,19 @@ const ALL_SHIPS = [...CONTENTORES_SCHEDULE_SHIPS, ...TRANSINSULAR_SHIPS];
 const DAY_MS = 86_400_000;
 const AZORES_TZ = "Atlantic/Azores";
 
+const TILE_PROVIDERS = [
+  {
+    url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    attribution: "&copy; OpenStreetMap contributors",
+    subdomains: "abc",
+  },
+  {
+    url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+    attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
+    subdomains: "abcd",
+  },
+];
+
 const PORT_STYLES: Record<string, string> = {
   "Ponta Delgada": "bg-sky-100 text-sky-800 border-sky-200",
   "Leixões": "bg-indigo-100 text-indigo-800 border-indigo-200",
@@ -443,6 +456,16 @@ export default function MapaContentoresPage() {
 // Dynamic leaflet map, client-only
 function MapaDynamic(props: { date: string; rows: MapaRow[]; portsInUse: string[]; selectedShip: string | null }) {
   const [mod, setMod] = useState<LeafletModules | null>(null);
+  const [tileProviderIndex, setTileProviderIndex] = useState(0);
+  const [tileLoaded, setTileLoaded] = useState(false);
+  const [tileError, setTileError] = useState(false);
+
+  useEffect(() => {
+    if (tileLoaded || tileError || tileProviderIndex !== TILE_PROVIDERS.length - 1) return;
+    const timer = setTimeout(() => setTileError(true), 12000);
+    return () => clearTimeout(timer);
+  }, [tileLoaded, tileError, tileProviderIndex]);
+
   useEffect(() => {
     (async () => {
       const rl = await import("react-leaflet");
@@ -465,13 +488,35 @@ function MapaDynamic(props: { date: string; rows: MapaRow[]; portsInUse: string[
   const TileLayerC = rl.TileLayer;
   const MarkerC = rl.Marker;
   const PopupC = rl.Popup;
+  const tileProvider = TILE_PROVIDERS[tileProviderIndex];
+
+  const handleTileLoad = () => {
+    setTileLoaded(true);
+    setTileError(false);
+  };
+
+  const handleTileError = () => {
+    setTileLoaded(false);
+    if (tileProviderIndex < TILE_PROVIDERS.length - 1) {
+      setTileProviderIndex(tileProviderIndex + 1);
+      return;
+    }
+    setTileError(true);
+  };
 
   // ports to show
   const ports = ["Ponta Delgada", "Leixões", "Lisboa", "Praia da Vitória", "Angra do Heroísmo", "Horta", "Pico", "Velas", "Graciosa", "Flores", "Vila do Porto"];
 
   return (
-    <MapContainerC center={[38.5, -25.5]} zoom={6} style={{ height: "100%", width: "100%" }} scrollWheelZoom={false}>
-      <TileLayerC url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap contributors" />
+    <div className="relative h-full w-full">
+      <MapContainerC center={[38.5, -25.5]} zoom={6} style={{ height: "100%", width: "100%" }} scrollWheelZoom={false}>
+        <TileLayerC
+          key={tileProvider.url}
+          url={tileProvider.url}
+          attribution={tileProvider.attribution}
+          subdomains={tileProvider.subdomains}
+          eventHandlers={{ tileload: handleTileLoad, tileerror: handleTileError }}
+        />
       {ports.map((p) => {
         const c = portCoords(p);
         if (!c) return null;
@@ -509,6 +554,15 @@ function MapaDynamic(props: { date: string; rows: MapaRow[]; portsInUse: string[
             </MarkerC>
           );
         })}
-    </MapContainerC>
+      </MapContainerC>
+      {tileError && (
+        <div className="absolute inset-0 z-[1000] flex items-center justify-center bg-slate-100/90 p-4 text-center">
+          <div className="max-w-sm rounded-xl border border-amber-200 bg-white p-4 shadow-sm">
+            <p className="text-sm font-bold text-slate-800">Não foi possível carregar o mapa</p>
+            <p className="mt-1 text-xs text-slate-500">Verifica a ligação à internet ou recarrega a página.</p>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
