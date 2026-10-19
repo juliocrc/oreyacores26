@@ -63,7 +63,7 @@ import LiferaftDiagram from '@/components/jangadas/LiferaftDiagram';
 import CylindersPanel, { parseCylindersJson, type CylinderRow } from '@/components/jangadas/CylindersPanel';
 import CylindersEditor from '@/components/jangadas/CylindersEditor';
 import CamaraTestsPanel, { parseTesteCamarasJson } from '@/components/jangadas/CamaraTestsPanel';
-import { formatDate, getLocalDateKey, getLocalMidnight } from '@/lib/date-utils';
+import { formatDate, getLocalDateKey, getLocalMidnight, toDateKey } from '@/lib/date-utils';
 import { buildInspectionIcs, downloadIcsFile } from '@/lib/ics';
 import { formatValidityDisplay, normalizeMonthYearValue } from '@/lib/date-display';
 import { fmtPeso } from '@/lib/liferaft-diagram-helpers';
@@ -1879,12 +1879,8 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
       if (art) {
         if (refKey && art.referencia) checklist[refKey] = art.referencia;
         if (valKey && art.validade) {
-          const valStr = String(art.validade);
-          if (valStr.includes('T')) {
-            checklist[valKey] = valStr.slice(0, 7);
-          } else {
-            checklist[valKey] = valStr;
-          }
+          const valIso = toDateKey(art.validade);
+          if (valIso) checklist[valKey] = valIso;
         }
         if (qtyKey && art.quantidade !== undefined) checklist[qtyKey] = art.quantidade;
         if (statusKey) checklist[statusKey] = 'YES';
