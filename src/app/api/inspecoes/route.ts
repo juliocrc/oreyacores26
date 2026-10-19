@@ -24,6 +24,8 @@ import { resolveStationPrefix } from "@/lib/service-station-input";
 import { logAuditoria } from "@/lib/auditoria";
 import { ensureDocumentoPorEnviar } from "@/lib/docs-por-enviar";
 
+export const maxDuration = 60;
+
 async function syncInspectionWithWorkOrder(ordemId: number, inspecaoId: number, artigosSubstituidos: Array<Record<string, unknown>>) {
   try {
     // 1. Update the work order inspecaoId and status

@@ -1108,7 +1108,7 @@ export async function saveInspection(payload: SaveInspectionPayload) {
     }
 
     return inspecao;
-  });
+  }, { timeout: 60000, maxWait: 10000 });
 
   if (finalJangadaId) {
     const { saveInspectionSnapshot } = require("@/lib/inspection-snapshots");
