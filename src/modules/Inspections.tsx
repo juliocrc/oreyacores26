@@ -1302,7 +1302,6 @@ export default function Inspections() {
     const tokens = (stockPicker.articleTokens || []).map((value) => normalizeText(value)).filter(Boolean);
 
     return [...stockItems]
-      .filter((item) => Number(item?.quantidade ?? 0) > 0)
       .filter((item) => {
         const descricao = normalizeText(item?.descricao);
         const referencia = normalizeText(item?.referencia);
@@ -3052,7 +3051,8 @@ export default function Inspections() {
                         key={item.id}
                         type="button"
                         onClick={() => handleStockPick(item)}
-                        className="border border-gray-200 rounded-xl p-3 text-left hover:border-blue-500 hover:bg-blue-50 active:bg-blue-100 transition flex gap-3 items-start"
+                        disabled={Number(item.quantidade ?? 0) <= 0}
+                        className="border border-gray-200 rounded-xl p-3 text-left hover:border-blue-500 hover:bg-blue-50 active:bg-blue-100 transition flex gap-3 items-start disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-gray-200 disabled:hover:bg-white"
                       >
                         {item.foto ? (
                           <img src={item.foto} alt={item.descricao} className="w-16 h-16 object-cover rounded-lg border flex-shrink-0" />
