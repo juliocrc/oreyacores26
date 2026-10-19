@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { canonicalizeDateFields } from "@/lib/date-display";
+import { resolveRequestedServiceStationId } from "@/lib/station-selection";
+import { activeStationIsAlcantarilha, getSouthRegionShipIds } from "@/lib/alcantarilha-scope";
 
 function normalizeIds(values: unknown): number[] {
   if (!Array.isArray(values)) return [];
@@ -25,6 +27,13 @@ export async function GET(req: NextRequest) {
       where.dataFabrico = { contains: dataFabrico };
     }
     if (searchParams.get("shipId")) where.shipId = Number(searchParams.get("shipId"));
+
+    const requestedStationId = resolveRequestedServiceStationId(req);
+    if (await activeStationIsAlcantarilha(requestedStationId)) {
+      const southShipIds = await getSouthRegionShipIds();
+      const existingAnd = Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : [];
+      where.AND = [...existingAnd, { shipId: { in: southShipIds } }];
+    }
 
     const coletes = await prisma.colete.findMany({
       where,

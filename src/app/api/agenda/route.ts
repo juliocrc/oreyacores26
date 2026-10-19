@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { getAccessContext } from "@/lib/access-control";
 import { resolveActiveServiceStationId } from "@/lib/station-selection";
+import { activeStationIsAlcantarilha, getSouthRegionShipIds } from "@/lib/alcantarilha-scope";
 import {
   getInspectionDefaults,
   normalizeInspectionType,
@@ -177,8 +178,18 @@ export async function GET(req: NextRequest) {
 
   let allowedRaftSerials: string[] | null = null;
   if (activeStationId) {
+    const alcantarilha = await activeStationIsAlcantarilha(activeStationId);
+    const raftScope: Prisma.JangadaWhereInput = alcantarilha
+      ? {
+          OR: [
+            { serviceStationId: activeStationId },
+            { shipId: { in: await getSouthRegionShipIds() } },
+          ],
+        }
+      : { serviceStationId: activeStationId };
+
     const rafts = await prisma.jangada.findMany({
-      where: { serviceStationId: activeStationId },
+      where: raftScope,
       select: { serial: true },
     });
     allowedRaftSerials = rafts.map((r) => String(r.serial || "").trim()).filter(Boolean);

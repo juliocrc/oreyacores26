@@ -9,6 +9,7 @@ import { isValidImo, isValidMmsi } from "@/lib/validators";
 import { buildDatabaseErrorResponse } from "@/lib/database-errors";
 import { parseCoordinate } from "@/lib/coordinates";
 import { resolveActiveServiceStationId } from "@/lib/station-selection";
+import { activeStationIsAlcantarilha, SOUTH_REGION_ILHA_VALUES } from "@/lib/alcantarilha-scope";
 import { APP_CONFIG, normalizeStationMatchToken } from "@/lib/app-config";
 import { getResolvedClienteIslandForNavio, normalizeManualNavioIsland } from "@/lib/navio-island-resolution";
 import { inferAzoresIslandFromPort, isInvalidIslandValue, canonicalizeAzoresIsland } from "@/lib/azores-islands";
@@ -462,7 +463,14 @@ export async function GET(req: NextRequest) {
     // navios dessa estação. Sem estação ativa mantém-se a visão global.
     const activeStationId = resolveActiveServiceStationId(req, access);
     if (activeStationId) {
-      where.serviceStationId = activeStationId;
+      if (await activeStationIsAlcantarilha(activeStationId)) {
+        where.OR = [
+          { ilha: { in: SOUTH_REGION_ILHA_VALUES } },
+          { serviceStationId: activeStationId },
+        ];
+      } else {
+        where.serviceStationId = activeStationId;
+      }
     }
     // Station scoping removed - all users see all navios
     /*

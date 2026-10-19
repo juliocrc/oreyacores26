@@ -7,6 +7,7 @@ import { canEditPath } from "@/lib/user-permissions";
 import { formatTechnicalBulletinShortLabel, getApplicableServiceBulletinsForRaft } from "@/modules/rafts/serviceBulletins";
 import { buildDatabaseErrorResponse } from "@/lib/database-errors";
 import { resolveActiveServiceStationId } from "@/lib/station-selection";
+import { activeStationIsAlcantarilha, getSouthRegionShipIds } from "@/lib/alcantarilha-scope";
 import { deleteJangadaById } from "@/lib/jangada-delete";
 import { canonicalizeDateFields } from "@/lib/date-display";
 import {
@@ -403,16 +404,19 @@ export async function GET(req: NextRequest) {
       });
       where.shipId = { in: shipIdsWithIsland.map(s => s.id) };
     }
-    // Estação scope filtering removed - all users see all jangadas
-    /*
-    if (!bypassStationScope) {
-      if (activeStationId) {
-        where.serviceStationId = activeStationId;
-      } else if (!access.isAdmin) {
-        where.serviceStationId = { in: access.allowedStationIds.length ? access.allowedStationIds : [-1] };
-      }
+    if (activeStationId && (await activeStationIsAlcantarilha(activeStationId))) {
+      const southShipIds = await getSouthRegionShipIds();
+      const existingAnd = Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : [];
+      where.AND = [
+        ...existingAnd,
+        {
+          OR: [
+            { shipId: { in: southShipIds } },
+            { serviceStationId: activeStationId },
+          ],
+        },
+      ];
     }
-    */
 
     const wantsPage = searchParams.has("page") || searchParams.get("paginated") === "1";
     const pageParams = parsePageParams(searchParams, { pageSize: 5000, maxPageSize: 10000 });
