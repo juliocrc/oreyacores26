@@ -1380,10 +1380,36 @@ export default function Inspections() {
     };
   }, [useCameraInsp]);
 
-  const handleScanCodeInsp = (code: string) => {
+  const handleScanCodeInsp = async (code: string) => {
     const cleanCode = code.trim();
     if (!cleanCode) return;
     setScanErrorInsp(null);
+
+    const normalizedSerial = cleanCode.toLowerCase();
+    const localRaft = rafts.find(
+      (raft: any) => String(raft?.serial ?? "").trim().toLowerCase() === normalizedSerial,
+    );
+
+    let raftId = localRaft?.id ? String(localRaft.id) : "";
+
+    if (!raftId) {
+      try {
+        const response = await fetch(`/api/jangadas/serial/${encodeURIComponent(cleanCode)}`);
+        if (response.ok) {
+          const raft = await response.json();
+          if (raft?.id) raftId = String(raft.id);
+        }
+      } catch {
+        // Se a pesquisa falhar, continua para a pesquisa de stock.
+      }
+    }
+
+    if (raftId) {
+      setScanMockCodeInsp("");
+      setIsScanOpenInsp(false);
+      window.location.href = `/jangadas/${raftId}`;
+      return;
+    }
 
     // Try to find a stock item matching by referencia or codigoBarras
     const matchedStockItem = stockItems.find(
@@ -1412,7 +1438,7 @@ export default function Inspections() {
       return;
     }
 
-    setScanErrorInsp(`Nenhum artigo em stock coincide com o código "${cleanCode}".`);
+    setScanErrorInsp(`Nenhuma jangada ou artigo em stock coincide com o código "${cleanCode}".`);
   };
 
   const buildChecklistSnapshot = () => {
@@ -3140,7 +3166,7 @@ export default function Inspections() {
                     type="text"
                     value={scanMockCodeInsp}
                     onChange={(e) => setScanMockCodeInsp(e.target.value)}
-                    placeholder="Introduzir código de barras ou referência..."
+                    placeholder="Serial da jangada, código de barras ou referência..."
                     className="flex-1 rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
