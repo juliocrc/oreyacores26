@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
@@ -87,9 +87,9 @@ const translateArticleName = (name: string | number | null | undefined): string 
     "Reflective Tape": "Fita Refletora",
     "Retro reflective tape": "Fita Retro-refletora",
     "Retro Reflective Tape": "Fita Retro-refletora",
-    "Grab Handles": "Pegas de Mão",
-    "Grab line and patches": "Cabo de Salvação Exterior e Remendos",
-    "Grabline Internal": "Cabo de Salvação Interior",
+    "Grab Handles": "Pegas de MÃ£o",
+    "Grab line and patches": "Cabo de SalvaÃ§Ã£o Exterior e Remendos",
+    "Grabline Internal": "Cabo de SalvaÃ§Ã£o Interior",
     "Painter Line": "Cabo de Retenida",
     "Painter Line Bag": "Saco do Cabo de Retenida",
     "Sponge": "Esponja",
@@ -98,82 +98,82 @@ const translateArticleName = (name: string | number | null | undefined): string 
     "Paddles": "Pagaias",
     "Bailer": "Batedouro",
     "Drinking Cup": "Copo Graduado",
-    "Immediate Action Instructions": "Instruções de Ação Imediata",
+    "Immediate Action Instructions": "InstruÃ§Ãµes de AÃ§Ã£o Imediata",
     "Rescue Signal Table": "Quadro de Sinais de Salvamento",
     "Signalling Table": "Quadro de Sinais",
-    "Sea Anchor": "Âncora Flutuante com Linha",
-    "Sea Anchor with Line": "Âncora Flutuante com Linha",
+    "Sea Anchor": "Ã‚ncora Flutuante com Linha",
+    "Sea Anchor with Line": "Ã‚ncora Flutuante com Linha",
     "Tin Openers": "Abre-latas",
     "Tin Opener": "Abre-latas",
     "Waterproof Torch": "Lanterna",
     "Torch with Spares": "Lanterna",
     "Torch Batteries": "Pilhas para Lanterna",
-    "Leafield operating head (GIST)": "Cabeça de Operação Leafield (GIST)",
-    "Inflate/deflate valve": "Válvula de Insuflação/Desinsuflação",
-    "Inflate/deflate valve cap": "Tampa da Válvula de Insuflação",
-    "GiST inlet check valve 2.2 mm": "Válvula de Admissão GIST 2.2 mm",
-    "GiST inlet check valve 2.8 mm": "Válvula de Admissão GIST 2.8 mm",
-    "GiST PRV B10 2.8 psi": "Válvula de Alívio GIST B10 2.8 psi",
-    "B10 PRV cap": "Tampa da Válvula de Alívio B10",
+    "Leafield operating head (GIST)": "CabeÃ§a de OperaÃ§Ã£o Leafield (GIST)",
+    "Inflate/deflate valve": "VÃ¡lvula de InsuflaÃ§Ã£o/DesinsuflaÃ§Ã£o",
+    "Inflate/deflate valve cap": "Tampa da VÃ¡lvula de InsuflaÃ§Ã£o",
+    "GiST inlet check valve 2.2 mm": "VÃ¡lvula de AdmissÃ£o GIST 2.2 mm",
+    "GiST inlet check valve 2.8 mm": "VÃ¡lvula de AdmissÃ£o GIST 2.8 mm",
+    "GiST PRV B10 2.8 psi": "VÃ¡lvula de AlÃ­vio GIST B10 2.8 psi",
+    "B10 PRV cap": "Tampa da VÃ¡lvula de AlÃ­vio B10",
     "Internal lamp unit RL5": "Luz Interna RL5",
     "Rescue line and quoit assembly": "Cabo de Resgate e Anel",
-    "Inlet side banjo union protection pad": "Proteção do Banjo Lateral de Admissão",
-    "Operating head protection pad": "Proteção da Cabeça de Operação",
+    "Inlet side banjo union protection pad": "ProteÃ§Ã£o do Banjo Lateral de AdmissÃ£o",
+    "Operating head protection pad": "ProteÃ§Ã£o da CabeÃ§a de OperaÃ§Ã£o",
     "Painter loading machine": "Carregador de Retenida",
-    "Do Not Cut tape": "Fita Adesiva 'Não Cortar'",
-    "Heat sealing tool 230V": "Ferramenta de Selagem Térmica 230V",
-    "Vacuum valve plug tool": "Ferramenta do Bujão da Válvula de Vácuo",
-    "Repair Kit": "Jogo de Reparação",
-    "Repar Kit": "Jogo de Reparação",
+    "Do Not Cut tape": "Fita Adesiva 'NÃ£o Cortar'",
+    "Heat sealing tool 230V": "Ferramenta de Selagem TÃ©rmica 230V",
+    "Vacuum valve plug tool": "Ferramenta do BujÃ£o da VÃ¡lvula de VÃ¡cuo",
+    "Repair Kit": "Jogo de ReparaÃ§Ã£o",
+    "Repar Kit": "Jogo de ReparaÃ§Ã£o",
     "Floating Knife": "Faca",
     "Safety Knifes": "Faca",
     "Top Light and Battery": "Luz Exterior e Bateria",
     "Inside Light and Battery": "Luz Interior e Bateria",
-    "Lithium Battery": "Bateria de Lítio",
-    "Survival Manual": "Manual de Sobrevivência",
-    "Signalling Mirror": "Heliógrafo",
+    "Lithium Battery": "Bateria de LÃ­tio",
+    "Survival Manual": "Manual de SobrevivÃªncia",
+    "Signalling Mirror": "HeliÃ³grafo",
     "Seasickness Bags": "Sacos para Enjoo",
     "Seasickness Tablets": "Comprimidos p/ Enjoo",
-    "First Aid Kit": "Farmácia Solas",
-    "Thermal Protective Aids": "Ajudas Térmicas",
+    "First Aid Kit": "FarmÃ¡cia Solas",
+    "Thermal Protective Aids": "Ajudas TÃ©rmicas",
     "Closure for Canopy": "Fecho da Cobertura",
     "Canopy External": "Cobertura Exterior",
     "Seam Protective Tapes": "Fita Adesiva Protetora de Costuras",
     "Seam Protecting Tapes": "Fita Adesiva Protetora de Costuras",
-    "Water Collectors": "Coletores de Água",
-    "Aerial Outlet": "Saída de Antena",
-    "Identificatior card / tube": "Tubo de Identificação",
-    "Tubes and Floor Fabric": "Tecido de Câmara e Fundo",
-    "Fastening for Emergency Pack": "Fecho do Saco de Emergência",
+    "Water Collectors": "Coletores de Ãgua",
+    "Aerial Outlet": "SaÃ­da de Antena",
+    "Identificatior card / tube": "Tubo de IdentificaÃ§Ã£o",
+    "Tubes and Floor Fabric": "Tecido de CÃ¢mara e Fundo",
+    "Fastening for Emergency Pack": "Fecho do Saco de EmergÃªncia",
     "Smoke Signals": "Potes de Fumo",
     "Righting System": "Sistema de Endireitar",
-    "Stabilizing Pockets": "Bolsas de Estabilização",
-    "Inflation Valves": "Válvulas de Insuflação",
-    "Topping Up Valves": "Válvulas de Atestar",
+    "Stabilizing Pockets": "Bolsas de EstabilizaÃ§Ã£o",
+    "Inflation Valves": "VÃ¡lvulas de InsuflaÃ§Ã£o",
+    "Topping Up Valves": "VÃ¡lvulas de Atestar",
     "Aerial Support": "Suporte de Antena",
     "Arch and Rubber Band": "Arco e Cinta de Remate",
-    "Relief Valves and Stoppers": "Válvulas de Segurança e Tampões",
+    "Relief Valves and Stoppers": "VÃ¡lvulas de SeguranÃ§a e TampÃµes",
     "Bursting Band / Tape": "Cinta de Fecho",
-    "Markings on Container": "Marcas do Invólucro",
-    "High Pressure Hoses": "Tubos de Alta Pressão",
-    "Operating Head": "Cabeça de Disparo",
+    "Markings on Container": "Marcas do InvÃ³lucro",
+    "High Pressure Hoses": "Tubos de Alta PressÃ£o",
+    "Operating Head": "CabeÃ§a de Disparo",
     "Operating Wire": "Cabo de Disparo",
-    "Cover for Inflation System": "Capa do Sistema de Insuflação",
+    "Cover for Inflation System": "Capa do Sistema de InsuflaÃ§Ã£o",
     "Cylinder Pocket": "Bolsa do Cilindro",
     "Entrance Ladder": "Escada de Entrada",
     "Radar Reflector": "Refletor de Radar",
-    "Water Sachets": "Sacos de Água",
-    "Food Rations 0,5 Kg": "Rações Alimentares 0,5 Kg",
-    "Pressure Unit": "Unidade de Pressão",
-    "Atm. Temperature": "Temperatura Atmosférica",
-    "Atm. Pressure": "Pressão Atmosférica",
-    "Upper Tube + Arch": "Câmara Superior + Arco",
-    "Lower Tube": "Câmara Inferior",
-    "Floor": "Fundo (Chão)",
+    "Water Sachets": "Sacos de Ãgua",
+    "Food Rations 0,5 Kg": "RaÃ§Ãµes Alimentares 0,5 Kg",
+    "Pressure Unit": "Unidade de PressÃ£o",
+    "Atm. Temperature": "Temperatura AtmosfÃ©rica",
+    "Atm. Pressure": "PressÃ£o AtmosfÃ©rica",
+    "Upper Tube + Arch": "CÃ¢mara Superior + Arco",
+    "Lower Tube": "CÃ¢mara Inferior",
+    "Floor": "Fundo (ChÃ£o)",
     "Boarding Ramp": "Rampa de Entrada",
     "Boarding Ramp or Ladder": "Rampa ou Escada",
-    "Service Station": "Estação de Serviço",
-    "Inspection Date": "Data de Inspeção",
+    "Service Station": "EstaÃ§Ã£o de ServiÃ§o",
+    "Inspection Date": "Data de InspeÃ§Ã£o",
     "Signature": "Assinatura"
   };
   return dictionary[normalized] || String(name);
@@ -183,7 +183,7 @@ type ServiceBulletinStatus = "APLICADO" | "EM_VERIFICACAO" | "POR_APLICAR";
 
 const SERVICE_BULLETIN_STATUS_LABELS: Record<ServiceBulletinStatus, string> = {
   APLICADO: "Aplicado",
-  EM_VERIFICACAO: "Em verificação",
+  EM_VERIFICACAO: "Em verificaÃ§Ã£o",
   POR_APLICAR: "Por aplicar",
 };
 
@@ -204,8 +204,8 @@ function normalizeBulletinStatus(value: unknown): ServiceBulletinStatus {
 }
 
 /**
- * Devolve true se o artigo NÃO tem validade de consumível.
- * Derivado directamente das PACK_FIELD_DEFINITIONS — sem lista hardcoded.
+ * Devolve true se o artigo NÃƒO tem validade de consumÃ­vel.
+ * Derivado directamente das PACK_FIELD_DEFINITIONS â€” sem lista hardcoded.
  */
 function isNonExpiringItem(name: string): boolean {
   if (!name) return false;
@@ -473,18 +473,18 @@ export interface JangadaFormData {
 }
 
 function fmtMonthYear(v: unknown): string {
-  if (v == null || v === '') return '—';
+  if (v == null || v === '') return 'â€”';
   const s = String(v).trim();
   const m = s.match(/^(\d{4})-(\d{1,2})/);
   if (m) {
     const mo = String(Number(m[2])).padStart(2, '0');
     return `${mo}/${m[1]}`;
   }
-  return s || '—';
+  return s || 'â€”';
 }
 
 function espelhoValidadeBadge(v: unknown): { cls: string; label: string } {
-  if (v == null || v === '' || v === '—' || v === '-') {
+  if (v == null || v === '' || v === 'â€”' || v === '-') {
     return { cls: 'bg-slate-100 text-slate-500 border-slate-300', label: 'Sem data' };
   }
   const s = String(v).trim();
@@ -500,20 +500,20 @@ function espelhoValidadeBadge(v: unknown): { cls: string; label: string } {
   now.setHours(0, 0, 0, 0);
   const days = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
   if (days < 0) return { cls: 'bg-red-100 text-red-700 border-red-300', label: 'Expirado' };
-  if (days <= 30) return { cls: 'bg-amber-100 text-amber-800 border-amber-300', label: `Crítico (${days}d)` };
+  if (days <= 30) return { cls: 'bg-amber-100 text-amber-800 border-amber-300', label: `CrÃ­tico (${days}d)` };
   return { cls: 'bg-emerald-100 text-emerald-800 border-emerald-300', label: 'OK' };
 }
 
 function prettifyKey(key: string): string {
   return key
-    .replace(/^ref_/, 'Referência ')
+    .replace(/^ref_/, 'ReferÃªncia ')
     .replace(/^validade_/, 'Validade ')
     .replace(/^qtd_/, 'Qtd ')
     .replace(/_/g, ' ')
     .trim();
 }
 
-// A validade dos fachos de mão só é mostrada se o artigo da jangada tiver
+// A validade dos fachos de mÃ£o sÃ³ Ã© mostrada se o artigo da jangada tiver
 // validade registada. Jangadas sem validade ficam em branco (nunca herda a
 // validade do stock, ex. 06/2028).
 function fachoHasValidity(artigos: Artigo[] | undefined): boolean {
@@ -536,51 +536,51 @@ type EspelhoItem = {
 
 const ESPELHO_GRUPOS: { titulo: string; cor: string; items: EspelhoItem[] }[] = [
   {
-    titulo: 'Consumíveis / First Aid',
+    titulo: 'ConsumÃ­veis / First Aid',
     cor: 'text-emerald-700',
     items: [
-      { label: 'Farmácia / First Aid Kit', refKey: 'ref_farmacia', qtyKey: 'qtd_farmacia', valKey: 'validade_farmacia' },
+      { label: 'FarmÃ¡cia / First Aid Kit', refKey: 'ref_farmacia', qtyKey: 'qtd_farmacia', valKey: 'validade_farmacia' },
       { label: 'Comprimidos Enjoo', refKey: 'ref_comprimidos', qtyKey: 'qtd_comprimidos', valKey: 'validade_comprimidos' },
       { label: 'Foguetes Paraquedas', refKey: 'ref_paraquedas', qtyKey: 'qtd_paraquedas', valKey: 'validade_paraquedas' },
-      { label: 'Fachos de Mão', refKey: 'ref_fachos', qtyKey: 'qtd_fachos', valKey: 'validade_fachos_mao' },
+      { label: 'Fachos de MÃ£o', refKey: 'ref_fachos', qtyKey: 'qtd_fachos', valKey: 'validade_fachos_mao' },
       { label: 'Potes de Fumo', refKey: 'ref_potes', qtyKey: 'qtd_potes', valKey: 'validade_potes_fumo' },
     ],
   },
   {
-    titulo: 'Iluminação',
+    titulo: 'IluminaÃ§Ã£o',
     cor: 'text-amber-700',
     items: [
       { label: 'Lanterna', refKey: 'ref_lanterna', qtyKey: 'qtd_lanterna', valKey: 'validade_lanterna' },
       { label: 'Pilhas da Lanterna', refKey: 'ref_bateria', qtyKey: 'qtd_pilhas_lanterna', valKey: 'validade_pilhas_lanterna', flagKey: 'pilhas_lanterna' },
-      { label: 'Bateria Lítio', refKey: 'ref_bateria_litio', qtyKey: 'qtd_bateria_litio', valKey: 'validade_bateria', flagKey: 'bateria_litio' },
+      { label: 'Bateria LÃ­tio', refKey: 'ref_bateria_litio', qtyKey: 'qtd_bateria_litio', valKey: 'validade_bateria', flagKey: 'bateria_litio' },
       { label: 'Luz Exterior', refKey: 'ref_luz_exterior', qtyKey: 'qtd_luz_exterior', valKey: 'validade_luzes_exteriores' },
     ],
   },
   {
-    titulo: 'Sobrevivência',
+    titulo: 'SobrevivÃªncia',
     cor: 'text-sky-700',
     items: [
-      { label: 'Saco de Água', refKey: 'ref_agua', qtyKey: 'qtd_agua', valKey: 'validade_agua', flagKey: 'saco_agua' },
-      { label: 'Rações Alimentares', refKey: 'ref_racoes', qtyKey: 'qtd_racoes', valKey: 'validade_racoes', flagKey: 'racoes_alimentares' },
+      { label: 'Saco de Ãgua', refKey: 'ref_agua', qtyKey: 'qtd_agua', valKey: 'validade_agua', flagKey: 'saco_agua' },
+      { label: 'RaÃ§Ãµes Alimentares', refKey: 'ref_racoes', qtyKey: 'qtd_racoes', valKey: 'validade_racoes', flagKey: 'racoes_alimentares' },
       { label: 'Cinta de Fecho', refKey: 'ref_cinta_fecho', qtyKey: 'qtd_cinta_fecho' },
-      { label: 'Jogo de Reparação', refKey: 'ref_jogo_reparacao', qtyKey: 'qtd_jogo_reparacao', flagKey: 'jogo_reparacao' },
+      { label: 'Jogo de ReparaÃ§Ã£o', refKey: 'ref_jogo_reparacao', qtyKey: 'qtd_jogo_reparacao', flagKey: 'jogo_reparacao' },
     ],
   },
   {
     titulo: 'Equipamento',
     cor: 'text-indigo-700',
     items: [
-      { label: 'HRU (Disparo Hidrostático)', refKey: 'hruReferencia', valKey: 'hru_val' },
-      { label: 'Cilindro (Teste Hidráulico)', refKey: 'cylinderSerial', valKey: 'cyl_test_val' },
+      { label: 'HRU (Disparo HidrostÃ¡tico)', refKey: 'hruReferencia', valKey: 'hru_val' },
+      { label: 'Cilindro (Teste HidrÃ¡ulico)', refKey: 'cylinderSerial', valKey: 'cyl_test_val' },
     ],
   },
 ];
 
 const ESPELHO_TESTES: { key: string; label: string }[] = [
-  { key: 'teste_wp', label: 'Teste de Pressão (WP)' },
+  { key: 'teste_wp', label: 'Teste de PressÃ£o (WP)' },
   { key: 'teste_nap', label: 'Teste NAP' },
   { key: 'teste_fs', label: 'Teste Freestyle (FS)' },
-  { key: 'teste_gi', label: 'Grande Inflação (GI)' },
+  { key: 'teste_gi', label: 'Grande InflaÃ§Ã£o (GI)' },
   { key: 'teste_dl', label: 'Teste de Descida (DL)' },
 ];
 
@@ -637,23 +637,23 @@ function EspelhoChecklist({ data, artigos }: { data: JangadaFormData; artigos: A
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-xs font-bold uppercase tracking-widest text-indigo-600">Espelho da Checklist</p>
-            <h3 className="mt-1 text-lg font-bold text-slate-900">Checklist da última inspeção</h3>
+            <h3 className="mt-1 text-lg font-bold text-slate-900">Checklist da Ãºltima inspeÃ§Ã£o</h3>
             <p className="mt-1 text-xs text-slate-500">
-              Campos reflectidos automaticamente a partir dos valores registados na última inspeção.
+              Campos reflectidos automaticamente a partir dos valores registados na Ãºltima inspeÃ§Ã£o.
             </p>
           </div>
           <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-            Última inspeção: {data.dataInspecao ? formatDate(data.dataInspecao) : '—'}
+            Ãšltima inspeÃ§Ã£o: {data.dataInspecao ? formatDate(data.dataInspecao) : 'â€”'}
           </span>
         </div>
         <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
           <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Próxima inspeção</p>
-            <p className="mt-1 text-sm font-semibold text-slate-800">{data.dataProxInspecao ? formatDate(data.dataProxInspecao) : '—'}</p>
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">PrÃ³xima inspeÃ§Ã£o</p>
+            <p className="mt-1 text-sm font-semibold text-slate-800">{data.dataProxInspecao ? formatDate(data.dataProxInspecao) : 'â€”'}</p>
           </div>
           <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
             <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Certificado</p>
-            <p className="mt-1 text-sm font-semibold text-slate-800">{data.ultimoCertificadoNumero || data.certificadoExternoNumero || '—'}</p>
+            <p className="mt-1 text-sm font-semibold text-slate-800">{data.ultimoCertificadoNumero || data.certificadoExternoNumero || 'â€”'}</p>
           </div>
           <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
             <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Artigos no pack</p>
@@ -724,7 +724,7 @@ function EspelhoChecklist({ data, artigos }: { data: JangadaFormData; artigos: A
                     </div>
                     <div className="mt-2 space-y-1 text-xs">
                       <p className="text-slate-600">
-                        <b>Referência:</b> {ref != null && String(ref).trim() !== '' ? String(ref) : '—'}
+                        <b>ReferÃªncia:</b> {ref != null && String(ref).trim() !== '' ? String(ref) : 'â€”'}
                       </p>
                       {qty != null && String(qty).trim() !== '' && (
                         <p className="text-slate-600">
@@ -767,7 +767,7 @@ function EspelhoChecklist({ data, artigos }: { data: JangadaFormData; artigos: A
       {checklistKeys.length === 0 && (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
           <p className="text-sm text-slate-500">
-            Nenhum valor de checklist registado ainda. Complete uma inspeção no wizard para espelhar aqui todos os campos da
+            Nenhum valor de checklist registado ainda. Complete uma inspeÃ§Ã£o no wizard para espelhar aqui todos os campos da
             checklist.
           </p>
         </div>
@@ -829,7 +829,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
   const [showSyncResult, setShowSyncResult] = useState(false);
   // Fila de documentos "por enviar" ao armador (certificado + quadro).
   const [pendingDocs, setPendingDocs] = useState<Array<{ id: number; assunto: string | null; enviadoEm: string }>>([]);
-  // Registo da fila que está a ser enviado no diálogo (undefined = envio manual sem fila).
+  // Registo da fila que estÃ¡ a ser enviado no diÃ¡logo (undefined = envio manual sem fila).
   const [pendingEnviarId, setPendingEnviarId] = useState<number | undefined>(undefined);
 
   const loadPendingDocs = useCallback(async () => {
@@ -839,7 +839,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
       const json = await res.json().catch(() => ({}));
       setPendingDocs(Array.isArray(json?.items) ? json.items : []);
     } catch {
-      /* silencioso: a fila é informativa */
+      /* silencioso: a fila Ã© informativa */
     }
   }, [jangadaId]);
 
@@ -859,14 +859,14 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
       setPendingDocs((prev) => prev.filter((d) => d.id !== docId));
       appToast.success('Documento por enviar descartado.');
     } catch {
-      appToast.error('Não foi possível descartar o documento.');
+      appToast.error('NÃ£o foi possÃ­vel descartar o documento.');
     }
   };
 
   const handleDuplicar = async (novoSerialInput: string, copiarArtigos: boolean) => {
     const novoSerial = novoSerialInput.trim();
     if (!novoSerial) {
-      appToast.error("Indique o número de série da nova jangada.");
+      appToast.error("Indique o nÃºmero de sÃ©rie da nova jangada.");
       return;
     }
     try {
@@ -973,14 +973,14 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
         <body onload="${isMulti ? '' : 'window.print(); window.close();'}">
           ${isMulti ? Array(24).fill(0).map(() => `
           <div class="label">
-            <div class="title">OREY AÇORES</div>
+            <div class="title">OREY AÃ‡ORES</div>
             <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(itemUrl)}" width="50" height="50" style="image-rendering:pixelated" />
             <div class="serial">${data.serial}</div>
             <div class="model">${brandModel} (${data.capacity || ''}P)</div>
           </div>
           `).join('') : `
           <div class="label">
-            <div class="title">OREY AÇORES</div>
+            <div class="title">OREY AÃ‡ORES</div>
             <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(itemUrl)}" width="100" height="100" style="image-rendering:pixelated" />
             <div class="serial">${data.serial}</div>
             <div class="model">${brandModel} (${data.capacity || ''}P)</div>
@@ -1089,13 +1089,13 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
         if (res.ok) {
           successCount++;
         } else if (res.status === 409) {
-          // Inspeção já finalizada: repetir não resolve e o rascunho ficaria
+          // InspeÃ§Ã£o jÃ¡ finalizada: repetir nÃ£o resolve e o rascunho ficaria
           // preso na fila para sempre. Retira-se e avisa-se o utilizador.
           const erro = await res.json().catch(() => ({}));
-          console.warn("Rascunho bloqueado por inspeção finalizada:", erro?.error);
-          bloqueados.push({ ...draft, motivo: String(erro?.error || 'inspeção finalizada') });
+          console.warn("Rascunho bloqueado por inspeÃ§Ã£o finalizada:", erro?.error);
+          bloqueados.push({ ...draft, motivo: String(erro?.error || 'inspeÃ§Ã£o finalizada') });
         } else {
-          // Falha transitória: vale a pena tentar mais tarde.
+          // Falha transitÃ³ria: vale a pena tentar mais tarde.
           retentar.push(draft);
         }
       } catch (err) {
@@ -1105,7 +1105,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
     }
     setSaving(false);
 
-    // Só sobrevivem à fila os rascunhos que falharam por uma razão que pode
+    // SÃ³ sobrevivem Ã  fila os rascunhos que falharam por uma razÃ£o que pode
     // resolver-se sozinha. Os bloqueados saem de fininho: insistir neles
     // nunca ia resultar, e ficariam a tentar para sempre.
     if (retentar.length > 0) {
@@ -1117,17 +1117,17 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
 
     if (bloqueados.length > 0) {
       alert(
-        `${bloqueados.length} rascunho(s) não foram enviados porque a inspeção já está finalizada:\n\n` +
-        bloqueados.map((b) => `• ${b.motivo}`).join('\n') +
-        '\n\nSe precisares de alterar, reabre a inspeção com justificação.'
+        `${bloqueados.length} rascunho(s) nÃ£o foram enviados porque a inspeÃ§Ã£o jÃ¡ estÃ¡ finalizada:\n\n` +
+        bloqueados.map((b) => `â€¢ ${b.motivo}`).join('\n') +
+        '\n\nSe precisares de alterar, reabre a inspeÃ§Ã£o com justificaÃ§Ã£o.'
       );
     }
 
     if (retentar.length === 0) {
       if (bloqueados.length > 0) {
-        alert(`Sincronização concluída: ${successCount} inspeção(ões) enviada(s).`);
+        alert(`SincronizaÃ§Ã£o concluÃ­da: ${successCount} inspeÃ§Ã£o(Ãµes) enviada(s).`);
       } else {
-        alert(`Sincronização concluída com sucesso! ${successCount} inspeção(ões) enviada(s) para o servidor.`);
+        alert(`SincronizaÃ§Ã£o concluÃ­da com sucesso! ${successCount} inspeÃ§Ã£o(Ãµes) enviada(s) para o servidor.`);
       }
 
       const raftRes = await fetch(`/api/jangadas/${jangadaId}`);
@@ -1137,7 +1137,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
         setEditForm(raftData);
       }
     } else {
-      alert(`Sincronização concluída parcialmente: ${successCount} de ${drafts.length} rascunhos sincronizados. ${retentar.length} por repetir.`);
+      alert(`SincronizaÃ§Ã£o concluÃ­da parcialmente: ${successCount} de ${drafts.length} rascunhos sincronizados. ${retentar.length} por repetir.`);
     }
   };
   
@@ -1148,11 +1148,11 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
     dataInspecao: '',
     dataProxInspecao: '',
     responsavel: '',
-    status: 'Concluída',
+    status: 'ConcluÃ­da',
     navioNome: '',
   });
 
-  // Helper para actualizar campos do formulário de inspeção e marcar como editado
+  // Helper para actualizar campos do formulÃ¡rio de inspeÃ§Ã£o e marcar como editado
   const updateInspecaoField = (field: string, value: string) => {
     setInspecaoFormDirty(true);
     setInspecaoForm(prev => ({ ...prev, [field]: value }));
@@ -1165,7 +1165,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
         dataInspecao: editingInspecao.dataInspecao || '',
         dataProxInspecao: editingInspecao.dataProxInspecao || '',
         responsavel: editingInspecao.responsavel || editingInspecao.usuario || '',
-        status: editingInspecao.status || 'Concluída',
+        status: editingInspecao.status || 'ConcluÃ­da',
         navioNome: editingInspecao.navioNome || data.shipNameManual || '',
       });
       setInspecaoFormDirty(false);
@@ -1175,7 +1175,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
         dataInspecao: '',
         dataProxInspecao: '',
         responsavel: '',
-        status: 'Concluída',
+        status: 'ConcluÃ­da',
         navioNome: data.shipNameManual || '',
       });
     }
@@ -1189,7 +1189,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
     return () => window.removeEventListener('afterprint', handleAfterPrint);
   }, []);
 
-  // Aviso de alterações não guardadas ao sair da página
+  // Aviso de alteraÃ§Ãµes nÃ£o guardadas ao sair da pÃ¡gina
   React.useEffect(() => {
     if (!isEditing) return;
     const handler = (e: BeforeUnloadEvent) => {
@@ -1209,7 +1209,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
         body: JSON.stringify({ jangadaId: id }),
       });
     } catch {
-      // sincronização com o quadro da estação é não crítica
+      // sincronizaÃ§Ã£o com o quadro da estaÃ§Ã£o Ã© nÃ£o crÃ­tica
     }
   }
 
@@ -1307,7 +1307,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
         fetchJangadaData();
       }
     } catch {
-      // Silencioso — o sync manual continua disponível
+      // Silencioso â€” o sync manual continua disponÃ­vel
     }
   };
 
@@ -1360,7 +1360,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
     return String(currentSerial).trim() !== String(lastSerial).trim();
   }, [inspectionList, currentSerial]);
 
-  // Ações pedidas por deep-link (dashboard): /jangadas/:id?action=certificado|quadro|qr|dossier
+  // AÃ§Ãµes pedidas por deep-link (dashboard): /jangadas/:id?action=certificado|quadro|qr|dossier
   const pendingAction = searchParams.get('action');
   const handledActionRef = useRef<string | null>(null);
   const exportHandlersRef = useRef<{ certificado: () => void; quadro: () => void } | null>(null);
@@ -1391,7 +1391,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
       }
     }, 0);
 
-    // Limpar o parâmetro para não repetir a ação em renders seguintes.
+    // Limpar o parÃ¢metro para nÃ£o repetir a aÃ§Ã£o em renders seguintes.
     const url = new URL(window.location.href);
     url.searchParams.delete('action');
     window.history.replaceState({}, '', url.toString());
@@ -1414,8 +1414,8 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
     return (
       <div className="p-8 text-center bg-white rounded-3xl border border-red-200 text-red-600 max-w-lg mx-auto mt-12 shadow-sm">
         <AlertCircle className="mx-auto mb-4" size={48} />
-        <h2 className="text-xl font-bold">Jangada Não Encontrada</h2>
-        <p className="mt-2 text-sm text-slate-500">O identificador da jangada solicitado é inválido ou não existe na base de dados.</p>
+        <h2 className="text-xl font-bold">Jangada NÃ£o Encontrada</h2>
+        <p className="mt-2 text-sm text-slate-500">O identificador da jangada solicitado Ã© invÃ¡lido ou nÃ£o existe na base de dados.</p>
       </div>
     );
   }
@@ -1433,7 +1433,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
         const tomorrowStr = getLocalDateKey(tomorrow);
         let valToUse = value;
         if (value > tomorrowStr) {
-          alert('A data de inspeção não pode ser posterior a amanhã.');
+          alert('A data de inspeÃ§Ã£o nÃ£o pode ser posterior a amanhÃ£.');
           valToUse = tomorrowStr;
           updated.dataInspecao = tomorrowStr;
         }
@@ -1513,10 +1513,10 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
             const saved = await res.json();
             setData((prev: JangadaFormData) => ({ ...prev, testeWPUnidadePressao: saved.testeWPUnidadePressao ?? value }));
           } else {
-            alert('Erro ao guardar unidade de pressão. Tente novamente.');
+            alert('Erro ao guardar unidade de pressÃ£o. Tente novamente.');
           }
         }).catch(() => {
-          alert('Erro de ligação ao guardar unidade de pressão.');
+          alert('Erro de ligaÃ§Ã£o ao guardar unidade de pressÃ£o.');
         });
       }
 
@@ -1556,7 +1556,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
     const formatPressure = (value: number | null) => (value === null ? '' : String(Math.round(value)));
 
     try {
-      appToast.info("A obter temperatura e pressão (Orey)...");
+      appToast.info("A obter temperatura e pressÃ£o (Orey)...");
       const [startSnap, endSnap] = await Promise.all([
         fetchOreyWeatherAt(startAt),
         fetchOreyWeatherAt(endAt),
@@ -1565,7 +1565,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
       const hasStart = startSnap.temperatureC !== null || startSnap.pressureHpa !== null;
       const hasEnd = endSnap.temperatureC !== null || endSnap.pressureHpa !== null;
       if (!hasStart && !hasEnd) {
-        appToast.error("Não foi possível obter dados meteorológicos para essa data/hora.");
+        appToast.error("NÃ£o foi possÃ­vel obter dados meteorolÃ³gicos para essa data/hora.");
         return;
       }
 
@@ -1576,24 +1576,24 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
 
       appToast.success(`Dados de ${startAt.toLocaleDateString('pt-PT')} preenchidos (Orey).`);
     } catch {
-      appToast.error("Não foi possível obter dados meteorológicos para essa data/hora.");
+      appToast.error("NÃ£o foi possÃ­vel obter dados meteorolÃ³gicos para essa data/hora.");
     }
   };
 
   const sendWhatsAppAlert = () => {
     if (!whatsappAllowed) {
-      appToast.warning(`WhatsApp disponível apenas para o administrador ${WHATSAPP_ALLOWED_USER_EMAIL}.`);
+      appToast.warning(`WhatsApp disponÃ­vel apenas para o administrador ${WHATSAPP_ALLOWED_USER_EMAIL}.`);
       return;
     }
-    const serial = data.serial || '—';
-    const model = data.model || '—';
-    const capacity = data.capacity || '—';
-    const ship = data.shipNameManual || linkedShip?.nome || '—';
+    const serial = data.serial || 'â€”';
+    const model = data.model || 'â€”';
+    const capacity = data.capacity || 'â€”';
+    const ship = data.shipNameManual || linkedShip?.nome || 'â€”';
     const owner = linkedShip?.cliente?.nome || data.owner || 'Exmo. Cliente';
     const rawDate = data.dataProxInspecao;
-    const formattedDate = rawDate ? new Date(rawDate).toLocaleDateString('pt-PT') : '—';
+    const formattedDate = rawDate ? new Date(rawDate).toLocaleDateString('pt-PT') : 'â€”';
 
-    const message = `Olá ${owner},\n\nRelembramos que a vistoria técnica da jangada salva-vidas ${model} (${capacity}P, Série: ${serial}) instalada na embarcação "${ship}" tem validade prevista até ${formattedDate}.\n\nPara garantir a segurança da embarcação e a conformidade legal, confirme por favor se podemos agendar a vistoria e a emissão do novo certificado.\n\nFicamos a aguardar o seu contacto.\n\nCom os melhores cumprimentos,\nOrey Azores`;
+    const message = `OlÃ¡ ${owner},\n\nRelembramos que a vistoria tÃ©cnica da jangada salva-vidas ${model} (${capacity}P, SÃ©rie: ${serial}) instalada na embarcaÃ§Ã£o "${ship}" tem validade prevista atÃ© ${formattedDate}.\n\nPara garantir a seguranÃ§a da embarcaÃ§Ã£o e a conformidade legal, confirme por favor se podemos agendar a vistoria e a emissÃ£o do novo certificado.\n\nFicamos a aguardar o seu contacto.\n\nCom os melhores cumprimentos,\nOrey Azores`;
 
     const clientePhone = linkedShip?.cliente?.telmovel || linkedShip?.cliente?.telefone || '';
     let phoneNum = clientePhone.replace(/[^\d+]/g, '');
@@ -1607,34 +1607,34 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
 
   const downloadIcs = () => {
     if (!data.dataProxInspecao) {
-      appToast.info('Sem data de próxima inspeção definida.');
+      appToast.info('Sem data de prÃ³xima inspeÃ§Ã£o definida.');
       return;
     }
-    const serial = data.serial || '—';
-    const model = data.model || '—';
-    const ship = data.shipNameManual || linkedShip?.nome || '—';
+    const serial = data.serial || 'â€”';
+    const model = data.model || 'â€”';
+    const ship = data.shipNameManual || linkedShip?.nome || 'â€”';
     const owner = linkedShip?.cliente?.nome || data.owner || '';
     const content = buildInspectionIcs({
       uid: `inspecao-${jangadaId}-${data.dataProxInspecao}`,
-      title: `Inspeção da Jangada ${model} (S/N ${serial})`,
+      title: `InspeÃ§Ã£o da Jangada ${model} (S/N ${serial})`,
       startDate: data.dataProxInspecao,
-      description: `Vistoria técnica da jangada salva-vidas ${model} (${data.capacity || '?'}P, Série: ${serial})${owner ? ` — ${owner}` : ''}.`,
-      location: ship !== '—' ? ship : undefined,
+      description: `Vistoria tÃ©cnica da jangada salva-vidas ${model} (${data.capacity || '?'}P, SÃ©rie: ${serial})${owner ? ` â€” ${owner}` : ''}.`,
+      location: ship !== 'â€”' ? ship : undefined,
       alarmMinutesBefore: 7 * 24 * 60,
     });
     if (content) downloadIcsFile(content, `inspecao-jangada-${serial.replace(/[^\w.-]+/g, '_')}.ics`);
   };
 
   const sendSMSAlert = async () => {
-    const serial = data.serial || '—';
-    const model = data.model || '—';
-    const capacity = data.capacity || '—';
-    const ship = data.shipNameManual || linkedShip?.nome || '—';
+    const serial = data.serial || 'â€”';
+    const model = data.model || 'â€”';
+    const capacity = data.capacity || 'â€”';
+    const ship = data.shipNameManual || linkedShip?.nome || 'â€”';
     const owner = linkedShip?.cliente?.nome || data.owner || 'Exmo. Cliente';
     const rawDate = data.dataProxInspecao;
-    const formattedDate = rawDate ? new Date(rawDate).toLocaleDateString('pt-PT') : '—';
+    const formattedDate = rawDate ? new Date(rawDate).toLocaleDateString('pt-PT') : 'â€”';
 
-    const message = `Olá ${owner},\n\nRelembramos que a vistoria técnica da jangada salva-vidas ${model} (${capacity}P, Série: ${serial}) instalada na embarcação "${ship}" tem validade prevista até ${formattedDate}.\n\nPara garantir a segurança da embarcação e a conformidade legal, confirme por favor se podemos agendar a vistoria e a emissão do novo certificado.\n\nFicamos a aguardar o seu contacto.\n\nCom os melhores cumprimentos,\nOrey Azores`;
+    const message = `OlÃ¡ ${owner},\n\nRelembramos que a vistoria tÃ©cnica da jangada salva-vidas ${model} (${capacity}P, SÃ©rie: ${serial}) instalada na embarcaÃ§Ã£o "${ship}" tem validade prevista atÃ© ${formattedDate}.\n\nPara garantir a seguranÃ§a da embarcaÃ§Ã£o e a conformidade legal, confirme por favor se podemos agendar a vistoria e a emissÃ£o do novo certificado.\n\nFicamos a aguardar o seu contacto.\n\nCom os melhores cumprimentos,\nOrey Azores`;
 
     setSmsSending(true);
     try {
@@ -1704,7 +1704,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
   };
 
   const handleSyncPack = async () => {
-    if (!confirm('Deseja sincronizar os artigos com o template do pack? Isto adicionará artigos obrigatórios em falta e atualizará quantidades.')) return;
+    if (!confirm('Deseja sincronizar os artigos com o template do pack? Isto adicionarÃ¡ artigos obrigatÃ³rios em falta e atualizarÃ¡ quantidades.')) return;
     setSyncLoading(true);
     setSyncResult(null);
     setShowSyncResult(true);
@@ -1735,7 +1735,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
       });
       if (!res.ok) {
         const errorJson = await res.json().catch(() => ({}));
-        throw new Error(errorJson.error || errorJson.message || `Código ${res.status}`);
+        throw new Error(errorJson.error || errorJson.message || `CÃ³digo ${res.status}`);
       }
       const updated = await res.json();
       setData((prev: JangadaFormData) => ({ ...prev, serviceBulletinsApplied: updated.serviceBulletinsApplied }));
@@ -1747,7 +1747,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
   };
 
   const handleSave = async () => {
-    // Validação do teste WP antes de gravar
+    // ValidaÃ§Ã£o do teste WP antes de gravar
     const wpCheck = buildWpDerivedValues({
       pressureUnit: editForm.testeWPUnidadePressao,
       startTime: editForm.testeWPHoraInicio,
@@ -1767,14 +1767,14 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
         || wpCheck.temperatureWithinManual === false
         || otherTestKeysV.some((k) => editForm[k] === 'REPROVOU');
       if (wpCheck.temperatureWithinManual === false) {
-        if (!confirm('A variação térmica (ΔT) excede 3.5°C do manual. O resultado será considerado REPROVADO. Pretende gravar mesmo assim?')) return;
+        if (!confirm('A variaÃ§Ã£o tÃ©rmica (Î”T) excede 3.5Â°C do manual. O resultado serÃ¡ considerado REPROVADO. Pretende gravar mesmo assim?')) return;
       } else if (anyFailed) {
-        if (!confirm('O resultado do teste é REPROVADO / NÃO EM CONFORMIDADE. Pretende gravar mesmo assim?')) return;
+        if (!confirm('O resultado do teste Ã© REPROVADO / NÃƒO EM CONFORMIDADE. Pretende gravar mesmo assim?')) return;
       }
     }
     setSaving(true);
     try {
-      // Enviar campos editáveis + artigos (para sincronizar no servidor)
+      // Enviar campos editÃ¡veis + artigos (para sincronizar no servidor)
       const {
         inspecoes, certificadoAtivo, certificadosExtraidos,
         ownerDisplay, ownerClientId, shipDetails,
@@ -1797,7 +1797,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
 
       if (!response.ok) {
         const errorJson = await response.json().catch(() => ({}));
-        throw new Error(errorJson.error || errorJson.message || `Código ${response.status}`);
+        throw new Error(errorJson.error || errorJson.message || `CÃ³digo ${response.status}`);
       }
 
       const updated = await response.json();
@@ -1814,7 +1814,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
           handleSyncPack();
         }
       } else {
-        alert('Alterações guardadas com sucesso!');
+        alert('AlteraÃ§Ãµes guardadas com sucesso!');
       }
     } catch (err: unknown) {
       alert('Erro ao guardar: ' + (err instanceof Error ? err.message : String(err)));
@@ -1827,6 +1827,40 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
     const checklist: Record<string, unknown> = {
       ...(data.inspectionChecklistValues || {})
     };
+
+    const richSnapshot = (lastInspecao?.checklistSnapshot || {}) as Record<string, unknown>;
+    const validityFieldBySource: Record<string, string> = {
+      luz_exterior_bateria: 'validade_luzes_exteriores',
+      luz_interior_bateria: 'validade_bateria',
+      bateria_litio: 'validade_bateria',
+      pilhas_lanterna: 'validade_pilhas_lanterna',
+      saco_agua: 'validade_agua',
+      racoes_alimentares: 'validade_racoes',
+      ambulancia: 'validade_farmacia',
+      comprimidos_enjoo: 'validade_comprimidos',
+      foguetoes_paraquedas: 'validade_paraquedas',
+      fachos_mao: 'validade_fachos_mao',
+      potes_fumo: 'validade_potes_fumo',
+    };
+
+    const richEntries = Object.entries(richSnapshot).sort(([a], [b]) => {
+      if (a === 'bateria_litio') return -1;
+      if (b === 'bateria_litio') return 1;
+      return 0;
+    });
+
+    for (const [sourceKey, rawValue] of richEntries) {
+      if (!rawValue || typeof rawValue !== 'object' || Array.isArray(rawValue)) continue;
+      const rich = rawValue as Record<string, unknown>;
+      const validityField = validityFieldBySource[sourceKey];
+      if (validityField && rich.validade && !checklist[validityField]) {
+        checklist[validityField] = String(rich.validade);
+      }
+      const status = String(rich.status || '').trim().toUpperCase();
+      if (!checklist[sourceKey] && (status === 'OK' || status === 'YES' || status === 'SIM')) {
+        checklist[sourceKey] = true;
+      }
+    }
 
     const normalizeText = (text: string) => {
       return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -1890,7 +1924,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
     mapArticle(['fumo'], 'ref_potes', 'validade_potes_fumo', 'qtd_potes', 'potes_fumo', 'substituicao_explicita__potes_de_fumo');
     if (!checklist.ref_potes) mapArticle(['smoke'], 'ref_potes', 'validade_potes_fumo', 'qtd_potes', 'potes_fumo', 'substituicao_explicita__potes_de_fumo');
     if (!checklist.ref_potes) mapArticle(['fumigeno'], 'ref_potes', 'validade_potes_fumo', 'qtd_potes', 'potes_fumo', 'substituicao_explicita__potes_de_fumo');
-    if (!checklist.ref_potes) mapArticle(['fumígeno'], 'ref_potes', 'validade_potes_fumo', 'qtd_potes', 'potes_fumo', 'substituicao_explicita__potes_de_fumo');
+    if (!checklist.ref_potes) mapArticle(['fumÃ­geno'], 'ref_potes', 'validade_potes_fumo', 'qtd_potes', 'potes_fumo', 'substituicao_explicita__potes_de_fumo');
 
     mapArticle(['lanterna'], 'ref_lanterna', 'validade_lanterna', 'qtd_lanterna', 'lanterna');
     if (!checklist.ref_lanterna) mapArticle(['torch'], 'ref_lanterna', 'validade_lanterna', 'qtd_lanterna', 'lanterna');
@@ -1899,8 +1933,8 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
     if (!checklist.ref_bateria) mapArticle(['torch', 'batter'], 'ref_bateria', 'validade_pilhas_lanterna', 'qtd_pilhas_lanterna', 'pilhas_lanterna', 'substituicao_explicita__pilhas_para_lanterna');
 
     mapArticle(['bateria', 'litio'], 'ref_bateria_litio', 'validade_bateria', 'qtd_bateria_litio', 'bateria_litio');
-    if (!checklist.ref_bateria_litio) mapArticle(['bateria', 'lítio'], 'ref_bateria_litio', 'validade_bateria', 'qtd_bateria_litio', 'bateria_litio');
-    if (!checklist.ref_bateria_litio) mapArticle(['bateria', 'lithium'], 'ref_bateria_litio', 'validade_bateria', 'qtd_bateria_litio', 'bateria_litio');
+    if (!checklist.ref_bateria_litio || !checklist.validade_bateria) mapArticle(['bateria', 'lÃ­tio'], 'ref_bateria_litio', 'validade_bateria', 'qtd_bateria_litio', 'bateria_litio');
+    if (!checklist.ref_bateria_litio || !checklist.validade_bateria) mapArticle(['bateria', 'lithium'], 'ref_bateria_litio', 'validade_bateria', 'qtd_bateria_litio', 'bateria_litio');
 
     mapArticle(['cinta', 'fecho'], 'ref_cinta_fecho', undefined, 'qtd_cinta_fecho', 'cinta_fecho');
     if (!checklist.ref_cinta_fecho) mapArticle(['bursting', 'band'], 'ref_cinta_fecho', undefined, 'qtd_cinta_fecho', 'cinta_fecho');
@@ -1913,15 +1947,15 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
     mapArticle(['luz', 'int'], undefined, 'validade_bateria', undefined, 'luz_interior_bateria');
 
     mapArticle(['agua'], 'ref_agua', 'validade_agua', undefined, 'saco_agua');
-    if (!checklist.ref_agua) mapArticle(['água'], 'ref_agua', 'validade_agua', undefined, 'saco_agua');
+    if (!checklist.ref_agua) mapArticle(['Ã¡gua'], 'ref_agua', 'validade_agua', undefined, 'saco_agua');
     if (!checklist.ref_agua) mapArticle(['water'], 'ref_agua', 'validade_agua', undefined, 'saco_agua');
 
     mapArticle(['racao'], 'ref_racoes', 'validade_racoes', undefined, 'racoes_alimentares');
-    if (!checklist.ref_racoes) mapArticle(['ração'], 'ref_racoes', 'validade_racoes', undefined, 'racoes_alimentares');
-    if (!checklist.ref_racoes) mapArticle(['racoes'], 'ref_racoes', 'validade_racoes', undefined, 'racoes_alimentares');
-    if (!checklist.ref_racoes) mapArticle(['rações'], 'ref_racoes', 'validade_racoes', undefined, 'racoes_alimentares');
-    if (!checklist.ref_racoes) mapArticle(['ration'], 'ref_racoes', 'validade_racoes', undefined, 'racoes_alimentares');
-    if (!checklist.ref_racoes) mapArticle(['food'], 'ref_racoes', 'validade_racoes', undefined, 'racoes_alimentares');
+    if (!checklist.ref_racoes || !checklist.validade_racoes) mapArticle(['raÃ§Ã£o'], 'ref_racoes', 'validade_racoes', undefined, 'racoes_alimentares');
+    if (!checklist.ref_racoes || !checklist.validade_racoes) mapArticle(['racoes'], 'ref_racoes', 'validade_racoes', undefined, 'racoes_alimentares');
+    if (!checklist.ref_racoes || !checklist.validade_racoes) mapArticle(['raÃ§Ãµes'], 'ref_racoes', 'validade_racoes', undefined, 'racoes_alimentares');
+    if (!checklist.ref_racoes || !checklist.validade_racoes) mapArticle(['ration'], 'ref_racoes', 'validade_racoes', undefined, 'racoes_alimentares');
+    if (!checklist.ref_racoes || !checklist.validade_racoes) mapArticle(['food'], 'ref_racoes', 'validade_racoes', undefined, 'racoes_alimentares');
 
     checklist.teste_wp = data.testeWP || 'N/A';
     checklist.teste_nap = data.testeNAP || 'N/A';
@@ -1939,18 +1973,18 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
       checklist.hru_days = diffDays;
     }
 
-    // Cilindro teste hidrostático com dias restantes
+    // Cilindro teste hidrostÃ¡tico com dias restantes
     if (data.cylinderDataTeste) {
       checklist.cyl_test_val = data.cylinderDataTeste.includes('T') ? data.cylinderDataTeste.slice(0, 7) : data.cylinderDataTeste;
       const refDate = data.dataInspecao ? new Date(data.dataInspecao) : new Date();
-      // Próximo teste = 5 anos após último
+      // PrÃ³ximo teste = 5 anos apÃ³s Ãºltimo
       const [tYear, tMonth] = String(checklist.cyl_test_val).split('-').map(Number);
       const nextTestDate = new Date((tYear || 0) + 5, (tMonth || 1) - 1, 1);
       const diffDays = Math.ceil((nextTestDate.getTime() - refDate.getTime()) / (1000 * 60 * 60 * 24));
       checklist.cyl_test_days = diffDays;
     }
 
-    // Sem validade nos artigos da jangada, a validade dos fachos de mão fica
+    // Sem validade nos artigos da jangada, a validade dos fachos de mÃ£o fica
     // em branco (remove valor legado, ex. 06/2028 vindo do stock).
     if (!fachoHasValidity(data.artigos)) delete checklist.validade_fachos_mao;
 
@@ -1987,8 +2021,8 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
         hruExpiry: data.hruValidade || '',
         radarReflector: data.radarReflector || '',
         radarReflectorExpiry: data.radarReflectorValidade || '',
-        technician: lastInspecao?.responsavel || 'Técnico Autorizado',
-        status: lastInspecao?.status || 'Concluída',
+        technician: lastInspecao?.responsavel || 'TÃ©cnico Autorizado',
+        status: lastInspecao?.status || 'ConcluÃ­da',
         checklist: buildChecklistPayload()
       };
 
@@ -2003,7 +2037,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
         throw new Error('Falha ao gerar o ficheiro excel: ' + errorText);
       }
 
-      // A cópia no servidor é apenas informativa; prossegue-se sempre para
+      // A cÃ³pia no servidor Ã© apenas informativa; prossegue-se sempre para
       // gravar na pasta de documentos ou descarregar para o browser.
       toastSavedPathIfPresent(res, 'Certificado');
 
@@ -2027,8 +2061,8 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
     shipName: data.shipNameManual || linkedShip?.nome || '',
     raftModel: data.model || '',
     raftSerial: data.serial || '',
-    status: lastInspecao?.status || 'Concluída',
-    technician: lastInspecao?.responsavel || 'Técnico Autorizado',
+    status: lastInspecao?.status || 'ConcluÃ­da',
+    technician: lastInspecao?.responsavel || 'TÃ©cnico Autorizado',
     checklist: buildChecklistPayload(),
   });
 
@@ -2048,7 +2082,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
 
     return {
       numeroObra: data.numeroObra || '',
-      certNumber: data.ultimoCertificadoNumero || lastInspecao?.certificadoNumero || '',
+      certNumber: data.certificadoExternoNumero || data.ultimoCertificadoNumero || lastInspecao?.certificadoNumero || '',
       inspectionDate: lastInspecao?.dataInspecao || data.dataInspecao || '',
       nextInspectionDate: lastInspecao?.dataProxInspecao || data.dataProxInspecao || '',
       shipName: data.shipNameManual || linkedShip?.nome || '',
@@ -2115,7 +2149,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
         throw new Error('Falha ao gerar o ficheiro excel: ' + errorText);
       }
 
-      // A cópia no servidor é apenas informativa; prossegue-se sempre para
+      // A cÃ³pia no servidor Ã© apenas informativa; prossegue-se sempre para
       // gravar na pasta de documentos ou descarregar para o browser.
       toastSavedPathIfPresent(res, 'Quadro');
 
@@ -2140,11 +2174,11 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
 
   const handleGerarCertificadoCarimbado = async () => {
     if (aGerarDoc) return;
-    // Abrir já o separador: o popup blocker exige um gesto do utilizador, que se
+    // Abrir jÃ¡ o separador: o popup blocker exige um gesto do utilizador, que se
     // perde depois do primeiro await.
     const popup = window.open('', '_blank');
-    // Pedir/validar a autorização da pasta antes do fetch (idem: a activação do
-    // utilizador expira depois da ida-e-volta à rede).
+    // Pedir/validar a autorizaÃ§Ã£o da pasta antes do fetch (idem: a activaÃ§Ã£o do
+    // utilizador expira depois da ida-e-volta Ã  rede).
     const permission = await ensureFolderPermissionNow();
     setAGerarDoc('carimbado');
     try {
@@ -2188,8 +2222,8 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
     }
   };
 
-  // Expor as exportações ao despachante de deep-link declarado acima.
-  // Atribuição intencional durante o render: o despachante só corre num timeout.
+  // Expor as exportaÃ§Ãµes ao despachante de deep-link declarado acima.
+  // AtribuiÃ§Ã£o intencional durante o render: o despachante sÃ³ corre num timeout.
   // eslint-disable-next-line react-hooks/refs
   exportHandlersRef.current = {
     certificado: () => { void handleExportCertificadoExcel(); },
@@ -2208,7 +2242,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
 
       if (!res.ok) throw new Error('Falha ao gerar o PDF');
 
-      // A cópia no servidor é apenas informativa; prossegue-se sempre para
+      // A cÃ³pia no servidor Ã© apenas informativa; prossegue-se sempre para
       // gravar na pasta de documentos ou descarregar para o browser.
       toastSavedPathIfPresent(res, 'Quadro PDF');
 
@@ -2301,7 +2335,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
       {
         kind: closureKindFromStock(stock),
         referencia: stock.referencia || `STK-${stock.id}`,
-        descricao: stock.descricao || 'Saco de vácuo',
+        descricao: stock.descricao || 'Saco de vÃ¡cuo',
         quantidade: Number(qty) || 1,
         stockId: stock.id,
         partNumber: stock.codigoFabricante || null,
@@ -2426,27 +2460,27 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
         body: JSON.stringify(body),
       });
 
-      if (!res.ok) throw new Error('Falha ao guardar inspeção');
+      if (!res.ok) throw new Error('Falha ao guardar inspeÃ§Ã£o');
       
       setIsAddingInspecao(false);
       setEditingInspecao(null);
       setInspecaoFormDirty(false);
       fetchJangadaData();
     } catch (err: unknown) {
-      alert('Erro ao guardar inspeção: ' + (err instanceof Error ? err.message : String(err)));
+      alert('Erro ao guardar inspeÃ§Ã£o: ' + (err instanceof Error ? err.message : String(err)));
     } finally {
       setSaving(false);
     }
   };
 
   const handleDeleteInspecao = async (id: number) => {
-    if (!window.confirm('Tem a certeza que deseja eliminar esta inspeção?')) return;
+    if (!window.confirm('Tem a certeza que deseja eliminar esta inspeÃ§Ã£o?')) return;
     try {
       const res = await fetch(`/api/inspecoes?id=${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Falha ao eliminar');
       fetchJangadaData();
     } catch (err: unknown) {
-      alert('Erro ao eliminar inspeção: ' + (err instanceof Error ? err.message : String(err)));
+      alert('Erro ao eliminar inspeÃ§Ã£o: ' + (err instanceof Error ? err.message : String(err)));
     }
   };
 
@@ -2537,7 +2571,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
 
   const openLastInspection = () => {
     if (!raftLastInspecao) {
-      alert("Ainda não existe nenhuma vistoria registada para esta jangada.");
+      alert("Ainda nÃ£o existe nenhuma vistoria registada para esta jangada.");
       return;
     }
     setInspectionToOpen(raftLastInspecao);
@@ -2553,21 +2587,21 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Inspeção da Jangada</h1>
+              <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">InspeÃ§Ã£o da Jangada</h1>
               <p className="text-base font-bold text-indigo-700 mt-1">Navio: <span>{inspectionShipName}</span></p>
               <p className="text-sm text-slate-500 mt-1">Armador: <span className="font-semibold text-slate-700">{inspectionOwner}</span></p>
-              <p className="text-sm text-slate-500 mt-1">Série: <span className="font-semibold text-slate-700">{data.serial}</span> · Modelo: <span className="font-semibold text-slate-700">{data.brand} {data.model}</span></p>
+              <p className="text-sm text-slate-500 mt-1">SÃ©rie: <span className="font-semibold text-slate-700">{data.serial}</span> Â· Modelo: <span className="font-semibold text-slate-700">{data.brand} {data.model}</span></p>
             </div>
             <button 
               onClick={() => {
-                if (confirm('Deseja interromper a inspeção? O rascunho atual será preservado.')) {
+                if (confirm('Deseja interromper a inspeÃ§Ã£o? O rascunho atual serÃ¡ preservado.')) {
                   setInspectionToOpen(null);
                   setIsInspecting(false);
                 }
               }}
               className="px-4 py-2 border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-xl font-bold transition-all text-sm"
             >
-              Sair da Inspeção
+              Sair da InspeÃ§Ã£o
             </button>
           </div>
           <JangadaWizardLoader jangadaId={jangadaId} inspectionToOpen={inspectionToOpen}>
@@ -2942,23 +2976,23 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-bold uppercase tracking-wider text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-full">Dossier Técnico da Jangada</span>
+                <span className="text-xs font-bold uppercase tracking-wider text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-full">Dossier TÃ©cnico da Jangada</span>
                 <span className="text-xs font-semibold text-slate-400">ID: #{jangadaId}</span>
-                {/* Semáforo de Estado */}
+                {/* SemÃ¡foro de Estado */}
                 <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full border ${isCondenada ? 'bg-red-100 border-red-300 text-red-800' : statusStyles[inspectionStatus.color].badge}`}>
                   <span className={`w-2 h-2 rounded-full ${isCondenada ? 'bg-red-600 animate-pulse' : statusStyles[inspectionStatus.color].dot}`} />
                   {isCondenada ? 'Inoperacional (Condenada / Abate)' :
-                   inspectionStatus.color === 'gray' ? 'Sem inspecção' :
-                    inspectionStatus.color === 'red' ? 'INSPEÇÃO EXPIRADA' :
+                   inspectionStatus.color === 'gray' ? 'Sem inspecÃ§Ã£o' :
+                    inspectionStatus.color === 'red' ? 'INSPEÃ‡ÃƒO EXPIRADA' :
                    inspectionStatus.color === 'orange' ? `GI em ${inspectionStatus.daysLeft}d` :
                    inspectionStatus.color === 'yellow' ? `GI em ${inspectionStatus.daysLeft}d` :
-                    'Inspeção em dia'}
+                    'InspeÃ§Ã£o em dia'}
                 </span>
               </div>
               <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800 mt-1">
                 {data.brand || 'EUROVINIL'} {data.model || 'COMPACT DRY'}
               </h1>
-              <p className="text-slate-500 text-sm mt-0.5">Nº de Série: <span className="font-mono font-bold text-slate-700">{data.serial}</span></p>
+              <p className="text-slate-500 text-sm mt-0.5">NÂº de SÃ©rie: <span className="font-mono font-bold text-slate-700">{data.serial}</span></p>
             </div>
           </div>
 
@@ -3109,7 +3143,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                 </button>
                 <button
                   onClick={() => setIsImportarIaOpen(true)}
-                  title="Carregar um quadro/certificado (Excel ou PDF) e pré-preencher a ficha automaticamente"
+                  title="Carregar um quadro/certificado (Excel ou PDF) e prÃ©-preencher a ficha automaticamente"
                   className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-white bg-violet-600 hover:bg-violet-700 transition-all shadow-sm"
                 >
                   <Sparkles size={18} />
@@ -3128,7 +3162,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                   className="flex items-center gap-2 px-6 py-3 rounded-xl font-extrabold text-white bg-emerald-600 hover:bg-emerald-700 transition-all shadow-md shadow-emerald-600/20 hover:scale-105"
                 >
                   <ClipboardCheck size={18} />
-                  {hasLocalInspectionDraft ? 'Continuar Inspeção' : 'Registar Vistoria'}
+                  {hasLocalInspectionDraft ? 'Continuar InspeÃ§Ã£o' : 'Registar Vistoria'}
                 </button>
                 {currentUrl && (
                   <div className="hidden md:flex flex-col items-center gap-0.5 border-l border-slate-150 pl-3 shrink-0">
@@ -3154,11 +3188,11 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
             <div className="flex-1 min-w-0">
               <p className="font-extrabold text-base text-indigo-900">
                 {pendingDocs.length === 1
-                  ? 'Há 1 documento por enviar ao armador'
-                  : `Há ${pendingDocs.length} documentos por enviar ao armador`}
+                  ? 'HÃ¡ 1 documento por enviar ao armador'
+                  : `HÃ¡ ${pendingDocs.length} documentos por enviar ao armador`}
               </p>
               <p className="text-sm text-indigo-700 mt-0.5">
-                A inspeção foi concluída. Confirme e envie o certificado e o quadro ao armador.
+                A inspeÃ§Ã£o foi concluÃ­da. Confirme e envie o certificado e o quadro ao armador.
               </p>
             </div>
             <div className="flex gap-2 shrink-0">
@@ -3179,7 +3213,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
           </div>
         )}
 
-        {/* Banner de alerta de validade da inspecção */}
+        {/* Banner de alerta de validade da inspecÃ§Ã£o */}
         {(inspectionStatus.color === 'red' || inspectionStatus.color === 'orange' || inspectionStatus.color === 'yellow') && (
           <div className={`${statusStyles[inspectionStatus.color].banner} border rounded-3xl p-5 flex items-center gap-4 no-print shadow-sm`}>
             <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
@@ -3196,10 +3230,10 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                 'text-yellow-900'
               }`}>
                 {inspectionStatus.color === 'red'
-                  ? '⛔ Inspecção expirada'
+                  ? 'â›” InspecÃ§Ã£o expirada'
                   : inspectionStatus.color === 'orange'
-                  ? '🔶 Inspecção urgente'
-                  : '⚠️ Inspecção próxima'}
+                  ? 'ðŸ”¶ InspecÃ§Ã£o urgente'
+                  : 'âš ï¸ InspecÃ§Ã£o prÃ³xima'}
               </p>
               <p className={`text-sm mt-0.5 ${
                 inspectionStatus.color === 'red' ? 'text-red-700' :
@@ -3207,8 +3241,8 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                 'text-yellow-700'
               }`}>
                 {inspectionStatus.color === 'red'
-                  ? `A próxima inspecção estava prevista para ${formatDate(data.dataProxInspecao)} — há ${Math.abs(inspectionStatus.daysLeft!)} dias.`
-                  : `A próxima inspecção é a ${formatDate(data.dataProxInspecao)} — faltam ${inspectionStatus.daysLeft} dias.`}
+                  ? `A prÃ³xima inspecÃ§Ã£o estava prevista para ${formatDate(data.dataProxInspecao)} â€” hÃ¡ ${Math.abs(inspectionStatus.daysLeft!)} dias.`
+                  : `A prÃ³xima inspecÃ§Ã£o Ã© a ${formatDate(data.dataProxInspecao)} â€” faltam ${inspectionStatus.daysLeft} dias.`}
               </p>
             </div>
           </div>
@@ -3222,7 +3256,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
               </div>
               <div>
                 <p className="font-extrabold text-amber-900 text-base">Rascunhos Offline Detetados</p>
-                <p className="text-sm text-amber-700 mt-0.5">Tem {offlineDraftsCount} inspeção(ões) pendente(s) salvas no dispositivo. Sincronize com o servidor.</p>
+                <p className="text-sm text-amber-700 mt-0.5">Tem {offlineDraftsCount} inspeÃ§Ã£o(Ãµes) pendente(s) salvas no dispositivo. Sincronize com o servidor.</p>
               </div>
             </div>
             <button 
@@ -3244,7 +3278,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
             }`}
           >
             <ClipboardList size={16} />
-            Ficha Técnica
+            Ficha TÃ©cnica
           </button>
           <button
             onClick={() => setActiveTab('artigos')}
@@ -3262,7 +3296,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
             }`}
           >
             <Shield size={16} />
-            Pack de Emergência
+            Pack de EmergÃªncia
           </button>
           <button
             onClick={() => setActiveTab('contentor')}
@@ -3280,7 +3314,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
             }`}
           >
             <History size={16} />
-            Histórico
+            HistÃ³rico
           </button>
           <button
             onClick={() => setActiveTab('testeWP')}
@@ -3298,7 +3332,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
             }`}
           >
             <FileCheck size={16} />
-            Boletins de Serviço ({(data.applicableServiceBulletins || []).length})
+            Boletins de ServiÃ§o ({(data.applicableServiceBulletins || []).length})
           </button>
           <button
             onClick={() => setActiveTab('checklist')}
@@ -3328,14 +3362,14 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
               <div className="bg-rose-50 border border-rose-200 rounded-3xl p-5 shadow-sm space-y-3">
                 <div className="flex items-center gap-2 text-rose-800 font-extrabold text-sm">
                   <ShieldAlert size={20} className="text-rose-600 animate-bounce" />
-                  <span>ALERTA DE SEGURANÇA / RECALL VIGENTE</span>
+                  <span>ALERTA DE SEGURANÃ‡A / RECALL VIGENTE</span>
                 </div>
                 {matchingRecalls.map((recall) => (
                   <div key={recall.id} className="text-xs text-rose-750 bg-white/75 border border-rose-100 p-4 rounded-2xl space-y-1.5 shadow-sm">
                     <p className="font-extrabold text-slate-800 text-[13px]">{recall.titulo}</p>
                     <p className="font-medium text-slate-650">{recall.descricao}</p>
                     <div className="pt-2 border-t border-rose-100/60 mt-2 text-[11px]">
-                      <span className="font-extrabold text-slate-700 uppercase tracking-wide">Ação Requerida: </span>
+                      <span className="font-extrabold text-slate-700 uppercase tracking-wide">AÃ§Ã£o Requerida: </span>
                       <span className="font-bold text-rose-800 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-100">{recall.acaoRequerida}</span>
                     </div>
                   </div>
@@ -3345,11 +3379,11 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
 
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
             
-            {/* Bloco 1: Identificação Geral */}
+            {/* Bloco 1: IdentificaÃ§Ã£o Geral */}
             <div className="xl:col-span-2 bg-white rounded-3xl border border-slate-200/60 p-6 lg:p-8 shadow-sm space-y-6">
               <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2 pb-3 border-b border-slate-100">
                 <ClipboardList className="text-indigo-600" />
-                Características Gerais
+                CaracterÃ­sticas Gerais
               </h2>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -3367,7 +3401,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                       ))}
                     </select>
                   ) : (
-                    <p className="font-semibold text-slate-800">{data.brand || '—'}</p>
+                    <p className="font-semibold text-slate-800">{data.brand || 'â€”'}</p>
                   )}
                 </div>
 
@@ -3389,12 +3423,12 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                         ))}
                     </select>
                   ) : (
-                    <p className="font-semibold text-slate-800">{data.model || '—'}</p>
+                    <p className="font-semibold text-slate-800">{data.model || 'â€”'}</p>
                   )}
                 </div>
 
                 <div className="space-y-1">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Nº de Série</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">NÂº de SÃ©rie</span>
                   {isEditing ? (
                     <input 
                       className="w-full border-slate-200 rounded-xl px-4 py-2.5 bg-slate-50 text-sm"
@@ -3402,7 +3436,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                       onChange={(e) => handleEditChange('serial', e.target.value)} 
                     />
                   ) : (
-                    <p className="font-semibold text-slate-800">{data.serial || '—'}</p>
+                    <p className="font-semibold text-slate-800">{data.serial || 'â€”'}</p>
                   )}
                 </div>
 
@@ -3416,7 +3450,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                       onChange={(e) => handleEditChange('capacity', e.target.value)} 
                     />
                   ) : (
-                    <p className="font-semibold text-slate-800">{data.capacity ?? '—'} P</p>
+                    <p className="font-semibold text-slate-800">{data.capacity ?? 'â€”'} P</p>
                   )}
                 </div>
 
@@ -3434,7 +3468,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                       ))}
                     </select>
                   ) : (
-                    <p className="font-semibold text-slate-800">{data.packType || '—'}</p>
+                    <p className="font-semibold text-slate-800">{data.packType || 'â€”'}</p>
                   )}
                 </div>
 
@@ -3457,7 +3491,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                 </div>
 
                 <div className="space-y-1">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Tipo de Lançamento</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Tipo de LanÃ§amento</span>
                   {isEditing ? (
                     <select
                       className="w-full border-slate-200 rounded-xl px-4 py-2.5 bg-slate-50 text-sm"
@@ -3482,12 +3516,12 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                       onChange={(e) => handleEditChange('painterLength', e.target.value)} 
                     />
                   ) : (
-                    <p className="font-semibold text-slate-800">{data.painterLength || '—'} m</p>
+                    <p className="font-semibold text-slate-800">{data.painterLength || 'â€”'} m</p>
                   )}
                 </div>
 
                 <div className="space-y-1">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Altura Máxima Lançamento (m)</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Altura MÃ¡xima LanÃ§amento (m)</span>
                   {isEditing ? (
                     <input 
                       className="w-full border-slate-200 rounded-xl px-4 py-2.5 bg-slate-50 text-sm"
@@ -3495,12 +3529,12 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                       onChange={(e) => handleEditChange('maxStowageHeight', e.target.value)} 
                     />
                   ) : (
-                    <p className="font-semibold text-slate-800">{data.maxStowageHeight || '—'} m</p>
+                    <p className="font-semibold text-slate-800">{data.maxStowageHeight || 'â€”'} m</p>
                   )}
                 </div>
 
                 <div className="space-y-1">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Proprietário / Armador</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">ProprietÃ¡rio / Armador</span>
                   {isEditing ? (
                     <input 
                       className="w-full border-slate-200 rounded-xl px-4 py-2.5 bg-slate-50 text-sm"
@@ -3508,7 +3542,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                       onChange={(e) => handleEditChange('owner', e.target.value)} 
                     />
                   ) : (
-                    <p className="font-semibold text-slate-800">{data.ownerDisplay || data.owner || '—'}</p>
+                    <p className="font-semibold text-slate-800">{data.ownerDisplay || data.owner || 'â€”'}</p>
                   )}
                 </div>
 
@@ -3527,7 +3561,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                 </div>
 
                 <div className="space-y-1">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Embarcação Associada</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">EmbarcaÃ§Ã£o Associada</span>
                   {isEditing ? (
                     <select
                       className="w-full border-slate-200 rounded-xl px-4 py-2.5 bg-slate-50 text-sm"
@@ -3556,12 +3590,12 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                       onChange={(e) => handleEditChange('containerModel', e.target.value)} 
                     />
                   ) : (
-                    <p className="font-semibold text-slate-800">{data.containerModel || '—'}</p>
+                    <p className="font-semibold text-slate-800">{data.containerModel || 'â€”'}</p>
                   )}
                 </div>
 
                 <div className="space-y-1">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Último Certificado Nº</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Ãšltimo Certificado NÂº</span>
                   {isEditing ? (
                     <input 
                       className="w-full border-slate-200 rounded-xl px-4 py-2.5 bg-slate-50 text-sm"
@@ -3569,7 +3603,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                       onChange={(e) => handleEditChange('ultimoCertificadoNumero', e.target.value)} 
                     />
                   ) : (
-                    <p className="font-semibold text-slate-800">{data.ultimoCertificadoNumero || '—'}</p>
+                    <p className="font-semibold text-slate-800">{data.ultimoCertificadoNumero || 'â€”'}</p>
                   )}
              </div>
               </div>
@@ -3587,11 +3621,11 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
               </div>
             </div>
 
-            {/* Bloco 2: Cilindro de Insuflação */}
+            {/* Bloco 2: Cilindro de InsuflaÃ§Ã£o */}
             <div className="bg-white rounded-3xl border border-slate-200/60 p-6 shadow-sm space-y-6">
               <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2 pb-3 border-b border-slate-100">
                 <Cylinder className="text-indigo-600" />
-                Cilindro de Gás
+                Cilindro de GÃ¡s
               </h2>
 
               <div className="space-y-5">
@@ -3619,7 +3653,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                   return (
                     <>
                 <div className="space-y-1">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Nº de Série Cilindro</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">NÂº de SÃ©rie Cilindro</span>
                   {isEditing ? (
                     <input 
                       className="w-full border-slate-200 rounded-xl px-4 py-2 bg-slate-50 text-sm"
@@ -3628,7 +3662,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                     />
                   ) : (
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-bold text-slate-700 font-mono">{data.cylinderSerial || '—'}</p>
+                      <p className="font-bold text-slate-700 font-mono">{data.cylinderSerial || 'â€”'}</p>
                       {cylinderChangedVersusLastInspection && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-semibold">
                           <RefreshCw size={12} />
@@ -3640,7 +3674,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                 </div>
 
                 <div className="space-y-1">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Sistema Insuflação</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Sistema InsuflaÃ§Ã£o</span>
                   {isEditing ? (
                     <input 
                       className="w-full border-slate-200 rounded-xl px-4 py-2 bg-slate-50 text-sm"
@@ -3648,12 +3682,12 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                       onChange={(e) => handleCylinderChange('cylinderSistema', e.target.value)} 
                     />
                   ) : (
-                    <p className="font-semibold text-slate-800">{data.cylinderSistema || '—'}</p>
+                    <p className="font-semibold text-slate-800">{data.cylinderSistema || 'â€”'}</p>
                   )}
                 </div>
 
                 <div className="space-y-1">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Data Teste Hidráulico</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Data Teste HidrÃ¡ulico</span>
                   {isEditing ? (
                     <input
                       type="month"
@@ -3696,7 +3730,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                   </div>
                 </div>
 
-                {/* Validador de Tolerância de Gás / Célula de Carga (CO2 e N2) */}
+                {/* Validador de TolerÃ¢ncia de GÃ¡s / CÃ©lula de Carga (CO2 e N2) */}
                 {(() => {
                   const bruto = Number(isEditing ? editForm.cylinderPesoBruto : data.cylinderPesoBruto);
                   const tara = Number(isEditing ? editForm.cylinderTara : data.cylinderTara);
@@ -3708,32 +3742,32 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                   const pesoTotalGasesMedido = bruto - tara;
                   const pesoTotalNominal = (nominalCo2 || 0) + (nominalN2 || 0);
                   const diferencaTotal = pesoTotalNominal ? pesoTotalGasesMedido - pesoTotalNominal : 0;
-                  const toleranciaMax = pesoTotalNominal ? pesoTotalNominal * 0.05 : 0.05; // 5% tolerância ISO
+                  const toleranciaMax = pesoTotalNominal ? pesoTotalNominal * 0.05 : 0.05; // 5% tolerÃ¢ncia ISO
                   const isAprovado = pesoTotalNominal ? Math.abs(diferencaTotal) <= toleranciaMax : true;
 
                   return (
                     <div className={`mt-3 p-3 rounded-2xl border ${isAprovado ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'} text-xs space-y-2`}>
                       <div className="flex items-center justify-between font-bold">
-                        <span>⚖️ Validação Balança / Célula de Carga (CO₂ + N₂):</span>
+                        <span>âš–ï¸ ValidaÃ§Ã£o BalanÃ§a / CÃ©lula de Carga (COâ‚‚ + Nâ‚‚):</span>
                         <span className={`px-2 py-0.5 rounded-full text-[10px] ${isAprovado ? 'bg-emerald-200 text-emerald-900' : 'bg-rose-200 text-rose-900'}`}>
-                          {isAprovado ? '✓ DENTRO DA TOLERÂNCIA (≤ 5%)' : '⚠ PERDA EXCESSIVA DE GÁS (> 5%)'}
+                          {isAprovado ? 'âœ“ DENTRO DA TOLERÃ‚NCIA (â‰¤ 5%)' : 'âš  PERDA EXCESSIVA DE GÃS (> 5%)'}
                         </span>
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-[11px] bg-white/60 p-2 rounded-xl">
-                        <div><b>Gás Medido (Bruto-Tara):</b> {pesoTotalGasesMedido.toFixed(3)} kg</div>
-                        <div><b>Total Nominal (CO₂ + N₂):</b> {pesoTotalNominal ? `${pesoTotalNominal.toFixed(3)} kg` : '—'}</div>
-                        <div><b>Diferença Total:</b> {pesoTotalNominal ? `${diferencaTotal > 0 ? '+' : ''}${diferencaTotal.toFixed(3)} kg` : '—'}</div>
-                        <div><b>Tolerância Máx (5%):</b> ±{toleranciaMax.toFixed(3)} kg</div>
+                        <div><b>GÃ¡s Medido (Bruto-Tara):</b> {pesoTotalGasesMedido.toFixed(3)} kg</div>
+                        <div><b>Total Nominal (COâ‚‚ + Nâ‚‚):</b> {pesoTotalNominal ? `${pesoTotalNominal.toFixed(3)} kg` : 'â€”'}</div>
+                        <div><b>DiferenÃ§a Total:</b> {pesoTotalNominal ? `${diferencaTotal > 0 ? '+' : ''}${diferencaTotal.toFixed(3)} kg` : 'â€”'}</div>
+                        <div><b>TolerÃ¢ncia MÃ¡x (5%):</b> Â±{toleranciaMax.toFixed(3)} kg</div>
                       </div>
-                      {nominalCo2 ? <div className="text-[10px] text-slate-600">• CO₂ Nominal: <b>{nominalCo2} kg</b> {expectedGas?.co2 !== undefined && `(Manual: ${expectedGas.co2.toFixed(3)} kg)`}</div> : null}
-                      {nominalN2 ? <div className="text-[10px] text-slate-600">• N₂ Nominal: <b>{nominalN2} kg</b> {expectedGas?.n2 !== undefined && `(Manual: ${expectedGas.n2.toFixed(3)} kg)`}</div> : null}
+                      {nominalCo2 ? <div className="text-[10px] text-slate-600">â€¢ COâ‚‚ Nominal: <b>{nominalCo2} kg</b> {expectedGas?.co2 !== undefined && `(Manual: ${expectedGas.co2.toFixed(3)} kg)`}</div> : null}
+                      {nominalN2 ? <div className="text-[10px] text-slate-600">â€¢ Nâ‚‚ Nominal: <b>{nominalN2} kg</b> {expectedGas?.n2 !== undefined && `(Manual: ${expectedGas.n2.toFixed(3)} kg)`}</div> : null}
                     </div>
                   );
                 })()}
 
                   <div className="space-y-1">
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                      Gás CO2 (kg)
+                      GÃ¡s CO2 (kg)
                       {expectedGas?.co2 !== undefined && expectedGas.co2 !== null && (
                         <span className="text-[10px] text-indigo-650 font-bold normal-case bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 no-print">
                           Manual: {expectedGas.co2.toFixed(3)} kg
@@ -3757,7 +3791,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                       if (diffAbs <= 0.05) return null;
                       return (
                         <p className={`text-[10px] font-bold ${d < 0 ? 'text-amber-600' : 'text-orange-600'} no-print`}>
-                          {d < 0 ? '▼' : '▲'} Difere do manual em {diffAbs.toFixed(3)} kg
+                          {d < 0 ? 'â–¼' : 'â–²'} Difere do manual em {diffAbs.toFixed(3)} kg
                         </p>
                       );
                     })()}
@@ -3765,7 +3799,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
 
                   <div className="space-y-1">
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                      Gás N2 (kg)
+                      GÃ¡s N2 (kg)
                       {expectedGas?.n2 !== undefined && expectedGas.n2 !== null && (
                         <span className="text-[10px] text-indigo-650 font-bold normal-case bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 no-print">
                           Manual: {expectedGas.n2.toFixed(3)} kg
@@ -3789,7 +3823,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                       if (diffAbs <= 0.05) return null;
                       return (
                         <p className={`text-[10px] font-bold ${d < 0 ? 'text-amber-600' : 'text-orange-600'} no-print`}>
-                          {d < 0 ? '▼' : '▲'} Difere do manual em {diffAbs.toFixed(3)} kg
+                          {d < 0 ? 'â–¼' : 'â–²'} Difere do manual em {diffAbs.toFixed(3)} kg
                         </p>
                       );
                     })()}
@@ -3818,12 +3852,12 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                       onChange={(e) => handleEditChange('hruReferencia', e.target.value)} 
                     />
                   ) : (
-                    <p className="font-semibold text-slate-800">{data.hruReferencia || 'Não aplicável / Não instalado'}</p>
+                    <p className="font-semibold text-slate-800">{data.hruReferencia || 'NÃ£o aplicÃ¡vel / NÃ£o instalado'}</p>
                   )}
                 </div>
 
                 <div className="space-y-1">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Data de Instalação do HRU</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Data de InstalaÃ§Ã£o do HRU</span>
                   {isEditing ? (
                     <input 
                       type="date"
@@ -3858,7 +3892,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                         onChange={(e) => handleEditChange('radarReflector', e.target.value)} 
                       />
                     ) : (
-                      <p className="font-semibold text-slate-800">{data.radarReflector || 'Não instalado'}</p>
+                      <p className="font-semibold text-slate-800">{data.radarReflector || 'NÃ£o instalado'}</p>
                     )}
                   </div>
 
@@ -3867,14 +3901,14 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
               </div>
             </div>
 
-            {/* Bloco 4: Estado Geral do Próximo Serviço */}
+            {/* Bloco 4: Estado Geral do PrÃ³ximo ServiÃ§o */}
             <div className="bg-white rounded-3xl border border-slate-200/60 p-6 shadow-sm flex flex-col justify-between">
               <div>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-6">Próximo Serviço Operacional</h3>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-6">PrÃ³ximo ServiÃ§o Operacional</h3>
                 
                 <div className="space-y-5">
                   <div>
-                    <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-0.5">Última Inspeção</p>
+                    <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-0.5">Ãšltima InspeÃ§Ã£o</p>
                     {isEditing ? (
                       <input 
                         type="date"
@@ -3890,7 +3924,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                     )}
                   </div>
                   <div>
-                    <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-0.5">Validade / Próxima Inspeção</p>
+                    <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-0.5">Validade / PrÃ³xima InspeÃ§Ã£o</p>
                     {isEditing ? (
                       <input 
                         type="date"
@@ -3905,7 +3939,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                           {formatDate(data.dataProxInspecao)}
                         </p>
                         {isExpired(data.dataProxInspecao) && (
-                          <span className="mt-1 inline-block bg-red-100 border border-red-200 text-red-700 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase">Serviço Expirado</span>
+                          <span className="mt-1 inline-block bg-red-100 border border-red-200 text-red-700 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase">ServiÃ§o Expirado</span>
                         )}
                         <div className="mt-2.5 grid grid-cols-3 gap-2">
                           <button
@@ -3913,10 +3947,10 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                             onClick={downloadIcs}
                             disabled={!data.dataProxInspecao}
                             className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-transform hover:scale-[1.02] shadow-sm shadow-indigo-600/10"
-                            title="Exportar para o calendário (.ics)"
+                            title="Exportar para o calendÃ¡rio (.ics)"
                           >
                             <Calendar size={13} />
-                            <span>Calendário</span>
+                            <span>CalendÃ¡rio</span>
                           </button>
                           <button
                             type="button"
@@ -3956,35 +3990,35 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                   className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3.5 rounded-xl shadow-md shadow-emerald-500/10 flex items-center justify-center gap-2 transition-transform hover:scale-[1.02]"
                 >
                   <ClipboardCheck size={16} />
-                  {hasLocalInspectionDraft ? 'Continuar Inspeção' : 'Registar Vistoria'}
+                  {hasLocalInspectionDraft ? 'Continuar InspeÃ§Ã£o' : 'Registar Vistoria'}
                 </button>
                 <button
                   onClick={() => setIsScheduleModalOpen(true)}
                   className="w-full bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-transform hover:scale-[1.02]"
                 >
                   <Calendar size={16} className="text-indigo-600" />
-                  Agendar Inspeção
+                  Agendar InspeÃ§Ã£o
                 </button>
                 <button
                   onClick={() => setIsReceiveModalOpen(true)}
                   className="w-full bg-amber-50 border border-amber-200 hover:bg-amber-100 text-amber-700 font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-transform hover:scale-[1.02]"
                 >
                   <Anchor size={16} className="text-amber-600" />
-                  Recebida na Estação
+                  Recebida na EstaÃ§Ã£o
                 </button>
               </div>
             </div>
 
-            {/* Bloco 5: Válvulas & Disparo */}
+            {/* Bloco 5: VÃ¡lvulas & Disparo */}
             <div className="bg-white rounded-3xl border border-slate-200/60 p-6 shadow-sm space-y-6">
               <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2 pb-3 border-b border-slate-100">
                 <Wrench className="text-indigo-600" />
-                Válvulas & Disparo
+                VÃ¡lvulas & Disparo
               </h2>
 
               <div className="space-y-5">
                 <div className="space-y-1">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Cabeça Disparo</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">CabeÃ§a Disparo</span>
                   {isEditing ? (
                     <>
                       <select
@@ -4020,12 +4054,12 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                       )}
                     </>
                   ) : (
-                    <p className="font-semibold text-slate-800">{data.cylinderCabecaDisparoRef || '—'}</p>
+                    <p className="font-semibold text-slate-800">{data.cylinderCabecaDisparoRef || 'â€”'}</p>
                   )}
                 </div>
 
                 <div className="space-y-1">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">N.º Série Cabeça Disparo</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">N.Âº SÃ©rie CabeÃ§a Disparo</span>
                   {isEditing ? (
                     <input
                       type="text"
@@ -4035,12 +4069,12 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                       onChange={(e) => handleEditChange('cylinderCabecaDisparoSerial', e.target.value)}
                     />
                   ) : (
-                    <p className="font-semibold text-slate-800">{data.cylinderCabecaDisparoSerial || '—'}</p>
+                    <p className="font-semibold text-slate-800">{data.cylinderCabecaDisparoSerial || 'â€”'}</p>
                   )}
                 </div>
 
                 <div className="space-y-1">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Ref. Tubo Câmara Sup.</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Ref. Tubo CÃ¢mara Sup.</span>
                   {isEditing ? (
                     <>
                       <select
@@ -4076,12 +4110,12 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                       )}
                     </>
                   ) : (
-                    <p className="font-semibold text-slate-800">{data.cylinderTuboCamaraSuperiorRef || '—'}</p>
+                    <p className="font-semibold text-slate-800">{data.cylinderTuboCamaraSuperiorRef || 'â€”'}</p>
                   )}
                 </div>
 
                 <div className="space-y-1">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Ref. Tubo Câmara Inf.</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Ref. Tubo CÃ¢mara Inf.</span>
                   {isEditing ? (
                     <>
                       <select
@@ -4117,12 +4151,12 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                       )}
                     </>
                   ) : (
-                    <p className="font-semibold text-slate-800">{data.cylinderTuboCamaraInferiorRef || '—'}</p>
+                    <p className="font-semibold text-slate-800">{data.cylinderTuboCamaraInferiorRef || 'â€”'}</p>
                   )}
                 </div>
 
                 <div className="space-y-1">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Válvulas de Alívio</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">VÃ¡lvulas de AlÃ­vio</span>
                   {isEditing ? (
                     <>
                       <select
@@ -4158,12 +4192,12 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                       )}
                     </>
                   ) : (
-                    <p className="font-semibold text-slate-800">{data.valvulasAlivio || '—'}</p>
+                    <p className="font-semibold text-slate-800">{data.valvulasAlivio || 'â€”'}</p>
                   )}
                 </div>
 
                 <div className="space-y-1">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Válvulas de Atestar</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">VÃ¡lvulas de Atestar</span>
                   {isEditing ? (
                     <>
                       <select
@@ -4199,7 +4233,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                       )}
                     </>
                   ) : (
-                    <p className="font-semibold text-slate-800">{data.valvulasAtestar || '—'}</p>
+                    <p className="font-semibold text-slate-800">{data.valvulasAtestar || 'â€”'}</p>
                   )}
                 </div>
               </div>
@@ -4220,7 +4254,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                   disabled={syncLoading}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-all border border-slate-200 disabled:opacity-50"
                 >
-                  🔄 {syncLoading ? 'A sincronizar...' : 'Sincronizar com Pack'}
+                  ðŸ”„ {syncLoading ? 'A sincronizar...' : 'Sincronizar com Pack'}
                 </button>
                 <button
                   onClick={() => setIsAddingArtigo(!isAddingArtigo)}
@@ -4266,7 +4300,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                   </datalist>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-500 uppercase">Referência</label>
+                  <label className="text-xs font-bold text-slate-500 uppercase">ReferÃªncia</label>
                   <input
                     placeholder="Ex: 2070100"
                     className="w-full border-slate-200 rounded-xl px-3 py-2 text-sm bg-white"
@@ -4275,7 +4309,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-500 uppercase">Fabricante Cód.</label>
+                  <label className="text-xs font-bold text-slate-500 uppercase">Fabricante CÃ³d.</label>
                   <input
                     placeholder="Ex: EV-99"
                     className="w-full border-slate-200 rounded-xl px-3 py-2 text-sm bg-white"
@@ -4315,7 +4349,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
             {artigos.length === 0 ? (
               <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-350">
                 <Package className="mx-auto text-slate-300 mb-3" size={48} />
-                <p className="text-slate-500 font-medium">Não há artigos ou consumíveis inventariados para esta jangada.</p>
+                <p className="text-slate-500 font-medium">NÃ£o hÃ¡ artigos ou consumÃ­veis inventariados para esta jangada.</p>
               </div>
             ) : (
               <div className="overflow-x-auto rounded-2xl border border-slate-200/60 shadow-sm">
@@ -4324,11 +4358,11 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                     <tr className="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-wider border-b border-slate-100">
                       <th className="px-6 py-4 w-10">Foto</th>
                       <th className="px-6 py-4">Artigo / Equipamento</th>
-                      <th className="px-6 py-4">Referência</th>
-                      <th className="px-6 py-4">Fabricante Cód.</th>
+                      <th className="px-6 py-4">ReferÃªncia</th>
+                      <th className="px-6 py-4">Fabricante CÃ³d.</th>
                       <th className="px-6 py-4 text-center">Quantidade</th>
                       <th className="px-6 py-4">Validade</th>
-                      <th className="px-6 py-4 text-right">Ações</th>
+                      <th className="px-6 py-4 text-right">AÃ§Ãµes</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm">
@@ -4347,8 +4381,8 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                             )}
                           </td>
                           <td className="px-6 py-4 font-bold text-slate-800">{translateArticleName(artigo.name)}</td>
-                          <td className="px-6 py-4 font-mono text-xs text-slate-500">{artigo.referencia || '—'}</td>
-                          <td className="px-6 py-4 text-slate-600">{artigo.codigoFabricante || '—'}</td>
+                          <td className="px-6 py-4 font-mono text-xs text-slate-500">{artigo.referencia || 'â€”'}</td>
+                          <td className="px-6 py-4 text-slate-600">{artigo.codigoFabricante || 'â€”'}</td>
                           <td className="px-6 py-4 text-center font-bold text-slate-700">{artigo.quantidade}</td>
                           <td className="px-6 py-4">
                             {isNonExpiringItem(artigo.name) ? (
@@ -4413,14 +4447,14 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                 <div>
                   <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                     <Shield className="text-indigo-600" />
-                    Pack de Emergência ({data.packType || 'Desconhecido'})
+                    Pack de EmergÃªncia ({data.packType || 'Desconhecido'})
                   </h2>
                   <p className="text-xs text-slate-500 mt-1">
-                    Definição de artigos obrigatórios obtida via:{' '}
+                    DefiniÃ§Ã£o de artigos obrigatÃ³rios obtida via:{' '}
                     <span className="font-semibold text-slate-700">
                       {data.mandatoryPackSource === 'technical'
-                        ? 'Ficha Técnica do Modelo'
-                        : 'Template Padrão do Tipo de Pack'}
+                        ? 'Ficha TÃ©cnica do Modelo'
+                        : 'Template PadrÃ£o do Tipo de Pack'}
                     </span>
                   </p>
                 </div>
@@ -4429,22 +4463,22 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <p className="text-[8px] font-black uppercase tracking-widest text-slate-700">Jangada</p>
-                        <p className="font-bold text-[12px] text-slate-900 leading-snug">{data.brand} {data.model} — Nº Série {data.serial}</p>
+                        <p className="font-bold text-[12px] text-slate-900 leading-snug">{data.brand} {data.model} â€” NÂº SÃ©rie {data.serial}</p>
                         <p className="text-[10px] text-slate-700 leading-snug">
-                          Lotação: {data.capacity} pax · Pack: {data.packType || '—'} · Contentor: {data.containerModel || '—'}{data.containerSize ? ` (${data.containerSize})` : ''}{data.fabricType ? ` · ${data.fabricType}` : ''}
+                          LotaÃ§Ã£o: {data.capacity} pax Â· Pack: {data.packType || 'â€”'} Â· Contentor: {data.containerModel || 'â€”'}{data.containerSize ? ` (${data.containerSize})` : ''}{data.fabricType ? ` Â· ${data.fabricType}` : ''}
                         </p>
                         <p className="text-[10px] text-slate-700 leading-snug">
-                          Última inspeção: {data.dataInspecao || '—'} · Próxima inspeção: {data.dataProxInspecao || '—'}
+                          Ãšltima inspeÃ§Ã£o: {data.dataInspecao || 'â€”'} Â· PrÃ³xima inspeÃ§Ã£o: {data.dataProxInspecao || 'â€”'}
                         </p>
                       </div>
                       <div className="text-right shrink-0">
                         <p className="text-[8px] font-black uppercase tracking-widest text-slate-700">Navio</p>
-                        <p className="font-bold text-[12px] text-slate-900 leading-snug">{linkedShip?.nome || data.shipNameManual || '—'}</p>
+                        <p className="font-bold text-[12px] text-slate-900 leading-snug">{linkedShip?.nome || data.shipNameManual || 'â€”'}</p>
                         <p className="text-[10px] text-slate-700 leading-snug">
-                          Matrícula: {linkedShip?.matricula || '—'} · IMO: {linkedShip?.imo || '—'} · Bandeira: {linkedShip?.bandeira || '—'}
+                          MatrÃ­cula: {linkedShip?.matricula || 'â€”'} Â· IMO: {linkedShip?.imo || 'â€”'} Â· Bandeira: {linkedShip?.bandeira || 'â€”'}
                         </p>
                         <p className="text-[10px] text-slate-700 leading-snug">
-                          Indicativo: {linkedShip?.callSignal || '—'} · Proprietário: {linkedShip?.cliente?.nome || data.owner || '—'}
+                          Indicativo: {linkedShip?.callSignal || 'â€”'} Â· ProprietÃ¡rio: {linkedShip?.cliente?.nome || data.owner || 'â€”'}
                         </p>
                       </div>
                     </div>
@@ -4456,7 +4490,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                     disabled={syncLoading}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-all border border-slate-250 disabled:opacity-50"
                   >
-                    🔄 {syncLoading ? 'A sincronizar...' : 'Sincronizar com Pack'}
+                    ðŸ”„ {syncLoading ? 'A sincronizar...' : 'Sincronizar com Pack'}
                   </button>
                   <button
                     onClick={printPackChecklist}
@@ -4472,7 +4506,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                 <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-350">
                   <Shield className="mx-auto text-slate-300 mb-3" size={48} />
                   <p className="text-slate-500 font-medium">
-                    Não existem requisitos de pack de emergência configurados para este modelo ou tipo de pack.
+                    NÃ£o existem requisitos de pack de emergÃªncia configurados para este modelo ou tipo de pack.
                   </p>
                 </div>
               ) : (
@@ -4489,13 +4523,13 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                               <th className="px-6 py-4 w-10">Foto</th>
                               <th className="px-6 py-4">Requisito do Pack</th>
                               <th className="px-6 py-4">Artigo Associado (Jangada)</th>
-                              <th className="px-6 py-4">Referência</th>
+                              <th className="px-6 py-4">ReferÃªncia</th>
                               <th className="px-6 py-4 text-center">Qtd Req.</th>
                               <th className="px-6 py-4 text-center">Qtd Reg.</th>
                               <th className="px-6 py-4 text-center">Qtd Subst.</th>
                               <th className="px-6 py-4 text-center">Estado</th>
                               <th className="px-6 py-4">Validade</th>
-                              <th className="px-6 py-4 text-right">Ações</th>
+                              <th className="px-6 py-4 text-right">AÃ§Ãµes</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 text-sm">
@@ -4511,8 +4545,8 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                               );
                               const replacedQty = replacedItem ? replacedItem.quantidade : 0;
 
-                              // O pack é considerado completo por definição do template/modelo.
-                              // Não assinalamos artigos em falta nesta vista, mostrando sempre "Completo".
+                              // O pack Ã© considerado completo por definiÃ§Ã£o do template/modelo.
+                              // NÃ£o assinalamos artigos em falta nesta vista, mostrando sempre "Completo".
                               const statusBadge = (
                                 <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
                                   Completo
@@ -4540,7 +4574,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                                     {matched ? String(matched.name) : <span className="text-red-500 italic font-medium">Nenhum</span>}
                                   </td>
                                   <td className="px-6 py-4 font-mono text-xs text-slate-500">
-                                    {matched?.referencia || '—'}
+                                    {matched?.referencia || 'â€”'}
                                   </td>
                                   <td className="px-6 py-4 text-center font-semibold text-slate-500">
                                     {Number(item.quantity)}
@@ -4550,7 +4584,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                                   </td>
                                   <td className="px-6 py-4 text-center font-bold text-indigo-600">
                                     <div className="flex items-center justify-center gap-1.5">
-                                      <span>{replacedQty || "—"}</span>
+                                      <span>{replacedQty || "â€”"}</span>
                                       {replacedItem && (
                                         <EditarArtigoSubstituidoDialog
                                           jangadaId={jangadaId}
@@ -4579,7 +4613,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                                         )}
                                       </div>
                                     ) : (
-                                      <span className="text-slate-400">—</span>
+                                      <span className="text-slate-400">â€”</span>
                                     )}
                                   </td>
                                   <td className="px-6 py-4 text-right flex items-center justify-end gap-2">
@@ -4651,16 +4685,16 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                     </select>
                   ) : (
                     <p className="mt-1 font-semibold text-slate-800">
-                      {data.containerModel || '—'}
+                      {data.containerModel || 'â€”'}
                     </p>
                   )}
                 </div>
                 <div>
                   <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Tipo de Lançamento
+                    Tipo de LanÃ§amento
                   </span>
                   <p className="mt-1 font-semibold text-slate-800">
-                    {data.launchType || '—'}
+                    {data.launchType || 'â€”'}
                   </p>
                 </div>
                 <div>
@@ -4674,13 +4708,13 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                       onChange={(e) => handleEditChange('fabricType', e.target.value)}
                     >
                       <option value="">Selecionar...</option>
-                      <option value="RIGIDO">Rígido (MK)</option>
+                      <option value="RIGIDO">RÃ­gido (MK)</option>
                       <option value="VALISE">Valise</option>
                       <option value="ABS">ABS</option>
                     </select>
                   ) : (
                     <p className="mt-1 font-semibold text-slate-800">
-                      {data.fabricType || '—'}
+                      {data.fabricType || 'â€”'}
                     </p>
                   )}
                 </div>
@@ -4697,7 +4731,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                     />
                   ) : (
                     <p className="mt-1 font-semibold text-slate-800">
-                      {data.painterLength ? `${data.painterLength} m` : '—'}
+                      {data.painterLength ? `${data.painterLength} m` : 'â€”'}
                     </p>
                   )}
                 </div>
@@ -4706,7 +4740,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
             <div className="rounded-2xl bg-white border border-slate-200 shadow-sm p-5">
               <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
                 <Package size={18} className="text-amber-500" />
-                Cintas de Fecho ({bundle.exactMatches.length + bundle.familyMatches.length} correspondências)
+                Cintas de Fecho ({bundle.exactMatches.length + bundle.familyMatches.length} correspondÃªncias)
               </h3>
               {bundle.exactMatches.length + bundle.familyMatches.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-slate-300 py-8 text-center text-sm text-slate-400">
@@ -4732,7 +4766,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                   <p className="font-semibold mb-1">Notas Operacionais:</p>
                   {bundle.operationalNotes.map((note, i) => (
                     <p key={i} className="ml-2">
-                      • {note}
+                      â€¢ {note}
                     </p>
                   ))}
                 </div>
@@ -4746,12 +4780,12 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                 <input
                   id="manual-strap-ref"
-                  placeholder="Referência (ex: D508)"
+                  placeholder="ReferÃªncia (ex: D508)"
                   className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm bg-slate-50"
                 />
                 <input
                   id="manual-strap-desc"
-                  placeholder="Descrição"
+                  placeholder="DescriÃ§Ã£o"
                   className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm bg-slate-50"
                 />
                 <input
@@ -4763,7 +4797,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                 />
                 <input
                   id="manual-strap-pn"
-                  placeholder="Nº Peça (opcional)"
+                  placeholder="NÂº PeÃ§a (opcional)"
                   className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm bg-slate-50"
                 />
               </div>
@@ -4773,7 +4807,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                   const desc = (document.getElementById('manual-strap-desc') as HTMLInputElement)?.value;
                   const qty = (document.getElementById('manual-strap-qty') as HTMLInputElement)?.value;
                   if (!ref || !desc) {
-                    alert('Preencha referência e descrição.');
+                    alert('Preencha referÃªncia e descriÃ§Ã£o.');
                     return;
                   }
                   addManualStrapToStock(ref, desc, Number(qty) || 1);
@@ -4786,7 +4820,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
             <div className="rounded-2xl bg-white border border-slate-200 shadow-sm p-5">
               <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
                 <Package size={18} className="text-purple-500" />
-                Artigos de Fecho Aplicados (Cintas · Autocolantes · Saco de Vácuo · Fita)
+                Artigos de Fecho Aplicados (Cintas Â· Autocolantes Â· Saco de VÃ¡cuo Â· Fita)
               </h3>
 
               {(() => {
@@ -4794,7 +4828,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                 return (
                   <div className="mb-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3">
                     <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">
-                      <Link2 size={13} /> Adicionar saco de vácuo do stock
+                      <Link2 size={13} /> Adicionar saco de vÃ¡cuo do stock
                     </div>
                     <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
                       <div className="flex-1 min-w-[220px]">
@@ -4802,8 +4836,8 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                           items={vacuumBagStock}
                           value={vacuumBagStockId}
                           onSelect={(s) => setVacuumBagStockId(String(s.id))}
-                          placeholder="Escolher saco de vácuo do stock..."
-                          emptyMessage='Nenhum saco de vácuo encontrado no stock. Adicione primeiro um artigo com "saco de vácuo" na referência ou descrição.'
+                          placeholder="Escolher saco de vÃ¡cuo do stock..."
+                          emptyMessage='Nenhum saco de vÃ¡cuo encontrado no stock. Adicione primeiro um artigo com "saco de vÃ¡cuo" na referÃªncia ou descriÃ§Ã£o.'
                           showQuantity
                         />
                       </div>
@@ -4855,8 +4889,8 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                 if (closureInstalled.length === 0) {
                   return (
                     <p className="text-sm text-slate-400 text-center py-4">
-                      Nenhum artigo de fecho aplicado. Os artigos escolhidos na inspeção (passo
-                      Orçamento — Equipamento de Fecho) surgem aqui com a fotografia do stock.
+                      Nenhum artigo de fecho aplicado. Os artigos escolhidos na inspeÃ§Ã£o (passo
+                      OrÃ§amento â€” Equipamento de Fecho) surgem aqui com a fotografia do stock.
                     </p>
                   );
                 }
@@ -4868,7 +4902,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                       ? "HRU"
                       : kind === "reparo"
                         ? "Reparo"
-                        : "Acessório de Fecho";
+                        : "AcessÃ³rio de Fecho";
 
                 return (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -4908,7 +4942,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                             <p className="text-xs text-slate-600 truncate">{item.descricao}</p>
                             <p className="text-[11px] text-slate-400">
                               Qtd: {item.quantidade}
-                              {stock?.referencia ? ` · Stock ${stock.referencia}` : ""}
+                              {stock?.referencia ? ` Â· Stock ${stock.referencia}` : ""}
                             </p>
                           </div>
                           <button
@@ -4934,7 +4968,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
       {activeTab === 'historico' && (() => {
           const inspecoesList = data.inspecoes || initialData?.inspecoes || [];
           
-          // Obter anos únicos das inspeções ordenados de forma decrescente
+          // Obter anos Ãºnicos das inspeÃ§Ãµes ordenados de forma decrescente
           const anosDisponiveis = Array.from(
             new Set(
               inspecoesList
@@ -4960,14 +4994,14 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
               <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 pb-4 border-b border-slate-100">
                 <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                   <History className="text-indigo-600" />
-                  Histórico Técnico de Inspeções
+                  HistÃ³rico TÃ©cnico de InspeÃ§Ãµes
                 </h2>
                 <button
                   onClick={() => setIsHistoricaOpen(true)}
                   className="bg-indigo-650 hover:bg-indigo-550 text-white px-4 py-2.5 rounded-2xl text-xs font-bold shadow-md shadow-indigo-150 transition-all flex items-center gap-1.5 self-start sm:self-auto hover:shadow-indigo-250 active:scale-95"
                 >
                   <Plus size={14} />
-                  Registar Inspeção Histórica
+                  Registar InspeÃ§Ã£o HistÃ³rica
                 </button>
               </div>
 
@@ -5011,11 +5045,11 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
               {inspecoesList.length === 0 ? (
                 <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-350">
                   <History className="mx-auto text-slate-300 mb-3" size={48} />
-                  <p className="text-slate-500 font-medium">Ainda não há registos históricos de inspeção ou rascunhos para esta jangada.</p>
+                  <p className="text-slate-500 font-medium">Ainda nÃ£o hÃ¡ registos histÃ³ricos de inspeÃ§Ã£o ou rascunhos para esta jangada.</p>
                 </div>
               ) : filteredInspecoes.length === 0 ? (
                 <div className="text-center py-8 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-500 text-xs">
-                  Sem inspeções registadas no ano {selectedHistoryYear}.
+                  Sem inspeÃ§Ãµes registadas no ano {selectedHistoryYear}.
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -5023,7 +5057,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                     <div className="flex items-center justify-between p-4 bg-indigo-50 border border-indigo-150 rounded-2xl animate-in slide-in-from-top duration-200">
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-bold text-indigo-950">
-                          Selecionadas {compareSelection.length} de 2 vistorias para comparação side-by-side
+                          Selecionadas {compareSelection.length} de 2 vistorias para comparaÃ§Ã£o side-by-side
                         </span>
                       </div>
                       <div className="flex gap-2">
@@ -5038,7 +5072,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                             onClick={() => setIsCompareOpen(true)}
                             className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl shadow-md transition-all active:scale-95 flex items-center gap-1.5"
                           >
-                            <span>🔍 Comparar Agora</span>
+                            <span>ðŸ” Comparar Agora</span>
                           </button>
                         )}
                       </div>
@@ -5053,7 +5087,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                         setCompareSelection(compareSelection.filter(id => id !== insp.id));
                       } else {
                         if (compareSelection.length >= 2) {
-                          appToast.warning("Selecione no máximo 2 inspeções para comparar.");
+                          appToast.warning("Selecione no mÃ¡ximo 2 inspeÃ§Ãµes para comparar.");
                           return;
                         }
                         setCompareSelection([...compareSelection, insp.id]);
@@ -5079,7 +5113,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                                 }`}
                                 title="Selecionar para comparar"
                               >
-                                {isSelectedForCompare && <span className="text-[10px] font-bold">✓</span>}
+                                {isSelectedForCompare && <span className="text-[10px] font-bold">âœ“</span>}
                               </button>
                               <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3 flex flex-col items-center justify-center min-w-[100px] text-center">
                                 <Calendar className="text-indigo-600 mb-1" size={20} />
@@ -5088,7 +5122,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                             </div>
                             <div>
                               <h4 className="font-bold text-slate-800 text-base">
-                                Certificado nº: {insp.certificadoNumero || 'Draft / Não emitido'}
+                                Certificado nÂº: {insp.certificadoNumero || 'Draft / NÃ£o emitido'}
                                 {cylinderChangedText(insp) && (
                                   <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-semibold align-middle">
                                     <RefreshCw size={11} />
@@ -5097,13 +5131,13 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                                 )}
                               </h4>
                               <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
-                                <span>Responsável: <strong>{insp.responsavel || 'Operador'}</strong></span>
-                                <span>•</span>
-                                <span>Próxima Inspeção: <strong>{formatDate(insp.dataProxInspecao)}</strong></span>
+                                <span>ResponsÃ¡vel: <strong>{insp.responsavel || 'Operador'}</strong></span>
+                                <span>â€¢</span>
+                                <span>PrÃ³xima InspeÃ§Ã£o: <strong>{formatDate(insp.dataProxInspecao)}</strong></span>
                                 {insp.numeroObra && (
                                   <>
-                                    <span>•</span>
-                                    <span>Nº Obra: <strong className="text-indigo-600 font-bold">{insp.numeroObra}</strong></span>
+                                    <span>â€¢</span>
+                                    <span>NÂº Obra: <strong className="text-indigo-600 font-bold">{insp.numeroObra}</strong></span>
                                   </>
                                 )}
                               </div>
@@ -5111,7 +5145,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                           </div>
                         <div className="flex items-center gap-3 self-end md:self-auto">
                           <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                            insp.status === 'Concluída' 
+                            insp.status === 'ConcluÃ­da' 
                               ? 'bg-emerald-100 text-emerald-800' 
                               : insp.status === 'Draft'
                                 ? 'bg-blue-100 text-blue-800'
@@ -5139,14 +5173,14 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                               )}
                               {insp.integrityValid === false
                                 ? 'Carimbo Alterado'
-                                : `Carimbado${insp.integrityTimestamp ? ` · ${new Date(insp.integrityTimestamp).toLocaleString('pt-PT')}` : ''}`}
+                                : `Carimbado${insp.integrityTimestamp ? ` Â· ${new Date(insp.integrityTimestamp).toLocaleString('pt-PT')}` : ''}`}
                             </span>
                           ) : (
-                            insp.status === 'Concluída' && (
+                            insp.status === 'ConcluÃ­da' && (
                               <button
                                 onClick={() => handleStampInspecao(insp.id)}
                                 className="px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl border border-indigo-150 transition-all no-print flex items-center gap-1"
-                                title="Aplicar carimbo temporal (hash de integridade SHA-256) a esta inspeção"
+                                title="Aplicar carimbo temporal (hash de integridade SHA-256) a esta inspeÃ§Ã£o"
                               >
                                 <Clock size={12} />
                                 Carimbar
@@ -5158,21 +5192,21 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                             target="_blank"
                             rel="noopener noreferrer"
                             className="px-3 py-1 bg-teal-50 hover:bg-teal-100 text-teal-700 text-xs font-bold rounded-xl border border-teal-200 transition-all no-print flex items-center gap-1 shadow-sm"
-                            title="Descarregar Orçamento Excel específico desta Inspeção"
+                            title="Descarregar OrÃ§amento Excel especÃ­fico desta InspeÃ§Ã£o"
                           >
-                            <span>📊 Orçamento</span>
+                            <span>ðŸ“Š OrÃ§amento</span>
                           </a>
                           <button
                             onClick={() => setSelectedInspecao(insp)}
                             className="px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl border border-indigo-150 transition-all no-print flex items-center gap-1"
                           >
-                            <span>📄 Detalhes</span>
+                            <span>ðŸ“„ Detalhes</span>
                           </button>
                           <button
                             onClick={() => setExpandedInspectionId(expandedInspectionId === insp.id ? null : insp.id)}
                             className="px-3 py-1 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 transition-all no-print flex items-center gap-1"
                           >
-                            <span>{expandedInspectionId === insp.id ? '▲ Omitir Artigos' : '▼ Ver Artigos'}</span>
+                            <span>{expandedInspectionId === insp.id ? 'â–² Omitir Artigos' : 'â–¼ Ver Artigos'}</span>
                           </button>
                         </div>
                       </div>
@@ -5182,21 +5216,21 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                         <div className="w-full mt-5 pt-5 border-t border-slate-100 animate-in slide-in-from-top-2 duration-200">
                           <div className="flex items-center justify-between mb-3">
                             <h5 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                              Artigos e Consumíveis Substituídos / Verificados nesta Inspeção ({insp.artigos?.length || 0})
+                              Artigos e ConsumÃ­veis SubstituÃ­dos / Verificados nesta InspeÃ§Ã£o ({insp.artigos?.length || 0})
                             </h5>
                           </div>
                           {(!insp.artigos || insp.artigos.length === 0) ? (
                             <div className="text-center py-6 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-400 text-xs">
-                              Não existem consumíveis ou validades registadas associadas a este certificado histórico.
+                              NÃ£o existem consumÃ­veis ou validades registadas associadas a este certificado histÃ³rico.
                             </div>
                           ) : (
                             <div className="overflow-x-auto rounded-2xl border border-slate-200/60 shadow-sm">
                               <table className="w-full text-left border-collapse bg-white text-xs">
                                 <thead>
                                   <tr className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider border-b border-slate-200/60">
-                                    <th className="px-4 py-3">Designação do Artigo</th>
-                                    <th className="px-4 py-3">Referência</th>
-                                    <th className="px-4 py-3">Lote / Cód. Fabr.</th>
+                                    <th className="px-4 py-3">DesignaÃ§Ã£o do Artigo</th>
+                                    <th className="px-4 py-3">ReferÃªncia</th>
+                                    <th className="px-4 py-3">Lote / CÃ³d. Fabr.</th>
                                     <th className="px-4 py-3 text-center">Qtd.</th>
                                     <th className="px-4 py-3">Data de Validade</th>
                                   </tr>
@@ -5207,11 +5241,11 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                                     return (
                                       <tr key={art.id} className={`hover:bg-slate-50/50 transition-colors ${isValvulaHead ? 'bg-indigo-50/40 border-l-2 border-l-indigo-400' : ''}`}>
                                         <td className="px-4 py-2.5 font-semibold text-slate-800 flex items-center gap-1.5">
-                                          {isValvulaHead && <span className="text-indigo-500 text-[10px]" title="Válvula/Cabeça">⚙</span>}
+                                          {isValvulaHead && <span className="text-indigo-500 text-[10px]" title="VÃ¡lvula/CabeÃ§a">âš™</span>}
                                           {art.name}
                                         </td>
-                                        <td className="px-4 py-2.5 font-mono text-slate-500">{art.referencia || '—'}</td>
-                                        <td className="px-4 py-2.5 text-slate-600">{art.codigoFabricante || '—'}</td>
+                                        <td className="px-4 py-2.5 font-mono text-slate-500">{art.referencia || 'â€”'}</td>
+                                        <td className="px-4 py-2.5 text-slate-600">{art.codigoFabricante || 'â€”'}</td>
                                         <td className="px-4 py-2.5 text-center font-bold text-slate-700">{art.quantidade}</td>
                                         <td className="px-4 py-2.5 font-semibold text-slate-700">{formatMonthYear(art.validade)}</td>
                                       </tr>
@@ -5232,7 +5266,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
               <div className="mt-8 border-t border-slate-100 pt-6">
                 <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
                   <History className="text-blue-600" />
-                  Histórico de Rastreabilidade (Transferências de Navio)
+                  HistÃ³rico de Rastreabilidade (TransferÃªncias de Navio)
                 </h3>
                 {movimentos.length > 0 ? (
                   <div className="overflow-x-auto border border-slate-100 rounded-2xl">
@@ -5258,7 +5292,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                     </table>
                   </div>
                 ) : (
-                  <p className="text-slate-400 italic text-center py-8">Sem registo de transferências de navios para esta jangada.</p>
+                  <p className="text-slate-400 italic text-center py-8">Sem registo de transferÃªncias de navios para esta jangada.</p>
                 )}
               </div>
             </div>
@@ -5319,7 +5353,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
 
           const statusBadgeFor = (testId: string) => {
             const status = manualStatusFor(testId);
-            if (status === "required") return { label: "OBRIGATÓRIO", className: "bg-emerald-100 border-emerald-300 text-emerald-800" };
+            if (status === "required") return { label: "OBRIGATÃ“RIO", className: "bg-emerald-100 border-emerald-300 text-emerald-800" };
             if (status === "overdue") return { label: "ATRASADO", className: "bg-rose-100 border-rose-300 text-rose-800" };
             if (status === "not-required") return { label: "N/A", className: "bg-slate-100 border-slate-200 text-slate-500" };
             return { label: "OPCIONAL", className: "bg-amber-50 border-amber-200 text-amber-700" };
@@ -5337,16 +5371,16 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
           });
 
           const failingReasons: string[] = [];
-          if (wpDerived.upper.passes === false) failingReasons.push('queda de pressão na câmara superior > 5%');
-          if (wpDerived.lower.passes === false) failingReasons.push('queda de pressão na câmara inferior > 5%');
-          if (wpDerived.temperatureWithinManual === false) failingReasons.push('variação térmica ΔT > 3.5°C');
+          if (wpDerived.upper.passes === false) failingReasons.push('queda de pressÃ£o na cÃ¢mara superior > 5%');
+          if (wpDerived.lower.passes === false) failingReasons.push('queda de pressÃ£o na cÃ¢mara inferior > 5%');
+          if (wpDerived.temperatureWithinManual === false) failingReasons.push('variaÃ§Ã£o tÃ©rmica Î”T > 3.5Â°C');
           otherTestKeys.forEach((k) => {
             if (wpSource[k] === 'REPROVOU') failingReasons.push('teste ' + k.replace('teste', '') + ' reprovado');
           });
           otherTestKeys.forEach((k) => {
             const status = manualStatusFor(k);
             if ((status === 'required' || status === 'overdue') && (!wpSource[k] || wpSource[k] === 'N/A')) {
-              failingReasons.push('teste ' + k.replace('teste', '') + ' obrigatório sem registo (ou N/A)');
+              failingReasons.push('teste ' + k.replace('teste', '') + ' obrigatÃ³rio sem registo (ou N/A)');
             }
           });
 
@@ -5369,12 +5403,12 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
               <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                 <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                   <Gauge className="text-indigo-600" />
-                  Registo do Teste de Pressão de Trabalho (WP)
+                  Registo do Teste de PressÃ£o de Trabalho (WP)
                 </h2>
                 <div className="flex items-center gap-2">
                   {isEditing && (
                     <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full animate-pulse">
-                      Modo de Edição Ativo
+                      Modo de EdiÃ§Ã£o Ativo
                     </span>
                   )}
                   <button
@@ -5387,15 +5421,15 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                 </div>
               </div>
 
-              {/* Sub-Navegação da Aba de Testes */}
+              {/* Sub-NavegaÃ§Ã£o da Aba de Testes */}
               <div className="sticky top-16 z-10 -mx-1 px-1 flex flex-wrap gap-2 bg-white/90 backdrop-blur rounded-2xl border border-slate-200/70 py-2 shadow-sm">
                 {([
-                  ['#wp-condicoes', 'Condições'],
-                  ['#wp-camara-sup', 'Câmara Superior'],
-                  ['#wp-camara-inf', 'Câmara Inferior'],
+                  ['#wp-condicoes', 'CondiÃ§Ãµes'],
+                  ['#wp-camara-sup', 'CÃ¢mara Superior'],
+                  ['#wp-camara-inf', 'CÃ¢mara Inferior'],
                   ...wpArcos.map((_, i) => [`#wp-arco-${i}`, `Arco ${i + 1}`] as [string, string]),
                   ['#wp-outros', 'Outros Testes'],
-                  ['#wp-hidraulico', 'Hidráulico'],
+                  ['#wp-hidraulico', 'HidrÃ¡ulico'],
                 ] as [string, string][]).map(([href, label]) => (
                   <a
                     key={href}
@@ -5419,14 +5453,14 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                   </div>
                   <div>
                     <h3 className="font-bold text-sm">
-                      Resultado Geral: {isTestPassed ? 'APROVADO' : 'REPROVADO / NÃO EM CONFORMIDADE'}
+                      Resultado Geral: {isTestPassed ? 'APROVADO' : 'REPROVADO / NÃƒO EM CONFORMIDADE'}
                     </h3>
                     <p className="text-xs opacity-90 mt-0.5">
                       {isTestPassed 
-                        ? 'O ensaio cumpre as especificações do manual: queda de pressão ≤ 5%, variação térmica ΔT ≤ 3.5°C e teste (NAP/FS/GI/DL) obrigatórios registados como conformes.'
+                        ? 'O ensaio cumpre as especificaÃ§Ãµes do manual: queda de pressÃ£o â‰¤ 5%, variaÃ§Ã£o tÃ©rmica Î”T â‰¤ 3.5Â°C e teste (NAP/FS/GI/DL) obrigatÃ³rios registados como conformes.'
                         : failingReasons.length
                           ? 'Motivos: ' + failingReasons.join('; ') + '.'
-                          : 'A queda de pressão excedeu o limite máximo de 5% em pelo menos uma câmara ou a variação térmica de temperatura foi superior a 3.5°C.'}
+                          : 'A queda de pressÃ£o excedeu o limite mÃ¡ximo de 5% em pelo menos uma cÃ¢mara ou a variaÃ§Ã£o tÃ©rmica de temperatura foi superior a 3.5Â°C.'}
                     </p>
                   </div>
                 </div>
@@ -5438,7 +5472,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                   <div>
                     <h3 className="font-bold text-sm">Sem registo completo</h3>
                     <p className="text-xs opacity-90 mt-0.5">
-                      Não existem dados completos registados para o último ensaio WP. Use o botão &quot;Editar&quot; no topo da página para registar as leituras.
+                      NÃ£o existem dados completos registados para o Ãºltimo ensaio WP. Use o botÃ£o &quot;Editar&quot; no topo da pÃ¡gina para registar as leituras.
                     </p>
                   </div>
                 </div>
@@ -5453,7 +5487,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                   <div className="p-4 rounded-2xl border border-blue-200 bg-blue-50/80 text-blue-900 space-y-2">
                     <div className="flex items-center gap-2">
                       <Info size={16} className="text-blue-600" />
-                      <h4 className="font-bold text-xs uppercase tracking-wider">Testes Obrigatórios por Idade da Jangada</h4>
+                      <h4 className="font-bold text-xs uppercase tracking-wider">Testes ObrigatÃ³rios por Idade da Jangada</h4>
                       {testRecs[0]?.ageYears !== null && testRecs[0]?.ageYears !== undefined && (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
                           {testRecs[0].ageYears} {testRecs[0].ageYears === 1 ? 'ano' : 'anos'} de fabrico
@@ -5468,7 +5502,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                           rec.status === 'not-required' ? 'bg-slate-100 border-slate-200 text-slate-500 line-through' :
                           'bg-amber-50 border-amber-200 text-amber-700'
                         }`}>
-                          {rec.shortLabel}: {rec.status === 'required' ? 'OBRIGATÓRIO' : rec.status === 'overdue' ? 'ATRASADO' : rec.status === 'not-required' ? 'N/A' : 'OPCIONAL'}
+                          {rec.shortLabel}: {rec.status === 'required' ? 'OBRIGATÃ“RIO' : rec.status === 'overdue' ? 'ATRASADO' : rec.status === 'not-required' ? 'N/A' : 'OPCIONAL'}
                         </div>
                       ))}
                     </div>
@@ -5479,18 +5513,18 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
               {/* Grid 2 Columns */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 
-                {/* Coluna Esquerda: Condições WP e Outros Testes */}
+                {/* Coluna Esquerda: CondiÃ§Ãµes WP e Outros Testes */}
                 <div className="space-y-6">
-                  {/* Condições do Ensaio */}
+                  {/* CondiÃ§Ãµes do Ensaio */}
                   <div id="wp-condicoes" className="border border-slate-200 rounded-2xl p-5 space-y-4 bg-slate-50/50 scroll-mt-24">
                     <h3 className="font-bold text-slate-800 text-sm flex items-center gap-1.5 pb-2 border-b border-slate-200/60">
                       <ClipboardList size={16} className="text-indigo-500" />
-                      Condições Gerais do Ensaio
+                      CondiÃ§Ãµes Gerais do Ensaio
                     </h3>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-1">
-                        <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Data do Teste (Mês/Ano)</span>
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Data do Teste (MÃªs/Ano)</span>
                         {isEditing ? (
                           <input
                             type="month"
@@ -5504,7 +5538,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                       </div>
 
                       <div className="space-y-1">
-                        <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Unidade de Pressão</span>
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Unidade de PressÃ£o</span>
                         <select
                           className="w-full border-slate-200 rounded-xl px-4 py-2 bg-white text-sm focus:ring-2 focus:ring-indigo-500 font-semibold"
                           value={(isEditing ? editForm.testeWPUnidadePressao : data.testeWPUnidadePressao) || 'mbar'}
@@ -5518,7 +5552,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                       </div>
 
                       <div className="space-y-1">
-                        <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Hora de Início</span>
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Hora de InÃ­cio</span>
                         {isEditing ? (
                           <input
                             className="w-full border-slate-200 rounded-xl px-4 py-2 bg-white text-sm focus:ring-2 focus:ring-indigo-500"
@@ -5527,14 +5561,14 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                             onChange={(e) => handleWpFieldChange('testeWPHoraInicio', e.target.value)}
                           />
                         ) : (
-                          <p className="font-semibold text-slate-800">{data.testeWPHoraInicio || '—'}</p>
+                          <p className="font-semibold text-slate-800">{data.testeWPHoraInicio || 'â€”'}</p>
                         )}
                       </div>
 
                       <div className="space-y-1">
                         <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Hora de Fim (Calculada)</span>
                         <p className="font-semibold text-slate-800 bg-slate-100/60 px-3 py-2 rounded-xl text-sm border border-slate-200/40">
-                          {wpDerived.endTime || wpSource.testeWPHoraFim || '—'}
+                          {wpDerived.endTime || wpSource.testeWPHoraFim || 'â€”'}
                         </p>
                       </div>
 
@@ -5543,21 +5577,21 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                           <button
                             type="button"
                             onClick={handleFetchOreyWeather}
-                            title="Preencher temperatura e pressão atmosférica (Orey Técnica, Cabouco) para a data e hora indicadas"
+                            title="Preencher temperatura e pressÃ£o atmosfÃ©rica (Orey TÃ©cnica, Cabouco) para a data e hora indicadas"
                             className="w-full px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl transition-all text-xs font-bold border border-indigo-150 flex items-center justify-center gap-1.5"
                           >
                             <Gauge size={14} />
-                            <span>Preencher Temperatura e Pressão (Orey)</span>
+                            <span>Preencher Temperatura e PressÃ£o (Orey)</span>
                           </button>
                           <p className="mt-1 text-[10px] text-slate-500 text-center">
-                            Opcional. Usa as coordenadas da Orey Técnica; para datas passadas obtém dados históricos.
+                            Opcional. Usa as coordenadas da Orey TÃ©cnica; para datas passadas obtÃ©m dados histÃ³ricos.
                           </p>
                         </div>
                       )}
 
                       {/* Temperaturas */}
                       <div className="space-y-1">
-                        <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Temp. Inicial (°C)</span>
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Temp. Inicial (Â°C)</span>
                         {isEditing ? (
                           <input
                             className="w-full border-slate-200 rounded-xl px-4 py-2 bg-white text-sm focus:ring-2 focus:ring-indigo-500"
@@ -5566,12 +5600,12 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                             onChange={(e) => handleWpFieldChange('testeWPTemperaturaInicial', e.target.value)}
                           />
                         ) : (
-                          <p className="font-semibold text-slate-800">{data.testeWPTemperaturaInicial ? `${data.testeWPTemperaturaInicial} °C` : '—'}</p>
+                          <p className="font-semibold text-slate-800">{data.testeWPTemperaturaInicial ? `${data.testeWPTemperaturaInicial} Â°C` : 'â€”'}</p>
                         )}
                       </div>
 
                       <div className="space-y-1">
-                        <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Temp. Final (°C)</span>
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Temp. Final (Â°C)</span>
                         {isEditing ? (
                           <input
                             className="w-full border-slate-200 rounded-xl px-4 py-2 bg-white text-sm focus:ring-2 focus:ring-indigo-500"
@@ -5580,13 +5614,13 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                             onChange={(e) => handleWpFieldChange('testeWPTemperaturaFinal', e.target.value)}
                           />
                         ) : (
-                          <p className="font-semibold text-slate-800">{data.testeWPTemperaturaFinal ? `${data.testeWPTemperaturaFinal} °C` : '—'}</p>
+                          <p className="font-semibold text-slate-800">{data.testeWPTemperaturaFinal ? `${data.testeWPTemperaturaFinal} Â°C` : 'â€”'}</p>
                         )}
                       </div>
 
-                      {/* Pressões Atmosféricas */}
+                      {/* PressÃµes AtmosfÃ©ricas */}
                       <div className="space-y-1">
-                        <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Pressão Atmosférica Inicial (hPa)</span>
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-400">PressÃ£o AtmosfÃ©rica Inicial (hPa)</span>
                         {isEditing ? (
                           <input
                             className="w-full border-slate-200 rounded-xl px-4 py-2 bg-white text-sm focus:ring-2 focus:ring-indigo-500"
@@ -5595,12 +5629,12 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                             onChange={(e) => handleWpFieldChange('testeWPPressaoAtmosfericaInicial', e.target.value)}
                           />
                         ) : (
-                          <p className="font-semibold text-slate-800">{data.testeWPPressaoAtmosfericaInicial ? `${data.testeWPPressaoAtmosfericaInicial} hPa` : '—'}</p>
+                          <p className="font-semibold text-slate-800">{data.testeWPPressaoAtmosfericaInicial ? `${data.testeWPPressaoAtmosfericaInicial} hPa` : 'â€”'}</p>
                         )}
                       </div>
 
                       <div className="space-y-1">
-                        <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Pressão Atmosférica Final (hPa)</span>
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-400">PressÃ£o AtmosfÃ©rica Final (hPa)</span>
                         {isEditing ? (
                           <input
                             className="w-full border-slate-200 rounded-xl px-4 py-2 bg-white text-sm focus:ring-2 focus:ring-indigo-500"
@@ -5609,12 +5643,12 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                             onChange={(e) => handleWpFieldChange('testeWPPressaoAtmosfericaFinal', e.target.value)}
                           />
                         ) : (
-                          <p className="font-semibold text-slate-800">{data.testeWPPressaoAtmosfericaFinal ? `${data.testeWPPressaoAtmosfericaFinal} hPa` : '—'}</p>
+                          <p className="font-semibold text-slate-800">{data.testeWPPressaoAtmosfericaFinal ? `${data.testeWPPressaoAtmosfericaFinal} hPa` : 'â€”'}</p>
                         )}
                       </div>
                     </div>
 
-                    {/* Variações Calculadas */}
+                    {/* VariaÃ§Ãµes Calculadas */}
                     {isTestDefined && (() => {
                       const wpUnitLabel = (isEditing ? editForm.testeWPUnidadePressao : data.testeWPUnidadePressao) || 'mbar';
                       const wpCorrTempDisplay = wpDerived.correctionTempMb !== null ? convertMbarToUnit(wpDerived.correctionTempMb, wpDerived.unit) : null;
@@ -5623,27 +5657,27 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                       return (
                       <div className="mt-3 p-3.5 bg-indigo-50/50 border border-indigo-100 rounded-xl space-y-2 text-xs text-indigo-900">
                         <div className="flex justify-between items-start gap-3">
-                          <span>Variação de Temperatura (ΔT):</span>
+                          <span>VariaÃ§Ã£o de Temperatura (Î”T):</span>
                           <span className={`font-bold text-right ${wpDerived.temperatureWithinManual === false ? 'text-rose-650' : 'text-indigo-950'}`}>
-                            {wpDerived.tempDelta !== null ? `${wpDerived.tempDelta.toFixed(2)} °C` : '—'}
+                            {wpDerived.tempDelta !== null ? `${wpDerived.tempDelta.toFixed(2)} Â°C` : 'â€”'}
                             {wpDerived.temperatureWithinManual !== null && (
                               <span className="ml-1.5 font-semibold text-[10px] block">
-                                ({wpDerived.temperatureWithinManual ? 'ΔT ≤ 3.5°C OK' : 'ΔT > 3.5°C FORA DO LIMITE'})
+                                ({wpDerived.temperatureWithinManual ? 'Î”T â‰¤ 3.5Â°C OK' : 'Î”T > 3.5Â°C FORA DO LIMITE'})
                               </span>
                             )}
                           </span>
                         </div>
                         <div className="flex justify-between items-start gap-3">
-                          <span>Correção Térmica (−4 mbar/°C):</span>
-                          <span className="font-bold text-right">{wpCorrTempDisplay !== null ? `${wpCorrTempDisplay.toFixed(2)} ${wpUnitLabel}` : '—'}</span>
+                          <span>CorreÃ§Ã£o TÃ©rmica (âˆ’4 mbar/Â°C):</span>
+                          <span className="font-bold text-right">{wpCorrTempDisplay !== null ? `${wpCorrTempDisplay.toFixed(2)} ${wpUnitLabel}` : 'â€”'}</span>
                         </div>
                         <div className="flex justify-between items-start gap-3">
-                          <span>Correção Pressão Atm.:</span>
-                          <span className="font-bold text-right">{wpCorrBaroDisplay !== null ? `${wpCorrBaroDisplay.toFixed(2)} ${wpUnitLabel}` : '—'}</span>
+                          <span>CorreÃ§Ã£o PressÃ£o Atm.:</span>
+                          <span className="font-bold text-right">{wpCorrBaroDisplay !== null ? `${wpCorrBaroDisplay.toFixed(2)} ${wpUnitLabel}` : 'â€”'}</span>
                         </div>
                         <div className="flex justify-between items-start gap-3 border-t border-indigo-200 pt-2 mt-1">
-                          <span className="font-black">Correção Total:</span>
-                          <span className="font-black text-right">{wpTotalCorrDisplay !== null ? `${wpTotalCorrDisplay >= 0 ? '+' : ''}${wpTotalCorrDisplay.toFixed(2)} ${wpUnitLabel}` : '—'}</span>
+                          <span className="font-black">CorreÃ§Ã£o Total:</span>
+                          <span className="font-black text-right">{wpTotalCorrDisplay !== null ? `${wpTotalCorrDisplay >= 0 ? '+' : ''}${wpTotalCorrDisplay.toFixed(2)} ${wpUnitLabel}` : 'â€”'}</span>
                         </div>
                       </div>
                       );
@@ -5659,10 +5693,10 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {([
-                        ['Teste NAP (Pressão Adicional)', 'testeNAP'],
-                        ['Teste FS (Resistência Fundo)', 'testeFS'],
-                        ['Teste GI (Insuflação por Gás)', 'testeGI'],
-                        ['Teste DL (Lançamento por Turco)', 'testeDL'],
+                        ['Teste NAP (PressÃ£o Adicional)', 'testeNAP'],
+                        ['Teste FS (ResistÃªncia Fundo)', 'testeFS'],
+                        ['Teste GI (InsuflaÃ§Ã£o por GÃ¡s)', 'testeGI'],
+                        ['Teste DL (LanÃ§amento por Turco)', 'testeDL'],
                       ] as const).map(([label, key]) => {
                         const manualBadge = statusBadgeFor(key);
                         return (
@@ -5702,15 +5736,15 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                     </div>
                   </div>
 
-                  {/* Teste Hidráulico do Cilindro */}
+                  {/* Teste HidrÃ¡ulico do Cilindro */}
                   <div id="wp-hidraulico" className="border border-slate-200 rounded-2xl p-5 space-y-4 bg-slate-50/50 scroll-mt-24">
                     <h3 className="font-bold text-slate-800 text-sm flex items-center gap-1.5 pb-2 border-b border-slate-200/60">
                       <Cylinder size={16} className="text-indigo-500" />
-                      Teste Hidráulico do Cilindro (5 anos)
+                      Teste HidrÃ¡ulico do Cilindro (5 anos)
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-1">
-                        <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Último Teste Hid.</span>
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Ãšltimo Teste Hid.</span>
                         {isEditing ? (
                           <input
                             type="month"
@@ -5723,7 +5757,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                         )}
                       </div>
                       <div className="space-y-1">
-                        <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Próx. Teste Hid.</span>
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-400">PrÃ³x. Teste Hid.</span>
                         {isEditing ? (
                           <input
                             type="month"
@@ -5739,12 +5773,12 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                   </div>
                 </div>
 
-                {/* Coluna Direita: Câmaras Superior e Inferior */}
+                {/* Coluna Direita: CÃ¢maras Superior e Inferior */}
                 <div className="space-y-6">
-                  {/* Câmara Superior */}
+                  {/* CÃ¢mara Superior */}
                   <div id="wp-camara-sup" className="border border-slate-200 rounded-2xl p-5 space-y-4 scroll-mt-24">
                     <h3 className="font-bold text-slate-800 text-sm flex items-center justify-between pb-2 border-b border-slate-100">
-                      <span>Câmara Superior</span>
+                      <span>CÃ¢mara Superior</span>
                       {isTestDefined && wpDerived.upper.passes !== null && (
                         <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
                           wpDerived.upper.passes ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
@@ -5765,7 +5799,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                             onChange={(e) => handleWpFieldChange('testeWPCamaraSuperiorInicio', e.target.value)}
                           />
                         ) : (
-                          <p className="font-semibold text-slate-800">{wpSource.testeWPCamaraSuperiorInicio || '—'} {wpSource.testeWPUnidadePressao || 'mbar'}</p>
+                          <p className="font-semibold text-slate-800">{wpSource.testeWPCamaraSuperiorInicio || 'â€”'} {wpSource.testeWPUnidadePressao || 'mbar'}</p>
                         )}
                       </div>
 
@@ -5779,7 +5813,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                             onChange={(e) => handleWpFieldChange('testeWPCamaraSuperiorFim', e.target.value)}
                           />
                         ) : (
-                          <p className="font-semibold text-slate-800">{wpSource.testeWPCamaraSuperiorFim || '—'} {wpSource.testeWPUnidadePressao || 'mbar'}</p>
+                          <p className="font-semibold text-slate-800">{wpSource.testeWPCamaraSuperiorFim || 'â€”'} {wpSource.testeWPUnidadePressao || 'mbar'}</p>
                         )}
                       </div>
                     </div>
@@ -5787,17 +5821,17 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                     {isTestDefined && (
                       <div className="grid grid-cols-3 gap-2.5 pt-2 text-center">
                         <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                          <span className="block text-[10px] font-bold text-slate-450 uppercase tracking-wide">Pressão Corrigida</span>
-                          <span className="text-xs font-extrabold text-slate-800 mt-0.5 block">{wpDerived.upper.correctedEndDisplay || '—'}</span>
+                          <span className="block text-[10px] font-bold text-slate-450 uppercase tracking-wide">PressÃ£o Corrigida</span>
+                          <span className="text-xs font-extrabold text-slate-800 mt-0.5 block">{wpDerived.upper.correctedEndDisplay || 'â€”'}</span>
                         </div>
                         <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
                           <span className="block text-[10px] font-bold text-slate-450 uppercase tracking-wide">Queda Real</span>
-                          <span className="text-xs font-extrabold text-slate-800 mt-0.5 block">{wpDerived.upper.dropDisplay || '—'}</span>
+                          <span className="text-xs font-extrabold text-slate-800 mt-0.5 block">{wpDerived.upper.dropDisplay || 'â€”'}</span>
                         </div>
                         <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
                           <span className="block text-[10px] font-bold text-slate-450 uppercase tracking-wide">Percentagem Queda</span>
                           <span className={`text-xs font-extrabold mt-0.5 block ${wpDerived.upper.passes === false ? 'text-rose-650 font-black' : 'text-slate-800'}`}>
-                            {wpDerived.upper.dropPercentDisplay ? `${wpDerived.upper.dropPercentDisplay}%` : '—'}
+                            {wpDerived.upper.dropPercentDisplay ? `${wpDerived.upper.dropPercentDisplay}%` : 'â€”'}
                           </span>
                         </div>
                       </div>
@@ -5806,15 +5840,15 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                     {isTestDefined && wpDerived.upper.dropPercent !== null && wpDerived.upper.dropPercent > 5 && (
                       <div className="mt-2 text-xs font-bold text-rose-600 bg-rose-50 border border-rose-100 rounded-xl p-2.5 flex items-center gap-1.5 animate-pulse">
                         <AlertCircle size={14} />
-                        Queda de Pressão excessiva ({(wpDerived.upper.dropPercent).toFixed(2)}%)! Excedeu o limite regulamentar de 5%.
+                        Queda de PressÃ£o excessiva ({(wpDerived.upper.dropPercent).toFixed(2)}%)! Excedeu o limite regulamentar de 5%.
                       </div>
                     )}
                   </div>
 
-                  {/* Câmara Inferior */}
+                  {/* CÃ¢mara Inferior */}
                   <div id="wp-camara-inf" className="border border-slate-200 rounded-2xl p-5 space-y-4 scroll-mt-24">
                     <h3 className="font-bold text-slate-800 text-sm flex items-center justify-between pb-2 border-b border-slate-100">
-                      <span>Câmara Inferior</span>
+                      <span>CÃ¢mara Inferior</span>
                       {isTestDefined && wpDerived.lower.passes !== null && (
                         <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
                           wpDerived.lower.passes ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
@@ -5835,7 +5869,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                             onChange={(e) => handleWpFieldChange('testeWPCamaraInferiorInicio', e.target.value)}
                           />
                         ) : (
-                          <p className="font-semibold text-slate-800">{wpSource.testeWPCamaraInferiorInicio || '—'} {wpSource.testeWPUnidadePressao || 'mbar'}</p>
+                          <p className="font-semibold text-slate-800">{wpSource.testeWPCamaraInferiorInicio || 'â€”'} {wpSource.testeWPUnidadePressao || 'mbar'}</p>
                         )}
                       </div>
 
@@ -5849,7 +5883,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                             onChange={(e) => handleWpFieldChange('testeWPCamaraInferiorFim', e.target.value)}
                           />
                         ) : (
-                          <p className="font-semibold text-slate-800">{wpSource.testeWPCamaraInferiorFim || '—'} {wpSource.testeWPUnidadePressao || 'mbar'}</p>
+                          <p className="font-semibold text-slate-800">{wpSource.testeWPCamaraInferiorFim || 'â€”'} {wpSource.testeWPUnidadePressao || 'mbar'}</p>
                         )}
                       </div>
                     </div>
@@ -5857,17 +5891,17 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                     {isTestDefined && (
                       <div className="grid grid-cols-3 gap-2.5 pt-2 text-center">
                         <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                          <span className="block text-[10px] font-bold text-slate-450 uppercase tracking-wide">Pressão Corrigida</span>
-                          <span className="text-xs font-extrabold text-slate-800 mt-0.5 block">{wpDerived.lower.correctedEndDisplay || '—'}</span>
+                          <span className="block text-[10px] font-bold text-slate-450 uppercase tracking-wide">PressÃ£o Corrigida</span>
+                          <span className="text-xs font-extrabold text-slate-800 mt-0.5 block">{wpDerived.lower.correctedEndDisplay || 'â€”'}</span>
                         </div>
                         <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
                           <span className="block text-[10px] font-bold text-slate-450 uppercase tracking-wide">Queda Real</span>
-                          <span className="text-xs font-extrabold text-slate-800 mt-0.5 block">{wpDerived.lower.dropDisplay || '—'}</span>
+                          <span className="text-xs font-extrabold text-slate-800 mt-0.5 block">{wpDerived.lower.dropDisplay || 'â€”'}</span>
                         </div>
                         <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
                           <span className="block text-[10px] font-bold text-slate-450 uppercase tracking-wide">Percentagem Queda</span>
                           <span className={`text-xs font-extrabold mt-0.5 block ${wpDerived.lower.passes === false ? 'text-rose-650 font-black' : 'text-slate-800'}`}>
-                            {wpDerived.lower.dropPercentDisplay ? `${wpDerived.lower.dropPercentDisplay}%` : '—'}
+                            {wpDerived.lower.dropPercentDisplay ? `${wpDerived.lower.dropPercentDisplay}%` : 'â€”'}
                           </span>
                         </div>
                       </div>
@@ -5876,7 +5910,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                     {isTestDefined && wpDerived.lower.dropPercent !== null && wpDerived.lower.dropPercent > 5 && (
                       <div className="mt-2 text-xs font-bold text-rose-600 bg-rose-50 border border-rose-100 rounded-xl p-2.5 flex items-center gap-1.5 animate-pulse">
                         <AlertCircle size={14} />
-                        Queda de Pressão excessiva ({(wpDerived.lower.dropPercent).toFixed(2)}%)! Excedeu o limite regulamentar de 5%.
+                        Queda de PressÃ£o excessiva ({(wpDerived.lower.dropPercent).toFixed(2)}%)! Excedeu o limite regulamentar de 5%.
                       </div>
                     )}
                   </div>
@@ -5911,11 +5945,11 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-1">
                             <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Leitura Inicial</span>
-                            <p className="font-semibold text-slate-800">{arco.inicio || '—'} {unidadeArco}</p>
+                            <p className="font-semibold text-slate-800">{arco.inicio || 'â€”'} {unidadeArco}</p>
                           </div>
                           <div className="space-y-1">
                             <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Leitura Final</span>
-                            <p className="font-semibold text-slate-800">{arco.fim || '—'} {unidadeArco}</p>
+                            <p className="font-semibold text-slate-800">{arco.fim || 'â€”'} {unidadeArco}</p>
                           </div>
                         </div>
 
@@ -5928,7 +5962,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                             <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 col-span-2">
                               <span className="block text-[10px] font-bold text-slate-450 uppercase tracking-wide">Percentagem Queda</span>
                               <span className={`text-xs font-extrabold mt-0.5 block ${fails ? 'text-rose-650 font-black' : 'text-slate-800'}`}>
-                                {pct !== null ? `${pct.toFixed(2)}%` : '—'}
+                                {pct !== null ? `${pct.toFixed(2)}%` : 'â€”'}
                               </span>
                             </div>
                           </div>
@@ -5937,7 +5971,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                         {fails && (
                           <div className="mt-2 text-xs font-bold text-rose-600 bg-rose-50 border border-rose-100 rounded-xl p-2.5 flex items-center gap-1.5">
                             <AlertCircle size={14} />
-                            Queda de Pressão excessiva ({(pct ?? 0).toFixed(2)}%)! Excedeu o limite regulamentar de 5%.
+                            Queda de PressÃ£o excessiva ({(pct ?? 0).toFixed(2)}%)! Excedeu o limite regulamentar de 5%.
                           </div>
                         )}
                       </div>
@@ -5961,7 +5995,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
               <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                 <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                   <FileCheck className="text-indigo-600" />
-                  Boletins de Serviço Aplicáveis
+                  Boletins de ServiÃ§o AplicÃ¡veis
                 </h2>
                 <button
                   onClick={() => void handleSaveBulletins()}
@@ -5981,14 +6015,14 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
 
               <div className="flex flex-wrap gap-2 text-[11px]">
                 <span className="font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600">
-                  {bulletins.length} aplicável{bulletins.length === 1 ? '' : 'eis'}
+                  {bulletins.length} aplicÃ¡vel{bulletins.length === 1 ? '' : 'eis'}
                 </span>
                 <span className="font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800">
                   {appliedCount} aplicado{appliedCount === 1 ? '' : 's'}
                 </span>
                 {verifyingCount > 0 && (
                   <span className="font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800">
-                    {verifyingCount} em verificação
+                    {verifyingCount} em verificaÃ§Ã£o
                   </span>
                 )}
               </div>
@@ -5996,9 +6030,9 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
               {bulletins.length === 0 ? (
                 <div className="p-6 rounded-2xl border border-slate-200 bg-slate-50/60 text-center text-slate-500">
                   <FileCheck className="mx-auto mb-3 text-slate-300" size={40} />
-                  <p className="font-semibold text-sm">Não há boletins de serviço aplicáveis a esta jangada.</p>
+                  <p className="font-semibold text-sm">NÃ£o hÃ¡ boletins de serviÃ§o aplicÃ¡veis a esta jangada.</p>
                   <p className="text-xs mt-1 text-slate-400">
-                    A aplicabilidade é calculada a partir da marca, modelo, lotação e características técnicas da jangada.
+                    A aplicabilidade Ã© calculada a partir da marca, modelo, lotaÃ§Ã£o e caracterÃ­sticas tÃ©cnicas da jangada.
                   </p>
                 </div>
               ) : (
@@ -6081,10 +6115,10 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
               )}
 
               <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 text-[11px] text-slate-500 leading-relaxed">
-                <b>Aplicabilidade dinâmica:</b> esta lista é calculada a partir dos dados técnicos da jangada (marca, modelo,
-                lotação, altura de lançamento, contentor, sistema de insuflação, válvulas e inventário de peças). Quando terminar
-                a aplicação de um boletim, marque a caixa correspondente e clique em <b>&quot;Guardar Estado&quot;</b> para registar
-                a confirmação na ficha.
+                <b>Aplicabilidade dinÃ¢mica:</b> esta lista Ã© calculada a partir dos dados tÃ©cnicos da jangada (marca, modelo,
+                lotaÃ§Ã£o, altura de lanÃ§amento, contentor, sistema de insuflaÃ§Ã£o, vÃ¡lvulas e inventÃ¡rio de peÃ§as). Quando terminar
+                a aplicaÃ§Ã£o de um boletim, marque a caixa correspondente e clique em <b>&quot;Guardar Estado&quot;</b> para registar
+                a confirmaÃ§Ã£o na ficha.
               </div>
             </div>
           );
@@ -6137,7 +6171,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
           });
 
           const completedInspections = (data.inspecoes || [])
-            .filter((insp: Inspecao) => insp.status === 'Concluída')
+            .filter((insp: Inspecao) => insp.status === 'ConcluÃ­da')
             .sort((a: Inspecao, b: Inspecao) => new Date(b.dataInspecao).getTime() - new Date(a.dataInspecao).getTime());
           const lastInspecao = completedInspections[0];
 
@@ -6159,55 +6193,55 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                 <div className="text-right">
                   <h1 className="text-xs font-black text-slate-800 uppercase tracking-tight">Ficha</h1>
                   <div className="text-[6.5px] text-slate-450 font-medium mt-0.5">
-                    Data da Ficha: {lastInspecao?.dataInspecao ? formatDate(lastInspecao.dataInspecao) : formatDate(data.dataInspecao)} · ID Jangada: #{jangadaId}
+                    Data da Ficha: {lastInspecao?.dataInspecao ? formatDate(lastInspecao.dataInspecao) : formatDate(data.dataInspecao)} Â· ID Jangada: #{jangadaId}
                   </div>
                 </div>
               </div>
 
               {/* Main Grid: 2 columns for A4 portrait */}
               <div className="grid grid-cols-2 gap-2">
-                {/* Left Column (Identificação + Válvulas) */}
+                {/* Left Column (IdentificaÃ§Ã£o + VÃ¡lvulas) */}
                 <div className="space-y-2">
-                  {/* Box 1: Identificação */}
+                  {/* Box 1: IdentificaÃ§Ã£o */}
                   <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
                     <div className="bg-slate-50 px-2 py-1 border-b border-slate-200 font-bold text-slate-750 uppercase tracking-wider text-[8px]">
-                      1. Identificação da Jangada
+                      1. IdentificaÃ§Ã£o da Jangada
                     </div>
                     <table className="w-full text-left text-[8.5px] leading-tight">
                       <tbody>
-                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450 w-[35%]">Marca</td><td className="px-2 py-0.5 font-bold text-slate-800">{data.brand || '—'}</td></tr>
-                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450">Modelo</td><td className="px-2 py-0.5 font-bold text-slate-800">{data.model || '—'}</td></tr>
-                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450">Nº Série</td><td className="px-2 py-0.5 font-mono font-bold text-slate-850">{data.serial || '—'}</td></tr>
-                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450">Lotação</td><td className="px-2 py-0.5 text-slate-700 font-medium">{data.capacity ? `${data.capacity} P` : '—'}</td></tr>
-                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450">Tipo Pack</td><td className="px-2 py-0.5 font-bold text-slate-800">{data.packType || '—'}</td></tr>
-                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450">Fabricação</td><td className="px-2 py-0.5 text-slate-700">{formatValidityDisplay(data.dataFabrico)}</td></tr>
+                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450 w-[35%]">Marca</td><td className="px-2 py-0.5 font-bold text-slate-800">{data.brand || 'â€”'}</td></tr>
+                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450">Modelo</td><td className="px-2 py-0.5 font-bold text-slate-800">{data.model || 'â€”'}</td></tr>
+                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450">NÂº SÃ©rie</td><td className="px-2 py-0.5 font-mono font-bold text-slate-850">{data.serial || 'â€”'}</td></tr>
+                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450">LotaÃ§Ã£o</td><td className="px-2 py-0.5 text-slate-700 font-medium">{data.capacity ? `${data.capacity} P` : 'â€”'}</td></tr>
+                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450">Tipo Pack</td><td className="px-2 py-0.5 font-bold text-slate-800">{data.packType || 'â€”'}</td></tr>
+                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450">FabricaÃ§Ã£o</td><td className="px-2 py-0.5 text-slate-700">{formatValidityDisplay(data.dataFabrico)}</td></tr>
                         <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450">Tipo Tecido</td><td className="px-2 py-0.5 text-slate-700">{data.fabricType || 'Desconhecido'}</td></tr>
-                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450">Tipo Lançam.</td><td className="px-2 py-0.5 text-slate-700">{data.launchType || 'Desconhecido'}</td></tr>
-                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450">Retenida</td><td className="px-2 py-0.5 text-slate-700">{data.painterLength ? `${data.painterLength} m` : '—'}</td></tr>
-                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450">Alt. Lançam.</td><td className="px-2 py-0.5 text-slate-700">{data.maxStowageHeight ? `${data.maxStowageHeight} m` : '—'}</td></tr>
-                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450">Navio</td><td className="px-2 py-0.5 font-bold text-indigo-700 truncate max-w-[120px]">{linkedShip?.nome || data.shipNameManual || '—'}</td></tr>
-                        <tr><td className="px-2 py-0.5 font-semibold text-slate-450">Proprietário</td><td className="px-2 py-0.5 text-slate-700 truncate max-w-[120px]">{linkedShip?.cliente?.nome || data.owner || '—'}</td></tr>
+                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450">Tipo LanÃ§am.</td><td className="px-2 py-0.5 text-slate-700">{data.launchType || 'Desconhecido'}</td></tr>
+                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450">Retenida</td><td className="px-2 py-0.5 text-slate-700">{data.painterLength ? `${data.painterLength} m` : 'â€”'}</td></tr>
+                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450">Alt. LanÃ§am.</td><td className="px-2 py-0.5 text-slate-700">{data.maxStowageHeight ? `${data.maxStowageHeight} m` : 'â€”'}</td></tr>
+                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450">Navio</td><td className="px-2 py-0.5 font-bold text-indigo-700 truncate max-w-[120px]">{linkedShip?.nome || data.shipNameManual || 'â€”'}</td></tr>
+                        <tr><td className="px-2 py-0.5 font-semibold text-slate-450">ProprietÃ¡rio</td><td className="px-2 py-0.5 text-slate-700 truncate max-w-[120px]">{linkedShip?.cliente?.nome || data.owner || 'â€”'}</td></tr>
                       </tbody>
                     </table>
                   </div>
 
-                  {/* Box 3: Válvulas, Disparo & Extras */}
+                  {/* Box 3: VÃ¡lvulas, Disparo & Extras */}
                   <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
                     <div className="bg-slate-50 px-2 py-1 border-b border-slate-200 font-bold text-slate-750 uppercase tracking-wider text-[8px]">
-                      3. Válvulas, Disparo & Extras
+                      3. VÃ¡lvulas, Disparo & Extras
                     </div>
                     <table className="w-full text-left text-[8.5px] leading-tight">
                       <tbody>
-                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450 w-[35%]">Cabeça Disparo</td><td className="px-2 py-0.5 text-slate-700 truncate max-w-[120px]">{data.cylinderCabecaDisparoRef || '—'}</td></tr>
-                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450">N.º Série Disp.</td><td className="px-2 py-0.5 text-slate-700 truncate max-w-[120px]">{data.cylinderCabecaDisparoSerial || '—'}</td></tr>
-                        <tr className="border-b border-slate-100 camara-sup-row"><td className="px-2 py-0.5 font-semibold text-slate-450">Câmara Sup.</td><td className="px-2 py-0.5 text-slate-700 truncate max-w-[120px]">{data.cylinderTuboCamaraSuperiorRef || '—'}</td></tr>
-                        <tr className="border-b border-slate-100 camara-inf-row"><td className="px-2 py-0.5 font-semibold text-slate-450">Câmara Inf.</td><td className="px-2 py-0.5 text-slate-700 truncate max-w-[120px]">{data.cylinderTuboCamaraInferiorRef || '—'}</td></tr>
-                        <tr className="border-b border-slate-100 valvulas-alivio-row"><td className="px-2 py-0.5 font-semibold text-slate-450">Válvulas Alívio</td><td className="px-2 py-0.5 text-slate-700 truncate max-w-[120px]">{data.valvulasAlivio || '—'}</td></tr>
-                        <tr className="border-b border-slate-100 valvulas-atestar-row"><td className="px-2 py-0.5 font-semibold text-slate-450">Válvulas Atestar</td><td className="px-2 py-0.5 text-slate-700 truncate max-w-[120px]">{data.valvulasAtestar || '—'}</td></tr>
-                        <tr className="border-b border-slate-100 contentor-mod-row"><td className="px-2 py-0.5 font-semibold text-slate-450">Contentor Mod.</td><td className="px-2 py-0.5 text-slate-700 truncate max-w-[120px]">{data.containerModel || '—'}</td></tr>
-                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450">Última Insp.</td><td className="px-2 py-0.5 text-slate-700">{formatDate(data.dataInspecao)}</td></tr>
-                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450">Próx. Insp.</td><td className="px-2 py-0.5 font-bold text-slate-800">{formatDate(data.dataProxInspecao)}</td></tr>
-                        <tr><td className="px-2 py-0.5 font-semibold text-slate-450">Nº Certificado</td><td className="px-2 py-0.5 font-mono text-slate-800">{data.ultimoCertificadoNumero || '—'}</td></tr>
+                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450 w-[35%]">CabeÃ§a Disparo</td><td className="px-2 py-0.5 text-slate-700 truncate max-w-[120px]">{data.cylinderCabecaDisparoRef || 'â€”'}</td></tr>
+                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450">N.Âº SÃ©rie Disp.</td><td className="px-2 py-0.5 text-slate-700 truncate max-w-[120px]">{data.cylinderCabecaDisparoSerial || 'â€”'}</td></tr>
+                        <tr className="border-b border-slate-100 camara-sup-row"><td className="px-2 py-0.5 font-semibold text-slate-450">CÃ¢mara Sup.</td><td className="px-2 py-0.5 text-slate-700 truncate max-w-[120px]">{data.cylinderTuboCamaraSuperiorRef || 'â€”'}</td></tr>
+                        <tr className="border-b border-slate-100 camara-inf-row"><td className="px-2 py-0.5 font-semibold text-slate-450">CÃ¢mara Inf.</td><td className="px-2 py-0.5 text-slate-700 truncate max-w-[120px]">{data.cylinderTuboCamaraInferiorRef || 'â€”'}</td></tr>
+                        <tr className="border-b border-slate-100 valvulas-alivio-row"><td className="px-2 py-0.5 font-semibold text-slate-450">VÃ¡lvulas AlÃ­vio</td><td className="px-2 py-0.5 text-slate-700 truncate max-w-[120px]">{data.valvulasAlivio || 'â€”'}</td></tr>
+                        <tr className="border-b border-slate-100 valvulas-atestar-row"><td className="px-2 py-0.5 font-semibold text-slate-450">VÃ¡lvulas Atestar</td><td className="px-2 py-0.5 text-slate-700 truncate max-w-[120px]">{data.valvulasAtestar || 'â€”'}</td></tr>
+                        <tr className="border-b border-slate-100 contentor-mod-row"><td className="px-2 py-0.5 font-semibold text-slate-450">Contentor Mod.</td><td className="px-2 py-0.5 text-slate-700 truncate max-w-[120px]">{data.containerModel || 'â€”'}</td></tr>
+                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450">Ãšltima Insp.</td><td className="px-2 py-0.5 text-slate-700">{formatDate(data.dataInspecao)}</td></tr>
+                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450">PrÃ³x. Insp.</td><td className="px-2 py-0.5 font-bold text-slate-800">{formatDate(data.dataProxInspecao)}</td></tr>
+                        <tr><td className="px-2 py-0.5 font-semibold text-slate-450">NÂº Certificado</td><td className="px-2 py-0.5 font-mono text-slate-800">{data.ultimoCertificadoNumero || 'â€”'}</td></tr>
                       </tbody>
                     </table>
                   </div>
@@ -6222,13 +6256,13 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                     </div>
                     <table className="w-full text-left text-[8.5px] leading-tight">
                       <tbody>
-                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450 w-[35%]">Cilindro Série</td><td className="px-2 py-0.5 font-mono text-slate-850">{data.cylinderSerial || '—'}</td></tr>
-                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450">Insuflação</td><td className="px-2 py-0.5 text-slate-700">{data.cylinderSistema || data.cylinderInflationSystem || '—'}</td></tr>
+                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450 w-[35%]">Cilindro SÃ©rie</td><td className="px-2 py-0.5 font-mono text-slate-850">{data.cylinderSerial || 'â€”'}</td></tr>
+                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450">InsuflaÃ§Ã£o</td><td className="px-2 py-0.5 text-slate-700">{data.cylinderSistema || data.cylinderInflationSystem || 'â€”'}</td></tr>
                         <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450">Bruto / Tara</td><td className="px-2 py-0.5 text-slate-700">{fmtPeso(data.cylinderPesoBruto, " kg")} / {fmtPeso(data.cylinderTara, " kg")}</td></tr>
-                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450">Gás CO2 / N2</td><td className="px-2 py-0.5 text-slate-700">{fmtPeso(data.cylinderCo2, " kg")} / {fmtPeso(data.cylinderN2, " kg")}</td></tr>
-                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450">Último Teste Hid.</td><td className="px-2 py-0.5 text-slate-700">{data.cylinderDataTeste || '—'}</td></tr>
-                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450">HRU Ref. / Val.</td><td className="px-2 py-0.5 text-slate-700 truncate max-w-[120px]">{data.hruReferencia || '—'} / <span className="font-bold text-slate-850">{formatMonthYear(data.hruValidade)}</span></td></tr>
-                        <tr className="border-b border-slate-100 refletor-row"><td className="px-2 py-0.5 font-semibold text-slate-450">Refletor Radar</td><td className="px-2 py-0.5 text-slate-700 truncate max-w-[120px]">{data.radarReflector || '—'}</td></tr>
+                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450">GÃ¡s CO2 / N2</td><td className="px-2 py-0.5 text-slate-700">{fmtPeso(data.cylinderCo2, " kg")} / {fmtPeso(data.cylinderN2, " kg")}</td></tr>
+                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450">Ãšltimo Teste Hid.</td><td className="px-2 py-0.5 text-slate-700">{data.cylinderDataTeste || 'â€”'}</td></tr>
+                        <tr className="border-b border-slate-100"><td className="px-2 py-0.5 font-semibold text-slate-450">HRU Ref. / Val.</td><td className="px-2 py-0.5 text-slate-700 truncate max-w-[120px]">{data.hruReferencia || 'â€”'} / <span className="font-bold text-slate-850">{formatMonthYear(data.hruValidade)}</span></td></tr>
+                        <tr className="border-b border-slate-100 refletor-row"><td className="px-2 py-0.5 font-semibold text-slate-450">Refletor Radar</td><td className="px-2 py-0.5 text-slate-700 truncate max-w-[120px]">{data.radarReflector || 'â€”'}</td></tr>
                       </tbody>
                     </table>
                   </div>
@@ -6245,44 +6279,44 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                           <td className="px-2 py-0.5 font-bold text-slate-850">{formatDate(data.testeWP)}</td>
                         </tr>
                         <tr className="border-b border-slate-100 bg-slate-50/30">
-                          <td className="px-2 py-0.5 font-semibold text-slate-450">Horário WP</td>
+                          <td className="px-2 py-0.5 font-semibold text-slate-450">HorÃ¡rio WP</td>
                           <td className="px-2 py-0.5 text-slate-700">
-                            {data.testeWPHoraInicio || '—'} → {data.testeWPHoraFim || wpPrintDerived.endTime || '—'}
+                            {data.testeWPHoraInicio || 'â€”'} â†’ {data.testeWPHoraFim || wpPrintDerived.endTime || 'â€”'}
                           </td>
                         </tr>
                         <tr className="border-b border-slate-100 bg-slate-50/30">
                           <td className="px-2 py-0.5 font-semibold text-slate-450">Temp WP</td>
                           <td className="px-2 py-0.5 text-slate-700">
-                            {data.testeWPTemperaturaInicial ? `${data.testeWPTemperaturaInicial}ºC` : '—'} / {data.testeWPTemperaturaFinal ? `${data.testeWPTemperaturaFinal}ºC` : '—'}
-                            {wpPrintDerived.tempDelta !== null ? ` (ΔT: ${wpPrintDerived.tempDelta.toFixed(1)}ºC)` : ''}
+                            {data.testeWPTemperaturaInicial ? `${data.testeWPTemperaturaInicial}ÂºC` : 'â€”'} / {data.testeWPTemperaturaFinal ? `${data.testeWPTemperaturaFinal}ÂºC` : 'â€”'}
+                            {wpPrintDerived.tempDelta !== null ? ` (Î”T: ${wpPrintDerived.tempDelta.toFixed(1)}ÂºC)` : ''}
                           </td>
                         </tr>
                         <tr className="border-b border-slate-100 bg-slate-50/30">
-                          <td className="px-2 py-0.5 font-semibold text-slate-450">Pressão Atmosférica WP</td>
+                          <td className="px-2 py-0.5 font-semibold text-slate-450">PressÃ£o AtmosfÃ©rica WP</td>
                           <td className="px-2 py-0.5 text-slate-700">
-                            {data.testeWPPressaoAtmosfericaInicial ? `${data.testeWPPressaoAtmosfericaInicial} hPa` : '—'} / {data.testeWPPressaoAtmosfericaFinal ? `${data.testeWPPressaoAtmosfericaFinal} hPa` : '—'}
+                            {data.testeWPPressaoAtmosfericaInicial ? `${data.testeWPPressaoAtmosfericaInicial} hPa` : 'â€”'} / {data.testeWPPressaoAtmosfericaFinal ? `${data.testeWPPressaoAtmosfericaFinal} hPa` : 'â€”'}
                           </td>
                         </tr>
                         <tr className="border-b border-slate-100">
-                          <td className="px-2 py-0.5 font-semibold text-slate-450">Câmara Sup.</td>
+                          <td className="px-2 py-0.5 font-semibold text-slate-450">CÃ¢mara Sup.</td>
                           <td className="px-2 py-0.5 text-slate-700">
-                            <div>{data.testeWPCamaraSuperiorInicio || '—'} → {data.testeWPCamaraSuperiorFim || '—'} {data.testeWPUnidadePressao === 'mbar' ? 'hPa' : (data.testeWPUnidadePressao || 'hPa')}</div>
+                            <div>{data.testeWPCamaraSuperiorInicio || 'â€”'} â†’ {data.testeWPCamaraSuperiorFim || 'â€”'} {data.testeWPUnidadePressao === 'mbar' ? 'hPa' : (data.testeWPUnidadePressao || 'hPa')}</div>
                             <div className="text-[7.2px] text-slate-500">
-                              Queda: {wpPrintDerived.upper.dropDisplay || '—'} ({wpPrintDerived.upper.dropPercentDisplay ? `${wpPrintDerived.upper.dropPercentDisplay}%` : '—'}) 
+                              Queda: {wpPrintDerived.upper.dropDisplay || 'â€”'} ({wpPrintDerived.upper.dropPercentDisplay ? `${wpPrintDerived.upper.dropPercentDisplay}%` : 'â€”'}) 
                               <span className={`ml-1 font-bold ${wpPrintDerived.upper.passes === true ? 'text-emerald-600' : wpPrintDerived.upper.passes === false ? 'text-rose-600' : ''}`}>
-                                [{wpPrintDerived.upper.passes === true ? 'OK' : wpPrintDerived.upper.passes === false ? 'FALHOU' : '—'}]
+                                [{wpPrintDerived.upper.passes === true ? 'OK' : wpPrintDerived.upper.passes === false ? 'FALHOU' : 'â€”'}]
                               </span>
                             </div>
                           </td>
                         </tr>
                         <tr className="border-b border-slate-100">
-                          <td className="px-2 py-0.5 font-semibold text-slate-450">Câmara Inf.</td>
+                          <td className="px-2 py-0.5 font-semibold text-slate-450">CÃ¢mara Inf.</td>
                           <td className="px-2 py-0.5 text-slate-700">
-                            <div>{data.testeWPCamaraInferiorInicio || '—'} → {data.testeWPCamaraInferiorFim || '—'} {data.testeWPUnidadePressao === 'mbar' ? 'hPa' : (data.testeWPUnidadePressao || 'hPa')}</div>
+                            <div>{data.testeWPCamaraInferiorInicio || 'â€”'} â†’ {data.testeWPCamaraInferiorFim || 'â€”'} {data.testeWPUnidadePressao === 'mbar' ? 'hPa' : (data.testeWPUnidadePressao || 'hPa')}</div>
                             <div className="text-[7.2px] text-slate-500">
-                              Queda: {wpPrintDerived.lower.dropDisplay || '—'} ({wpPrintDerived.lower.dropPercentDisplay ? `${wpPrintDerived.lower.dropPercentDisplay}%` : '—'}) 
+                              Queda: {wpPrintDerived.lower.dropDisplay || 'â€”'} ({wpPrintDerived.lower.dropPercentDisplay ? `${wpPrintDerived.lower.dropPercentDisplay}%` : 'â€”'}) 
                               <span className={`ml-1 font-bold ${wpPrintDerived.lower.passes === true ? 'text-emerald-600' : wpPrintDerived.lower.passes === false ? 'text-rose-600' : ''}`}>
-                                [{wpPrintDerived.lower.passes === true ? 'OK' : wpPrintDerived.lower.passes === false ? 'FALHOU' : '—'}]
+                                [{wpPrintDerived.lower.passes === true ? 'OK' : wpPrintDerived.lower.passes === false ? 'FALHOU' : 'â€”'}]
                               </span>
                             </div>
                           </td>
@@ -6310,7 +6344,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                 <div>
                   <div className="text-[8px] font-bold text-slate-400 uppercase tracking-wide">Estado de Conformidade do Pack</div>
                   <div className="text-[9px] font-bold text-slate-800 mt-0.5">
-                    Pack de Emergência: <span className="text-indigo-700 font-extrabold">{data.packType || '—'}</span> (Lotação: {data.capacity ? `${data.capacity} P` : '—'})
+                    Pack de EmergÃªncia: <span className="text-indigo-700 font-extrabold">{data.packType || 'â€”'}</span> (LotaÃ§Ã£o: {data.capacity ? `${data.capacity} P` : 'â€”'})
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -6349,7 +6383,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                 </div>
               </div>
 
-              {/* Section 5: Inventário de Artigos */}
+              {/* Section 5: InventÃ¡rio de Artigos */}
               {artigos.length > 0 && (() => {
                 const rawArtigos = artigos;
                 const dedupedArtigos = Object.values(
@@ -6370,14 +6404,14 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                 return (
                 <div className="mt-1.5 border border-slate-200 rounded-xl overflow-hidden bg-white">
                   <div className="bg-slate-50 px-2 py-1 border-b border-slate-200 font-bold text-slate-700 uppercase tracking-wider text-[8px]">
-                    5. Inventário de Artigos e Consumíveis (Validades)
+                    5. InventÃ¡rio de Artigos e ConsumÃ­veis (Validades)
                   </div>
                   <div className="p-1 grid grid-cols-4 gap-x-3 gap-y-0.5 bg-white text-[7px] leading-tight">
                     {dedupedArtigos.map((artigo: Record<string, unknown>, index: number) => (
                       <div key={index} className="flex justify-between items-center py-0.5 border-b border-slate-50">
                         <span className="font-semibold truncate max-w-[140px] text-slate-700">{String(artigo.name ?? '')}</span>
                         <span className="font-mono text-[6.5px] text-slate-900 font-semibold">
-                          {String(artigo.quantidade ?? '')}x{artigo.validades && (artigo.validades as string[]).length > 0 ? ` · Val: ${(artigo.validades as string[]).map((v: string) => formatMonthYear(v)).join(', ')}` : ''}
+                          {String(artigo.quantidade ?? '')}x{artigo.validades && (artigo.validades as string[]).length > 0 ? ` Â· Val: ${(artigo.validades as string[]).map((v: string) => formatMonthYear(v)).join(', ')}` : ''}
                         </span>
                       </div>
                     ))}
@@ -6386,7 +6420,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                 );
               })()}
 
-              {/* Section 6: Consumíveis Substituídos na Última Inspeção */}
+              {/* Section 6: ConsumÃ­veis SubstituÃ­dos na Ãšltima InspeÃ§Ã£o */}
               {lastInspecao && lastInspecao.artigos && lastInspecao.artigos.length > 0 && (() => {
                 const dedupedReplaced = Object.values(
                   lastInspecao.artigos.reduce((acc: Record<string, Record<string, unknown>>, art: Artigo) => {
@@ -6403,7 +6437,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                 return (
                 <div className="mt-1.5 border border-slate-200 rounded-xl overflow-hidden bg-white">
                   <div className="bg-slate-50 px-2 py-1 border-b border-slate-200 font-bold text-slate-700 uppercase tracking-wider text-[8px] flex justify-between items-center">
-                    <span>6. Consumíveis Substituídos na Última Inspeção ({formatDate(lastInspecao.dataInspecao)})</span>
+                    <span>6. ConsumÃ­veis SubstituÃ­dos na Ãšltima InspeÃ§Ã£o ({formatDate(lastInspecao.dataInspecao)})</span>
                     <span className="text-slate-400 font-medium lowercase text-[7.5px]">({dedupedReplaced.length} artigos)</span>
                   </div>
                   <div className="p-1.5 grid grid-cols-4 gap-1 bg-white">
@@ -6437,7 +6471,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                     <div className="h-4 w-32"></div>
                   )}
                   <div className="w-32 border-b border-slate-300"></div>
-                  <span className="text-[6.5px] text-slate-400 mt-1 uppercase font-bold tracking-wider">Técnico Responsável</span>
+                  <span className="text-[6.5px] text-slate-400 mt-1 uppercase font-bold tracking-wider">TÃ©cnico ResponsÃ¡vel</span>
                 </div>
               </div>
             </>
@@ -6476,7 +6510,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
         );
       })()}
 
-      {/* Importar Documento (IA): lê quadro/certificado e pré-preenche a ficha */}
+      {/* Importar Documento (IA): lÃª quadro/certificado e prÃ©-preenche a ficha */}
       <ImportarDocumentoIaDialog
         isOpen={isImportarIaOpen}
         onClose={() => setIsImportarIaOpen(false)}
@@ -6573,7 +6607,7 @@ function StrapCard({ strap, onAddToStock }: { strap: { description: string; cont
         <div className="min-w-0">
           <p className="text-sm font-semibold text-slate-800">{strap.description}</p>
           <p className="text-xs text-slate-500 mt-0.5">
-            {strap.containerFamily} {strap.containerLabel} · {strap.launchType === 'TO' ? 'Throw-Over' : strap.launchType === 'DL' ? 'Davit-Launched' : 'Flat-Pack'}{strap.size ? ` · Tamanho ${strap.size}` : ''}{strap.maxStowedHeightMeters ? ` · ${strap.maxStowedHeightMeters}m` : ''}
+            {strap.containerFamily} {strap.containerLabel} Â· {strap.launchType === 'TO' ? 'Throw-Over' : strap.launchType === 'DL' ? 'Davit-Launched' : 'Flat-Pack'}{strap.size ? ` Â· Tamanho ${strap.size}` : ''}{strap.maxStowedHeightMeters ? ` Â· ${strap.maxStowedHeightMeters}m` : ''}
           </p>
         </div>
         <div className="shrink-0 text-right">
@@ -6625,3 +6659,4 @@ function StrapCard({ strap, onAddToStock }: { strap: { description: string; cont
     </div>
   );
 }
+
