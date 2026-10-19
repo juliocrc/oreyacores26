@@ -208,7 +208,9 @@ export async function seedServiceStations(prisma: PrismaClient) {
     
     if (loc.includes("açores") || loc.includes("azores") || loc.includes("es açores")) {
       stationCode = "ACORES";
-    } else if (loc.includes("vialonga") || loc.includes("setúbal") || loc.includes("setubal") || loc.includes("lisboa")) {
+    } else if (loc.includes("setúbal") || loc.includes("setubal") || loc.includes("azimute")) {
+      stationCode = "SETUBAL";
+    } else if (loc.includes("vialonga") || loc.includes("lisboa")) {
       stationCode = "LISBOA";
     } else if (loc.includes("aveleda") || loc.includes("leixões") || loc.includes("leixoes")) {
       stationCode = "AVELEDA";
@@ -223,7 +225,7 @@ export async function seedServiceStations(prisma: PrismaClient) {
         const cleanEmail = c.email.split("/")[0].trim().toLowerCase();
         if (!cleanEmail) continue;
 
-        await prisma.tecnico.upsert({
+        const saved = await prisma.tecnico.upsert({
           where: { email: cleanEmail },
           update: {
             nome: c.nome,
@@ -236,6 +238,10 @@ export async function seedServiceStations(prisma: PrismaClient) {
             serviceStationId: stId,
             ativo: true,
           },
+        });
+        await prisma.contactoInterno.update({
+          where: { id: c.id },
+          data: { tecnicoId: saved.id, serviceStationId: stId },
         });
         seededEmails.add(cleanEmail);
       }
