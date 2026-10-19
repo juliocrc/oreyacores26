@@ -1,4 +1,4 @@
-import { toDateKey } from "@/lib/date-utils";
+import { normalizeArtigoValidade, toDateKey, toMonthInput } from "@/lib/date-utils";
 
 describe("toDateKey", () => {
   it("retorna vazio para valores nulos ou inválidos", () => {
@@ -32,5 +32,27 @@ describe("toDateKey", () => {
 
   it("rejeita meses fora do intervalo 1-12", () => {
     expect(toDateKey("13/2024")).not.toBe("2024-13-01");
+  });
+});
+
+describe("datas DD/MM/AAAA (dia primeiro)", () => {
+  it("toDateKey não troca dia e mês (bug MM/DD)", () => {
+    expect(toDateKey("05/06/2025")).toBe("2025-06-05");
+    expect(toDateKey("05/06/2025")).not.toBe("2025-05-06");
+    expect(toDateKey("19/09/2025")).toBe("2025-09-19");
+    expect(toDateKey("5/6/2025")).toBe("2025-06-05");
+  });
+
+  it("toMonthInput respeita DD/MM/AAAA", () => {
+    expect(toMonthInput("05/06/2025")).toBe("2025-06");
+    expect(toMonthInput("19/09/2025")).toBe("2025-09");
+    expect(toMonthInput("2025-06-05")).toBe("2025-06");
+  });
+
+  it("normalizeArtigoValidade usa o mês correto", () => {
+    const d = normalizeArtigoValidade("05/06/2025");
+    expect(d?.getFullYear()).toBe(2025);
+    expect(d?.getMonth()).toBe(5);
+    expect(d?.getDate()).toBe(1);
   });
 });

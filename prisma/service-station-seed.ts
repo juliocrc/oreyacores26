@@ -5,6 +5,19 @@ export type ServiceStationSeedItem = {
   nome: string;
   empresa?: string | null;
   localizacao?: string | null;
+  morada?: string | null;
+  prefixo?: string | null;
+  codigoPostal?: string | null;
+  localidade?: string | null;
+  telefone?: string | null;
+  telefone2?: string | null;
+  email?: string | null;
+  website?: string | null;
+  dgrmCertificado?: string | null;
+  dgrmVerificacao?: Date | null;
+  dgrmValidade?: Date | null;
+  dgrmMarcas?: string | null;
+  observacoes?: string | null;
   territorioTipo: "AZORES" | "MAINLAND" | "MADEIRA";
   regiaoOperacional?: "NORTE" | "CENTRO" | "SUL" | "MADEIRA" | null;
   aliases: string[];
@@ -14,11 +27,25 @@ export const SERVICE_STATION_SEED: ServiceStationSeedItem[] = [
   {
     codigo: "ACORES",
     nome: "Açores",
-    empresa: "Orey",
-    localizacao: "Açores",
+    empresa: "Orey - Técnica Naval e Industrial Lda.",
+    localizacao: "Cabouco",
+    morada: "Zona Industrial dos Portões Vermelhos, Armazém 19",
+    codigoPostal: "9560-350",
+    localidade: "Cabouco",
+    telefone: "+351 296 929 314",
+    telefone2: "+351 296 929 315",
+    email: "azores.tecnica@orey.com",
+    website: "www.oreytecnica.com",
+    dgrmCertificado: "12/2025",
+    dgrmVerificacao: new Date("2024-02-12T12:00:00.000Z"),
+    dgrmValidade: new Date("2026-02-12T12:00:00.000Z"),
+    dgrmMarcas: "DSB; RFD; SURVITECZODIAC",
+    observacoes:
+      "Certificado DGRM 12/2025, verificação 12.02.2024, válido até 12.02.2026 (registo histórico).",
+    prefixo: "AZ",
     territorioTipo: "AZORES",
     regiaoOperacional: null,
-    aliases: ["acores", "açores", "azores", "orey azores"],
+    aliases: ["acores", "açores", "azores", "orey azores", "cabouco", "portões vermelhos"],
   },
   {
     codigo: "LISBOA",
@@ -40,12 +67,25 @@ export const SERVICE_STATION_SEED: ServiceStationSeedItem[] = [
   },
   {
     codigo: "ALCATARILHA",
-    nome: "Alcatarilha",
-    empresa: "Orey",
-    localizacao: "Alcatarilha",
+    nome: "Alcantarilha",
+    empresa: "Orey Técnica – Serviços Navais, Lda.",
+    localizacao: "Alcantarilha",
+    morada: "Zona Industrial e Comercial do Rogel, Lote C – Fração G",
+    codigoPostal: "8365-204",
+    localidade: "Alcantarilha",
+    telefone: "+351 282 322 795",
+    telefone2: "+351 282 322 156",
+    email: "algarve.tecnica@orey.com",
+    website: "www.oreytecnica.com",
+    dgrmCertificado: "9/2025",
+    dgrmVerificacao: new Date("2025-09-05T12:00:00.000Z"),
+    dgrmValidade: new Date("2026-09-19T12:00:00.000Z"),
+    dgrmMarcas: "RFD; OCEAN SAFETY; SEA-SAFE",
+    observacoes:
+      "Certificado DGRM 9/2025, verificação 05.09.2025, válido até 19.09.2026 (registo histórico).",
     territorioTipo: "MAINLAND",
     regiaoOperacional: "SUL",
-    aliases: ["alcatarilha", "alcantarilha", "algarve", "orey alcatarilha"],
+    aliases: ["alcatarilha", "alcantarilha", "algarve", "orey alcatarilha", "orey alcantarilha"],
   },
 ];
 
@@ -94,12 +134,29 @@ export async function seedServiceStations(prisma: PrismaClient) {
   const activeCodes = SERVICE_STATION_SEED.map((station) => station.codigo);
 
   for (const station of SERVICE_STATION_SEED) {
+    const profileUpdate = {
+      ...(station.prefixo !== undefined ? { prefixo: station.prefixo } : {}),
+      ...(station.morada !== undefined ? { morada: station.morada } : {}),
+      ...(station.codigoPostal !== undefined ? { codigoPostal: station.codigoPostal } : {}),
+      ...(station.localidade !== undefined ? { localidade: station.localidade } : {}),
+      ...(station.telefone !== undefined ? { telefone: station.telefone } : {}),
+      ...(station.telefone2 !== undefined ? { telefone2: station.telefone2 } : {}),
+      ...(station.email !== undefined ? { email: station.email } : {}),
+      ...(station.website !== undefined ? { website: station.website } : {}),
+      ...(station.dgrmCertificado !== undefined ? { dgrmCertificado: station.dgrmCertificado } : {}),
+      ...(station.dgrmVerificacao !== undefined ? { dgrmVerificacao: station.dgrmVerificacao } : {}),
+      ...(station.dgrmValidade !== undefined ? { dgrmValidade: station.dgrmValidade } : {}),
+      ...(station.dgrmMarcas !== undefined ? { dgrmMarcas: station.dgrmMarcas } : {}),
+      ...(station.observacoes !== undefined ? { observacoes: station.observacoes } : {}),
+    };
+
     const saved = await serviceStationModel.upsert({
       where: { codigo: station.codigo },
       update: {
         nome: station.nome,
         empresa: station.empresa ?? null,
         localizacao: station.localizacao ?? null,
+        ...profileUpdate,
         territorioTipo: station.territorioTipo,
         regiaoOperacional: station.regiaoOperacional ?? null,
         ativo: true,
@@ -109,6 +166,19 @@ export async function seedServiceStations(prisma: PrismaClient) {
         nome: station.nome,
         empresa: station.empresa ?? null,
         localizacao: station.localizacao ?? null,
+        prefixo: station.prefixo ?? null,
+        morada: station.morada ?? null,
+        codigoPostal: station.codigoPostal ?? null,
+        localidade: station.localidade ?? null,
+        telefone: station.telefone ?? null,
+        telefone2: station.telefone2 ?? null,
+        email: station.email ?? null,
+        website: station.website ?? null,
+        dgrmCertificado: station.dgrmCertificado ?? null,
+        dgrmVerificacao: station.dgrmVerificacao ?? null,
+        dgrmValidade: station.dgrmValidade ?? null,
+        dgrmMarcas: station.dgrmMarcas ?? null,
+        observacoes: station.observacoes ?? null,
         territorioTipo: station.territorioTipo,
         regiaoOperacional: station.regiaoOperacional ?? null,
         ativo: true,

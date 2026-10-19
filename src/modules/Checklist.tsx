@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { normalizeMonthYearValue } from "@/lib/date-display";
+import { getCameraErrorMessage } from "@/lib/camera-error";
 import {
   buildInspectionChecklistFromQuadro,
   type ChecklistRaftInput,
@@ -143,8 +144,9 @@ export default function Checklist({ raft, initialValues, onSave, onItemAction, o
         (decodedText: string) => { handleBarcodeScan(decodedText); setUseCamera(false); },
         () => {}
       );
-    } catch {
-      setScanMessage({ text: "N�o foi poss�vel aceder � c�mera.", type: "error" });
+    } catch (error) {
+      console.error("Camera error (Checklist):", error);
+      setScanMessage({ text: getCameraErrorMessage(error), type: "error" });
       setUseCamera(false);
     }
   };

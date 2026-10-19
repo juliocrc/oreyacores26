@@ -22,6 +22,7 @@ import { getAccessContext } from "@/lib/access-control";
 import { resolveActiveServiceStationId } from "@/lib/station-selection";
 import { resolveStationPrefix } from "@/lib/service-station-input";
 import { logAuditoria } from "@/lib/auditoria";
+import { ensureDocumentoPorEnviar } from "@/lib/docs-por-enviar";
 
 async function syncInspectionWithWorkOrder(ordemId: number, inspecaoId: number, artigosSubstituidos: Array<Record<string, unknown>>) {
   try {
@@ -290,6 +291,15 @@ export async function POST(req: NextRequest) {
 
       // Save snapshot for future historical view
       await saveInspectionSnapshot(created?.certificadoNumero || "", created?.jangadaId ?? 0);
+
+      // Fila de "por enviar": ao concluir, prepara o envio do certificado+quadro.
+      if (created?.status === "Concluída" && rafIdFinal) {
+        void ensureDocumentoPorEnviar({
+          jangadaId: rafIdFinal,
+          certificadoNumero: created?.certificadoNumero,
+        });
+      }
+
       return respond({ ...(created || {}), stockWarnings: saved.stockWarnings || [] }, undefined, { batch: false, inspecaoId: created?.id ?? null });
     }
   } catch (error) {
@@ -344,6 +354,15 @@ export async function PUT(req: NextRequest) {
       where: { id: saved.id },
       include: { artigos: true },
     });
+
+    // Fila de "por enviar": ao concluir, prepara o envio do certificado+quadro.
+    if (updated?.status === "Concluída" && rafIdFinal) {
+      void ensureDocumentoPorEnviar({
+        jangadaId: rafIdFinal,
+        certificadoNumero: updated?.certificadoNumero,
+      });
+    }
+
     return respond({ ...(updated || {}), stockWarnings: saved.stockWarnings || [] }, undefined, { inspecaoId: id });
   } catch (error) {
     // Bloqueio por regra de negócio: 409, nao 500.

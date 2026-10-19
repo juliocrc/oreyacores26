@@ -90,14 +90,6 @@ function getMonthKey(value?: string | null): string | null {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-function getYearKey(value?: string | null): string | null {
-  if (!value) return null;
-  const match = String(value).match(/^(\d{4})/);
-  if (match) return match[1];
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? null : String(d.getFullYear());
-}
-
 function formatMonthLabel(monthKey: string): string {
   const match = monthKey.match(/^(\d{4})-(\d{2})$/);
   if (!match) return monthKey;
@@ -725,8 +717,8 @@ export default function JangadasPage() {
   const [filterPackType, setFilterPackType] = useState('');
   const [filterCapacity, setFilterCapacity] = useState('');
   const [filterShip, setFilterShip] = useState('');
-  const [filterInspecaoMes, setFilterInspecaoMes] = useState('');
-  const [filterInspecaoAno, setFilterInspecaoAno] = useState('');
+  const [filterInspecaoDe, setFilterInspecaoDe] = useState('');
+  const [filterInspecaoAte, setFilterInspecaoAte] = useState('');
   const [filterProximaInspecaoMes, setFilterProximaInspecaoMes] = useState('');
   const [onlyExpiring30Days, setOnlyExpiring30Days] = useState(false);
   const [onlyHruCritical, setOnlyHruCritical] = useState(false);
@@ -736,6 +728,7 @@ export default function JangadasPage() {
   const [editId, setEditId] = useState<number | null>(null);
   const [showWizard, setShowWizard] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
+  const [pendingScanSerial, setPendingScanSerial] = useState<string | null>(null);
   const [wizardTab, setWizardTab] = useState<'dados' | 'artigos'>('dados');
   const [artigoValidades, setArtigoValidades] = useState<Record<string, string>>({});
 
@@ -808,10 +801,7 @@ export default function JangadasPage() {
                         if (foundRaft && foundRaft.id) {
                           router.push(`/jangadas/${foundRaft.id}`);
                         } else {
-                          setSearch(decodedText.trim());
-                          appToast.info(
-                            `Pesquisa rápida iniciada para Série: ${decodedText.trim()}`,
-                          );
+                          setPendingScanSerial(decodedText.trim());
                         }
                       })
                       .catch(() => {
@@ -906,10 +896,10 @@ export default function JangadasPage() {
       if (cap) setFilterCapacity(cap);
       const sh = params.get('navio');
       if (sh) setFilterShip(sh);
-      const im = params.get('mesInspecao');
-      if (im) setFilterInspecaoMes(im);
-      const iy = params.get('anoInspecao');
-      if (iy === '2025' || iy === '2026') setFilterInspecaoAno(iy);
+      const ide = params.get('inspDe');
+      if (ide) setFilterInspecaoDe(ide);
+      const iat = params.get('inspAte');
+      if (iat) setFilterInspecaoAte(iat);
       const pm = params.get('mesProxima');
       if (pm) setFilterProximaInspecaoMes(pm);
       if (params.get('exp30') === '1') setOnlyExpiring30Days(true);
@@ -917,6 +907,8 @@ export default function JangadasPage() {
       const vm = params.get('vista');
       if (vm === 'lista' || vm === 'detalhes' || vm === 'quadros' || vm === 'conformidade')
         setViewMode(vm);
+      const novoSerial = params.get('novoSerial');
+      if (novoSerial?.trim()) startAddWithSerial(novoSerial.trim());
     } catch {}
   }, []);
 
@@ -935,8 +927,8 @@ export default function JangadasPage() {
       if (filterPackType) params.set('pack', filterPackType);
       if (filterCapacity) params.set('lotacao', filterCapacity);
       if (filterShip) params.set('navio', filterShip);
-      if (filterInspecaoMes) params.set('mesInspecao', filterInspecaoMes);
-      if (filterInspecaoAno) params.set('anoInspecao', filterInspecaoAno);
+      if (filterInspecaoDe) params.set('inspDe', filterInspecaoDe);
+      if (filterInspecaoAte) params.set('inspAte', filterInspecaoAte);
       if (filterProximaInspecaoMes) params.set('mesProxima', filterProximaInspecaoMes);
       if (onlyExpiring30Days) params.set('exp30', '1');
       if (onlyHruCritical) params.set('hru', '1');
@@ -951,8 +943,8 @@ export default function JangadasPage() {
     filterPackType,
     filterCapacity,
     filterShip,
-    filterInspecaoMes,
-    filterInspecaoAno,
+    filterInspecaoDe,
+    filterInspecaoAte,
     filterProximaInspecaoMes,
     onlyExpiring30Days,
     onlyHruCritical,
@@ -1294,6 +1286,21 @@ export default function JangadasPage() {
     setArtigoValidades({});
   }
 
+  function startAddWithSerial(serial: string) {
+    setForm({ ...INITIAL_FORM, serial });
+    setEditId(null);
+    setShowWizard(true);
+    setWizardTab('dados');
+    setArtigoValidades({});
+    setPendingScanSerial(null);
+    setSearch(serial);
+  }
+
+  function startAddColeteWithSerial(serial: string) {
+    setPendingScanSerial(null);
+    router.push(`/equipamentos?novoSerial=${encodeURIComponent(serial)}`);
+  }
+
   const filteredJangadas = jangadas.filter(j => {
     // Pesquisa tolerante: acentos, separadores e erros de dedo.
     const matchesTermo = matchesSearchTermo(
@@ -1324,10 +1331,10 @@ export default function JangadasPage() {
         j.navio?.nome,
         (j as { linkedShipName?: string | null }).linkedShipName,
       );
-    const matchesInspecaoMes =
-      !filterInspecaoMes || getMonthKey(j.dataInspecao) === filterInspecaoMes;
-    const matchesInspecaoAno =
-      !filterInspecaoAno || getYearKey(j.dataInspecao) === filterInspecaoAno;
+    const inspKey = getMonthKey(j.dataInspecao);
+    const matchesInspecaoPeriodo =
+      (!filterInspecaoDe || (inspKey !== null && inspKey >= filterInspecaoDe)) &&
+      (!filterInspecaoAte || (inspKey !== null && inspKey <= filterInspecaoAte));
     const matchesProximaMes =
       !filterProximaInspecaoMes || getMonthKey(j.dataProxInspecao) === filterProximaInspecaoMes;
 
@@ -1354,8 +1361,7 @@ export default function JangadasPage() {
       matchesPack &&
       matchesCapacity &&
       matchesShip &&
-      matchesInspecaoMes &&
-      matchesInspecaoAno &&
+      matchesInspecaoPeriodo &&
       matchesProximaMes &&
       matchesExpiring &&
       matchesHruCritical
@@ -1635,8 +1641,8 @@ export default function JangadasPage() {
     setFilterPackType('');
     setFilterCapacity('');
     setFilterShip('');
-    setFilterInspecaoMes('');
-    setFilterInspecaoAno('');
+    setFilterInspecaoDe('');
+    setFilterInspecaoAte('');
     setFilterProximaInspecaoMes('');
     setOnlyExpiring30Days(false);
     setOnlyHruCritical(false);
@@ -1657,9 +1663,10 @@ export default function JangadasPage() {
     return Array.from(new Set(ships)).sort((a, b) => a.localeCompare(b, 'pt-PT'));
   }, [jangadas]);
 
-  const filterInspecaoMesOptions = useMemo(() => {
+  const filterInspecaoMesesDisponiveis = useMemo(() => {
     const months = jangadas.map(j => getMonthKey(j.dataInspecao)).filter((m): m is string => !!m);
-    return Array.from(new Set(months)).sort((a, b) => b.localeCompare(a));
+    const unique = Array.from(new Set(months)).sort((a, b) => b.localeCompare(a));
+    return { min: unique[unique.length - 1] || '', max: unique[0] || '' };
   }, [jangadas]);
 
   const filterProximaInspecaoMesOptions = useMemo(() => {
@@ -2142,33 +2149,28 @@ export default function JangadasPage() {
               </select>
             </label>
             <label className="block text-xs font-semibold text-gray-700">
-              Mês da Inspeção
-              <select
+              Inspeção de
+              <input
+                type="month"
                 className="mt-1 border rounded-lg px-2 py-2 text-sm w-full"
-                value={filterInspecaoMes}
-                onChange={e => setFilterInspecaoMes(e.target.value)}
-                title="Filtrar pelo mês da última inspeção"
-              >
-                <option value="">Todos os meses</option>
-                {filterInspecaoMesOptions.map(monthKey => (
-                  <option key={monthKey} value={monthKey}>
-                    {formatMonthLabel(monthKey)}
-                  </option>
-                ))}
-              </select>
+                value={filterInspecaoDe}
+                min={filterInspecaoMesesDisponiveis.min || undefined}
+                max={filterInspecaoMesesDisponiveis.max || undefined}
+                onChange={e => setFilterInspecaoDe(e.target.value)}
+                title="Inspeções realizadas a partir deste mês"
+              />
             </label>
             <label className="block text-xs font-semibold text-gray-700">
-              Ano da Inspeção
-              <select
+              Inspeção até
+              <input
+                type="month"
                 className="mt-1 border rounded-lg px-2 py-2 text-sm w-full"
-                value={filterInspecaoAno}
-                onChange={e => setFilterInspecaoAno(e.target.value)}
-                title="Filtrar pelo ano da última inspeção realizada"
-              >
-                <option value="">Todos os anos</option>
-                <option value="2025">2025</option>
-                <option value="2026">2026</option>
-              </select>
+                value={filterInspecaoAte}
+                min={filterInspecaoMesesDisponiveis.min || undefined}
+                max={filterInspecaoMesesDisponiveis.max || undefined}
+                onChange={e => setFilterInspecaoAte(e.target.value)}
+                title="Inspeções realizadas até este mês"
+              />
             </label>
             <label className="block text-xs font-semibold text-gray-700">
               Mês da Próxima Inspeção
@@ -2298,6 +2300,44 @@ export default function JangadasPage() {
           handleBatchFillValidade={handleBatchFillValidade}
           handleClearValidades={handleClearValidades}
         />
+
+        {pendingScanSerial && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-md border border-gray-200">
+              <h3 className="text-lg font-bold text-slate-800 mb-2">Nº de série não encontrado</h3>
+              <p className="text-sm text-slate-600 mb-1">
+                A série <span className="font-mono font-semibold">{pendingScanSerial}</span> não está registada no sistema.
+              </p>
+              <p className="text-xs text-slate-400 mb-5">Pretende adicioná-la como jangada ou como colete?</p>
+              <div className="flex flex-wrap gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearch(pendingScanSerial);
+                    setPendingScanSerial(null);
+                  }}
+                  className="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold"
+                >
+                  Pesquisar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => startAddColeteWithSerial(pendingScanSerial)}
+                  className="px-3 py-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-semibold"
+                >
+                  Adicionar colete
+                </button>
+                <button
+                  type="button"
+                  onClick={() => startAddWithSerial(pendingScanSerial)}
+                  className="px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold"
+                >
+                  Adicionar jangada
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {showScanner && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">

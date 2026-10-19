@@ -152,6 +152,114 @@ export async function sendWhatsAppApi(
   return core;
 }
 
+export type WhatsAppDocumentInput = {
+  filename: string;
+  content: Buffer;
+  caption?: string;
+};
+
+/**
+ * Envia um documento (PDF) via WhatsApp Cloud API nativa.
+ *
+ * Só funciona com a Cloud API oficial (WHATSAPP_ACCESS_TOKEN +
+ * WHATSAPP_PHONE_NUMBER_ID): faz primeiro o upload da media e depois envia a
+ * mensagem do tipo "document". Quando só existem providers de texto
+ * (Zapier/InfiniReach) devolve `naoConfigurado` para o chamador cair no
+ * fallback de texto + link wa.me.
+ */
+export async function sendWhatsAppDocument(
+  phoneRaw: string,
+  doc: WhatsAppDocumentInput,
+): Promise<WhatsAppProviderResult> {
+  if (!(await isWhatsAppAllowed())) {
+    return {
+      ok: false,
+      erro: "WhatsApp disponível apenas para o administrador Júlio Correia.",
+    };
+  }
+
+  const link = buildWhatsAppUrl(phoneRaw, doc.caption || doc.filename);
+  const { accessToken, phoneNumberId, version } = getConfig();
+
+  if (!accessToken || !phoneNumberId) {
+    return {
+      ok: false,
+      erro: "O envio de documentos por WhatsApp requer a Cloud API configurada.",
+      link,
+      naoConfigurado: true,
+    };
+  }
+
+  const phone = normalizePhoneForApi(phoneRaw);
+  if (!phone) {
+    return { ok: false, erro: "Número de telemóvel inválido.", link };
+  }
+
+  try {
+    const form = new FormData();
+    form.append("messaging_product", "whatsapp");
+    form.append("type", "application/pdf");
+    form.append("file", new Blob([new Uint8Array(doc.content)], { type: "application/pdf" }), doc.filename);
+
+    const uploadRes = await fetch(
+      `https://graph.facebook.com/${version}/${phoneNumberId}/media`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: form,
+      },
+    );
+    const uploadText = await uploadRes.text().catch(() => "");
+    if (!uploadRes.ok) {
+      return {
+        ok: false,
+        erro: extractErrorMessage(uploadText) || `Erro ao carregar o documento (${uploadRes.status}).`,
+        link,
+      };
+    }
+
+    const media = JSON.parse(uploadText) as { id?: string };
+    if (!media?.id) {
+      return { ok: false, erro: "A API do WhatsApp não devolveu o id do documento.", link };
+    }
+
+    const res = await fetch(apiUrlBase(), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to: phone,
+        type: "document",
+        document: {
+          id: media.id,
+          filename: doc.filename,
+          ...(doc.caption ? { caption: doc.caption } : {}),
+        },
+      }),
+    });
+
+    const text = await res.text().catch(() => "");
+    if (!res.ok) {
+      return { ok: false, erro: extractErrorMessage(text) || `Erro WhatsApp API (${res.status}).`, link };
+    }
+
+    const data = JSON.parse(text) as {
+      messages?: Array<{ id?: string }>;
+      error?: { message?: string };
+    };
+    if (data.error?.message) {
+      return { ok: false, erro: data.error.message, link };
+    }
+
+    return { ok: true, enviadoDeFacto: true, providerId: data.messages?.[0]?.id, link };
+  } catch (e: any) {
+    return { ok: false, erro: e?.message || "Erro ao ligar à WhatsApp API.", link };
+  }
+}
+
 /**
  * Envia uma mensagem via WhatsApp sem exigir sessão de administrador
  * (usado por fluxos do sistema, ex.: código de acesso do cliente).

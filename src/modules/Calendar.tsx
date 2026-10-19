@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useMemo, type ComponentType } from "react";
+import { useState, useMemo } from "react";
 import { Calendar, dateFnsLocalizer } from "react-big-calendar";
 import withDragAndDrop from "react-big-calendar/lib/addons/dragAndDrop";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
 import { format, parse, startOfWeek, getDay } from "date-fns";
 import { pt } from "date-fns/locale/pt";
-import { EVENT_STATUS_LABELS, EVENT_STATUS_COLORS, type InspectionType } from "@/types/agenda";
+import { EVENT_STATUS_COLORS, normalizeEventStatus, type InspectionType } from "@/types/agenda";
 import type { StaffTechnician } from "@/types/agenda-page";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -54,17 +54,28 @@ type InspectionCalendarProps = {
 };
 
 const TECHNICIAN_PALETTE = [
-  { bg: "#38bdf8", border: "#0284c7" },
-  { bg: "#a78bfa", border: "#7c3aed" },
-  { bg: "#34d399", border: "#059669" },
-  { bg: "#fbbf24", border: "#d97706" },
-  { bg: "#f472b6", border: "#db2777" },
-  { bg: "#60a5fa", border: "#2563eb" },
+  { bg: "#0369a1", border: "#075985", text: "#ffffff" },
+  { bg: "#6d28d9", border: "#5b21b6", text: "#ffffff" },
+  { bg: "#047857", border: "#065f46", text: "#ffffff" },
+  { bg: "#b45309", border: "#92400e", text: "#ffffff" },
+  { bg: "#be185d", border: "#9d174d", text: "#ffffff" },
+  { bg: "#1d4ed8", border: "#1e40af", text: "#ffffff" },
 ];
 
 const DnDCalendar = withDragAndDrop(Calendar) as any;
 
 const CustomEvent = ({ event }: any) => {
+  if (event.type === "expiracao") {
+    const [main, ship] = String(event.title).split(" · ");
+    const label = main.replace(/^⚠\s*/, "");
+    return (
+      <div className="flex flex-col h-full overflow-hidden text-xs leading-tight" title={event.title}>
+        <span className="font-bold block truncate">{label}</span>
+        {ship ? <span className="opacity-90 block truncate">{ship}</span> : null}
+      </div>
+    );
+  }
+
   const parts = event.title.split(' • ');
   const ship = parts[0]?.replace('Navio:', '').trim() || '';
   const raft = parts[1]?.replace('Jangada:', '').trim() || event.raftSerial;
@@ -78,6 +89,16 @@ const CustomEvent = ({ event }: any) => {
 };
 
 const CustomMonthEvent = ({ event }: any) => {
+  if (event.type === "expiracao") {
+    const [main, ship] = String(event.title).split(" · ");
+    const detail = main.split(" — ")[1] || main.replace(/^⚠\s*/, "");
+    return (
+      <div className="text-[10px] leading-tight font-bold truncate px-1" title={event.title}>
+        {[detail, ship].filter(Boolean).join(" · ")}
+      </div>
+    );
+  }
+
   const parts = event.title.split(' • ');
   const ship = parts[0]?.replace('Navio:', '').trim() || '';
   return (
@@ -206,6 +227,7 @@ export default function InspectionCalendar({
   const eventStyleGetter = (event: any) => {
     let backgroundColor = "#cbd5e1"; // slate-300 default
     let borderColor = "#94a3b8";
+    let textColor = "#ffffff";
 
     // Distinguish expirations in Calendar view with orange color and dashed border
     if (event.type === "expiracao" || String(event.title).startsWith("⚠")) {
@@ -213,6 +235,7 @@ export default function InspectionCalendar({
         style: {
           backgroundColor: "#f97316", // orange-500
           borderColor: "#c2410c", // orange-700
+          borderLeft: "4px solid #9a3412",
           color: "#ffffff",
           borderRadius: "8px",
           display: "block",
@@ -223,13 +246,12 @@ export default function InspectionCalendar({
       };
     }
 
-    if (event.status) {
-      const statusKey = event.status as keyof typeof EVENT_STATUS_COLORS;
-      const colors = EVENT_STATUS_COLORS[statusKey] as any;
-      if (colors) {
-        backgroundColor = colors.bg || backgroundColor;
-        borderColor = colors.border || borderColor;
-      }
+    const statusKey = normalizeEventStatus(event.status);
+    const statusColors = EVENT_STATUS_COLORS[statusKey];
+    if (statusColors) {
+      backgroundColor = statusColors.bg;
+      borderColor = statusColors.border;
+      textColor = statusColors.text;
     }
 
     if (event.responsavel) {
@@ -242,25 +264,32 @@ export default function InspectionCalendar({
         const color = TECHNICIAN_PALETTE[idx % TECHNICIAN_PALETTE.length];
         backgroundColor = color.bg;
         borderColor = color.border;
+        textColor = color.text;
       }
     }
 
     // Distinguish vacations and absences in Calendar view with rose-500 color
     if (event.title.startsWith("[FÉRIAS]") || event.title.startsWith("[AUSÊNCIA]")) {
-      backgroundColor = "#f43f5e"; // rose-500
-      borderColor = "#be123c"; // rose-700
+      backgroundColor = "#e11d48"; // rose-600
+      borderColor = "#9f1239"; // rose-800
+      textColor = "#ffffff";
     }
+
+    const isInactive = statusKey === "cancelled" || statusKey === "no_show";
+    const isCompleted = statusKey === "completed";
 
     return {
       style: {
         backgroundColor,
         borderColor,
-        color: "#ffffff",
+        borderLeft: `4px solid ${statusColors?.border ?? borderColor}`,
+        color: textColor,
         borderRadius: "8px",
         display: "block",
         border: `1px solid ${borderColor}`,
-        boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
         padding: "2px 4px",
+        opacity: isInactive ? 0.55 : isCompleted ? 0.85 : 1,
       },
     };
   };
@@ -326,12 +355,12 @@ export default function InspectionCalendar({
           min={new Date(1970, 0, 1, 8, 0, 0)} // Start at 8 AM
           max={new Date(1970, 0, 1, 19, 0, 0)} // End at 7 PM
           culture="pt"
-          onSelectSlot={(slotInfo: any) => {
+          onSelectSlot={() => {
             alert("Para agendar uma inspeção, arraste uma jangada do painel lateral para o calendário.");
           }}
           onSelectEvent={(event: any) => {
              if (String(event.id).startsWith("expiracao-")) {
-               alert("Este registo indica a caducidade da inspeção de uma jangada. Arraste a jangada do painel lateral para o calendário para agendar a inspeção.");
+               alert(`${event.title}\n\nEste registo indica a caducidade da inspeção de uma jangada. Arraste a jangada do painel lateral para o calendário para agendar a inspeção.`);
                return;
              }
              if (String(event.id).startsWith("ausencia-")) {

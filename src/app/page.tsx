@@ -1,8 +1,10 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import prisma from "@/lib/prisma";
 import { APP_CONFIG } from "@/lib/app-config";
 import { getAccessContext } from "@/lib/access-control";
+import { ACTIVE_SERVICE_STATION_COOKIE, resolveActiveServiceStationIdFromCookie } from "@/lib/station-selection";
 import { getAuthSession } from "@/auth";
 import { TrocarTecnicoBotao } from "./TrocarTecnicoBotao";
 
@@ -96,33 +98,58 @@ export default async function InicioPage() {
   const nome = session?.user?.name?.trim() || "Técnico";
 
   const access = await getAccessContext();
-  const stationId = access?.stationId ?? null;
-  // Na Deluxe o contexto é global; a app está limitada à estação configurada.
+  const cookieStore = await cookies();
+  const stationId = access
+    ? resolveActiveServiceStationIdFromCookie(
+        cookieStore.get(ACTIVE_SERVICE_STATION_COOKIE)?.value,
+        access,
+      )
+    : null;
+  // Com uma estação ativa no seletor, todos os indicadores do início passam a
+  // refletir apenas essa estação.
   const filtroEstacao = (relacao: "serviceStationId") =>
     stationId ? { [relacao]: stationId } : {};
 
-  const [totalJangadas, totalNavios, totalClientes, totalStock, recentes] = await Promise.all([
-    prisma.jangada.count({ where: filtroEstacao("serviceStationId") }),
-    prisma.navio.count({ where: filtroEstacao("serviceStationId") }),
-    prisma.cliente.count({ where: filtroEstacao("serviceStationId") }),
-    prisma.stock.count({ where: filtroEstacao("serviceStationId") }),
-    prisma.inspecao.findMany({
-      select: {
-        id: true,
-        certificadoNumero: true,
-        navioNome: true,
-        navioId: true,
-        jangadaSerial: true,
-        coleteSerial: true,
-        dataInspecao: true,
-        status: true,
-        jangadaId: true,
-        coleteId: true,
-      },
-      orderBy: { createdAt: "desc" },
-      take: 8,
-    }),
-  ]);
+  const [totalJangadas, totalNavios, totalClientes, totalStock, stationRaftIds, stationNavioIds] =
+    await Promise.all([
+      prisma.jangada.count({ where: filtroEstacao("serviceStationId") }),
+      prisma.navio.count({ where: filtroEstacao("serviceStationId") }),
+      prisma.cliente.count({ where: filtroEstacao("serviceStationId") }),
+      prisma.stock.count({ where: filtroEstacao("serviceStationId") }),
+      stationId
+        ? prisma.jangada.findMany({ where: { serviceStationId: stationId }, select: { id: true } })
+        : Promise.resolve([]),
+      stationId
+        ? prisma.navio.findMany({ where: { serviceStationId: stationId }, select: { id: true } })
+        : Promise.resolve([]),
+    ]);
+
+  const stationWhere = stationId
+    ? {
+        OR: [
+          { jangadaId: { in: stationRaftIds.map((item) => item.id) } },
+          { navioId: { in: stationNavioIds.map((item) => item.id) } },
+        ],
+      }
+    : {};
+
+  const recentes = await prisma.inspecao.findMany({
+    where: stationWhere,
+    select: {
+      id: true,
+      certificadoNumero: true,
+      navioNome: true,
+      navioId: true,
+      jangadaSerial: true,
+      coleteSerial: true,
+      dataInspecao: true,
+      status: true,
+      jangadaId: true,
+      coleteId: true,
+    },
+    orderBy: { createdAt: "desc" },
+    take: 8,
+  });
 
   return (
     <main className="ds-page">

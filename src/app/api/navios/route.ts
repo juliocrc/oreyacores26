@@ -458,6 +458,12 @@ export async function GET(req: NextRequest) {
     }
 
     const where: Prisma.NavioWhereInput = {};
+    // Quando existe uma estação ativa no seletor, a lista mostra apenas os
+    // navios dessa estação. Sem estação ativa mantém-se a visão global.
+    const activeStationId = resolveActiveServiceStationId(req, access);
+    if (activeStationId) {
+      where.serviceStationId = activeStationId;
+    }
     // Station scoping removed - all users see all navios
     /*
     const scopedStationIds = scopeAll && access.isAdmin ? [] : await resolveScopedStationIdsForApp(access, req);
@@ -482,7 +488,7 @@ export async function GET(req: NextRequest) {
     const textFilterActive = hasNavioTextFilter(textFilters);
     const ilhaParam = searchParams.get("ilha"); if (ilhaParam) where.ilha = { contains: ilhaParam };
     const serviceStationIdParam = searchParams.get("serviceStationId");
-    if (serviceStationIdParam) {
+    if (!activeStationId && serviceStationIdParam) {
       const parsedStationId = Number(serviceStationIdParam);
       if (Number.isFinite(parsedStationId) && parsedStationId > 0) {
         delete where.OR;

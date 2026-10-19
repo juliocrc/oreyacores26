@@ -44,6 +44,7 @@ export default function ColetesPage() {
   const [navios, setNavios] = useState<Navio[]>([]);
   const [search, setSearch] = useState("");
   const [showScanner, setShowScanner] = useState(false);
+  const [pendingScanSerial, setPendingScanSerial] = useState<string | null>(null);
   const [filterMarca, setFilterMarca] = useState("");
   const [filterModelo, setFilterModelo] = useState("");
   const [filterEstado, setFilterEstado] = useState("");
@@ -208,7 +209,7 @@ export default function ColetesPage() {
             if (found && found.id) {
               router.push(`/equipamentos/${found.id}`);
             } else {
-              setSearch(cleanText);
+              setPendingScanSerial(cleanText);
             }
           }
         }).catch(err => {
@@ -569,6 +570,29 @@ export default function ColetesPage() {
     setShowWizard(true);
   }
 
+  function openNewWithSerial(serial: string) {
+    setForm({ ...EMPTY_FORM, serial });
+    setEditId(null);
+    setShowWizard(true);
+    setPendingScanSerial(null);
+    setSearch(serial);
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }
+
+  function startAddJangadaWithSerial(serial: string) {
+    setPendingScanSerial(null);
+    router.push(`/jangadas?novoSerial=${encodeURIComponent(serial)}`);
+  }
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const serial = new URLSearchParams(window.location.search).get("novoSerial")?.trim();
+    if (serial) openNewWithSerial(serial);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function openEdit(item: Colete) {
     setForm({
       shipId: String(getShipId(item) || ""),
@@ -800,6 +824,44 @@ export default function ColetesPage() {
                   Editar ficha
                 </button>
                 <button className="px-4 py-2 bg-gray-300 rounded" onClick={() => setViewItem(null)}>Fechar</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {pendingScanSerial && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-md border border-gray-200">
+              <h3 className="text-lg font-bold text-slate-800 mb-2">Nº de série não encontrado</h3>
+              <p className="text-sm text-slate-600 mb-1">
+                A série <span className="font-mono font-semibold">{pendingScanSerial}</span> não está registada no sistema.
+              </p>
+              <p className="text-xs text-slate-400 mb-5">Pretende adicioná-la como colete ou como jangada?</p>
+              <div className="flex flex-wrap gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearch(pendingScanSerial);
+                    setPendingScanSerial(null);
+                  }}
+                  className="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold"
+                >
+                  Pesquisar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => startAddJangadaWithSerial(pendingScanSerial)}
+                  className="px-3 py-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-semibold"
+                >
+                  Adicionar jangada
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openNewWithSerial(pendingScanSerial)}
+                  className="px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold"
+                >
+                  Adicionar colete
+                </button>
               </div>
             </div>
           </div>

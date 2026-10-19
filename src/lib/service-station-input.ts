@@ -9,6 +9,17 @@ export type ServiceStationInput = {
   nome: string;
   empresa: string | null;
   localizacao: string | null;
+  morada: string | null;
+  codigoPostal: string | null;
+  localidade: string | null;
+  telefone: string | null;
+  telefone2: string | null;
+  email: string | null;
+  website: string | null;
+  dgrmCertificado: string | null;
+  dgrmVerificacao: Date | null;
+  dgrmValidade: Date | null;
+  dgrmMarcas: string | null;
   prefixo: string | null;
   territorioTipo: ServiceStationTerritory;
   regiaoOperacional: ServiceStationRegion | null;
@@ -71,6 +82,18 @@ function trimOrNull(value: unknown): string | null {
   return text || null;
 }
 
+function parseDateOrNull(value: unknown): Date | null {
+  const text = String(value ?? "").trim();
+  if (!text) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    const [year, month, day] = text.split("-").map(Number);
+    const parsed = new Date(year, month - 1, day, 12, 0, 0, 0);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  const parsed = new Date(text);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 export function parseServiceStationInput(body: unknown): { data?: ServiceStationInput; error?: string } {
   const raw = (body && typeof body === "object" ? body : {}) as Record<string, unknown>;
 
@@ -97,6 +120,17 @@ export function parseServiceStationInput(body: unknown): { data?: ServiceStation
       nome,
       empresa: trimOrNull(raw.empresa),
       localizacao: trimOrNull(raw.localizacao),
+      morada: trimOrNull(raw.morada),
+      codigoPostal: trimOrNull(raw.codigoPostal),
+      localidade: trimOrNull(raw.localidade),
+      telefone: trimOrNull(raw.telefone),
+      telefone2: trimOrNull(raw.telefone2),
+      email: trimOrNull(raw.email),
+      website: trimOrNull(raw.website),
+      dgrmCertificado: trimOrNull(raw.dgrmCertificado),
+      dgrmVerificacao: parseDateOrNull(raw.dgrmVerificacao),
+      dgrmValidade: parseDateOrNull(raw.dgrmValidade),
+      dgrmMarcas: trimOrNull(raw.dgrmMarcas),
       prefixo: normalizeStationPrefix(raw.prefixo),
       territorioTipo,
       regiaoOperacional,

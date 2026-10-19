@@ -10,6 +10,7 @@ export type RaftAExpiar = {
   model: string | null;
   shipNameManual: string | null;
   shipId: number | null;
+  shipName: string;
   dataProxInspecao: string | null;
 };
 
@@ -59,12 +60,35 @@ export async function getRaftsAExpiar(opts?: {
     },
   });
 
-  return rows.filter((r) => {
-    if (!r.dataProxInspecao) return false;
-    const due = parseAgendaDateFlexible(r.dataProxInspecao);
-    if (!due) return false;
-    return startOfDayLocal(due).getTime() <= limite.getTime();
-  });
+  const shipIds = Array.from(
+    new Set(
+      rows
+        .map((r) => r.shipId)
+        .filter((id): id is number => typeof id === "number" && Number.isFinite(id)),
+    ),
+  );
+
+  const navios = shipIds.length
+    ? await prisma.navio.findMany({
+        where: { id: { in: shipIds } },
+        select: { id: true, nome: true },
+      })
+    : [];
+  const navioById = new Map(navios.map((n) => [n.id, n.nome]));
+
+  return rows
+    .map((r) => ({
+      ...r,
+      shipName:
+        (r.shipNameManual && String(r.shipNameManual).trim()) ||
+        (r.shipId ? navioById.get(r.shipId) || "" : ""),
+    }))
+    .filter((r) => {
+      if (!r.dataProxInspecao) return false;
+      const due = parseAgendaDateFlexible(r.dataProxInspecao);
+      if (!due) return false;
+      return startOfDayLocal(due).getTime() <= limite.getTime();
+    });
 }
 
 export function buildExpirationApiEvents(
@@ -80,10 +104,11 @@ export function buildExpirationApiEvents(
     const isToday = isSameDay(due, hoje);
     const label = isOverdue ? "Caducada" : isToday ? "Caduca hoje" : "Caduca";
     const model = r.model && String(r.model).trim() ? ` (${String(r.model).trim()})` : "";
+    const ship = r.shipName && String(r.shipName).trim() ? ` · ${String(r.shipName).trim()}` : "";
     return [
       {
         id: `expiracao-${r.id}`,
-        title: `⚠ ${label} — ${r.serial}${model}`,
+        title: `⚠ ${label} — ${r.serial}${model}${ship}`,
         date: due.toISOString(),
         raftSerial: r.serial,
         responsavel: "",

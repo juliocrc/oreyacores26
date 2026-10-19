@@ -139,6 +139,7 @@ const navSections: NavSection[] = [
       { label: 'Jangadas', href: '/jangadas', icon: '🛶', roles: ['ADMIN', 'USER'] },
       { label: 'Estado Jangada', href: '/estado-jangada', icon: '🛟', roles: ['ADMIN', 'USER'] },
       { label: 'Inspeções', href: '/inspecoes', icon: '🔍', roles: ['ADMIN', 'USER'] },
+      { label: 'Análise e Importação IA', href: '/ia-importacao', icon: '🤖', roles: ['ADMIN', 'USER'] },
       { label: 'Packs', href: '/packs', icon: '🎒', roles: ['ADMIN', 'USER'] },
       { label: 'Navios', href: '/navios', icon: '🚢', roles: ['ADMIN', 'USER'] },
       { label: 'EPIRBs', href: '/epirbs', icon: '📡', roles: ['ADMIN', 'USER'] },
@@ -429,7 +430,10 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
           setActiveStationId(payload?.activeStationId ?? stationId);
           setActiveStationCode(payload?.activeStation?.codigo || null);
           broadcastServiceStationSync('station-change');
-          router.refresh();
+          // Os módulos são maioritariamente client components que carregam os
+          // dados no mount. Um refresh completo garante que agenda, stock,
+          // clientes, navios, jangadas e OS passam a usar o novo cookie.
+          window.location.reload();
         }
       } catch {
         // Silently keep the previous station if the switch fails.
@@ -437,7 +441,7 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
         setSavingStation(false);
       }
     },
-    [router],
+    [],
   );
 
   React.useEffect(() => {

@@ -339,6 +339,17 @@ model ServiceStation {
   nome                 String
   empresa              String?
   localizacao          String?
+  morada               String?
+  codigoPostal         String?
+  localidade           String?
+  telefone             String?
+  telefone2            String?
+  email                String?
+  website              String?
+  dgrmCertificado      String?
+  dgrmVerificacao      DateTime?
+  dgrmValidade         DateTime?
+  dgrmMarcas           String?
   prefixo              String?
   territorioTipo       ServiceStationTerritoryType @default(MAINLAND)
   regiaoOperacional    MainlandRegion?
@@ -1473,4 +1484,20 @@ model NavioContentorRoute {
   observacoes     String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+}
+
+model ImportacaoIaExemplo {
+  id            Int       @id @default(autoincrement())
+  fileName      String
+  fileType      String
+  documentKind  String?
+  extractedJson String
+  correctedJson String
+  jangadaId     Int?
+  shipId        Int?
+  createdBy     String?
+  createdAt     DateTime  @default(now())
+
+  @@index([jangadaId])
+  @@index([createdAt])
 }

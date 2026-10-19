@@ -30,6 +30,20 @@ export function resolveRequestedServiceStationId(req: NextRequest) {
   return parseStationId(req.cookies.get(ACTIVE_SERVICE_STATION_COOKIE)?.value);
 }
 
+export function resolveActiveServiceStationIdFromCookie(
+  cookieValue: string | undefined,
+  access: AccessContext,
+): number | null {
+  const requestedStationId = parseStationId(cookieValue);
+  if (requestedStationId && canUseRequestedStation(requestedStationId, access)) {
+    return requestedStationId;
+  }
+
+  if (access.stationId) return access.stationId;
+  if (!access.isAdmin && access.allowedStationIds.length === 1) return access.allowedStationIds[0];
+  return null;
+}
+
 function canUseRequestedStation(stationId: number, access: AccessContext) {
   if (access.isAdmin) {
     if (access.allowedStationIds.length === 0) return true;
@@ -40,12 +54,8 @@ function canUseRequestedStation(stationId: number, access: AccessContext) {
 }
 
 export function resolveActiveServiceStationId(req: NextRequest, access: AccessContext): number | null {
-  const requestedStationId = resolveRequestedServiceStationId(req);
-  if (requestedStationId && canUseRequestedStation(requestedStationId, access)) {
-    return requestedStationId;
-  }
-
-  if (access.stationId) return access.stationId;
-  if (!access.isAdmin && access.allowedStationIds.length === 1) return access.allowedStationIds[0];
-  return null;
+  return resolveActiveServiceStationIdFromCookie(
+    req.cookies.get(ACTIVE_SERVICE_STATION_COOKIE)?.value,
+    access,
+  );
 }

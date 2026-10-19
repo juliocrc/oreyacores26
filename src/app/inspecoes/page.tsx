@@ -1,12 +1,41 @@
 import React from "react";
+import { cookies } from "next/headers";
 import prisma from "@/lib/prisma";
+import { getAccessContext } from "@/lib/access-control";
+import { ACTIVE_SERVICE_STATION_COOKIE, resolveActiveServiceStationIdFromCookie } from "@/lib/station-selection";
 import InspecoesClient from "./InspecoesClient";
 
 const PAGE_SIZE = 50;
 
 export default async function InspecoesPage() {
+  const access = await getAccessContext();
+  const cookieStore = await cookies();
+  const stationId = access
+    ? resolveActiveServiceStationIdFromCookie(
+        cookieStore.get(ACTIVE_SERVICE_STATION_COOKIE)?.value,
+        access,
+      )
+    : null;
+
+  const [stationRaftIds, stationNavioIds] = stationId
+    ? await Promise.all([
+        prisma.jangada.findMany({ where: { serviceStationId: stationId }, select: { id: true } }),
+        prisma.navio.findMany({ where: { serviceStationId: stationId }, select: { id: true } }),
+      ])
+    : [[], []];
+
+  const where = stationId
+    ? {
+        OR: [
+          { jangadaId: { in: stationRaftIds.map((item) => item.id) } },
+          { navioId: { in: stationNavioIds.map((item) => item.id) } },
+        ],
+      }
+    : {};
+
   const [inspecoes, total] = await Promise.all([
     prisma.inspecao.findMany({
+      where,
       orderBy: [{ dataInspecao: "desc" }, { id: "desc" }],
       take: PAGE_SIZE,
       select: {
@@ -29,7 +58,7 @@ export default async function InspecoesPage() {
         }
       },
     }),
-    prisma.inspecao.count(),
+    prisma.inspecao.count({ where }),
   ]);
 
   const safeInspecoes = inspecoes.map((insp) => ({

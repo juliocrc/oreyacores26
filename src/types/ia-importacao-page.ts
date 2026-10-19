@@ -1,9 +1,19 @@
 export type Row = Record<string, string | number | null>;
 
+/** Artigo extraído de um quadro/certificado, pronto a aplicar na ficha. */
+export type ExtractedArtigo = {
+  name: string;
+  validade?: string;
+  quantidade?: number;
+  referencia?: string;
+};
+
 export type AnalyzeResult = {
   fileName: string;
   fileType: "pdf" | "excel";
   sizeBytes: number;
+  /** Avisos (ex.: PDF digitalizado sem texto extraível). */
+  warning?: string;
   summary: {
     estimatedRecords?: number;
     sheetCount?: number;
@@ -17,6 +27,7 @@ export type AnalyzeResult = {
     originalSheetHtml?: string;
     sourceSheetName?: string;
     extractedHeader?: HeaderFields;
+    extractedArtigos?: ExtractedArtigo[];
     analysis?: {
       documentKind: "generated-certificate" | "generated-quadro" | "external-certificate" | "unknown";
       totalRows: number;
@@ -50,6 +61,8 @@ export type HeaderFields = {
   model: string;
   emergencyPackType: string;
   capacity: string;
+  dataFabrico: string;
+  fabricType: string;
   dataInspecao: string;
   dataProxInspecao: string;
   cylinderSerial: string;
@@ -74,6 +87,8 @@ export const HEADER_LOOKUP_TERMS: Record<HeaderFieldKey, string[]> = {
   model: ["modelo", "model"],
   emergencyPackType: ["pack", "solas", "iso", "orc"],
   capacity: ["lotacao", "capacidade", "capacity"],
+  dataFabrico: ["data fabrico", "data de fabrico", "date of manuf", "manufacture date", "manuf"],
+  fabricType: ["tipo de tela", "fabric type", "tela", "canvas"],
   dataInspecao: ["data inspecao", "inspecao", "inspection date"],
   dataProxInspecao: ["proxima inspecao", "prox inspecao", "validade", "expiry"],
   cylinderSerial: ["serial cilindro", "cilindro serial", "cylinder serial"],
@@ -132,6 +147,8 @@ export const EMPTY_HEADER: HeaderFields = {
   model: "",
   emergencyPackType: "",
   capacity: "",
+  dataFabrico: "",
+  fabricType: "",
   dataInspecao: "",
   dataProxInspecao: "",
   cylinderSerial: "",

@@ -8,11 +8,12 @@ type AgendaModalsProps = {
   handleQuickSchedule: () => void;
   editingEvent?: InspectionEvent | null;
   onSaveEdit: (event: InspectionEvent) => void;
+  onDeleteEdit?: (event: InspectionEvent) => void;
   onCloseEdit: () => void;
   technicians?: StaffTechnician[];
 };
 
-export default function AgendaModals({ handleQuickSchedule, editingEvent, onSaveEdit, onCloseEdit, technicians = [] }: AgendaModalsProps) {
+export default function AgendaModals({ handleQuickSchedule, editingEvent, onSaveEdit, onDeleteEdit, onCloseEdit, technicians = [] }: AgendaModalsProps) {
   const { 
     quickScheduleTarget, 
     setQuickScheduleTarget, 
@@ -53,6 +54,13 @@ export default function AgendaModals({ handleQuickSchedule, editingEvent, onSave
       onCloseEdit();
     };
 
+    const deleteEdit = () => {
+      if (!onDeleteEdit) return;
+      if (!window.confirm("Eliminar este agendamento? Esta ação não pode ser desfeita.")) return;
+      onDeleteEdit(editingEvent);
+      onCloseEdit();
+    };
+
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onCloseEdit}>
         <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 p-5" onClick={e => e.stopPropagation()}>
@@ -83,6 +91,9 @@ export default function AgendaModals({ handleQuickSchedule, editingEvent, onSave
             </select>
           </label>
           <div className="flex gap-2 mt-4">
+            {onDeleteEdit && (
+              <button onClick={deleteEdit} className="px-3 py-2 text-sm font-medium text-red-600 border border-red-200 rounded-md hover:bg-red-50">Eliminar</button>
+            )}
             <button onClick={saveEdit} disabled={!editDateTime} className="flex-1 bg-indigo-600 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">Guardar</button>
             <button onClick={onCloseEdit} className="px-3 py-2 text-sm text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Cancelar</button>
           </div>

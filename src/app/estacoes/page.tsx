@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type Station = {
@@ -8,6 +9,17 @@ type Station = {
   nome: string;
   empresa: string | null;
   localizacao: string | null;
+  morada: string | null;
+  codigoPostal: string | null;
+  localidade: string | null;
+  telefone: string | null;
+  telefone2: string | null;
+  email: string | null;
+  website: string | null;
+  dgrmCertificado: string | null;
+  dgrmVerificacao: string | null;
+  dgrmValidade: string | null;
+  dgrmMarcas: string | null;
   prefixo: string | null;
   territorioTipo: string;
   regiaoOperacional: string | null;
@@ -35,6 +47,17 @@ const EMPTY_FORM = {
   nome: "",
   empresa: "",
   localizacao: "",
+  morada: "",
+  codigoPostal: "",
+  localidade: "",
+  telefone: "",
+  telefone2: "",
+  email: "",
+  website: "",
+  dgrmCertificado: "",
+  dgrmVerificacao: "",
+  dgrmValidade: "",
+  dgrmMarcas: "",
   prefixo: "",
   territorioTipo: "MAINLAND",
   regiaoOperacional: "",
@@ -95,6 +118,17 @@ export default function EstacoesPage() {
       nome: station.nome,
       empresa: station.empresa || "",
       localizacao: station.localizacao || "",
+      morada: station.morada || "",
+      codigoPostal: station.codigoPostal || "",
+      localidade: station.localidade || "",
+      telefone: station.telefone || "",
+      telefone2: station.telefone2 || "",
+      email: station.email || "",
+      website: station.website || "",
+      dgrmCertificado: station.dgrmCertificado || "",
+      dgrmVerificacao: station.dgrmVerificacao ? station.dgrmVerificacao.slice(0, 10) : "",
+      dgrmValidade: station.dgrmValidade ? station.dgrmValidade.slice(0, 10) : "",
+      dgrmMarcas: station.dgrmMarcas || "",
       prefixo: station.prefixo || "",
       territorioTipo: station.territorioTipo || "MAINLAND",
       regiaoOperacional: station.regiaoOperacional || "",
@@ -159,8 +193,8 @@ export default function EstacoesPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Estações de Serviço</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Cada estação tem o seu próprio stock. As embarcações são atribuídas pela localização do porto,
-            mas ficam visíveis para todas as estações.
+            Cada estação tem a sua própria ficha, stock, agenda, equipa, clientes, navios e jangadas.
+            O seletor no topo isola os dados da estação ativa.
           </p>
         </div>
         <button
@@ -220,6 +254,106 @@ export default function EstacoesPage() {
               <input
                 value={form.localizacao}
                 onChange={(e) => setForm((p) => ({ ...p, localizacao: e.target.value }))}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="text-sm text-slate-600 sm:col-span-2">
+              Morada
+              <input
+                value={form.morada}
+                onChange={(e) => setForm((p) => ({ ...p, morada: e.target.value }))}
+                placeholder="Zona Industrial e Comercial do Rogel, Lote C – Fração G"
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="text-sm text-slate-600">
+              Código postal
+              <input
+                value={form.codigoPostal}
+                onChange={(e) => setForm((p) => ({ ...p, codigoPostal: e.target.value }))}
+                placeholder="8365-204"
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="text-sm text-slate-600">
+              Localidade
+              <input
+                value={form.localidade}
+                onChange={(e) => setForm((p) => ({ ...p, localidade: e.target.value }))}
+                placeholder="Alcantarilha"
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="text-sm text-slate-600">
+              Telefone
+              <input
+                value={form.telefone}
+                onChange={(e) => setForm((p) => ({ ...p, telefone: e.target.value }))}
+                placeholder="+351 282 322 795"
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="text-sm text-slate-600">
+              Telefone alternativo
+              <input
+                value={form.telefone2}
+                onChange={(e) => setForm((p) => ({ ...p, telefone2: e.target.value }))}
+                placeholder="+351 282 322 156"
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="text-sm text-slate-600">
+              Email
+              <input
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
+                placeholder="algarve.tecnica@orey.com"
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="text-sm text-slate-600">
+              Website
+              <input
+                value={form.website}
+                onChange={(e) => setForm((p) => ({ ...p, website: e.target.value }))}
+                placeholder="www.oreytecnica.com"
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="text-sm text-slate-600">
+              Certificado DGRM
+              <input
+                value={form.dgrmCertificado}
+                onChange={(e) => setForm((p) => ({ ...p, dgrmCertificado: e.target.value }))}
+                placeholder="09/2019"
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="text-sm text-slate-600">
+              Verificação DGRM
+              <input
+                type="date"
+                value={form.dgrmVerificacao}
+                onChange={(e) => setForm((p) => ({ ...p, dgrmVerificacao: e.target.value }))}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="text-sm text-slate-600">
+              Validade DGRM
+              <input
+                type="date"
+                value={form.dgrmValidade}
+                onChange={(e) => setForm((p) => ({ ...p, dgrmValidade: e.target.value }))}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="text-sm text-slate-600">
+              Marcas DGRM
+              <input
+                value={form.dgrmMarcas}
+                onChange={(e) => setForm((p) => ({ ...p, dgrmMarcas: e.target.value }))}
+                placeholder="RFD"
                 className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
               />
             </label>
@@ -344,6 +478,12 @@ export default function EstacoesPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">
+                      <Link
+                        href={`/estacoes/${station.id}`}
+                        className="rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-50"
+                      >
+                        Ficha
+                      </Link>
                       <button
                         type="button"
                         onClick={() => openEdit(station)}

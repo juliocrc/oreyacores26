@@ -6,13 +6,25 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const escalas = await prisma.portoEscala.findMany({
-      orderBy: { dataChegada: "desc" },
+    const [escalas, lastSync] = await Promise.all([
+      prisma.portoEscala.findMany({
+        orderBy: [{ dataChegada: "asc" }, { navioNome: "asc" }],
+      }),
+      prisma.portoEscala.aggregate({
+        _max: { updatedAt: true },
+        where: { observacoes: { contains: "[JUL]" } },
+      }),
+    ]);
+    return NextResponse.json({
+      escalas,
+      lastSync: lastSync._max.updatedAt,
+      fonte: "portosdosacores.pt",
+      total: escalas.length,
     });
-    return NextResponse.json({ escalas });
-  } catch (err: any) {
+  } catch (err) {
     console.error("[GET /api/porto-ponta-delgada]", err);
-    return NextResponse.json({ error: err?.message || "Erro ao carregar escalas." }, { status: 500 });
+    const message = err instanceof Error ? err.message : "Erro ao carregar escalas.";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -44,8 +56,9 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ success: true, escala: novaEscala });
-  } catch (err: any) {
+  } catch (err) {
     console.error("[POST /api/porto-ponta-delgada]", err);
-    return NextResponse.json({ error: err?.message || "Erro ao criar escala." }, { status: 500 });
+    const message = err instanceof Error ? err.message : "Erro ao criar escala.";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

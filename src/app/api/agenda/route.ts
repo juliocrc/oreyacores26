@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { getAccessContext } from "@/lib/access-control";
 import { resolveActiveServiceStationId } from "@/lib/station-selection";
@@ -107,23 +108,17 @@ async function hasVacationConflict(responsavelRaw: string | null | undefined, da
   return Boolean(holiday);
 }
 
-async function hasActiveRaftConflict(raftSerial: string, date: Date, excludeId?: number) {
-  const candidates = await prisma.agendaEvento.findMany({
+async function hasActiveRaftConflict(raftSerial: string, excludeId?: number) {
+  const existing = await prisma.agendaEvento.findFirst({
     where: {
       raftSerial,
       status: { in: Array.from(ACTIVE_ROLLOVER_STATUSES) },
       ...(excludeId ? { id: { not: excludeId } } : {}),
     },
-    select: { id: true, date: true },
+    select: { id: true },
   });
 
-  return candidates.some((candidate) => isSameCalendarDay(candidate.date, date));
-}
-
-function isSameCalendarDay(left: Date, right: Date) {
-  return left.getFullYear() === right.getFullYear()
-    && left.getMonth() === right.getMonth()
-    && left.getDate() === right.getDate();
+  return Boolean(existing);
 }
 
 function getMinutesOfDay(date: Date) {
@@ -177,7 +172,7 @@ export async function GET(req: NextRequest) {
   if (!access) return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  const where: { raftSerial?: { equals: string } } = {};
+  const where: Prisma.AgendaEventoWhereInput = {};
   const activeStationId = resolveActiveServiceStationId(req, access);
 
   let allowedRaftSerials: string[] | null = null;
@@ -187,6 +182,10 @@ export async function GET(req: NextRequest) {
       select: { serial: true },
     });
     allowedRaftSerials = rafts.map((r) => String(r.serial || "").trim()).filter(Boolean);
+    where.OR = [
+      { serviceStationId: activeStationId },
+      ...(allowedRaftSerials.length > 0 ? [{ raftSerial: { in: allowedRaftSerials } }] : []),
+    ];
   } else if (!access.isAdmin) {
     const rafts = await prisma.jangada.findMany({
       where: { serviceStationId: { in: access.allowedStationIds.length ? access.allowedStationIds : [-1] } },
@@ -225,7 +224,7 @@ export async function GET(req: NextRequest) {
   }
 
   let eventos = await prisma.agendaEvento.findMany({ where, orderBy: { date: "desc" } });
-  if (allowedRaftSerials) {
+  if (allowedRaftSerials && !activeStationId) {
     const serialSet = new Set(allowedRaftSerials.map((s) => s.toUpperCase()));
     eventos = eventos.filter((ev) => serialSet.has(String(ev.raftSerial || "").toUpperCase()));
   }
@@ -363,8 +362,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "O técnico selecionado está de férias nesta data." }, { status: 409 });
     }
 
-    if (await hasActiveRaftConflict(raftSerial, parsedDate)) {
-      return NextResponse.json({ error: "Já existe um agendamento ativo para esta jangada neste dia." }, { status: 409 });
+    if (await hasActiveRaftConflict(raftSerial)) {
+      return NextResponse.json({ error: "Já existe um agendamento ativo para esta jangada. Cancele o agendamento anterior antes de criar outro." }, { status: 409 });
     }
 
     const access = await getAccessContext();
@@ -449,8 +448,8 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "Agendamento não encontrado." }, { status: 404 });
     }
 
-    if (await hasActiveRaftConflict(raftSerial, parsedDate, id)) {
-      return NextResponse.json({ error: "Já existe um agendamento ativo para esta jangada neste dia." }, { status: 409 });
+    if (await hasActiveRaftConflict(raftSerial, id)) {
+      return NextResponse.json({ error: "Já existe um agendamento ativo para esta jangada. Cancele o agendamento anterior antes de criar outro." }, { status: 409 });
     }
 
     const updated = await prisma.agendaEvento.update({

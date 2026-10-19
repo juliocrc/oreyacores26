@@ -28,38 +28,34 @@ export function toIsoDate(value: unknown): string | undefined {
   const text = asText(value);
   if (!text) return undefined;
 
-  const mmYyyyMatch = text.match(/^(\d{2})[\/-](\d{4})$/);
-  if (mmYyyyMatch) {
-    const [, mm, yyyy] = mmYyyyMatch;
-    return `${yyyy}-${mm}-01`;
+  // DD/MM/AAAA e DD-MM-AAAA (dia primeiro) antes de qualquer fallback genérico:
+  // o construtor Date do JS interpreta "05/06/2025" como MM/DD e troca dia/mês.
+  const dayFirst = text.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+  if (dayFirst) {
+    const [, dd, mm, yyyy] = dayFirst;
+    const day = Number(dd);
+    const month = Number(mm);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${yyyy}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    }
   }
 
-  const mmYyMatch = text.match(/^(\d{2})[\/-](\d{2})$/);
+  const mmYyyyMatch = text.match(/^(\d{1,2})[\/-](\d{4})$/);
+  if (mmYyyyMatch) {
+    const [, mm, yyyy] = mmYyyyMatch;
+    const month = Number(mm);
+    if (month >= 1 && month <= 12) return `${yyyy}-${String(month).padStart(2, "0")}-01`;
+  }
+
+  const mmYyMatch = text.match(/^(\d{1,2})[\/-](\d{2})$/);
   if (mmYyMatch) {
     const [, mm, yy] = mmYyMatch;
-    return `20${yy}-${mm}-01`;
+    const month = Number(mm);
+    if (month >= 1 && month <= 12) return `20${yy}-${String(month).padStart(2, "0")}-01`;
   }
 
   const isoMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (isoMatch) return text;
-
-  const ptMatch = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (ptMatch) {
-    const [, dd, mm, yyyy] = ptMatch;
-    return `${yyyy}-${mm}-${dd}`;
-  }
-
-  const dashMatch = text.match(/^(\d{2})-(\d{2})-(\d{4})$/);
-  if (dashMatch) {
-    const [, dd, mm, yyyy] = dashMatch;
-    return `${yyyy}-${mm}-${dd}`;
-  }
-
-  const dotMatch = text.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
-  if (dotMatch) {
-    const [, dd, mm, yyyy] = dotMatch;
-    return `${yyyy}-${mm}-${dd}`;
-  }
 
   const parsed = new Date(text);
   if (Number.isNaN(parsed.getTime())) return undefined;
@@ -289,38 +285,32 @@ export function normalizeHeaderDateCandidate(value: string): string {
   const text = sanitizeExtractedCandidate(value);
   if (!text) return "";
 
-  const mmYyyyMatch = text.match(/^(\d{2})[\/-](\d{4})$/);
-  if (mmYyyyMatch) {
-    const [, mm, yyyy] = mmYyyyMatch;
-    return `${yyyy}-${mm}-01`;
+  const dayFirst = text.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+  if (dayFirst) {
+    const [, dd, mm, yyyy] = dayFirst;
+    const day = Number(dd);
+    const month = Number(mm);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${yyyy}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    }
   }
 
-  const mmYyMatch = text.match(/^(\d{2})[\/-](\d{2})$/);
+  const mmYyyyMatch = text.match(/^(\d{1,2})[\/-](\d{4})$/);
+  if (mmYyyyMatch) {
+    const [, mm, yyyy] = mmYyyyMatch;
+    const month = Number(mm);
+    if (month >= 1 && month <= 12) return `${yyyy}-${String(month).padStart(2, "0")}-01`;
+  }
+
+  const mmYyMatch = text.match(/^(\d{1,2})[\/-](\d{2})$/);
   if (mmYyMatch) {
     const [, mm, yy] = mmYyMatch;
-    return `20${yy}-${mm}-01`;
+    const month = Number(mm);
+    if (month >= 1 && month <= 12) return `20${yy}-${String(month).padStart(2, "0")}-01`;
   }
 
   const isoMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (isoMatch) return text;
-
-  const ptMatch = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (ptMatch) {
-    const [, dd, mm, yyyy] = ptMatch;
-    return `${yyyy}-${mm}-${dd}`;
-  }
-
-  const dashMatch = text.match(/^(\d{2})-(\d{2})-(\d{4})$/);
-  if (dashMatch) {
-    const [, dd, mm, yyyy] = dashMatch;
-    return `${yyyy}-${mm}-${dd}`;
-  }
-
-  const dotMatch = text.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
-  if (dotMatch) {
-    const [, dd, mm, yyyy] = dotMatch;
-    return `${yyyy}-${mm}-${dd}`;
-  }
 
   if (/^\d{5}$/.test(text)) {
     const serial = Number(text);
@@ -508,6 +498,8 @@ export function inferHeader(rows: Row[]): HeaderFields {
     model: resolveHeaderField(rows, "model"),
     emergencyPackType: resolveHeaderField(rows, "emergencyPackType"),
     capacity: resolveHeaderField(rows, "capacity"),
+    dataFabrico: resolveHeaderField(rows, "dataFabrico"),
+    fabricType: resolveHeaderField(rows, "fabricType"),
     dataInspecao: resolveHeaderField(rows, "dataInspecao"),
     dataProxInspecao: resolveHeaderField(rows, "dataProxInspecao"),
     cylinderSerial: resolveHeaderField(rows, "cylinderSerial"),

@@ -17,7 +17,7 @@ import { syncAgendaToGoogleCalendar } from "@/lib/google-calendar";
 import { isKnownPackTypeName, resolveMandatoryPackItemsForRaftAsync } from "@/lib/custom-pack-types";
 import { deleteJangadaById } from "@/lib/jangada-delete";
 import { canonicalizeDateFields } from "@/lib/date-display";
-import { normalizeArtigoValidade } from "@/lib/date-utils";
+import { normalizeArtigoValidade, parseFlexibleDate } from "@/lib/date-utils";
 import { computeInspectionDigest, shortDigest } from "@/lib/integrity-stamp";
 import { generateInspectionCertificateNumber, resolveCertificateStationPrefix } from "@/app/inspecoes/actions";
 import { getInspectionSnapshot, saveInspectionSnapshot } from "@/lib/inspection-snapshots";
@@ -201,26 +201,36 @@ async function writeJangadaObservacoes(jangadaId: number, value: unknown) {
 }
 
 function addFiveYears(value?: string) {
-  if (!value) return "";
-  const parsed = Date.parse(value);
-  if (Number.isNaN(parsed)) return "";
-  const date = new Date(parsed);
-  date.setFullYear(date.getFullYear() + 5);
-  return date.toISOString().slice(0, 10);
+  const iso = normalizeIsoDate(value);
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return "";
+  return `${Number(m[1]) + 5}-${m[2]}-${m[3]}`;
 }
 
 function normalizeIsoDate(value: unknown) {
   const raw = String(value ?? "").trim();
   if (!raw) return "";
-  const myMatch = raw.match(/^(\d{1,2})\/(\d{4})$/);
-  if (myMatch) {
-    const m = myMatch[1].padStart(2, '0');
-    const y = myMatch[2];
-    return `${y}-${m}-01`;
+
+  const mmYyyy = raw.match(/^(\d{1,2})[\/\-](\d{4})$/);
+  if (mmYyyy) {
+    const month = Number(mmYyyy[1]);
+    if (month >= 1 && month <= 12) return `${mmYyyy[2]}-${String(month).padStart(2, '0')}-01`;
   }
-  const parsed = Date.parse(raw);
-  if (Number.isNaN(parsed)) return "";
-  return new Date(parsed).toISOString().slice(0, 10);
+
+  // DD/MM/AAAA antes do fallback genérico: new Date("05/06/2025") lê MM/DD.
+  const dayFirst = raw.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+  if (dayFirst) {
+    const day = Number(dayFirst[1]);
+    const month = Number(dayFirst[2]);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${dayFirst[3]}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+  }
+
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+
+  return "";
 }
 
 function addYearsToIsoDate(value: string, years: number) {
@@ -719,9 +729,7 @@ async function resolveShipAssignment(shipId: number) {
 function normalizeExpectedDeliveryInput(value: unknown): Date | null {
   const raw = String(value ?? '').trim();
   if (!raw) return null;
-  const parsed = Date.parse(raw);
-  if (Number.isNaN(parsed)) return null;
-  return new Date(parsed);
+  return parseFlexibleDate(raw);
 }
 
 function parseQueueMetaBoolean(value: unknown, fallback = false) {
@@ -839,8 +847,7 @@ function normalizeArtigosInput(raw: unknown) {
       const quantidade = Number.isFinite(quantidadeNum) ? Math.max(0, Math.round(quantidadeNum)) : 0;
 
       const validadeRaw = String(entry?.validade || "").trim();
-      const validadeParsed = validadeRaw ? Date.parse(validadeRaw) : Number.NaN;
-      const validade = Number.isNaN(validadeParsed) ? null : normalizeArtigoValidade(new Date(validadeParsed));
+      const validade = validadeRaw ? normalizeArtigoValidade(validadeRaw) : null;
 
       const referencia = entry?.referencia ? String(entry.referencia).trim() : null;
       const codigoFabricante = entry?.codigoFabricante ? String(entry.codigoFabricante).trim() : null;

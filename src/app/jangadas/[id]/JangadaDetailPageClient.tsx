@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 import { 
@@ -39,7 +39,8 @@ import {
   ShieldCheck,
   Clock,
   Mail,
-  Link2
+  Link2,
+  Sparkles
 } from 'lucide-react';
 import { appToast } from "@/lib/app-toast";
 import { useWhatsAppAllowed, WHATSAPP_ALLOWED_USER_EMAIL } from "@/lib/use-whatsapp-allowed";
@@ -72,6 +73,7 @@ import { StockPickerSelect } from '@/components/shared/StockPicker';
 import { isVacuumBagStockItem } from '@/lib/stock-picker';
 import CertificadoExternoDialog from '@/components/jangadas/CertificadoExternoDialog';
 import EnviarCertificadoDialog from '@/components/jangadas/EnviarCertificadoDialog';
+import ImportarDocumentoIaDialog from '@/components/jangadas/ImportarDocumentoIaDialog';
 import type { InspectionCertificateInput } from '@/lib/inspection-certificate';
 import DuplicarFichaDialog from '@/components/jangadas/DuplicarFichaDialog';
 import SyncResultDialog from '@/components/jangadas/SyncResultDialog';
@@ -813,6 +815,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
   const [isCompareOpen, setIsCompareOpen] = useState(false);
   const [isCertificadoExternoOpen, setIsCertificadoExternoOpen] = useState(false);
   const [isEnviarCertificadoOpen, setIsEnviarCertificadoOpen] = useState(false);
+  const [isImportarIaOpen, setIsImportarIaOpen] = useState(false);
   const [isDuplicarOpen, setIsDuplicarOpen] = useState(false);
   const [duplicarSaving, setDuplicarSaving] = useState(false);
   const [isHistoricaOpen, setIsHistoricaOpen] = useState(false);
@@ -824,6 +827,41 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
   const [dgrmExporting, setDgrmExporting] = useState(false);
   const [syncResult, setSyncResult] = useState<{ success: boolean; warning?: string; summary?: { added: number; updated: number; stockLinked: number; total: number }; hasSnapshot?: boolean; details?: string; packSource?: string } | null>(null);
   const [showSyncResult, setShowSyncResult] = useState(false);
+  // Fila de documentos "por enviar" ao armador (certificado + quadro).
+  const [pendingDocs, setPendingDocs] = useState<Array<{ id: number; assunto: string | null; enviadoEm: string }>>([]);
+  // Registo da fila que está a ser enviado no diálogo (undefined = envio manual sem fila).
+  const [pendingEnviarId, setPendingEnviarId] = useState<number | undefined>(undefined);
+
+  const loadPendingDocs = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/jangadas/${jangadaId}/docs-por-enviar`, { cache: 'no-store' });
+      if (!res.ok) return;
+      const json = await res.json().catch(() => ({}));
+      setPendingDocs(Array.isArray(json?.items) ? json.items : []);
+    } catch {
+      /* silencioso: a fila é informativa */
+    }
+  }, [jangadaId]);
+
+  useEffect(() => {
+    void loadPendingDocs();
+  }, [loadPendingDocs]);
+
+  const abrirEnvioPendente = (docId: number) => {
+    setPendingEnviarId(docId);
+    setIsEnviarCertificadoOpen(true);
+  };
+
+  const descartarPendente = async (docId: number) => {
+    try {
+      const res = await fetch(`/api/jangadas/${jangadaId}/docs-por-enviar?docId=${docId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error();
+      setPendingDocs((prev) => prev.filter((d) => d.id !== docId));
+      appToast.success('Documento por enviar descartado.');
+    } catch {
+      appToast.error('Não foi possível descartar o documento.');
+    }
+  };
 
   const handleDuplicar = async (novoSerialInput: string, copiarArtigos: boolean) => {
     const novoSerial = novoSerialInput.trim();
@@ -1994,73 +2032,77 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
     checklist: buildChecklistPayload(),
   });
 
+  const buildQuadroPayload = () => {
+    const derivedWp = buildWpDerivedValues({
+      pressureUnit: data.testeWPUnidadePressao,
+      startTime: data.testeWPHoraInicio,
+      tempInitial: data.testeWPTemperaturaInicial,
+      tempFinal: data.testeWPTemperaturaFinal,
+      baroInitial: data.testeWPPressaoAtmosfericaInicial,
+      baroFinal: data.testeWPPressaoAtmosfericaFinal,
+      upperStart: data.testeWPCamaraSuperiorInicio,
+      upperEnd: data.testeWPCamaraSuperiorFim,
+      lowerStart: data.testeWPCamaraInferiorInicio,
+      lowerEnd: data.testeWPCamaraInferiorFim,
+    });
+
+    return {
+      numeroObra: data.numeroObra || '',
+      certNumber: data.ultimoCertificadoNumero || lastInspecao?.certificadoNumero || '',
+      inspectionDate: lastInspecao?.dataInspecao || data.dataInspecao || '',
+      nextInspectionDate: lastInspecao?.dataProxInspecao || data.dataProxInspecao || '',
+      shipName: data.shipNameManual || linkedShip?.nome || '',
+      brand: data.brand || '',
+      raftModel: data.model || '',
+      raftCapacity: data.capacity || '',
+      raftSerial: data.serial || '',
+      manufactureDate: data.dataFabrico || '',
+      cylinderSerial: data.cylinderSerial || '',
+      cylinderGrossWeight: data.cylinderPesoBruto || '',
+      cylinderTara: data.cylinderTara || '',
+      cylinderTare: data.cylinderTara || '',
+      cylinderCo2: data.cylinderCo2 || '',
+      cylinderN2: data.cylinderN2 || '',
+      cylinderHydroTestDate: data.cylinderDataTeste || '',
+      packType: data.packType || '',
+      pressureUnit: data.testeWPUnidadePressao || 'inh2o',
+      tempInitial: data.testeWPTemperaturaInicial || '',
+      tempFinal: data.testeWPTemperaturaFinal || '',
+      baroInitial: data.testeWPPressaoAtmosfericaInicial || '',
+      baroFinal: data.testeWPPressaoAtmosfericaFinal || '',
+      wpStartTime: data.testeWPHoraInicio || '',
+      wpEndTime: data.testeWPHoraFim || '',
+      wpUpperStart: data.testeWPCamaraSuperiorInicio || '',
+      wpUpperEnd: data.testeWPCamaraSuperiorFim || '',
+      wpUpperCorrected: derivedWp.upper.correctedEndDisplay || '',
+      wpUpperDrop: derivedWp.upper.dropDisplay || '',
+      wpUpperDropPercent: derivedWp.upper.dropPercentDisplay || '',
+      wpLowerStart: data.testeWPCamaraInferiorInicio || '',
+      wpLowerEnd: data.testeWPCamaraInferiorFim || '',
+      wpLowerCorrected: derivedWp.lower.correctedEndDisplay || '',
+      wpLowerDrop: derivedWp.lower.dropDisplay || '',
+      wpLowerDropPercent: derivedWp.lower.dropPercentDisplay || '',
+      napTestDone: data.testeNAP || '',
+      fsTestDone: data.testeFS || '',
+      giTestDone: data.testeGI || '',
+      dlTestDone: data.testeDL || '',
+      technician: lastInspecao?.responsavel || '',
+      checklist: buildChecklistPayload(),
+      substituicoes: (artigos || []).map((art) => ({
+        descricao: art.name,
+        referencia: art.referencia || undefined,
+        quantidade: art.quantidade,
+        validade: art.validade || undefined,
+        codigoFabricante: art.codigoFabricante || undefined
+      }))
+    };
+  };
+
   const handleExportQuadroExcel = async () => {
     if (aGerarDoc) return;
     setAGerarDoc('quadro');
     try {
-      const derivedWp = buildWpDerivedValues({
-        pressureUnit: data.testeWPUnidadePressao,
-        startTime: data.testeWPHoraInicio,
-        tempInitial: data.testeWPTemperaturaInicial,
-        tempFinal: data.testeWPTemperaturaFinal,
-        baroInitial: data.testeWPPressaoAtmosfericaInicial,
-        baroFinal: data.testeWPPressaoAtmosfericaFinal,
-        upperStart: data.testeWPCamaraSuperiorInicio,
-        upperEnd: data.testeWPCamaraSuperiorFim,
-        lowerStart: data.testeWPCamaraInferiorInicio,
-        lowerEnd: data.testeWPCamaraInferiorFim,
-      });
-
-      const payload = {
-        numeroObra: data.numeroObra || '',
-        certNumber: data.ultimoCertificadoNumero || lastInspecao?.certificadoNumero || '',
-        inspectionDate: lastInspecao?.dataInspecao || data.dataInspecao || '',
-        nextInspectionDate: lastInspecao?.dataProxInspecao || data.dataProxInspecao || '',
-        shipName: data.shipNameManual || linkedShip?.nome || '',
-        brand: data.brand || '',
-        raftModel: data.model || '',
-        raftCapacity: data.capacity || '',
-        raftSerial: data.serial || '',
-        manufactureDate: data.dataFabrico || '',
-        cylinderSerial: data.cylinderSerial || '',
-        cylinderGrossWeight: data.cylinderPesoBruto || '',
-        cylinderTara: data.cylinderTara || '',
-        cylinderTare: data.cylinderTara || '',
-        cylinderCo2: data.cylinderCo2 || '',
-        cylinderN2: data.cylinderN2 || '',
-        cylinderHydroTestDate: data.cylinderDataTeste || '',
-        packType: data.packType || '',
-        pressureUnit: data.testeWPUnidadePressao || 'inh2o',
-        tempInitial: data.testeWPTemperaturaInicial || '',
-        tempFinal: data.testeWPTemperaturaFinal || '',
-        baroInitial: data.testeWPPressaoAtmosfericaInicial || '',
-        baroFinal: data.testeWPPressaoAtmosfericaFinal || '',
-        wpStartTime: data.testeWPHoraInicio || '',
-        wpEndTime: data.testeWPHoraFim || '',
-        wpUpperStart: data.testeWPCamaraSuperiorInicio || '',
-        wpUpperEnd: data.testeWPCamaraSuperiorFim || '',
-        wpUpperCorrected: derivedWp.upper.correctedEndDisplay || '',
-        wpUpperDrop: derivedWp.upper.dropDisplay || '',
-        wpUpperDropPercent: derivedWp.upper.dropPercentDisplay || '',
-        wpLowerStart: data.testeWPCamaraInferiorInicio || '',
-        wpLowerEnd: data.testeWPCamaraInferiorFim || '',
-        wpLowerCorrected: derivedWp.lower.correctedEndDisplay || '',
-        wpLowerDrop: derivedWp.lower.dropDisplay || '',
-        wpLowerDropPercent: derivedWp.lower.dropPercentDisplay || '',
-        napTestDone: data.testeNAP || '',
-        fsTestDone: data.testeFS || '',
-        giTestDone: data.testeGI || '',
-        dlTestDone: data.testeDL || '',
-        technician: lastInspecao?.responsavel || '',
-        checklist: buildChecklistPayload(),
-        substituicoes: (artigos || []).map((art) => ({
-          descricao: art.name,
-          referencia: art.referencia || undefined,
-          quantidade: art.quantidade,
-          validade: art.validade || undefined,
-          codigoFabricante: art.codigoFabricante || undefined
-        }))
-      };
+      const payload = buildQuadroPayload();
 
       const res = await fetch('/api/exportar-raft', {
         method: 'POST',
@@ -2156,69 +2198,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
 
   const handleExportQuadroPDF = async () => {
     try {
-      const derivedWp = buildWpDerivedValues({
-        pressureUnit: data.testeWPUnidadePressao,
-        startTime: data.testeWPHoraInicio,
-        tempInitial: data.testeWPTemperaturaInicial,
-        tempFinal: data.testeWPTemperaturaFinal,
-        baroInitial: data.testeWPPressaoAtmosfericaInicial,
-        baroFinal: data.testeWPPressaoAtmosfericaFinal,
-        upperStart: data.testeWPCamaraSuperiorInicio,
-        upperEnd: data.testeWPCamaraSuperiorFim,
-        lowerStart: data.testeWPCamaraInferiorInicio,
-        lowerEnd: data.testeWPCamaraInferiorFim,
-      });
-
-      const payload = {
-        numeroObra: data.numeroObra || '',
-        certNumber: data.ultimoCertificadoNumero || lastInspecao?.certificadoNumero || '',
-        inspectionDate: lastInspecao?.dataInspecao || data.dataInspecao || '',
-        nextInspectionDate: lastInspecao?.dataProxInspecao || data.dataProxInspecao || '',
-        shipName: data.shipNameManual || linkedShip?.nome || '',
-        brand: data.brand || '',
-        raftModel: data.model || '',
-        raftCapacity: data.capacity || '',
-        raftSerial: data.serial || '',
-        manufactureDate: data.dataFabrico || '',
-        cylinderSerial: data.cylinderSerial || '',
-        cylinderGrossWeight: data.cylinderPesoBruto || '',
-        cylinderTara: data.cylinderTara || '',
-        cylinderTare: data.cylinderTara || '',
-        cylinderCo2: data.cylinderCo2 || '',
-        cylinderN2: data.cylinderN2 || '',
-        cylinderHydroTestDate: data.cylinderDataTeste || '',
-        packType: data.packType || '',
-        pressureUnit: data.testeWPUnidadePressao || 'inh2o',
-        tempInitial: data.testeWPTemperaturaInicial || '',
-        tempFinal: data.testeWPTemperaturaFinal || '',
-        baroInitial: data.testeWPPressaoAtmosfericaInicial || '',
-        baroFinal: data.testeWPPressaoAtmosfericaFinal || '',
-        wpStartTime: data.testeWPHoraInicio || '',
-        wpEndTime: data.testeWPHoraFim || '',
-        wpUpperStart: data.testeWPCamaraSuperiorInicio || '',
-        wpUpperEnd: data.testeWPCamaraSuperiorFim || '',
-        wpUpperCorrected: derivedWp.upper.correctedEndDisplay || '',
-        wpUpperDrop: derivedWp.upper.dropDisplay || '',
-        wpUpperDropPercent: derivedWp.upper.dropPercentDisplay || '',
-        wpLowerStart: data.testeWPCamaraInferiorInicio || '',
-        wpLowerEnd: data.testeWPCamaraInferiorFim || '',
-        wpLowerCorrected: derivedWp.lower.correctedEndDisplay || '',
-        wpLowerDrop: derivedWp.lower.dropDisplay || '',
-        wpLowerDropPercent: derivedWp.lower.dropPercentDisplay || '',
-        napTestDone: data.testeNAP || '',
-        fsTestDone: data.testeFS || '',
-        giTestDone: data.testeGI || '',
-        dlTestDone: data.testeDL || '',
-        technician: lastInspecao?.responsavel || '',
-        checklist: buildChecklistPayload(),
-        substituicoes: (artigos || []).map((art) => ({
-          descricao: art.name,
-          referencia: art.referencia || undefined,
-          quantidade: art.quantidade,
-          validade: art.validade || undefined,
-          codigoFabricante: art.codigoFabricante || undefined
-        }))
-      };
+      const payload = buildQuadroPayload();
 
       const res = await fetch('/api/exportar-raft-pdf', {
         method: 'POST',
@@ -3085,6 +3065,16 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                   {aGerarDoc === 'quadro' ? 'A gerar...' : 'Gerar Quadro Excel'}
                 </button>
                 <button
+                  onClick={() => { setPendingEnviarId(undefined); setIsEnviarCertificadoOpen(true); }}
+                  className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-all shadow-sm"
+                >
+                  <Send size={18} />
+                  Enviar ao Armador
+                  {pendingDocs.length > 0 && (
+                    <span className="bg-white text-indigo-700 text-xs px-2 py-0.5 rounded-full font-extrabold">{pendingDocs.length}</span>
+                  )}
+                </button>
+                <button
                   onClick={() => printJangadaLabel()}
                   className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-white bg-slate-800 hover:bg-slate-700 transition-all shadow-sm"
                 >
@@ -3118,6 +3108,14 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                   )}
                 </button>
                 <button
+                  onClick={() => setIsImportarIaOpen(true)}
+                  title="Carregar um quadro/certificado (Excel ou PDF) e pré-preencher a ficha automaticamente"
+                  className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-white bg-violet-600 hover:bg-violet-700 transition-all shadow-sm"
+                >
+                  <Sparkles size={18} />
+                  Importar Documento (IA)
+                </button>
+                <button
                   onClick={openLastInspection}
                   disabled={!raftLastInspecao}
                   className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
@@ -3146,6 +3144,40 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
             )}
           </div>
         </header>
+
+        {/* Fila de documentos por enviar ao armador */}
+        {pendingDocs.length > 0 && (
+          <div className="border border-indigo-200 bg-indigo-50 rounded-3xl p-5 flex flex-col md:flex-row md:items-center gap-4 no-print shadow-sm">
+            <div className="w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+              <Send size={24} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-extrabold text-base text-indigo-900">
+                {pendingDocs.length === 1
+                  ? 'Há 1 documento por enviar ao armador'
+                  : `Há ${pendingDocs.length} documentos por enviar ao armador`}
+              </p>
+              <p className="text-sm text-indigo-700 mt-0.5">
+                A inspeção foi concluída. Confirme e envie o certificado e o quadro ao armador.
+              </p>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <button
+                onClick={() => abrirEnvioPendente(pendingDocs[0].id)}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-all shadow-sm"
+              >
+                <Send size={16} />
+                Enviar agora
+              </button>
+              <button
+                onClick={() => pendingDocs.forEach((d) => void descartarPendente(d.id))}
+                className="px-4 py-2.5 rounded-xl font-bold text-indigo-700 bg-white border border-indigo-200 hover:bg-indigo-100 transition-all"
+              >
+                Ignorar
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Banner de alerta de validade da inspecção */}
         {(inspectionStatus.color === 'red' || inspectionStatus.color === 'orange' || inspectionStatus.color === 'yellow') && (
@@ -6444,15 +6476,50 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
         );
       })()}
 
-      {/* Enviar Certificado por Email */}
+      {/* Importar Documento (IA): lê quadro/certificado e pré-preenche a ficha */}
+      <ImportarDocumentoIaDialog
+        isOpen={isImportarIaOpen}
+        onClose={() => setIsImportarIaOpen(false)}
+        jangadaId={jangadaId}
+        current={{
+          brand: data.brand,
+          model: data.model,
+          capacity: data.capacity,
+          dataFabrico: data.dataFabrico,
+          fabricType: data.fabricType,
+          packType: data.packType,
+          owner: data.owner,
+          shipNameManual: data.shipNameManual,
+          dataInspecao: data.dataInspecao,
+          dataProxInspecao: data.dataProxInspecao,
+          cylinderSerial: data.cylinderSerial,
+          cylinderCo2: data.cylinderCo2,
+          cylinderN2: data.cylinderN2,
+          cylinderTara: data.cylinderTara,
+          cylinderPesoBruto: data.cylinderPesoBruto,
+          cylinderSistema: data.cylinderSistema,
+        }}
+        currentArtigos={data.artigos}
+        currentShipId={data.shipId}
+        onApplied={() => { void fetchJangadaData(); }}
+      />
+
+      {/* Enviar ao Armador (email / WhatsApp com certificado e quadro) */}
       <EnviarCertificadoDialog
         isOpen={isEnviarCertificadoOpen}
-        onClose={() => setIsEnviarCertificadoOpen(false)}
+        onClose={() => {
+          setIsEnviarCertificadoOpen(false);
+          setPendingEnviarId(undefined);
+          void loadPendingDocs();
+        }}
         certificate={buildCertificatePdfInput()}
+        quadro={buildQuadroPayload()}
         defaultTo={linkedShip?.cliente?.email || ''}
+        defaultPhone={linkedShip?.cliente?.telmovel || linkedShip?.cliente?.telefone || ''}
         clienteId={linkedShip?.cliente?.id}
         jangadaId={jangadaId}
         refId={jangadaId}
+        pendingId={pendingEnviarId}
       />
 
       {/* Certificado Externo Modal */}

@@ -7,7 +7,8 @@ import { getSeaSafeSpec } from "./rafts/seaSafeModelData";
 import { broadcastServiceStationSync } from "@/lib/service-station-sync";
 import { DRINKING_WATER_REFERENCE_CANDIDATES, DRINKING_WATER_STOCK_REFERENCE, FOOD_RATIONS_REFERENCE_CANDIDATES, FOOD_RATIONS_STOCK_REFERENCE } from "@/lib/stock-reference-rules";
 import { dedupeRaftArticles } from "./rafts/mandatoryPack";
-import { formatValidityDisplay, normalizeMonthYearValue } from "@/lib/date-display";
+import { formatMonthYearDisplay, normalizeMonthYearValue } from "@/lib/date-display";
+import { getCameraErrorMessage } from "@/lib/camera-error";
 
 type ViewMode = "quadros" | "lista" | "detalhes";
 const CHECKLIST_DRAFT_PREFIX = "inspection-wizard-draft";
@@ -1354,7 +1355,7 @@ export default function Inspections() {
         );
       } catch (err) {
         console.error("Camera error (Inspections):", err);
-        setScanErrorInsp("Erro ao ligar a câmara. Certifique-se de que deu permissões.");
+        setScanErrorInsp(getCameraErrorMessage(err));
         setUseCameraInsp(false);
       }
     };
@@ -3039,7 +3040,7 @@ export default function Inspections() {
                             <div className="text-[11px] text-gray-400 mt-0.5">Fab: {item.codigoFabricante}</div>
                           )}
                           {item.validade && (
-                            <div className="text-xs text-blue-600 mt-1 font-medium">Val: {formatValidityDisplay(item.validade)}</div>
+                            <div className="text-xs text-blue-600 mt-1 font-medium">Val: {formatMonthYearDisplay(item.validade)}</div>
                           )}
                           {item.quantidade != null && (
                             <div className="text-xs text-gray-400">Stock: {item.quantidade}</div>

@@ -116,6 +116,18 @@ export function toDateKey(value: unknown): string {
     if (month >= 1 && month <= 12) return `${year}-${String(month).padStart(2, '0')}-01`;
   }
 
+  // DD/MM/AAAA (dia primeiro) antes do fallback com Date, que lê "05/06/2025"
+  // como MM/DD e troca dia/mês quando o dia é <= 12.
+  const dayFirst = raw.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+  if (dayFirst) {
+    const day = Number(dayFirst[1]);
+    const month = Number(dayFirst[2]);
+    const year = Number(dayFirst[3]);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+  }
+
   const parsed = new Date(raw);
   if (Number.isNaN(parsed.getTime())) return '';
   return parsed.toLocaleDateString('sv-SE', { timeZone: AZORES_TIMEZONE });
@@ -214,9 +226,9 @@ export function parseFlexibleDate(value: string | Date | null | undefined): Date
     return null;
   }
 
-  const directNormalized = new Date(normalized);
-  if (!Number.isNaN(directNormalized.getTime())) return directNormalized;
-
+  // DD/MM/AAAA tem de ser interpretado antes do fallback genérico: o construtor
+  // Date do JS lê "05-06-2025" como MM/DD (6 de maio), trocando dia e mês sempre
+  // que o dia seja <= 12. As datas de inspeção/validade chegam em DD/MM/AAAA.
   const dayFirstMatch = normalized.match(/^(\d{1,2})-(\d{1,2})-(\d{4})(?:\s+(\d{1,2}):(\d{2}))?$/);
   if (dayFirstMatch) {
     const [, dayText, monthText, yearText, hourText, minuteText] = dayFirstMatch;
@@ -240,6 +252,9 @@ export function parseFlexibleDate(value: string | Date | null | undefined): Date
     if (civil.ano === ano && civil.mes === mes && civil.dia === dia) return candidato;
     return null;
   }
+
+  const directNormalized = new Date(normalized);
+  if (!Number.isNaN(directNormalized.getTime())) return directNormalized;
 
   const isoDayMatch = normalized.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
   if (isoDayMatch) {
@@ -497,6 +512,14 @@ export function toMonthInput(value: string | Date | null | undefined): string {
   // MM/YYYY in hand.
   const mmYyyy = str.match(/^(\d{1,2})\/(\d{4})$/);
   if (mmYyyy) return `${mmYyyy[2]}-${mmYyyy[1].padStart(2, '0')}`;
+
+  // DD/MM/AAAA (dia primeiro). Tem de vir antes do fallback com new Date(),
+  // que lê "05/06/2026" como MM/DD e troca dia/mês.
+  const dmy = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (dmy) {
+    const month = Number(dmy[2]);
+    if (month >= 1 && month <= 12) return `${dmy[3]}-${dmy[2].padStart(2, '0')}`;
+  }
 
   // Legacy fallback using UTC components so negative-offset timezones
   // don't push the date into the previous month.

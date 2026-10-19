@@ -568,17 +568,17 @@ const formatDate = (value?: string | null) => {
       return;
     }
 
-    // 1. Permitir só um agendamento por jangada
+    // 1. Permitir só um agendamento ativo por jangada
     const sameJangada = events.find((ev) => {
       const persisted = /^\d+$/.test(String(ev.id));
       const st = normalizeEventStatus(ev.status);
       if (!persisted) return false;
-      if (!(st === "scheduled" || st === "confirmed")) return false;
+      if (!["scheduled", "confirmed", "in_progress", "testing", "paused"].includes(st)) return false;
       if (isUpdate && String(ev.id) === String(event.id)) return false;
-      return ev.raftSerial === event.raftSerial && new Date(ev.start).toDateString() === event.start.toDateString();
+      return ev.raftSerial === event.raftSerial;
     });
     if (sameJangada) {
-      alert('Já existe um agendamento para esta jangada neste dia.');
+      alert('Já existe um agendamento ativo para esta jangada. Cancele o agendamento anterior antes de criar outro.');
       return;
     }
 
@@ -1771,6 +1771,7 @@ const formatDate = (value?: string | null) => {
         handleQuickSchedule={handleQuickSchedule}
         editingEvent={editingEvent}
         onSaveEdit={handleSchedule}
+        onDeleteEdit={handleDeleteEvent}
         onCloseEdit={() => setEditingEvent(null)}
         technicians={stationTechnicians}
       />
