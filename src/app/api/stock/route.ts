@@ -177,9 +177,12 @@ export async function GET(req: NextRequest) {
     const andClauses: Prisma.StockWhereInput[] = [];
 
     if (activeStationId) {
-      // Stock próprio da estação ativa. O stock sem estação ("geral") só
-      // aparece na visão global, para não misturar estações no seletor.
-      where.serviceStationId = activeStationId;
+      // Stock próprio da estação ativa + stock geral (sem estação), que é
+      // partilhado por todas as estações.
+      where.OR = [
+        { serviceStationId: activeStationId },
+        { serviceStationId: null },
+      ];
     } else if (!access.isAdmin) {
       where.OR = [
         { serviceStationId: { in: access.allowedStationIds.length ? access.allowedStationIds : [-1] } },
