@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
 import { buildQuadroInspectionArtifacts, type QuadroTemplateInput } from '@/lib/quadro-template';
 import { getAccessContext } from '@/lib/access-control';
 import { saveQuadroToNavioFolder } from '@/lib/certificados-organizados';
@@ -12,6 +13,56 @@ export async function POST(request: Request) {
     if (!access) return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
 
     const payload = (await request.json()) as QuadroTemplateInput;
+
+    // A validade das rações vem como timestamp sem timezone. O Prisma pode
+    // deslocar o dia/mês conforme o TZ do servidor; ler como texto preserva a
+    // data gravada (ex.: 2030-02-01) e evita "01-2030" no F67.
+    try {
+      const raftSerial = String(payload.raftSerial || '').trim();
+      if (raftSerial) {
+        const raft = await prisma.jangada.findFirst({
+          where: { serial: raftSerial },
+          select: { id: true },
+        });
+        if (raft) {
+          const articles = await prisma.artigoJangada.findMany({
+            where: { jangadaId: raft.id, inspecaoId: null },
+            select: { id: true, name: true, referencia: true },
+            take: 2000,
+          });
+          const normalize = (value: unknown) =>
+            String(value || '')
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '')
+              .toLowerCase();
+          const rations = articles.find((article) => {
+            const text = `${normalize(article.name)} ${normalize(article.referencia)}`;
+            return (
+              text.includes('racao') ||
+              text.includes('racoes') ||
+              text.includes('ration') ||
+              text.includes('food')
+            );
+          });
+
+          if (rations) {
+            const rows = await prisma.$queryRaw<Array<{ validadeText: string | null }>>`
+              SELECT to_char(validade, 'YYYY-MM-DD') AS "validadeText"
+              FROM "ArtigoJangada"
+              WHERE id = ${rations.id}
+            `;
+            if (rows[0]?.validadeText) {
+              payload.checklist = {
+                ...(payload.checklist || {}),
+                validade_racoes: rows[0].validadeText,
+              };
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('[exportar-raft] Não foi possível corrigir a validade das rações:', error);
+    }
 
     // Se o caller não enviar substituicoes explicitamente mas tiver artigos
     // (ex.: raft cru de /api/jangadas), derivar a lista de artigos substituídos
