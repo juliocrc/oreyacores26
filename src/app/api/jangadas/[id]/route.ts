@@ -958,7 +958,19 @@ async function loadArtigosPersistidosLean(artigoJangadaDelegate: ArtigoJangadaDe
     select: baseSelect,
   });
 
-  return rows.map(toClientArtigo);
+  const validadeRows = await prisma.$queryRaw<Array<{ id: number; validadeText: string | null }>>`
+    SELECT id, to_char(validade, 'YYYY-MM-DD') AS "validadeText"
+    FROM "ArtigoJangada"
+    WHERE "jangadaId" = ${jangadaId} AND "inspecaoId" IS NULL
+  `;
+  const validadeById = new Map(validadeRows.map((row) => [row.id, row.validadeText]));
+
+  return rows.map((row) =>
+    toClientArtigo({
+      ...row,
+      validade: validadeById.get(row.id) ?? row.validade,
+    }),
+  );
 }
 
 const GROUPS: Array<{ key: string; tokens: string[] }> = [
