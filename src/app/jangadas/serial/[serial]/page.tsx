@@ -1,7 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
-import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
+import prisma from '@/lib/prisma';
 import { formatValidityDisplay } from '@/lib/date-display';
 import { fmtPeso } from '@/lib/liferaft-diagram-helpers';
 import type { Prisma, ArtigoJangada } from '@prisma/client';
@@ -21,7 +21,7 @@ type Jangada = Omit<
   }>,
   'artigos'
 > & {
-  artigos?: string | JangadaArtigoRow[];
+  artigos?: string | JangadaArtigoRow[] | null;
   error?: string;
 };
 
@@ -43,31 +43,35 @@ export default async function Page({
   params: Promise<{ serial: string }>;
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { serial } = await params;
+  const { serial: rawSerial } = await params;
+  const serial = rawSerial.trim();
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
-  const headerStore = await headers();
-  const protocol = headerStore.get('x-forwarded-proto') || 'http';
-  const host = headerStore.get('x-forwarded-host') || headerStore.get('host');
 
-  if (!host) {
+  if (!serial) {
     return (
       <div className="p-8">
-        <h2 className="text-xl font-bold">Erro ao carregar jangada</h2>
-        <p>Não foi possível resolver o endereço do servidor para abrir a ficha.</p>
+        <h2 className="text-xl font-bold">Jangada não encontrada</h2>
+        <p>O número de série está vazio.</p>
       </div>
     );
   }
 
-  const apiUrl = `${protocol}://${host}/api/jangadas/serial/${encodeURIComponent(serial)}`;
-  const res = await fetch(apiUrl, { cache: 'no-store' });
-  const jangada: Jangada = await res.json();
+  const jangada = (await prisma.jangada.findUnique({
+    where: { serial },
+    include: {
+      certificadoAtivo: { include: { validities: true } },
+      certificadosExtraidos: { include: { validities: true } },
+    },
+  })) as Jangada | null;
 
-  if (!res.ok) return (
-    <div className="p-8">
-      <h2 className="text-xl font-bold">Jangada não encontrada</h2>
-      <p>{jangada?.error || 'Erro ao carregar'}</p>
-    </div>
-  );
+  if (!jangada) {
+    return (
+      <div className="p-8">
+        <h2 className="text-xl font-bold">Jangada não encontrada</h2>
+        <p>Não existe nenhuma jangada com o serial {serial}.</p>
+      </div>
+    );
+  }
 
   const startInspectionParam = resolvedSearchParams?.startInspection;
   const shouldStartInspection = Array.isArray(startInspectionParam)
