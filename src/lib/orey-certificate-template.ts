@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx';
 import { toDateKey } from '@/lib/date-utils';
 import { loadTemplateBuffer } from '@/lib/template-loader';
 import QRCode from "qrcode";
-import crypto from "node:crypto";
+import { computeCertificateVerificationHash, buildCertificateVerificationUrl } from "@/lib/certificate-verification";
 
 type XlsxLoadArg = Parameters<ExcelJS.Xlsx['load']>[0];
 
@@ -40,6 +40,7 @@ export type OreyCertificateTemplateInput = {
   radarReflector?: string;
   radarReflectorExpiry?: string;
   technician?: string;
+  clientName?: string;
   verificationHash?: string;
   verificationQr?: string;
   status?: string;
@@ -485,16 +486,20 @@ export async function buildOreyCertificateArtifacts(input: OreyCertificateTempla
     if (!qrDataUrl) {
       const hash =
         String(input.verificationHash || "").trim() ||
-        crypto
-          .createHash("sha256")
-          .update(
-            [input.certNumber ?? "", input.raftSerial ?? "", input.inspectionDate ?? "", input.shipName ?? "", input.technician ?? ""].join("|"),
-          )
-          .digest("hex")
-          .slice(0, 16);
-      const base = String(process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/+$/, "");
-      const serial = encodeURIComponent(input.raftSerial || "");
-      const url = `${base}/verificar/certificado?serial=${serial}&h=${hash}`;
+        computeCertificateVerificationHash({
+          certNumber: input.certNumber,
+          raftSerial: input.raftSerial,
+          inspectionDate: input.inspectionDate,
+          shipName: input.shipName,
+          technician: input.technician,
+          clientName: input.clientName,
+        } as any);
+      const url = buildCertificateVerificationUrl(
+        {
+          raftSerial: input.raftSerial,
+        } as any,
+        hash,
+      );
       qrDataUrl = await QRCode.toDataURL(url, { margin: 0, width: 220, errorCorrectionLevel: "M" });
     }
     if (qrDataUrl && qrDataUrl.startsWith("data:image")) {
