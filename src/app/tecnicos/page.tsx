@@ -744,8 +744,11 @@ export default function TecnicosPage() {
                 .filter((a) => new Date(a.dataInicio).getFullYear() === prevYear)
                 .reduce((acc, a) => acc + calcDays(a.dataInicio, a.dataFim), 0);
 
-              // Acumulado/transitado do ano anterior (direito - gozado, ou 0 se gozou tudo)
-              const acumuladoAnterior = Math.max(0, direitoBase - diasGozadosAnterior);
+               // Acumulado/transitado do ano anterior (Júlio Correia = 55 dias, Alex Santos/Campos = 10 dias)
+               const nomeTec = String(selectedTecnico || "").toLowerCase();
+               const isJulio = nomeTec.includes("júlio") || nomeTec.includes("julio");
+               const isAlex = nomeTec.includes("alex");
+               const acumuladoAnterior = isJulio ? 55 : isAlex ? 10 : Math.max(0, direitoBase - diasGozadosAnterior);
 
               // Férias marcadas no ano corrente (2026)
               const diasMarcadosCorrente = feriasList
