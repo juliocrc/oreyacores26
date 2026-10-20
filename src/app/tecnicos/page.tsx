@@ -724,15 +724,16 @@ export default function TecnicosPage() {
                 const p1 = String(s || "").split("T")[0].split("-");
                 const p2 = String(e || "").split("T")[0].split("-");
                 if (p1.length !== 3 || p2.length !== 3) return 0;
-                const d1 = new Date(Number(p1[0]), Number(p1[1]) - 1, Number(p1[2]));
-                const d2 = new Date(Number(p2[0]), Number(p2[1]) - 1, Number(p2[2]));
-                if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return 0;
+                const d1 = Date.UTC(Number(p1[0]), Number(p1[1]) - 1, Number(p1[2]));
+                const d2 = Date.UTC(Number(p2[0]), Number(p2[1]) - 1, Number(p2[2]));
+                if (isNaN(d1) || isNaN(d2) || d2 < d1) return 0;
                 let count = 0;
-                const curr = new Date(d1);
+                let curr = d1;
+                const oneDay = 24 * 60 * 60 * 1000;
                 while (curr <= d2) {
-                  const day = curr.getDay();
-                  if (day !== 0 && day !== 6) count++;
-                  curr.setDate(curr.getDate() + 1);
+                  const dayOfWeek = new Date(curr).getUTCDay();
+                  if (dayOfWeek !== 0 && dayOfWeek !== 6) count++;
+                  curr += oneDay;
                 }
                 return count;
               };
