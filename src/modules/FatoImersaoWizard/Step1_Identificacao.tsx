@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { useFatoImersaoWizardStore } from "./store/useFatoImersaoWizardStore";
 import { computeNextServiceDate } from "@/lib/fatos-imersao-checklist";
-import { toDisplayDate, normalizeDateInput, toMonthInput, normalizeMonthInput } from "@/lib/fato-date-utils";
+import { toDisplayDate, normalizeDateInput } from "@/lib/fato-date-utils";
 
 type Props = { onNext: () => void };
 
@@ -123,11 +123,12 @@ export default function Step1_Identificacao({ onNext }: Props) {
           </select>
         </label>
         <label className="text-sm">
-          <span className="font-semibold text-slate-600">Data fabrico (MM/AAAA)</span>
+          <span className="font-semibold text-slate-600">Data fabrico (AAAA-MM ou MM/AAAA)</span>
           <input
-            type="month"
-            value={toMonthInput(inspectionData.dataFabrico)}
-            onChange={(e) => setInspectionData({ dataFabrico: normalizeMonthInput(e.target.value) })}
+            type="text"
+            value={inspectionData.dataFabrico || ""}
+            onChange={(e) => setInspectionData({ dataFabrico: e.target.value })}
+            placeholder="ex: 2024-01 ou 01/2024"
             className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50"
           />
         </label>
