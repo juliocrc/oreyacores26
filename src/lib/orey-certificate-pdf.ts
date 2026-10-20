@@ -97,25 +97,26 @@ export async function buildOreyCertificatePdfBuffer(
     logoWidthMm: 45,
   });
 
-  // Carimbo oficial na área "For authorized servicing station" (colunas I..L, linhas ~63..69).
+  // Carimbo oficial ajustado ao tamanho das letras da área de assinatura (células I..L)
   const stampImage = options.stamp?.imageDataUrl;
   const stationName = String(options.stamp?.stationName ?? "").trim();
-  const stampRegion = layout.cellRect(62, 9, 69, 12);
+  const stampRegion = layout.cellRect(61, 9, 61, 12); // Células I61:L61
   if (isImageDataUrl(stampImage)) {
     const size = imageSizeFromDataUrl(stampImage) || { width: 574, height: 265 };
     const aspect = size.width > 0 ? size.height / size.width : 265 / 574;
-    let width = stampRegion.w * 0.92;
-    let height = width * aspect;
-    if (height > stampRegion.h) {
-      height = stampRegion.h;
-      width = aspect > 0 ? height / aspect : stampRegion.w;
+    // Ajustado para o tamanho das letras (altura máxima ~5mm, proporcional ao texto da linha)
+    let height = Math.min(stampRegion.h * 1.2, 7);
+    let width = height / aspect;
+    if (width > stampRegion.w * 0.95) {
+      width = stampRegion.w * 0.95;
+      height = width * aspect;
     }
     const x = stampRegion.x + (stampRegion.w - width) / 2;
     const y = stampRegion.y + (stampRegion.h - height) / 2;
     try {
       doc.addImage(stampImage, imageFormat(stampImage), x, y, width, height);
     } catch {
-      // Carimbo é opcional: nunca deve impedir a geração.
+      // Carimbo opcional
     }
   } else if (stationName) {
     // Sem imagem de carimbo: ainda assim inscreve o nome da estação.
