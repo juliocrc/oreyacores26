@@ -1,5 +1,52 @@
-// Converte YYYY-MM-DD para dd/mm/aaaa.
-// Valores so com mes (YYYY-MM) caem para MM/AAAA, para nunca devolver
+// Converte YYYY-MM-DD (ou MM/AAAA, DD/MM/AAAA) para MM/AAAA.
+export function toDisplayMonth(value: string | null | undefined): string {
+  if (!value) return "";
+  const raw = String(value).trim();
+  const iso = raw.match(/^(\d{4})-(\d{2})/);
+  if (iso) return `${iso[2]}/${iso[1]}`;
+  const mmAAAA = raw.match(/^(\d{1,2})\/(\d{4})$/);
+  if (mmAAAA) return `${mmAAAA[1].padStart(2, "0")}/${mmAAAA[2]}`;
+  const ddmmAAAA = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (ddmmAAAA) return `${ddmmAAAA[2].padStart(2, "0")}/${ddmmAAAA[3]}`;
+  return raw;
+}
+
+// Valor para <input type="month">: YYYY-MM.
+export function toMonthInput(value: string | null | undefined): string {
+  if (!value) return "";
+  const raw = String(value).trim();
+  const iso = raw.match(/^(\d{4})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}`;
+  const ddmmAAAA = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (ddmmAAAA) return `${ddmmAAAA[3]}-${ddmmAAAA[2].padStart(2, "0")}`;
+  const mmAAAA = raw.match(/^(\d{1,2})\/(\d{4})$/);
+  if (mmAAAA) return `${mmAAAA[2]}-${mmAAAA[1].padStart(2, "0")}`;
+  return raw;
+}
+
+// Normaliza para armazenamento mensal YYYY-MM.
+export function normalizeMonthInput(value: string | null | undefined): string {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const ym = raw.match(/^(\d{4})-(\d{2})$/);
+  if (ym) {
+    const month = Number(ym[2]);
+    return month >= 1 && month <= 12 ? `${ym[1]}-${ym[2]}` : "";
+  }
+  const mmAAAA = raw.match(/^(\d{1,2})\/(\d{4})$/);
+  if (mmAAAA) {
+    const month = Number(mmAAAA[1]);
+    return month >= 1 && month <= 12 ? `${mmAAAA[2]}-${String(month).padStart(2, "0")}` : "";
+  }
+  const ddmmAAAA = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (ddmmAAAA) {
+    const month = Number(ddmmAAAA[2]);
+    return month >= 1 && month <= 12 ? `${ddmmAAAA[3]}-${String(month).padStart(2, "0")}` : "";
+  }
+  return "";
+}
+
+// Converte YYYY-MM-DD para dd/mm/aaaa. Valores so com mes (YYYY-MM) caem para MM/AAAA, para nunca devolver
 // um AAAA-MM cru ao utilizador.
 export function toDisplayDate(value: string | null | undefined): string {
   if (!value) return "";
