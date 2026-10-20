@@ -721,11 +721,20 @@ export default function TecnicosPage() {
               const direitoBase = 22; // Direito legal anual padrão (dias úteis)
 
               const calcDays = (s: string, e: string) => {
-                const d1 = new Date(s);
-                const d2 = new Date(e);
+                const p1 = String(s || "").split("T")[0].split("-");
+                const p2 = String(e || "").split("T")[0].split("-");
+                if (p1.length !== 3 || p2.length !== 3) return 0;
+                const d1 = new Date(Number(p1[0]), Number(p1[1]) - 1, Number(p1[2]));
+                const d2 = new Date(Number(p2[0]), Number(p2[1]) - 1, Number(p2[2]));
                 if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return 0;
-                const diff = Math.round((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-                return diff > 0 ? diff : 0;
+                let count = 0;
+                const curr = new Date(d1);
+                while (curr <= d2) {
+                  const day = curr.getDay();
+                  if (day !== 0 && day !== 6) count++;
+                  curr.setDate(curr.getDate() + 1);
+                }
+                return count;
               };
 
               const feriasList = ausencias.filter((a) => a.tipo === "ferias");
