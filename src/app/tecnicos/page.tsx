@@ -692,8 +692,25 @@ export default function TecnicosPage() {
                 value={absenceForm.motivo}
                 onChange={(event) => setAbsenceForm((current) => ({ ...current, motivo: event.target.value }))}
                 placeholder="Motivo (opcional)"
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-4"
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-3"
               />
+              <button
+                type="button"
+                onClick={() => {
+                  const today = new Date().toISOString().slice(0, 10);
+                  setAbsenceForm((current) => ({
+                    ...current,
+                    tipo: "ferias",
+                    dataInicio: today,
+                    dataFim: today,
+                    motivo: current.motivo ? `${current.motivo} (Interrupção de férias)` : "Interrupção de férias",
+                  }));
+                }}
+                className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100 transition"
+                title="Preenche data de hoje para registar dia(s) de interrupção a repor"
+              >
+                Interromper / Repor Dia
+              </button>
             </div>
 
             {ausenciasError ? <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{ausenciasError}</div> : null}
