@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { useFatoImersaoWizardStore } from "./store/useFatoImersaoWizardStore";
 import { computeNextServiceDate } from "@/lib/fatos-imersao-checklist";
-import { toDisplayDate, normalizeDateInput } from "@/lib/fato-date-utils";
+import { toDisplayDate, normalizeDateInput, toMonthInput, normalizeMonthInput } from "@/lib/fato-date-utils";
 
 type Props = { onNext: () => void };
 
@@ -123,28 +123,28 @@ export default function Step1_Identificacao({ onNext }: Props) {
           </select>
         </label>
         <label className="text-sm">
-          <span className="font-semibold text-slate-600">Data fabrico</span>
+          <span className="font-semibold text-slate-600">Data fabrico (MM/AAAA)</span>
           <input
-            value={toDisplayDate(inspectionData.dataFabrico)}
-            onChange={(e) => setInspectionData({ dataFabrico: normalizeDateInput(e.target.value) })}
+            type="month"
+            value={toMonthInput(inspectionData.dataFabrico)}
+            onChange={(e) => setInspectionData({ dataFabrico: normalizeMonthInput(e.target.value) })}
             className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50"
-            placeholder="dd/mm/aaaa"
           />
         </label>
         <label className="text-sm">
           <span className="font-semibold text-slate-600">Data inspeção *</span>
-          <input
-            value={toDisplayDate(inspectionData.dataInspecao)}
-            onChange={(e) => setInspectionData({ dataInspecao: normalizeDateInput(e.target.value) })}
+          <DateTextInput
+            value={inspectionData.dataInspecao}
+            onChange={(dataInspecao) => setInspectionData({ dataInspecao })}
             className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50"
             placeholder="dd/mm/aaaa"
           />
         </label>
         <label className="text-sm">
           <span className="font-semibold text-slate-600">Próxima inspeção</span>
-          <input
-            value={toDisplayDate(inspectionData.dataProxInspecao)}
-            onChange={(e) => setInspectionData({ dataProxInspecao: normalizeDateInput(e.target.value) })}
+          <DateTextInput
+            value={inspectionData.dataProxInspecao}
+            onChange={(dataProxInspecao) => setInspectionData({ dataProxInspecao })}
             className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50"
             placeholder="dd/mm/aaaa"
           />
@@ -189,5 +189,47 @@ export default function Step1_Identificacao({ onNext }: Props) {
         </button>
       </div>
     </div>
+  );
+}
+
+function DateTextInput({
+  value,
+  onChange,
+  className,
+  placeholder,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  className?: string;
+  placeholder?: string;
+}) {
+  const [text, setText] = useState(() => toDisplayDate(value));
+  const focusedRef = useRef(false);
+
+  useEffect(() => {
+    if (!focusedRef.current) setText(toDisplayDate(value));
+  }, [value]);
+
+  return (
+    <input
+      value={text}
+      inputMode="numeric"
+      onFocus={() => {
+        focusedRef.current = true;
+      }}
+      onChange={(event) => {
+        const next = event.target.value;
+        setText(next);
+        onChange(normalizeDateInput(next));
+      }}
+      onBlur={() => {
+        focusedRef.current = false;
+        const normalized = normalizeDateInput(text);
+        setText(toDisplayDate(normalized));
+        onChange(normalized);
+      }}
+      className={className}
+      placeholder={placeholder}
+    />
   );
 }

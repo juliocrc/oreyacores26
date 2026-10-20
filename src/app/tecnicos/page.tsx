@@ -698,6 +698,66 @@ export default function TecnicosPage() {
 
             {ausenciasError ? <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{ausenciasError}</div> : null}
 
+            {(() => {
+              const currentYear = new Date().getFullYear();
+              const prevYear = currentYear - 1;
+              const direitoBase = 22; // Direito legal anual padrão (dias úteis)
+
+              const calcDays = (s: string, e: string) => {
+                const d1 = new Date(s);
+                const d2 = new Date(e);
+                if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return 0;
+                const diff = Math.round((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                return diff > 0 ? diff : 0;
+              };
+
+              const feriasList = ausencias.filter((a) => a.tipo === "ferias");
+              
+              // Férias gozadas no ano anterior (2025)
+              const diasGozadosAnterior = feriasList
+                .filter((a) => new Date(a.dataInicio).getFullYear() === prevYear)
+                .reduce((acc, a) => acc + calcDays(a.dataInicio, a.dataFim), 0);
+
+              // Acumulado/transitado do ano anterior (direito - gozado, ou 0 se gozou tudo)
+              const acumuladoAnterior = Math.max(0, direitoBase - diasGozadosAnterior);
+
+              // Férias marcadas no ano corrente (2026)
+              const diasMarcadosCorrente = feriasList
+                .filter((a) => new Date(a.dataInicio).getFullYear() === currentYear)
+                .reduce((acc, a) => acc + calcDays(a.dataInicio, a.dataFim), 0);
+
+              // Total disponível = Direito anual + Acumulado anterior
+              const totalDisponivel = direitoBase + acumuladoAnterior;
+
+              // Falta gozar = Total disponível - Marcados este ano
+              const faltaGozar = totalDisponivel - diasMarcadosCorrente;
+
+              return (
+                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
+                  <div className="rounded-xl border border-slate-200 bg-white p-3 text-center shadow-sm">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Direito Anual</p>
+                    <p className="mt-1 text-base font-black text-slate-800">{direitoBase} <span className="text-xs font-normal text-slate-500">dias</span></p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white p-3 text-center shadow-sm">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Transitado ({prevYear})</p>
+                    <p className="mt-1 text-base font-black text-amber-600">+{acumuladoAnterior} <span className="text-xs font-normal text-slate-500">dias</span></p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white p-3 text-center shadow-sm">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Marcados ({currentYear})</p>
+                    <p className="mt-1 text-base font-black text-indigo-600">{diasMarcadosCorrente} <span className="text-xs font-normal text-slate-500">dias</span></p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white p-3 text-center shadow-sm">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Disponível</p>
+                    <p className="mt-1 text-base font-black text-slate-900">{totalDisponivel} <span className="text-xs font-normal text-slate-500">dias</span></p>
+                  </div>
+                  <div className="col-span-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-center shadow-sm sm:col-span-1">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Falta Gozar</p>
+                    <p className="mt-1 text-base font-black text-emerald-800">{faltaGozar} <span className="text-xs font-normal text-emerald-600">dias</span></p>
+                  </div>
+                </div>
+              );
+            })()}
+
             <div className="mt-4 max-h-72 overflow-auto rounded-xl border border-slate-200">
               <table className="min-w-full divide-y divide-slate-200 text-sm">
                 <thead className="bg-slate-100 text-left text-slate-600">
@@ -705,6 +765,7 @@ export default function TecnicosPage() {
                     <th className="px-3 py-2 font-semibold">Tipo</th>
                     <th className="px-3 py-2 font-semibold">Início</th>
                     <th className="px-3 py-2 font-semibold">Fim</th>
+                    <th className="px-3 py-2 font-semibold">Dias</th>
                     <th className="px-3 py-2 font-semibold">Motivo</th>
                     <th className="px-3 py-2 font-semibold">Ações</th>
                   </tr>
@@ -712,34 +773,43 @@ export default function TecnicosPage() {
                 <tbody className="divide-y divide-slate-100 bg-white">
                   {ausenciasLoading ? (
                     <tr>
-                      <td colSpan={5} className="px-3 py-4 text-center text-slate-500">A carregar...</td>
+                      <td colSpan={6} className="px-3 py-4 text-center text-slate-500">A carregar...</td>
                     </tr>
                   ) : ausencias.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-3 py-4 text-center text-slate-500">Sem registos para este técnico.</td>
+                      <td colSpan={6} className="px-3 py-4 text-center text-slate-500">Sem registos para este técnico.</td>
                     </tr>
                   ) : (
-                    ausencias.map((item) => (
-                      <tr key={item.id}>
-                        <td className="px-3 py-2">
-                          <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${item.tipo === "ferias" ? "bg-indigo-100 text-indigo-700" : "bg-amber-100 text-amber-700"}`}>
-                            {item.tipo === "ferias" ? "Férias" : "Ausência"}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2 text-slate-700">{toDateInput(item.dataInicio)}</td>
-                        <td className="px-3 py-2 text-slate-700">{toDateInput(item.dataFim)}</td>
-                        <td className="px-3 py-2 text-slate-600">{item.motivo || "—"}</td>
-                        <td className="px-3 py-2">
-                          <button
-                            type="button"
-                            onClick={() => void removeAusencia(item.id)}
-                            className="rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-100"
-                          >
-                            Remover
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                    ausencias.map((item) => {
+                      const d1 = new Date(item.dataInicio);
+                      const d2 = new Date(item.dataFim);
+                      const daysCount =
+                        item.tipo === "ferias" && !isNaN(d1.getTime()) && !isNaN(d2.getTime())
+                          ? Math.max(1, Math.round((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24)) + 1)
+                          : "—";
+                      return (
+                        <tr key={item.id}>
+                          <td className="px-3 py-2">
+                            <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${item.tipo === "ferias" ? "bg-indigo-100 text-indigo-700" : "bg-amber-100 text-amber-700"}`}>
+                              {item.tipo === "ferias" ? "Férias" : "Ausência"}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-slate-700">{toDateInput(item.dataInicio)}</td>
+                          <td className="px-3 py-2 text-slate-700">{toDateInput(item.dataFim)}</td>
+                          <td className="px-3 py-2 font-bold text-slate-800">{daysCount}</td>
+                          <td className="px-3 py-2 text-slate-600">{item.motivo || "—"}</td>
+                          <td className="px-3 py-2">
+                            <button
+                              type="button"
+                              onClick={() => void removeAusencia(item.id)}
+                              className="rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-100"
+                            >
+                              Remover
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -757,7 +827,7 @@ export default function TecnicosPage() {
               <input type="text" value={certForm.numeroCertificado} onChange={(e) => setCertForm(f => ({ ...f, numeroCertificado: e.target.value }))} placeholder="N. Certificado" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
               <input type="date" value={certForm.dataEmissao} onChange={(e) => setCertForm(f => ({ ...f, dataEmissao: e.target.value }))} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
               <input type="date" value={certForm.dataValidade} onChange={(e) => setCertForm(f => ({ ...f, dataValidade: e.target.value }))} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-              <input type="text" value={certForm.observacoes} onChange={(e) => setCertForm(f => ({ ...f, observacoes: e.target.value }))} placeholder="Observacoes" className="rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-3" />
+              <input type="text" value={certForm.observacoes} onChange={(e) => setCertForm(f => ({ ...f, observacoes: e.target.value }))} placeholder="Modelos certificados" className="rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-3" />
               <button type="button" onClick={() => void saveCertificacao()} disabled={savingCert || !certForm.fabricante || !certForm.dataEmissao || !certForm.dataValidade}
                 className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60">
                 {savingCert ? "A guardar..." : "Adicionar"}
@@ -771,6 +841,7 @@ export default function TecnicosPage() {
                 <thead className="bg-slate-100 text-left text-slate-600">
                   <tr>
                     <th className="px-3 py-2 font-semibold">Fabricante</th>
+                    <th className="px-3 py-2 font-semibold">Modelos</th>
                     <th className="px-3 py-2 font-semibold">N. Certificado</th>
                     <th className="px-3 py-2 font-semibold">Emissao</th>
                     <th className="px-3 py-2 font-semibold">Validade</th>
@@ -780,13 +851,16 @@ export default function TecnicosPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
                   {certLoading ? (
-                    <tr><td colSpan={6} className="px-3 py-4 text-center text-slate-500">A carregar...</td></tr>
+                    <tr><td colSpan={7} className="px-3 py-4 text-center text-slate-500">A carregar...</td></tr>
                   ) : certificacoes.length === 0 ? (
-                    <tr><td colSpan={6} className="px-3 py-4 text-center text-slate-500">Sem certificacoes.</td></tr>
+                    <tr><td colSpan={7} className="px-3 py-4 text-center text-slate-500">Sem certificacoes.</td></tr>
                   ) : (
-                    certificacoes.map((cert) => (
+                    certificacoes.map((cert) => {
+                      const modelos = cert.observacoes?.replace(/^.*?Modelos?:\s*/i, "") || cert.observacoes || "—";
+                      return (
                       <tr key={cert.id}>
                         <td className="px-3 py-2 font-medium text-slate-800">{cert.fabricante}</td>
+                        <td className="px-3 py-2 text-slate-600">{modelos}</td>
                         <td className="px-3 py-2 text-slate-600">{cert.numeroCertificado || "—"}</td>
                         <td className="px-3 py-2 text-slate-700">{toDateInput(cert.dataEmissao)}</td>
                         <td className="px-3 py-2 text-slate-700">{toDateInput(cert.dataValidade)}</td>
@@ -800,7 +874,8 @@ export default function TecnicosPage() {
                             className="rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-100">Remover</button>
                         </td>
                       </tr>
-                    ))
+                      );
+                    })
                   )}
                 </tbody>
               </table>
