@@ -156,6 +156,38 @@ function isGreenLikeFill(fill: ExcelJS.Fill | undefined) {
   return themed;
 }
 
+export function removeGreenLikeFills(worksheet: ExcelJS.Worksheet) {
+  worksheet.eachRow({ includeEmpty: true }, (row) => {
+    row.eachCell({ includeEmpty: true }, (cell) => {
+      if (isGreenLikeFill(cell.fill)) {
+        cell.fill = { type: 'pattern', pattern: 'none' };
+      }
+    });
+  });
+}
+
+/**
+ * Limpa os textos fixos da estação de serviço para que o Excel e o PDF fiquem
+ * iguais em todos os campos. No PDF a área I61:L61 é ocupada apenas pelo
+ * carimbo oficial.
+ */
+export function clearCertificateStationText(worksheet: ExcelJS.Worksheet) {
+  const ranges: Array<[number, number, number, number]> = [
+    [48, 7, 49, 10], // G48:J49
+    [61, 9, 61, 12], // I61:L61
+  ];
+
+  for (const [top, left, bottom, right] of ranges) {
+    for (let row = top; row <= bottom; row += 1) {
+      for (let col = left; col <= right; col += 1) {
+        const cell = worksheet.getCell(row, col);
+        if (cell.isMerged && cell.master && cell.master.address !== cell.address) continue;
+        cell.value = null;
+      }
+    }
+  }
+}
+
 function findFirstValidity(checklist: Record<string, unknown> | undefined, keys: string[]) {
   for (const key of keys) {
     const value = checklist?.[key];
@@ -464,7 +496,12 @@ function configureCertificatePrintLayout(worksheet: ExcelJS.Worksheet) {
   };
 }
 
-export async function buildOreyCertificateArtifacts(input: OreyCertificateTemplateInput) {
+/**
+ * Carrega e prepara o template para o Excel e para o PDF. Centralizar esta
+ * sequência garante que ambos os formatos têm exatamente os mesmos valores,
+ * merges, cores e áreas limpas; o PDF acrescenta apenas o carimbo.
+ */
+export async function loadFilledCertificateWorkbook(input: OreyCertificateTemplateInput) {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load((await loadTemplateBuffer('template certificado orey.xltx')) as unknown as XlsxLoadArg);
 
@@ -475,6 +512,14 @@ export async function buildOreyCertificateArtifacts(input: OreyCertificateTempla
 
   applyCertificateMerges(worksheet);
   fillTemplate(worksheet, input);
+  clearCertificateStationText(worksheet);
+  removeGreenLikeFills(worksheet);
+
+  return { workbook, worksheet };
+}
+
+export async function buildOreyCertificateArtifacts(input: OreyCertificateTemplateInput) {
+  const { workbook, worksheet } = await loadFilledCertificateWorkbook(input);
 
   // QR de verificação (Excel): insere imagem no canto inferior esquerdo, alinhado
   // com a zona do PDF (linhas 54-58, coluna A). Se não vier QR do cliente,
@@ -482,23 +527,25 @@ export async function buildOreyCertificateArtifacts(input: OreyCertificateTempla
   // campos essenciais) para manter o Excel coerente com o PDF.
   try {
     const suppliedQr = String(input.verificationQr || "").trim();
+    const verificationHash =
+      String(input.verificationHash || "").trim() ||
+      computeCertificateVerificationHash({
+        certNumber: input.certNumber,
+        raftSerial: input.raftSerial,
+        inspectionDate: input.inspectionDate,
+        shipName: input.shipName,
+        technician: input.technician,
+        clientName: input.clientName,
+        checklist: input.checklist,
+      } as any);
+
     let qrDataUrl = suppliedQr;
     if (!qrDataUrl) {
-      const hash =
-        String(input.verificationHash || "").trim() ||
-        computeCertificateVerificationHash({
-          certNumber: input.certNumber,
-          raftSerial: input.raftSerial,
-          inspectionDate: input.inspectionDate,
-          shipName: input.shipName,
-          technician: input.technician,
-          clientName: input.clientName,
-        } as any);
       const url = buildCertificateVerificationUrl(
         {
           raftSerial: input.raftSerial,
         } as any,
-        hash,
+        verificationHash,
       );
       qrDataUrl = await QRCode.toDataURL(url, { margin: 0, width: 220, errorCorrectionLevel: "M" });
     }
@@ -506,8 +553,18 @@ export async function buildOreyCertificateArtifacts(input: OreyCertificateTempla
       const base64 = qrDataUrl.split(",")[1];
       const imageId = workbook.addImage({ buffer: Buffer.from(base64, "base64") as any, extension: "png" });
       worksheet.addImage(imageId, { tl: { col: 0, row: 53 }, ext: { width: 90, height: 90 } });
-      const hashCell = worksheet.getCell("B54");
-      hashCell.value = "Verificar autenticidade";
+
+      const noteCell = worksheet.getCell("B57");
+      noteCell.value = "Verificar autenticidade";
+      noteCell.font = { name: "Arial", size: 5, color: { argb: "FF5A5A5A" } };
+      noteCell.alignment = { horizontal: "left", vertical: "middle" };
+
+      if (verificationHash) {
+        const hashCell = worksheet.getCell("B58");
+        hashCell.value = `Hash: ${verificationHash}`;
+        hashCell.font = { name: "Arial", size: 5, color: { argb: "FF5A5A5A" } };
+        hashCell.alignment = { horizontal: "left", vertical: "middle" };
+      }
     }
   } catch {
     // QR opcional: nunca deve impedir a geração do Excel.
@@ -515,15 +572,6 @@ export async function buildOreyCertificateArtifacts(input: OreyCertificateTempla
 
   // Pedido operacional: gerar o certificado Excel sem o logo da marca da jangada.
   // Mantemos os dados técnicos e layout original, apenas sem inserir imagem de marca.
-
-  // Remove green fills from all cells
-  worksheet.eachRow({ includeEmpty: true }, (row) => {
-    row.eachCell({ includeEmpty: true }, (cell) => {
-      if (isGreenLikeFill(cell.fill)) {
-        cell.fill = { type: 'pattern', pattern: 'none' };
-      }
-    });
-  });
 
   // Configure page setup for A4 printing
   configureCertificatePrintLayout(worksheet);

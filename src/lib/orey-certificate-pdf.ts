@@ -1,14 +1,9 @@
 import jsPDF from "jspdf";
-import ExcelJS from "exceljs";
-import { loadTemplateBuffer } from "@/lib/template-loader";
 import {
-  applyCertificateMerges,
-  fillTemplate,
+  loadFilledCertificateWorkbook,
   type OreyCertificateTemplateInput,
 } from "@/lib/orey-certificate-template";
 import { imageSizeFromDataUrl, renderWorksheetToPdf } from "@/lib/xlsx-worksheet-render";
-
-type XlsxLoadArg = Parameters<ExcelJS.Xlsx["load"]>[0];
 
 export type OreyCertificatePdfStamp = {
   /** Imagem do carimbo oficial (data URL). */
@@ -40,35 +35,6 @@ function imageFormat(dataUrl: string): "PNG" | "JPEG" | "WEBP" {
 }
 
 /**
- * Limpa a área G48:J49 do template (nome da estação). No certificado carimbado
- * o nome já consta no carimbo oficial, pelo que a célula do template daria
- * origem a uma repetição do nome.
- */
-function clearStationNameArea(worksheet: ExcelJS.Worksheet) {
-  for (let row = 48; row <= 49; row += 1) {
-    for (let col = 7; col <= 10; col += 1) {
-      const cell = worksheet.getCell(row, col);
-      if (cell.isMerged && cell.master && cell.master.address !== cell.address) continue;
-      cell.value = null;
-    }
-  }
-}
-
-/** Lê o template OREY, preenche-o e devolve a worksheet pronta a renderizar. */
-async function loadFilledCertificateWorksheet(input: OreyCertificateTemplateInput) {
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load((await loadTemplateBuffer("template certificado orey.xltx")) as unknown as XlsxLoadArg);
-  const worksheet = workbook.getWorksheet("CERTIFICADO") || workbook.worksheets[0];
-  if (!worksheet) {
-    throw new Error("Folha CERTIFICADO não encontrada no template Orey.");
-  }
-  applyCertificateMerges(worksheet);
-  fillTemplate(worksheet, input);
-  clearStationNameArea(worksheet);
-  return { workbook, worksheet };
-}
-
-/**
  * Gera o certificado PDF reconstruindo fielmente o template Excel
  * (`template certificado orey.xltx`): preenche as células identificadas pelo
  * `fillTemplate` e desenha a folha inteira (colunas, linhas, merges, bordas,
@@ -81,11 +47,10 @@ export async function buildOreyCertificatePdfBuffer(
   input: OreyCertificateTemplateInput,
   options: BuildOreyCertificatePdfOptions = {},
 ): Promise<Buffer> {
-  const { workbook, worksheet } = await loadFilledCertificateWorksheet(input);
+  const { workbook, worksheet } = await loadFilledCertificateWorkbook(input);
 
   // No certificado carimbado o nome da estação consta já no carimbo oficial,
-  // pelo que a área G48:J49 do template é limpa (ver clearStationNameArea) para
-  // não repetir o nome.
+  // pelo que as áreas de texto da estação são limpas (clearCertificateStationText).
 
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const layout = renderWorksheetToPdf(doc, worksheet, workbook, {
@@ -97,15 +62,16 @@ export async function buildOreyCertificatePdfBuffer(
     logoWidthMm: 45,
   });
 
-  // Carimbo oficial ajustado ao tamanho das letras da área de assinatura (células I..L)
+  // Carimbo oficial na área I61:L61. A célula tem texto Arial 11 pt; o carimbo
+  // é dimensionado para a mesma altura de linha de texto (~4 mm), sem voltar a
+  // preencher toda a área de assinatura.
   const stampImage = options.stamp?.imageDataUrl;
   const stationName = String(options.stamp?.stationName ?? "").trim();
-  const stampRegion = layout.cellRect(61, 9, 61, 12); // Células I61:L61
+  const stampRegion = layout.cellRect(61, 9, 61, 12);
   if (isImageDataUrl(stampImage)) {
     const size = imageSizeFromDataUrl(stampImage) || { width: 574, height: 265 };
     const aspect = size.width > 0 ? size.height / size.width : 265 / 574;
-    // Ajustado para o tamanho das letras (altura máxima ~5mm, proporcional ao texto da linha)
-    let height = Math.min(stampRegion.h * 1.2, 7);
+    let height = Math.min(stampRegion.h * 0.8, 4.2);
     let width = height / aspect;
     if (width > stampRegion.w * 0.95) {
       width = stampRegion.w * 0.95;

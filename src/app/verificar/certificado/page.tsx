@@ -100,7 +100,7 @@ function VerificarCertificadoContent() {
             <p className="text-lg font-semibold">{title}</p>
             {valid === false ? (
               <p className="mt-1 text-xs">
-                O hash do PDF não coincide com os dados atuais. Pode ter sido alterado ou reemitido.
+                O hash do documento não coincide com os dados atuais. Pode ter sido alterado ou reemitido.
               </p>
             ) : null}
             {result.hash ? (
