@@ -89,6 +89,7 @@ const navSections: NavSection[] = [
             icon: '🏭',
             roles: ['ADMIN', 'USER'],
           },
+          { label: 'Técnicos & Gestão', href: '/tecnicos', icon: '👷', roles: ['ADMIN', 'USER'] },
           {
             label: 'Estatísticas da Estação',
             href: '/estatisticas',
@@ -356,6 +357,9 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
     [OT_CREATION_ROUTE]: 'obras',
     [LEGACY_OT_CREATION_ROUTE]: 'obras',
     '/departamento-tecnico': 'departamento-tecnico',
+    '/marinha': 'marinha',
+    '/globalfishazores': 'globalfishazores',
+    '/survitec-auditoria': 'survitec-auditoria',
     '/dgrm': 'dgrm',
     '/auditorias': 'auditorias',
     '/fotos': 'fotos',
