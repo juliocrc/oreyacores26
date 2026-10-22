@@ -40,7 +40,7 @@ function buildInput(): OreyCertificateTemplateInput {
 }
 
 describe("buildOreyCertificateArtifacts", () => {
-  it("gera o Excel com os mesmos campos do PDF e áreas da estação limpas", async () => {
+  it("gera o Excel com G48 preenchido e sem alterar os tamanhos de letra do template", async () => {
     const artifacts = await buildOreyCertificateArtifacts(buildInput());
     expect(artifacts.buffer.length).toBeGreaterThan(5000);
 
@@ -48,10 +48,19 @@ describe("buildOreyCertificateArtifacts", () => {
     await workbook.xlsx.load(artifacts.buffer as unknown as Parameters<ExcelJS.Xlsx["load"]>[0]);
     const worksheet = workbook.getWorksheet("CERTIFICADO") || workbook.worksheets[0];
 
-    expect(worksheet.getCell("G48").value).toBeNull();
+    expect(String(worksheet.getCell("G48").value || "")).toContain("50937");
     expect(worksheet.getCell("I61").value).toBeNull();
+    expect(worksheet.getCell("I62").value).toBe("For authorized servicing station");
     expect(worksheet.getCell("B57").value).toBe("Verificar autenticidade");
     expect(String(worksheet.getCell("B58").value || "")).toMatch(/^Hash: [a-f0-9]{16}$/);
     expect(worksheet.getImages().length).toBeGreaterThan(0);
+
+    expect(worksheet.getCell("A8").font.size).toBe(8);
+    expect(worksheet.getCell("I3").font.size).toBe(12);
+    expect(worksheet.getCell("I4").font.size).toBe(8);
+    expect(worksheet.getCell("I5").font.size).toBe(8);
+    expect(worksheet.getCell("B56").font.size).toBe(8);
+    expect(worksheet.getCell("B57").font.size).toBe(5);
+    expect(worksheet.getCell("B58").font.size).toBe(5);
   }, 60000);
 });

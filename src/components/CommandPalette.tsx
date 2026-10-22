@@ -36,7 +36,9 @@ const QUICK_ACTIONS: QuickAction[] = [
   { id: "relatorios", label: "Relatórios", description: "Relatórios e estatísticas", href: "/relatorios", icon: "📊", keywords: ["relatorios", "relatorio", "estatisticas"] },
   { id: "logistica", label: "Logística", description: "Gestão logística", href: "/logistica", icon: "🚛", keywords: ["logistica", "transporte", "entregas"] },
   { id: "utilizadores", label: "Utilizadores", description: "Gestão de contas", href: "/utilizadores", icon: "⚙️", keywords: ["utilizadores", "users", "contas", "admin"] },
-  { id: "estacoes", label: "Estações de Serviço", description: "Gestão de estações e multi-estação", href: "/estacoes", icon: "🏭", keywords: ["estacoes", "estacao", "servico", "multi", "stations"] },
+   { id: "estacoes", label: "Estações de Serviço", description: "Gestão de estações e multi-estação", href: "/estacoes", icon: "🏭", keywords: ["estacoes", "estacao", "servico", "multi", "stations"] },
+   { id: "marinha", label: "Marinha Portuguesa", description: "Frotas e embarcações da Marinha e ISN", href: "/marinha", icon: "🛡️", keywords: ["marinha", "portuguesa", "isn", "navios", "açores"] },
+   { id: "globalfishazores", label: "GlobalFishAzores Intelligence", description: "Rastreio GFW, Skylight e frotas de pesca", href: "/globalfishazores", icon: "🌐", keywords: ["globalfishazores", "gfw", "skylight", "pesca", "ais", "dark vessels"] },
 ];
 
 const TYPE_ICONS: Record<string, string> = {

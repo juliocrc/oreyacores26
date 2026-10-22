@@ -100,6 +100,10 @@ const navSections: NavSection[] = [
           { label: 'Logística', href: '/logistica', icon: '🚚', roles: ['ADMIN'] },
           { label: 'Porto de Ponta Delgada', href: '/porto-ponta-delgada', icon: '⚓', roles: ['ADMIN', 'USER'] },
           { label: 'Navios de Contentores', href: '/contentores', icon: '🚢', roles: ['ADMIN', 'USER'] },
+           { label: 'Marinha Portuguesa', href: '/marinha', icon: '🛡️', roles: ['ADMIN', 'USER'] },
+           { label: 'GlobalFishAzores', href: '/globalfishazores', icon: '🌐', roles: ['ADMIN', 'USER'] },
+           { label: 'DGRM Vistorias', href: '/dgrm', icon: '📜', roles: ['ADMIN', 'USER'] },
+           { label: 'Auditoria Survitec', href: '/survitec-auditoria', icon: '🔍', roles: ['ADMIN', 'USER'] },
           { label: 'Alertas', href: '/alertas', icon: '🚨', roles: ['ADMIN', 'USER'] },
           {
             label: 'Pedidos de Assistência',
@@ -159,9 +163,7 @@ const navSections: NavSection[] = [
     label: 'Clientes',
     items: [
       { label: 'Clientes', href: '/clientes', icon: '👥', roles: ['ADMIN', 'USER'] },
-      { label: 'Técnicos', href: '/tecnicos', icon: '🧑‍🔧', roles: ['ADMIN'] },
-      { label: 'Comunicações', href: '/comunicacoes', icon: '📨', roles: ['ADMIN'] },
-      { label: 'WhatsApp', href: '/whatsapp', icon: '💬', roles: ['ADMIN'] },
+       { label: 'Comunicações & VoIP', href: '/comunicacoes', icon: '📨', roles: ['ADMIN', 'USER'] },
     ],
   },
   {
@@ -320,6 +322,7 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
   const visiblePagePrefixes = Array.isArray(user?.permissions?.visiblePages)
     ? user.permissions.visiblePages.map(item => String(item))
     : [];
+  const stationWideModuleKeys = new Set<string>(['ia-importacao']);
   const moduleKeyByHref: Record<string, string> = {
     '/': 'dashboard',
 
@@ -331,6 +334,7 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
     '/alertas': 'alertas',
     '/pedidos-assistencia': 'pedidos-assistencia',
     '/inspecoes': 'jangadas',
+    '/ia-importacao': 'ia-importacao',
 
     '/relatorios': 'relatorios',
     '/jangadas': 'jangadas',
@@ -369,6 +373,9 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
       items: section.items.filter(item => {
         const key = moduleKeyByHref[item.href] || item.href;
         if (hiddenModuleKeys.has(key)) return false;
+        if (stationWideModuleKeys.has(key) && (!item.roles || item.roles.includes(userRole))) {
+          return userRole !== 'CLIENTE';
+        }
         const explicitlyGranted =
           visibleModuleKeys.has(key) ||
           visiblePagePrefixes.some(prefix => pathMatchesPrefix(item.href, prefix));

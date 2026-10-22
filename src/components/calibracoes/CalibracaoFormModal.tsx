@@ -1,9 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { appToast } from "@/lib/app-toast";
 import { agruparTipoOpcoes } from "@/lib/calibracoes";
-import type { CalibracaoFormState, TipoOpcao } from "@/lib/calibracoes";
+import type { CalibracaoFormState, CalibracaoHistoricoRegisto, TipoOpcao } from "@/lib/calibracoes";
+
+type StationOption = {
+  id: number;
+  nome: string;
+  codigo?: string;
+};
 
 type Props = {
   editId: number | null;
@@ -17,7 +23,51 @@ type Props = {
 
 export function CalibracaoFormModal({ editId, form, opcoesTipo, onChange, onSubmit, onClose, titulo }: Props) {
   const [uploading, setUploading] = useState(false);
+  const [stations, setStations] = useState<StationOption[]>([]);
+  const [historico, setHistorico] = useState<CalibracaoHistoricoRegisto[] | null>(null);
   const grupos = agruparTipoOpcoes(opcoesTipo);
+
+  function formatDate(value: string | null | undefined) {
+    if (!value) return "—";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString("pt-PT");
+  }
+
+  function formatDateTime(value: string | null | undefined) {
+    if (!value) return "—";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString("pt-PT");
+  }
+
+  useEffect(() => {
+    if (!editId) return;
+    let cancelled = false;
+    fetch("/api/service-stations", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((json) => {
+        if (!cancelled && Array.isArray(json)) setStations(json as StationOption[]);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [editId]);
+
+  useEffect(() => {
+    if (!editId) return;
+    let cancelled = false;
+    fetch(`/api/equipamentos-calibracao/${editId}/historico`, { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((json) => {
+        if (!cancelled) setHistorico(Array.isArray(json) ? (json as CalibracaoHistoricoRegisto[]) : []);
+      })
+      .catch(() => {
+        if (!cancelled) setHistorico([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [editId]);
 
   async function handleUpload(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -86,6 +136,35 @@ export function CalibracaoFormModal({ editId, form, opcoesTipo, onChange, onSubm
               </select>
             </div>
 
+            {editId && (
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                  Estação
+                </label>
+                <select
+                  value={form.serviceStationId ?? ""}
+                  onChange={(e) =>
+                    onChange({
+                      ...form,
+                      serviceStationId: e.target.value ? Number(e.target.value) : null,
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-600"
+                >
+                  <option value="">Sem estação atribuída</option>
+                  {stations.map((station) => (
+                    <option key={station.id} value={station.id}>
+                      {station.nome}
+                      {station.codigo ? ` (${station.codigo})` : ""}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-[11px] text-slate-400">
+                  Define em que estação este instrumento aparece.
+                </p>
+              </div>
+            )}
+
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
                 Referência / Código *
@@ -140,6 +219,44 @@ export function CalibracaoFormModal({ editId, form, opcoesTipo, onChange, onSubm
                 />
               </div>
             </div>
+
+            {editId && (historico === null || historico.length > 0) && (
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                  Histórico de recalibrações
+                </label>
+                {historico === null ? (
+                  <p className="text-xs text-slate-400">A carregar histórico...</p>
+                ) : (
+                  <div className="max-h-48 space-y-2 overflow-y-auto pr-1">
+                    {historico.map((registo) => (
+                      <div
+                        key={registo.id}
+                        className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 space-y-1"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-bold text-slate-700">
+                            {formatDate(registo.dataCalibracao)} → {formatDate(registo.dataProxCalibracao)}
+                          </span>
+                          <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                            {registo.registadoPor || "sistema"}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500">
+                          Certificado: {registo.certificadoNum || "—"}
+                        </p>
+                        {registo.observacoes && (
+                          <p className="text-[11px] text-slate-500 line-clamp-2">{registo.observacoes}</p>
+                        )}
+                        <p className="text-[10px] text-slate-400">
+                          Substituída em {formatDateTime(registo.createdAt)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">

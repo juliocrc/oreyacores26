@@ -256,6 +256,31 @@ export async function GET(req: NextRequest) {
     eventos = await prisma.agendaEvento.findMany({ where, orderBy: { date: "desc" } });
   }
 
+  // Se uma jangada já foi entregue, retirar da agenda
+  const raftSerials = Array.from(new Set(eventos.map((e) => e.raftSerial).filter(Boolean)));
+  if (raftSerials.length > 0) {
+    const queues = await prisma.serviceStationQueue.findMany({
+      where: { jangada: { serial: { in: raftSerials } } },
+      select: { observacoes: true, jangada: { select: { serial: true } } },
+    });
+    const deliveredSerials = new Set<string>();
+    for (const q of queues) {
+      if (q.jangada?.serial && q.observacoes) {
+        try {
+          const parsed = JSON.parse(q.observacoes);
+          if (parsed && typeof parsed === "object" && (parsed.deliveredAt || parsed.entregue)) {
+            deliveredSerials.add(q.jangada.serial.toUpperCase());
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+    if (deliveredSerials.size > 0) {
+      eventos = eventos.filter((ev) => !deliveredSerials.has(String(ev.raftSerial || "").toUpperCase()));
+    }
+  }
+
   // Fetch technician absences/vacations and map them to Agenda events
   let absencesEvents: AgendaApiEvent[] = [];
   if (!raftSerial) {

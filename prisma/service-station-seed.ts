@@ -66,6 +66,15 @@ export const SERVICE_STATION_SEED: ServiceStationSeedItem[] = [
     aliases: ["aveleda", "norte", "leixões", "leixoes", "orey aveleda", "leixoes.tecnica"],
   },
   {
+    codigo: "SETUBAL",
+    nome: "Setúbal",
+    empresa: "Orey",
+    localizacao: "Setúbal",
+    territorioTipo: "MAINLAND",
+    regiaoOperacional: "SUL",
+    aliases: ["setubal", "setúbal", "azimute", "orey setubal", "orey setúbal"],
+  },
+  {
     codigo: "ALCATARILHA",
     nome: "Alcantarilha",
     empresa: "Orey Técnica – Serviços Navais, Lda.",

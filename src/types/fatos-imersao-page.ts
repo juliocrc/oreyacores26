@@ -36,6 +36,11 @@ export type FatoImersao = {
   leakPressaoKpa?: string | null;
   leakResultado?: string | null;
   codigoBER?: string | null;
+  certificado?: {
+    numeroCertificado?: string | null;
+    resultado?: string | null;
+    dataValidade?: string | null;
+  } | null;
 };
 
 export type FatoImersaoForm = {

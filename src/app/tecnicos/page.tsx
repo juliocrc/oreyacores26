@@ -5,6 +5,7 @@ import * as XLSX from "xlsx";
 import { APP_CONFIG } from "@/lib/app-config";
 import type { TecnicosPayload, AusenciasPayload, AusenciaItem, CertificacaoItem, TecnicoRow } from "@/types/tecnicos-page";
 import { toDateInput, emptyPayload } from "@/lib/tecnicos-page-helpers";
+import { countWorkingDays } from "@/lib/working-days";
 import { TecnicoFormModal } from "@/components/tecnicos/TecnicoFormModal";
 import { TecnicoTabela } from "@/components/tecnicos/TecnicoTabela";
 import type { TecnicoFormState } from "@/components/tecnicos/TecnicoFormModal";
@@ -720,30 +721,12 @@ export default function TecnicosPage() {
               const prevYear = currentYear - 1;
               const direitoBase = 22; // Direito legal anual padrão (dias úteis)
 
-              const calcDays = (s: string, e: string) => {
-                const p1 = String(s || "").split("T")[0].split("-");
-                const p2 = String(e || "").split("T")[0].split("-");
-                if (p1.length !== 3 || p2.length !== 3) return 0;
-                const d1 = Date.UTC(Number(p1[0]), Number(p1[1]) - 1, Number(p1[2]));
-                const d2 = Date.UTC(Number(p2[0]), Number(p2[1]) - 1, Number(p2[2]));
-                if (isNaN(d1) || isNaN(d2) || d2 < d1) return 0;
-                let count = 0;
-                let curr = d1;
-                const oneDay = 24 * 60 * 60 * 1000;
-                while (curr <= d2) {
-                  const dayOfWeek = new Date(curr).getUTCDay();
-                  if (dayOfWeek !== 0 && dayOfWeek !== 6) count++;
-                  curr += oneDay;
-                }
-                return count;
-              };
-
               const feriasList = ausencias.filter((a) => a.tipo === "ferias");
               
               // Férias gozadas no ano anterior (2025)
               const diasGozadosAnterior = feriasList
                 .filter((a) => new Date(a.dataInicio).getFullYear() === prevYear)
-                .reduce((acc, a) => acc + calcDays(a.dataInicio, a.dataFim), 0);
+                .reduce((acc, a) => acc + countWorkingDays(a.dataInicio, a.dataFim), 0);
 
                // Acumulado/transitado do ano anterior (Júlio Correia = 55 dias, Alex Santos/Campos = 10 dias)
                const nomeTec = String(selectedTecnico || "").toLowerCase();
@@ -754,7 +737,7 @@ export default function TecnicosPage() {
               // Férias marcadas no ano corrente (2026)
               const diasMarcadosCorrente = feriasList
                 .filter((a) => new Date(a.dataInicio).getFullYear() === currentYear)
-                .reduce((acc, a) => acc + calcDays(a.dataInicio, a.dataFim), 0);
+                .reduce((acc, a) => acc + countWorkingDays(a.dataInicio, a.dataFim), 0);
 
               // Total disponível = Direito anual + Acumulado anterior
               const totalDisponivel = direitoBase + acumuladoAnterior;
@@ -795,7 +778,7 @@ export default function TecnicosPage() {
                     <th className="px-3 py-2 font-semibold">Tipo</th>
                     <th className="px-3 py-2 font-semibold">Início</th>
                     <th className="px-3 py-2 font-semibold">Fim</th>
-                    <th className="px-3 py-2 font-semibold">Dias</th>
+                    <th className="px-3 py-2 font-semibold">Dias úteis</th>
                     <th className="px-3 py-2 font-semibold">Motivo</th>
                     <th className="px-3 py-2 font-semibold">Ações</th>
                   </tr>
@@ -811,12 +794,8 @@ export default function TecnicosPage() {
                     </tr>
                   ) : (
                     ausencias.map((item) => {
-                      const d1 = new Date(item.dataInicio);
-                      const d2 = new Date(item.dataFim);
                       const daysCount =
-                        item.tipo === "ferias" && !isNaN(d1.getTime()) && !isNaN(d2.getTime())
-                          ? Math.max(1, Math.round((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24)) + 1)
-                          : "—";
+                        item.tipo === "ferias" ? countWorkingDays(item.dataInicio, item.dataFim) : "—";
                       return (
                         <tr key={item.id}>
                           <td className="px-3 py-2">

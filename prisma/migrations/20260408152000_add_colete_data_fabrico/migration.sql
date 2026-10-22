@@ -1,2 +1,0 @@
-ALTER TABLE "Colete"
-ADD COLUMN IF NOT EXISTS "dataFabrico" TEXT;

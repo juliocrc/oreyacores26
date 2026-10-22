@@ -157,6 +157,25 @@ export async function saveFile(folder: FolderType, originalName: string, bytes: 
   return finalName;
 }
 
+async function readLocalStoredFile(folder: FolderType, safeRelativePath: string, safe: string) {
+  const primaryPath = path.join(folderLocalPath(folder), ...safeRelativePath.split('/'));
+  const calibrationFallback =
+    folder === "documentacao" ? path.join(process.cwd(), "public", "calibraçoes", safe) : null;
+  const filePath = existsSync(primaryPath)
+    ? primaryPath
+    : calibrationFallback && existsSync(calibrationFallback)
+      ? calibrationFallback
+      : null;
+
+  if (!filePath) return null;
+
+  return {
+    buffer: await readFile(filePath),
+    contentType: inferContentType(safe),
+    filename: safe,
+  };
+}
+
 export async function readStoredFile(folder: FolderType, filename: string) {
   const safeRelativePath = sanitizeRelativePath(filename);
   if (!safeRelativePath) return null;
@@ -164,26 +183,19 @@ export async function readStoredFile(folder: FolderType, filename: string) {
 
   if (storageEnabled()) {
     const blob = await findBlob(folder, safeRelativePath);
-    if (!blob) return null;
-
-    const response = await fetch(blob.url, { cache: "no-store" });
-    if (!response.ok) return null;
-
-    return {
-      buffer: Buffer.from(await response.arrayBuffer()),
-      contentType: response.headers.get("content-type") || inferContentType(safe),
-      filename: safe,
-    };
+    if (blob) {
+      const response = await fetch(blob.url, { cache: "no-store" });
+      if (response.ok) {
+        return {
+          buffer: Buffer.from(await response.arrayBuffer()),
+          contentType: response.headers.get("content-type") || inferContentType(safe),
+          filename: safe,
+        };
+      }
+    }
   }
 
-  const filePath = path.join(folderLocalPath(folder), ...safeRelativePath.split('/'));
-  if (!existsSync(filePath)) return null;
-
-  return {
-    buffer: await readFile(filePath),
-    contentType: inferContentType(safe),
-    filename: safe,
-  };
+  return readLocalStoredFile(folder, safeRelativePath, safe);
 }
 
 export async function deleteStoredFile(folder: FolderType, filename: string) {

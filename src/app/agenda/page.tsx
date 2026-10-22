@@ -89,6 +89,7 @@ function AgendaPage() {
     exportingFormat, setExportingFormat 
   } = useAgendaStore();
 
+  const [activeStationName, setActiveStationName] = useState<string>("");
   const reloadAgendaDataRef = useRef<(() => Promise<void>) | null>(null);
   const MAX_SIMULTANEOUS_INSPECTIONS = 6;
   const MAX_PAUSED_INSPECTIONS = 3;
@@ -456,6 +457,19 @@ const formatDate = (value?: string | null) => {
         const naviosData = naviosRes.ok ? await safeReadJson(naviosRes) : [];
         const agendaData = agendaRes.ok ? await safeReadJson(agendaRes) : [];
         const stationData = stationRes.ok ? await safeReadJson(stationRes) : [];
+
+        // Fetch active station name for panel header
+        try {
+          const activeStationRes = await fetch("/api/active-service-station", { cache: "no-store" });
+          if (activeStationRes.ok) {
+            const activeStationData = await activeStationRes.json();
+            if (activeStationData?.activeStation?.nome) {
+              setActiveStationName(activeStationData.activeStation.nome);
+            }
+          }
+        } catch {
+          // Ignore errors fetching active station name
+        }
 
         const dbRafts = normalizeList<AgendaRaft>(raftsData);
         const dbNavios = normalizeList<NavioItem>(naviosData);
@@ -1513,11 +1527,11 @@ const formatDate = (value?: string | null) => {
           )}
         </div>
         <aside className="xl:col-span-4 space-y-4 xl:order-first">
-          {/* Service Station Queue Panel */}
+{/* Service Station Queue Panel */}
           <div className="bg-white rounded-xl border border-indigo-200 p-4">
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-sm font-semibold text-indigo-900 flex items-center gap-2">
-                <span>🏭</span> Na Estação de Serviço
+                <span>🏭</span> Na Estação de Serviço: {activeStationName || "—"}
               </h2>
               <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">
                 {unscheduledServiceStation.length}

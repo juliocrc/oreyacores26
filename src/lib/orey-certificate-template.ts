@@ -167,13 +167,11 @@ export function removeGreenLikeFills(worksheet: ExcelJS.Worksheet) {
 }
 
 /**
- * Limpa os textos fixos da estação de serviço para que o Excel e o PDF fiquem
- * iguais em todos os campos. No PDF a área I61:L61 é ocupada apenas pelo
- * carimbo oficial.
+ * Limpa a área reservada ao carimbo oficial no PDF (I61:L61). O nome da
+ * estação em G48 é mantido em ambos os certificados.
  */
 export function clearCertificateStationText(worksheet: ExcelJS.Worksheet) {
   const ranges: Array<[number, number, number, number]> = [
-    [48, 7, 49, 10], // G48:J49
     [61, 9, 61, 12], // I61:L61
   ];
 
@@ -214,6 +212,16 @@ function combineBrandAndModel(brand: unknown, model: unknown) {
 
 function setText(cell: ExcelJS.Cell, value: unknown) {
   cell.value = asString(value);
+}
+
+/**
+ * O ExcelJS partilha objetos de estilo entre células quando o template é
+ * carregado. Alterar `cell.font` diretamente pode propagar a fonte para outras
+ * células (por exemplo B56/A8/I3/I4). Clonar o estilo antes de o alterar isola
+ * a alteração à célula pretendida.
+ */
+function isolateCellStyle(cell: ExcelJS.Cell) {
+  cell.style = JSON.parse(JSON.stringify(cell.style ?? {})) as ExcelJS.Style;
 }
 
 function formatValueWithUnit(value: unknown, unit: string) {
@@ -514,6 +522,7 @@ export async function loadFilledCertificateWorkbook(input: OreyCertificateTempla
   fillTemplate(worksheet, input);
   clearCertificateStationText(worksheet);
   removeGreenLikeFills(worksheet);
+  configureCertificatePrintLayout(worksheet);
 
   return { workbook, worksheet };
 }
@@ -555,12 +564,14 @@ export async function buildOreyCertificateArtifacts(input: OreyCertificateTempla
       worksheet.addImage(imageId, { tl: { col: 0, row: 53 }, ext: { width: 90, height: 90 } });
 
       const noteCell = worksheet.getCell("B57");
+      isolateCellStyle(noteCell);
       noteCell.value = "Verificar autenticidade";
       noteCell.font = { name: "Arial", size: 5, color: { argb: "FF5A5A5A" } };
       noteCell.alignment = { horizontal: "left", vertical: "middle" };
 
       if (verificationHash) {
         const hashCell = worksheet.getCell("B58");
+        isolateCellStyle(hashCell);
         hashCell.value = `Hash: ${verificationHash}`;
         hashCell.font = { name: "Arial", size: 5, color: { argb: "FF5A5A5A" } };
         hashCell.alignment = { horizontal: "left", vertical: "middle" };
@@ -572,9 +583,6 @@ export async function buildOreyCertificateArtifacts(input: OreyCertificateTempla
 
   // Pedido operacional: gerar o certificado Excel sem o logo da marca da jangada.
   // Mantemos os dados técnicos e layout original, apenas sem inserir imagem de marca.
-
-  // Configure page setup for A4 printing
-  configureCertificatePrintLayout(worksheet);
 
   const written = await workbook.xlsx.writeBuffer();
   const buffer = Buffer.isBuffer(written) ? written : Buffer.from(written as ArrayBuffer);

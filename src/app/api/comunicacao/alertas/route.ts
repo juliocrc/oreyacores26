@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getAccessContext } from "@/lib/access-control";
 import { getCanonicalNavioLocationLabel } from "@/lib/navios-page-helpers";
+import { sendEmail } from "@/lib/email-sender";
 
 export const runtime = "nodejs";
 
@@ -161,8 +162,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Parâmetros obrigatórios em falta." }, { status: 400 });
     }
 
-    // Simulate sending (mock call delay)
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    // Simulate sending (mock call delay) or real email dispatch
+    if (channel === "email") {
+      const emailResult = await sendEmail({
+        to: contact,
+        subject: `Alerta de Inspeção de Jangada - Série ${serial} (${shipName})`,
+        text: message,
+      });
+      if (!emailResult.ok) {
+        return NextResponse.json({ error: emailResult.error || "Não foi possível enviar o email." }, { status: 500 });
+      }
+    } else {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+    }
 
     // Log the successful notification inside Auditoria table
     const log = await prisma.auditoria.create({

@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { 
   FileText, Receipt, Search, Loader2, Save, Download, 
   CheckCircle2, AlertCircle, Edit3, RefreshCcw, Percent, 
-  DollarSign, Wrench, ShieldCheck, Zap, Link2, Check, 
+  DollarSign, ShieldCheck, Zap, Link2, Check, 
   TrendingUp, PieChart, Building2, BarChart3, Wallet, MessageSquare, CreditCard,
   CalendarRange, Award, FileMinus, Gauge, Plus, Trash2, Package
 } from "lucide-react";
@@ -57,6 +57,16 @@ type OrdemItem = {
     faturaEmitidaPor?: string;
     pagamentoStatus?: string;
     linhas?: OrcamentoLinha[];
+    materials?: Array<{
+      id?: string | null;
+      stockId?: number | string | null;
+      referencia?: string | null;
+      descricao?: string | null;
+      quantidadePrevista?: number | null;
+      quantidadeUsada?: number | null;
+      precoUnitario?: number | null;
+      origem?: string | null;
+    }>;
   } | null;
   jangada?: { serial?: string | null; brand?: string | null; model?: string | null; owner?: string | null; shipNameManual?: string | null } | null;
   cliente?: { id?: number; nome?: string | null; nif?: string | null; morada?: string | null; localidade?: string | null; ilha?: string | null } | null;
@@ -113,7 +123,6 @@ export default function FaturacaoConsolePage() {
 
   // Editable fields for selected order
   const [editPecas, setEditPecas] = useState("0");
-  const [editMaoObra, setEditMaoObra] = useState("0");
   const [editDesconto, setEditDesconto] = useState("0");
   const [editIsentoIva, setEditIsentoIva] = useState(false);
   const [editOrcamentoStatus, setEditOrcamentoStatus] = useState("Rascunho");
@@ -146,7 +155,6 @@ export default function FaturacaoConsolePage() {
     setSelectedId(ordem.id);
     selectedIdRef.current = ordem.id;
     setEditPecas(String(ordem.valorPecas ?? 0));
-    setEditMaoObra(String(ordem.valorMaoObra ?? 0));
     setEditDesconto(String(ordem.valorDesconto ?? 0));
     setEditIsentoIva(Boolean(ordem.isIsentoIva));
     setEditOrcamentoStatus(ordem.orcamentoStatus || "Rascunho");
@@ -272,7 +280,7 @@ export default function FaturacaoConsolePage() {
       const res = await fetch(`/api/ordens-servico/${selectedOrder.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ linhas }),
+        body: JSON.stringify({ linhas, valorPecas: linhasTotal, valorMaoObra: 0 }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
@@ -343,23 +351,152 @@ export default function FaturacaoConsolePage() {
   const faturaEmitida = Boolean(faturaNumero);
   const faturaCancelada = faturaEmitida && (selectedOrder?.metadados?.pagamentoStatus === "Cancelado");
 
-  // Fetch stock options for line item selection
+  // Carrega stock e, se o orçamento ainda não tem linhas, gera-as a partir da
+  // inspeção da jangada (serviço + todos os artigos com referência).
+  const derivedLinesOrderRef = useRef<number | null>(null);
   useEffect(() => {
-    if (!selectedOrder) return;
+    if (!selectedOrder || faturaEmitida) return;
+    if (linhas.length > 0) return;
+    if (derivedLinesOrderRef.current === selectedOrder.id) return;
+
+    let cancelled = false;
     fetch(`/api/ordens-servico/${selectedOrder.id}/apoio-orcamento`)
       .then((r) => r.json())
-      .then((data) => {
+      .then(async (data) => {
+        if (cancelled) return;
         if (Array.isArray(data?.stock)) setStockOptions(data.stock);
+
+        const stockList = Array.isArray(data?.stock) ? data.stock : [];
+        const normalize = (value: unknown) =>
+          String(value ?? "")
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .trim()
+            .toUpperCase();
+        const stockByRef = new Map<string, any>();
+        const stockByDesc = new Map<string, any>();
+        for (const item of stockList) {
+          if (item?.referencia) stockByRef.set(normalize(item.referencia), item);
+          if (item?.descricao) stockByDesc.set(normalize(item.descricao), item);
+        }
+
+        // O orçamento sincronizado guarda os artigos e serviços em
+        // `metadados.materials` (com referência e preço). É essa a fonte
+        // verdadeira para as linhas — mantém o total e as referências.
+        const materiais = Array.isArray(selectedOrder.metadados?.materials)
+          ? selectedOrder.metadados.materials
+          : [];
+        const derived: OrcamentoLinha[] = [];
+
+        if (materiais.length > 0) {
+          materiais.forEach((material, idx) => {
+            const referencia = String(material?.referencia || "").trim();
+            const descricao = String(material?.descricao || "Artigo").trim();
+            const quantidade = Math.max(
+              1,
+              Number(material?.quantidadeUsada) || Number(material?.quantidadePrevista) || 1,
+            );
+            const unitPrice = Math.max(0, Number(material?.precoUnitario) || 0);
+            const isServico =
+              /^L-/i.test(referencia) ||
+              /inspe|teste|limpeza|marca|certific|carga/i.test(descricao);
+            derived.push({
+              id: String(material?.id || `material-${idx}`),
+              stockId: material?.stockId ?? null,
+              referencia,
+              descricao,
+              quantidade,
+              unitPrice,
+              total: quantidade * unitPrice,
+              source: isServico ? "service" : "stock",
+            });
+          });
+        } else if (Number(selectedOrder.valorPecas || 0) === 0) {
+          const artigos = Array.isArray(data?.artigosJangada) ? data.artigosJangada : [];
+          const seen = new Set<string>();
+          artigos.forEach((artigo: any, idx: number) => {
+            const referencia = String(artigo?.referenciaExibida || artigo?.referencia || "").trim();
+            const descricao = String(artigo?.descricao || artigo?.name || "Artigo").trim();
+            const key = `${normalize(referencia)}|${normalize(descricao)}`;
+            if (seen.has(key)) return;
+            seen.add(key);
+
+            const stock =
+              (referencia ? stockByRef.get(normalize(referencia)) : null) ||
+              (descricao ? stockByDesc.get(normalize(descricao)) : null);
+            const quantidade = Math.max(1, Number(artigo?.quantidade) || 1);
+            const unitPrice = Math.max(0, Number(stock?.precoVenda) || 0);
+            derived.push({
+              id: `insp-art-${artigo?.id ?? idx}`,
+              stockId: stock?.id ?? null,
+              referencia,
+              descricao,
+              quantidade,
+              unitPrice,
+              total: quantidade * unitPrice,
+              source: stock ? "stock" : "componente",
+            });
+          });
+        }
+
+        const valorPecasAtual = Number(selectedOrder.valorPecas || 0);
+        if (derived.length === 0 && valorPecasAtual > 0) {
+          derived.push({
+            id: "legacy-total",
+            referencia: selectedOrder.numeroOrdem || `#${selectedOrder.id}`,
+            descricao: "Serviços e materiais aplicados",
+            quantidade: 1,
+            unitPrice: valorPecasAtual,
+            total: valorPecasAtual,
+            source: "service",
+          });
+        }
+
+        if (derived.length === 0) return;
+        derivedLinesOrderRef.current = selectedOrder.id;
+        setLinhas(derived);
+        const total = derived.reduce((acc, linha) => acc + linha.total, 0);
+        setEditPecas(total.toFixed(2));
+
+        // Guarda automaticamente para que orçamento, fatura e restantes
+        // documentos mostrem exatamente as mesmas linhas e referências.
+        if (total > 0) {
+          try {
+            const res = await fetch(`/api/ordens-servico/${selectedOrder.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ linhas: derived, valorPecas: total, valorMaoObra: 0 }),
+            });
+            if (res.ok) {
+              setOrders((prev) =>
+                prev.map((ordem) =>
+                  ordem.id === selectedOrder.id
+                    ? {
+                        ...ordem,
+                        valorPecas: total,
+                        valorMaoObra: 0,
+                        metadados: { ...(ordem.metadados || {}), linhas: derived },
+                      }
+                    : ordem,
+                ),
+              );
+            }
+          } catch {
+            /* mantém as linhas em ecrã; o utilizador pode guardar manualmente */
+          }
+        }
       })
       .catch(() => {});
-  }, [selectedOrder?.id]);
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedOrder?.id, faturaEmitida, linhas.length]);
 
   // Live calculations
   const numPecas = Number(editPecas) || 0;
-  const numMaoObra = Number(editMaoObra) || 0;
   const numDesconto = Number(editDesconto) || 0;
   const pecasFromLinhas = linhas.length > 0 ? linhasTotal : numPecas;
-  const subtotal = Math.max(0, pecasFromLinhas + numMaoObra - numDesconto);
+  const subtotal = Math.max(0, pecasFromLinhas - numDesconto);
   const iva = calcIva(subtotal, editIsentoIva);
   const total = subtotal + iva;
 
@@ -378,7 +515,7 @@ export default function FaturacaoConsolePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           valorPecas: linhas.length > 0 ? linhasTotal : numPecas,
-          valorMaoObra: numMaoObra,
+          valorMaoObra: 0,
           valorDesconto: numDesconto,
           isIsentoIva: editIsentoIva,
           orcamentoStatus: payloadOrcStatus,
@@ -1331,31 +1468,18 @@ export default function FaturacaoConsolePage() {
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-500 mb-1">Valor Peças / Materiais (€)</label>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">Total de Linhas (€)</label>
                       <div className="relative">
                         <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
                         <input
                           type="number"
                           step="0.01"
-                          value={editPecas}
+                          value={linhas.length > 0 ? linhasTotal.toFixed(2) : editPecas}
                           onChange={(e) => setEditPecas(e.target.value)}
-                          className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-8 pr-3 text-sm text-slate-800 focus:border-indigo-500 focus:outline-none font-mono"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-500 mb-1">Valor Inspeção de Jangada (€)</label>
-                      <div className="relative">
-                        <Wrench className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={editMaoObra}
-                          onChange={(e) => setEditMaoObra(e.target.value)}
-                          className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-8 pr-3 text-sm text-slate-800 focus:border-indigo-500 focus:outline-none font-mono"
+                          disabled={linhas.length > 0}
+                          className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-8 pr-3 text-sm text-slate-800 focus:border-indigo-500 focus:outline-none font-mono disabled:bg-slate-100"
                         />
                       </div>
                     </div>
@@ -1438,7 +1562,7 @@ export default function FaturacaoConsolePage() {
                   <div className="rounded-2xl border border-slate-200 bg-white p-6 space-y-4">
                     <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                       <h3 className="text-sm font-bold uppercase tracking-wider text-indigo-600 flex items-center gap-2">
-                        <Package size={16} /> Linhas do Orçamento
+                        <Package size={16} /> Orçamento de Oficina — Jangadas
                       </h3>
                       <div className="flex items-center gap-2">
                         {linhas.length > 0 && (
@@ -1477,72 +1601,87 @@ export default function FaturacaoConsolePage() {
                         <div className="overflow-x-auto"><table className="w-full text-left border-collapse text-sm">
                           <thead>
                             <tr className="bg-slate-50 text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                              <th className="p-3">Descrição</th>
                               <th className="p-3">Referência</th>
+                              <th className="p-3">Descrição</th>
                               <th className="p-3 text-center">Qtd</th>
                               <th className="p-3 text-right">Preço Unit.</th>
                               <th className="p-3 text-right">Total</th>
-                              <th className="p-3 text-center">Origem</th>
                               <th className="p-3 text-center">Ações</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-200">
-                            {linhas.map((linha) => (
-                              <tr key={linha.id} className="hover:bg-slate-50">
-                                <td className="p-2">
-                                  <input
-                                    type="text"
-                                    value={linha.descricao}
-                                    onChange={(e) => updateLinha(linha.id, "descricao", e.target.value)}
-                                    className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 focus:border-indigo-400 focus:outline-none"
-                                  />
-                                </td>
-                                <td className="p-2">
-                                  <input
-                                    type="text"
-                                    value={linha.referencia}
-                                    onChange={(e) => updateLinha(linha.id, "referencia", e.target.value)}
-                                    className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 font-mono focus:border-indigo-400 focus:outline-none"
-                                  />
-                                </td>
-                                <td className="p-2">
-                                  <input
-                                    type="number"
-                                    min="1"
-                                    value={linha.quantidade}
-                                    onChange={(e) => updateLinha(linha.id, "quantidade", Number(e.target.value))}
-                                    className="w-16 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 text-center font-mono focus:border-indigo-400 focus:outline-none"
-                                  />
-                                </td>
-                                <td className="p-2">
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    value={linha.unitPrice}
-                                    onChange={(e) => updateLinha(linha.id, "unitPrice", Number(e.target.value))}
-                                    className="w-24 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 text-right font-mono focus:border-indigo-400 focus:outline-none"
-                                  />
-                                </td>
-                                <td className="p-3 text-right font-mono font-bold text-slate-800 text-xs">
-                                  € {linha.total.toFixed(2)}
-                                </td>
-                                <td className="p-3 text-center">
-                                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
-                                    {linha.source}
-                                  </span>
-                                </td>
-                                <td className="p-3 text-center">
-                                  <button
-                                    onClick={() => removeLinha(linha.id)}
-                                    className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 transition"
-                                    title="Remover linha"
-                                  >
-                                    <Trash2 size={14} />
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
+                            {(["service", "material"] as const).map((group) => {
+                              const groupLines = linhas.filter((linha) =>
+                                group === "service" ? linha.source === "service" : linha.source !== "service",
+                              );
+                              if (groupLines.length === 0) return null;
+                              return (
+                                <Fragment key={group}>
+                                  <tr className={group === "service" ? "bg-indigo-50/70" : "bg-cyan-50/70"}>
+                                    <td
+                                      colSpan={6}
+                                      className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider ${
+                                        group === "service" ? "text-indigo-700" : "text-cyan-700"
+                                      }`}
+                                    >
+                                      {group === "service" ? "Serviços / Inspeção" : "Peças e Materiais"}
+                                    </td>
+                                  </tr>
+                                  {groupLines.map((linha) => (
+                                    <tr key={linha.id} className="hover:bg-slate-50">
+                                      <td className="p-2">
+                                        <input
+                                          type="text"
+                                          value={linha.referencia}
+                                          onChange={(e) => updateLinha(linha.id, "referencia", e.target.value)}
+                                          placeholder="REF"
+                                          className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 font-mono focus:border-indigo-400 focus:outline-none"
+                                        />
+                                      </td>
+                                      <td className="p-2">
+                                        <input
+                                          type="text"
+                                          value={linha.descricao}
+                                          onChange={(e) => updateLinha(linha.id, "descricao", e.target.value)}
+                                          className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 focus:border-indigo-400 focus:outline-none"
+                                        />
+                                      </td>
+                                      <td className="p-2">
+                                        <input
+                                          type="number"
+                                          min="1"
+                                          value={linha.quantidade}
+                                          onChange={(e) => updateLinha(linha.id, "quantidade", Number(e.target.value))}
+                                          className="w-16 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 text-center font-mono focus:border-indigo-400 focus:outline-none"
+                                        />
+                                      </td>
+                                      <td className="p-2">
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          step="0.01"
+                                          value={linha.unitPrice}
+                                          onChange={(e) => updateLinha(linha.id, "unitPrice", Number(e.target.value))}
+                                          className="w-24 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 text-right font-mono focus:border-indigo-400 focus:outline-none"
+                                        />
+                                      </td>
+                                      <td className="p-3 text-right font-mono font-bold text-slate-800 text-xs">
+                                        € {linha.total.toFixed(2)}
+                                      </td>
+                                      <td className="p-3 text-center">
+                                        <button
+                                          onClick={() => removeLinha(linha.id)}
+                                          className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 transition"
+                                          title="Remover linha"
+                                        >
+                                          <Trash2 size={14} />
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </Fragment>
+                              );
+                            })}
                           </tbody>
                         </table></div>
                       </div>
@@ -1694,29 +1833,55 @@ export default function FaturacaoConsolePage() {
                     <div className="overflow-x-auto"><table className="w-full text-left border-collapse text-sm">
                       <thead>
                         <tr className="bg-slate-100/80 text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                          <th className="p-3">Referência</th>
                           <th className="p-3">Descrição do Serviço / Artigo</th>
                           <th className="p-3 text-center">Qtd</th>
-                          <th className="p-3 text-right">Valor</th>
+                          <th className="p-3 text-right">Preço Unit.</th>
+                          <th className="p-3 text-right">Total</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200 font-mono text-xs">
-                        <tr>
-                          <td className="p-3 text-slate-700 font-sans">Mão-de-obra (trabalhos técnicos executados)</td>
-                          <td className="p-3 text-center">1</td>
-                          <td className="p-3 text-right font-bold text-slate-800">€ {numMaoObra.toFixed(2)}</td>
-                        </tr>
                         {linhas.length > 0 ? (
-                          linhas.map((linha) => (
-                            <tr key={linha.id}>
-                              <td className="p-3 text-slate-700 font-sans">{linha.descricao}</td>
-                              <td className="p-3 text-center">{linha.quantidade}</td>
-                              <td className="p-3 text-right font-bold text-slate-800">€ {linha.total.toFixed(2)}</td>
-                            </tr>
-                          ))
+                          <>
+                            {linhas.some((linha) => linha.source === "service") && (
+                              <tr className="bg-indigo-50/60">
+                                <td colSpan={5} className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-indigo-700 font-sans">
+                                  Serviços / Inspeção
+                                </td>
+                              </tr>
+                            )}
+                            {linhas.filter((linha) => linha.source === "service").map((linha) => (
+                              <tr key={linha.id}>
+                                <td className="p-3 text-indigo-700">{linha.referencia || "—"}</td>
+                                <td className="p-3 text-slate-700 font-sans">{linha.descricao}</td>
+                                <td className="p-3 text-center">{linha.quantidade}</td>
+                                <td className="p-3 text-right text-slate-600">€ {linha.unitPrice.toFixed(2)}</td>
+                                <td className="p-3 text-right font-bold text-slate-800">€ {linha.total.toFixed(2)}</td>
+                              </tr>
+                            ))}
+                            {linhas.some((linha) => linha.source !== "service") && (
+                              <tr className="bg-cyan-50/60">
+                                <td colSpan={5} className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-cyan-700 font-sans">
+                                  Peças e Materiais
+                                </td>
+                              </tr>
+                            )}
+                            {linhas.filter((linha) => linha.source !== "service").map((linha) => (
+                              <tr key={linha.id}>
+                                <td className="p-3 text-cyan-700">{linha.referencia || "—"}</td>
+                                <td className="p-3 text-slate-700 font-sans">{linha.descricao}</td>
+                                <td className="p-3 text-center">{linha.quantidade}</td>
+                                <td className="p-3 text-right text-slate-600">€ {linha.unitPrice.toFixed(2)}</td>
+                                <td className="p-3 text-right font-bold text-slate-800">€ {linha.total.toFixed(2)}</td>
+                              </tr>
+                            ))}
+                          </>
                         ) : (
                           <tr>
-                            <td className="p-3 text-slate-700 font-sans">Peças e Materiais aplicados</td>
+                            <td className="p-3 text-slate-400">—</td>
+                            <td className="p-3 text-slate-700 font-sans">Materiais aplicados (sem linhas detalhadas)</td>
                             <td className="p-3 text-center">1</td>
+                            <td className="p-3 text-right text-slate-600">€ {numPecas.toFixed(2)}</td>
                             <td className="p-3 text-right font-bold text-slate-800">€ {numPecas.toFixed(2)}</td>
                           </tr>
                         )}

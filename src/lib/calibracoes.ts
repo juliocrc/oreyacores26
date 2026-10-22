@@ -9,7 +9,24 @@ export type CalibracaoRegisto = {
   certificadoUrl: string | null;
   ativo: boolean;
   observacoes: string | null;
+  serviceStationId: number | null;
   updatedAt: string;
+};
+
+export type CalibracaoHistoricoRegisto = {
+  id: number;
+  calibracaoId: number | null;
+  serviceStationId: number | null;
+  nome: string;
+  referencia: string;
+  tipo: string;
+  dataCalibracao: string;
+  dataProxCalibracao: string;
+  certificadoNum: string | null;
+  certificadoUrl: string | null;
+  observacoes: string | null;
+  registadoPor: string | null;
+  createdAt: string;
 };
 
 export type CalibracaoFormState = {
@@ -22,6 +39,7 @@ export type CalibracaoFormState = {
   certificadoUrl: string;
   ativo: boolean;
   observacoes: string;
+  serviceStationId: number | null;
 };
 
 export const CALIBRACAO_TIPOS = [
@@ -100,6 +118,7 @@ export function createInitialCalibracaoForm(tipo = "barometro"): CalibracaoFormS
     certificadoUrl: "",
     ativo: true,
     observacoes: "",
+    serviceStationId: null,
   };
 }
 
@@ -116,6 +135,7 @@ export function formFromRegisto(registo: CalibracaoRegisto): CalibracaoFormState
     certificadoUrl: registo.certificadoUrl || "",
     ativo: registo.ativo,
     observacoes: registo.observacoes || "",
+    serviceStationId: registo.serviceStationId ?? null,
   };
 }
 

@@ -148,7 +148,127 @@ export type QuadroChecklistSource = {
   hruSerial?: unknown;
   dataInspecao?: unknown;
   cylinderDataTeste?: unknown;
+  substituicoes?: Array<{
+    descricao?: string | null;
+    name?: string | null;
+    referencia?: string | null;
+    quantidade?: number | null;
+    validade?: string | null;
+  }> | null;
 };
+
+type QuadroSubstituicaoRule = {
+  replacementKey: string;
+  refKey: string;
+  qtyKey: string;
+  valKey?: string;
+  matches: (text: string) => boolean;
+};
+
+const QUADRO_SUBSTITUICAO_RULES: QuadroSubstituicaoRule[] = [
+  {
+    replacementKey: 'substituicao_explicita__farmacia',
+    refKey: 'ref_farmacia',
+    qtyKey: 'qtd_farmacia',
+    valKey: 'validade_farmacia',
+    matches: (t) => /farmac|first.?aid|socorro|ambulanc/.test(t),
+  },
+  {
+    replacementKey: 'substituicao_explicita__comprimidos_p_enjoo',
+    refKey: 'ref_comprimidos',
+    qtyKey: 'qtd_comprimidos',
+    valKey: 'validade_comprimidos',
+    matches: (t) => /comprim|pastilh|enjoo|seasick|tablet/.test(t),
+  },
+  {
+    replacementKey: 'substituicao_explicita__foguetes_paraquedas',
+    refKey: 'ref_paraquedas',
+    qtyKey: 'qtd_paraquedas',
+    valKey: 'validade_paraquedas',
+    matches: (t) => /paraqued|parachute|foguete|rocket/.test(t),
+  },
+  {
+    replacementKey: 'substituicao_explicita__fachos_de_mao',
+    refKey: 'ref_fachos',
+    qtyKey: 'qtd_fachos',
+    valKey: 'validade_fachos_mao',
+    matches: (t) => /facho|hand.?flare/.test(t),
+  },
+  {
+    replacementKey: 'substituicao_explicita__potes_de_fumo',
+    refKey: 'ref_potes',
+    qtyKey: 'qtd_potes',
+    valKey: 'validade_potes_fumo',
+    matches: (t) => /pote.*fumo|fumo|smoke|fumigen/.test(t),
+  },
+  {
+    replacementKey: 'substituicao_explicita__pilhas_para_lanterna',
+    refKey: 'ref_bateria',
+    qtyKey: 'qtd_pilhas_lanterna',
+    valKey: 'validade_pilhas_lanterna',
+    matches: (t) => !/litio|lithium/.test(t) && /pilha|batter/.test(t),
+  },
+  {
+    replacementKey: 'substituicao_explicita__hru',
+    refKey: 'hruReferencia',
+    qtyKey: 'qtd_hru',
+    valKey: 'hru_val',
+    matches: (t) => /hru|disparo hidrostatic|hydrostatic/.test(t),
+  },
+  {
+    replacementKey: 'substituicao_explicita__cilindro',
+    refKey: 'cylinderSerial',
+    qtyKey: 'qtd_cilindro',
+    valKey: 'cyl_test_val',
+    matches: (t) => /cilindro|cylinder/.test(t),
+  },
+];
+
+export type QuadroSubstituicaoLike = NonNullable<QuadroChecklistSource['substituicoes']>[number];
+
+function normalizeQuadroText(value: unknown): string {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+/**
+ * Aplica as substituições registadas na inspeção às chaves do quadro que
+ * mostram a referência e a quantidade aplicadas.
+ *
+ * É exportada para que o template XLSX/PDF possa usar a mesma regra quando
+ * recebe `substituicoes` em vez de uma checklist já derivada.
+ */
+export function applyQuadroSubstituicoesToChecklist<T extends Record<string, unknown>>(
+  checklist: T,
+  substituicoes: QuadroSubstituicaoLike[] | null | undefined,
+): T {
+  if (!Array.isArray(substituicoes)) return checklist;
+
+  const target = checklist as Record<string, unknown>;
+
+  substituicoes.forEach((item) => {
+    if (!item || typeof item !== 'object') return;
+    const quantidade = Number(item.quantidade || 0);
+    if (!Number.isFinite(quantidade) || quantidade <= 0) return;
+    const descricao = normalizeQuadroText(item.descricao || item.name);
+    if (!descricao) return;
+    const rule = QUADRO_SUBSTITUICAO_RULES.find((entry) => entry.matches(descricao));
+    if (!rule) return;
+    const referencia = String(item.referencia || '').trim();
+    target[rule.replacementKey] = Math.round(quantidade);
+    target[rule.qtyKey] = Math.round(quantidade);
+    if (referencia) target[rule.refKey] = referencia;
+    if (rule.valKey && item.validade) {
+      const validadeIso = toDateKey(item.validade);
+      if (validadeIso) target[rule.valKey] = validadeIso;
+    }
+  });
+
+  return checklist;
+}
 
 export function buildQuadroChecklistPayload(source: QuadroChecklistSource): Record<string, unknown> {
   const checklist: Record<string, unknown> = {
@@ -266,6 +386,12 @@ export function buildQuadroChecklistPayload(source: QuadroChecklistSource): Reco
   if (!checklist.ref_racoes) mapArticle(['rações'], 'ref_racoes', 'validade_racoes', undefined, 'racoes_alimentares');
   if (!checklist.ref_racoes) mapArticle(['ration'], 'ref_racoes', 'validade_racoes', undefined, 'racoes_alimentares');
   if (!checklist.ref_racoes) mapArticle(['food'], 'ref_racoes', 'validade_racoes', undefined, 'racoes_alimentares');
+
+  // Os artigos substituídos chegam numa lista própria (com a referência e a
+  // quantidade efetivamente aplicadas). É a fonte de verdade para as células
+  // do quadro que mostram "(quantidade) referência" — não depender da
+  // comparação com a inspeção anterior, que falha quando a referência muda.
+  applyQuadroSubstituicoesToChecklist(checklist, source.substituicoes);
 
   checklist.teste_wp = source.testeWP || 'N/A';
   checklist.teste_nap = source.testeNAP || 'N/A';

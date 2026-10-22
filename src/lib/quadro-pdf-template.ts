@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import type { QuadroTemplateInput } from './quadro-template';
 import { collectSubstitutedArticles } from './quadro-template';
+import { applyQuadroSubstituicoesToChecklist } from './quadro-payload';
 
 function formatMonthYearSlash(value: unknown) {
   const raw = String(value ?? '').trim();
@@ -38,7 +39,10 @@ function getDaysRemaining(validadeStr: string, refDate: Date): number | null {
 
 export async function buildQuadroPDFArtifacts(input: QuadroTemplateInput) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const checklist = input.checklist || {};
+  const checklist = applyQuadroSubstituicoesToChecklist(
+    { ...(input.checklist || {}) },
+    input.substituicoes,
+  );
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   let y = 15;

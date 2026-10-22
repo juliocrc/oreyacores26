@@ -5,6 +5,7 @@ import { generateFiveDigitCode } from "@/lib/code";
 import { sendEmail, isEmailConfigured } from "@/lib/email-sender";
 import { encontrarClientePorContacto } from "@/lib/communications";
 import { sendWhatsAppSystem } from "@/lib/whatsapp-provider";
+import { sendTextBeeSms } from "@/lib/textbee-sms";
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,7 +14,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Pedido inválido." }, { status: 400 });
     }
 
-    const { email, phone } = body as { email?: string; phone?: string };
+    const { email, phone, channel } = body as { email?: string; phone?: string; channel?: "whatsapp" | "sms" | "email" };
     const cleanEmail = String(email || "").trim().toLowerCase();
     const cleanPhone = String(phone || "").trim();
 
@@ -35,6 +36,7 @@ export async function POST(req: NextRequest) {
 
     let clienteId: number;
     let clienteEmail: string;
+    let clientePhone: string = cleanPhone;
     if (cleanPhone) {
       const match = await encontrarClientePorContacto(cleanPhone);
       if (!match) {
@@ -45,7 +47,7 @@ export async function POST(req: NextRequest) {
       }
       const full = await prisma.cliente.findUnique({
         where: { id: match.id },
-        select: { id: true, email: true },
+        select: { id: true, email: true, telefone: true, telmovel: true },
       });
       if (!full) {
         return NextResponse.json(
@@ -55,16 +57,18 @@ export async function POST(req: NextRequest) {
       }
       clienteId = full.id;
       clienteEmail = String(full.email || "").trim().toLowerCase();
+      clientePhone = cleanPhone;
     } else {
       const cliente = await prisma.cliente.findFirst({
         where: { email: cleanEmail },
-        select: { id: true, email: true },
+        select: { id: true, email: true, telefone: true, telmovel: true },
       });
       if (!cliente) {
         return NextResponse.json({ error: "Não existe um cliente com este email." }, { status: 404 });
       }
       clienteId = cliente.id;
       clienteEmail = String(cliente.email || "").trim().toLowerCase();
+      clientePhone = String(cliente.telmovel || cliente.telefone || "").trim();
     }
 
     const code = generateFiveDigitCode();
@@ -78,9 +82,23 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    if (cleanPhone) {
-      const msg = `O seu código de acesso ao Gestor Naval Pro é: ${code}\nVálido por 10 minutos.\n\nOrey Técnica Açores`;
-      const waResult = await sendWhatsAppSystem(cleanPhone, msg);
+    const msg = `O seu código de acesso ao Gestor Naval Pro é: ${code}\nVálido por 10 minutos.\n\nOrey Técnica Açores`;
+
+    if (channel === "sms") {
+      const targetPhone = cleanPhone || clientePhone;
+      if (!targetPhone) {
+        return NextResponse.json({ error: "Número de telemóvel não registado para este cliente." }, { status: 400 });
+      }
+      const smsResult = await sendTextBeeSms(targetPhone, msg);
+      if (!smsResult.ok) {
+        return NextResponse.json({ error: smsResult.error || "Não foi possível enviar o código por SMS." }, { status: 500 });
+      }
+      return NextResponse.json({ success: true, message: "Código enviado por SMS." });
+    }
+
+    if (channel === "whatsapp" || cleanPhone) {
+      const targetPhone = cleanPhone || clientePhone;
+      const waResult = await sendWhatsAppSystem(targetPhone, msg);
       if (!waResult.ok) {
         console.error("[client-code] WhatsApp send error:", waResult.erro);
         return NextResponse.json(
@@ -91,7 +109,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, message: "Código enviado por WhatsApp." });
     }
 
-    const msg = `O seu código de acesso ao Gestor Naval Pro é: ${code}\nVálido por 10 minutos.\n\nOrey Técnica Açores`;
     if (!isEmailConfigured()) {
       return NextResponse.json({ error: "O envio por email não está configurado. Contacte a Orey Técnica Açores." }, { status: 500 });
     }

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import { useSession } from "next-auth/react";
 import { Gauge, Plus, ShieldAlert } from "lucide-react";
 import { appToast } from "@/lib/app-toast";
 import {
@@ -18,7 +19,10 @@ import { CalibracaoLista } from "@/components/calibracoes/CalibracaoLista";
 import { CalibracaoResumo } from "@/components/calibracoes/CalibracaoResumo";
 
 export default function CalibracoesPage() {
-  const { items, loading, guardar, eliminar } = useCalibracoes();
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.role === "ADMIN";
+  const [includeUnassigned, setIncludeUnassigned] = useState(false);
+  const { items, loading, guardar, eliminar } = useCalibracoes({ includeUnassigned });
   const [showModal, setShowModal] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<CalibracaoFormState>(createInitialCalibracaoForm());
@@ -97,6 +101,20 @@ export default function CalibracoesPage() {
         )}
 
         <CalibracaoResumo registos={registos} rotuloTotal="Equipamentos" />
+
+        {isAdmin && (
+          <div className="flex justify-end">
+            <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm">
+              <input
+                type="checkbox"
+                checked={includeUnassigned}
+                onChange={(event) => setIncludeUnassigned(event.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              Mostrar equipamentos sem estação
+            </label>
+          </div>
+        )}
 
         <CalibracaoBancada
           registos={registos}

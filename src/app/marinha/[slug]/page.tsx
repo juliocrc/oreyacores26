@@ -18,6 +18,7 @@ import {
   type MarinhaTipo,
 } from "@/lib/marinha";
 import PrintButton from "./PrintButton";
+import MarinhaJangadasSection from "./MarinhaJangadasSection";
 
 const TIPO_BADGE: Record<MarinhaTipo, string> = {
   Fragata: "bg-sky-100 text-sky-700 ring-sky-200",
@@ -97,6 +98,23 @@ export default async function MarinhaNavioPage({ params }: { params: Promise<{ s
           </div>
         </header>
 
+        {navio.fotoUrl ? (
+          <div className="mx-6 mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-slate-900 shadow-sm sm:mx-8">
+            <div className="relative h-64 sm:h-80 w-full">
+              <img
+                src={navio.fotoUrl}
+                alt={navio.nome}
+                className="h-full w-full object-cover object-center"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent flex items-end p-4">
+                <span className="rounded-lg bg-black/60 backdrop-blur-md px-3 py-1 text-xs font-bold text-white ring-1 ring-white/20">
+                  {navio.numero} · {navio.nome}
+                </span>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         <div className="grid gap-6 px-6 py-6 sm:px-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
           <section>
             <h2 className="mb-3 flex items-center gap-2 text-xs font-extrabold uppercase tracking-[0.2em] text-slate-500">
@@ -162,6 +180,10 @@ export default async function MarinhaNavioPage({ params }: { params: Promise<{ s
             </div>
           </section>
         ) : null}
+
+        <div className="px-6 pb-6 sm:px-8">
+          <MarinhaJangadasSection navioNumero={navio.numero} navioNome={navio.nome} />
+        </div>
 
         <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/70 px-6 py-4 text-xs text-slate-500 sm:px-8">
           <span className="inline-flex items-center gap-2">

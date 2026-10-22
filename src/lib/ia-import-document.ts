@@ -488,6 +488,7 @@ function analyzeGenericRows(rows: Row[]) {
       validade: a.validade ? toFullDateIso(a.validade) ?? a.validade : undefined,
       quantidade: a.quantidade,
       referencia: a.referencia,
+      codigoFabricante: a.codigoFabricante,
     }))
     .filter((a) => a.name);
   return { header, artigos };
@@ -622,17 +623,155 @@ const PDF_FIELD_PATTERNS: Array<{ field: keyof HeaderFields; re: RegExp }> = [
   { field: "brand", re: /(?:marca|brand)\s*[:.]?\s*(.+)/i },
   { field: "model", re: /(?:modelo|model)\s*[:.]?\s*(.+)/i },
   { field: "ownerName", re: /(?:armador|owner)\s*[:.]?\s*(.+)/i },
-  { field: "shipName", re: /(?:navio|embarca[çc][ãa]o|ship)\s*[:.]?\s*(.+)/i },
+  { field: "shipName", re: /(?:nome\s*do\s*navio|name\s*of\s*ship|navio|embarca[çc][ãa]o)\s*[:.]?\s*(.+)/i },
   { field: "dataInspecao", re: /(?:data\s*(?:de\s*)?inspec[çc][ãa]o|inspection\s*date)\s*[:.]?\s*(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{4})/i },
   { field: "dataProxInspecao", re: /(?:pr[óo]xima\s*(?:data\s*de\s*)?inspec|next\s*insp)\s*[:.]?\s*(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{4}|\d{1,2}[\/\-.]\d{4})/i },
   { field: "cylinderCo2", re: /\bco2\b\s*[:.]?\s*([\d.,]+)/i },
   { field: "cylinderN2", re: /\bn2\b\s*[:.]?\s*([\d.,]+)/i },
 ];
 
+// Os certificados Orey têm etiquetas numa linha e os valores na linha seguinte
+// (por exemplo "Identificação: Tipo: ..." e depois "ZODIAC COASTAL PT 6 ...").
+// Estes extratores leem esse layout tabular, que as regex "etiqueta: valor"
+// não conseguem apanhar.
+function looksLikeLabelLine(line: string): boolean {
+  const text = String(line || "").trim();
+  if (!text) return false;
+  const colons = (text.match(/:/g) || []).length;
+  if (colons >= 2) return true;
+  return /^(identifica[çc][ãa]o|identification|marca|modelo|capacidade|capacity|serial|s[ée]rie|tipo|data|fabric|cilindros?|cylinders?|equipamento|equipment)\b/i.test(
+    text,
+  );
+}
+
+function nextValueLine(lines: string[], fromIndex: number): string | null {
+  for (let i = fromIndex + 1; i < Math.min(fromIndex + 5, lines.length); i += 1) {
+    const value = String(lines[i] || "").trim();
+    if (!value || looksLikeLabelLine(value)) continue;
+    return value;
+  }
+  return null;
+}
+
+function nextDateValueLine(lines: string[], fromIndex: number): string | null {
+  for (let i = fromIndex + 1; i < Math.min(fromIndex + 5, lines.length); i += 1) {
+    const value = String(lines[i] || "").trim();
+    if (!value) continue;
+    if (/^\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{4}\b/.test(value)) return value;
+    if (looksLikeLabelLine(value)) continue;
+  }
+  return null;
+}
+
+const PDF_KNOWN_BRANDS = [
+  "RFD",
+  "ZODIAC",
+  "DSB",
+  "ALMAR",
+  "EUROVINIL",
+  "SURVITEC",
+  "VIKING",
+  "PLASTIMO",
+  "LALIZAS",
+  "BOMBARD",
+  "OCEAN SAFETY",
+];
+
+function extractPdfHeaderFromLines(lines: string[]): Partial<HeaderFields> {
+  const extracted: Partial<HeaderFields> = {};
+
+  const setIfEmpty = (field: keyof HeaderFields, value: string | null | undefined) => {
+    const text = String(value ?? "").trim();
+    if (text && !extracted[field]) extracted[field] = text;
+  };
+
+  // Bloco de identificação (linha de valores imediatamente após o cabeçalho).
+  const identIndex = lines.findIndex((line) => /^(identifica[çc][ãa]o|identification)\b/i.test(line));
+  if (identIndex >= 0) {
+    const valuesLine = nextValueLine(lines, identIndex);
+    if (valuesLine) {
+      const row = valuesLine.match(/^(.+?)\s+(\d{1,3})\s+([A-Z0-9][A-Z0-9\-]{2,})\s+(\d{1,2}[\/\-]\d{4})$/i);
+      if (row) {
+        const brandModel = row[1].trim().split(/\s+/);
+        const firstToken = String(brandModel[0] || "").toUpperCase();
+        const knownBrand = PDF_KNOWN_BRANDS.find((brand) => brand === firstToken);
+        if (knownBrand) {
+          setIfEmpty("brand", brandModel[0]);
+          setIfEmpty("model", brandModel.slice(1).join(" "));
+        } else {
+          // Sem marca impressa: não inventar, manter o texto todo como modelo.
+          setIfEmpty("model", brandModel.join(" "));
+        }
+        setIfEmpty("capacity", row[2]);
+        setIfEmpty("raftSerial", row[3]);
+        const manufacture = toMonthYearIso(row[4]);
+        if (manufacture) setIfEmpty("dataFabrico", toDisplayMonthYear(manufacture));
+      }
+    }
+  }
+
+  // Tipo de tela e medidas: valores na linha seguinte ao cabeçalho.
+  const fabricIndex = lines.findIndex((line) => /^(tipo\s*de\s*tela|fabric\s*type)\b/i.test(line));
+  if (fabricIndex >= 0) {
+    const valuesLine = nextValueLine(lines, fabricIndex);
+    if (valuesLine) {
+      const fabric = valuesLine.match(/\b(PU|NR|PVC)\b/i);
+      if (fabric) setIfEmpty("fabricType", normFabric(fabric[1]) ?? "");
+    }
+  }
+
+  // Cilindro: "<série> <CO2> kg <N2> kg <MM/AAAA>".
+  const cylinderIndex = lines.findIndex((line) => /^(cilindros?|cylinders?)\b/i.test(line));
+  if (cylinderIndex >= 0) {
+    const valuesLine = nextValueLine(lines, cylinderIndex);
+    if (valuesLine) {
+      const cylinder = valuesLine.match(
+        /^([A-Z0-9\-]{3,})\s+([\d.,]+)\s*(?:kg)?\s+([\d.,]+)\s*(?:kg)?\s+(\d{1,2}[\/\-]\d{4})$/i,
+      );
+      if (cylinder) {
+        setIfEmpty("cylinderSerial", cylinder[1]);
+        setIfEmpty("cylinderCo2", cylinder[2]);
+        setIfEmpty("cylinderN2", cylinder[3]);
+      }
+    }
+  }
+
+  const inspectionIndex = lines.findIndex((line) =>
+    /(?:data\s*da\s*inspec[çc][ãa]o|date\s*of\s*inspection)/i.test(line),
+  );
+  if (inspectionIndex >= 0) {
+    const valueLine = nextDateValueLine(lines, inspectionIndex);
+    if (valueLine) {
+      const dates = [...valueLine.matchAll(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/g)]
+        .map((match) => toFullDateIso(match[0]))
+        .filter((value): value is string => Boolean(value));
+      if (dates[0]) setIfEmpty("dataInspecao", dates[0]);
+      const nextDate = dates.find((value) => value !== dates[0]);
+      if (nextDate) setIfEmpty("dataProxInspecao", nextDate);
+    }
+  }
+
+  const shipIndex = lines.findIndex((line) =>
+    /(?:nome\s*do\s*navio|name\s*of\s*ship)/i.test(line),
+  );
+  if (shipIndex >= 0) {
+    const sameLine = lines[shipIndex].replace(/.*(?:nome\s*do\s*navio|name\s*of\s*ship)\s*[:.]?/i, "").trim();
+    setIfEmpty("shipName", sameLine || nextValueLine(lines, shipIndex));
+  }
+
+  const ownerIndex = lines.findIndex((line) => /(?:armador|ship\s*owner)\b/i.test(line));
+  if (ownerIndex >= 0) {
+    const sameLine = lines[ownerIndex].replace(/.*(?:armador|ship\s*owner)\s*[:.]?/i, "").trim();
+    setIfEmpty("ownerName", sameLine || nextValueLine(lines, ownerIndex));
+  }
+
+  return extracted;
+}
+
 function analyzePdfText(fileName: string, buffer: Buffer, text: string): AnalyzeResult {
   const cleanText = text.replace(/\r/g, "");
   const lines = cleanText.split("\n").map((l) => l.trim()).filter(Boolean);
-  const header: HeaderFields = { ...EMPTY_HEADER };
+  const header: HeaderFields = { ...EMPTY_HEADER, ...extractPdfHeaderFromLines(lines) };
 
   for (const { field, re } of PDF_FIELD_PATTERNS) {
     if (header[field]) continue;

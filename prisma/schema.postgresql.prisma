@@ -1163,7 +1163,7 @@ model CalibracaoEquipamento {
   id                 Int      @id @default(autoincrement())
   serviceStationId   Int?
   nome               String
-  referencia         String   @unique
+  referencia         String
   tipo               String
   dataCalibracao     DateTime
   dataProxCalibracao DateTime
@@ -1171,11 +1171,36 @@ model CalibracaoEquipamento {
   certificadoUrl     String?
   ativo              Boolean  @default(true)
   observacoes        String?
+  historicos         CalibracaoHistorico[]
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
+  @@unique([referencia, serviceStationId])
   @@index([referencia])
   @@index([serviceStationId])
+}
+
+model CalibracaoHistorico {
+  id                 Int      @id @default(autoincrement())
+  calibracaoId       Int?
+  serviceStationId   Int?
+  nome               String
+  referencia         String
+  tipo               String
+  dataCalibracao     DateTime
+  dataProxCalibracao DateTime
+  certificadoNum     String?
+  certificadoUrl     String?
+  observacoes        String?
+  registadoPor       String?
+  createdAt          DateTime @default(now())
+
+  calibracao CalibracaoEquipamento? @relation(fields: [calibracaoId], references: [id], onDelete: SetNull)
+
+  @@index([calibracaoId])
+  @@index([referencia])
+  @@index([serviceStationId])
+  @@index([dataCalibracao])
 }
 
 model MovimentoEquipamento {

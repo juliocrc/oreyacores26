@@ -1,6 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getAccessContext } from "@/lib/access-control";
+import { resolveActiveServiceStationId } from "@/lib/station-selection";
+import { activeStationIsAlcantarilha, getSouthRegionShipIds } from "@/lib/alcantarilha-scope";
 
 function parseDateFlexible(value: string | null | undefined) {
   const raw = String(value || "").trim();
@@ -72,13 +74,22 @@ function isWithinDays(dateText: string | null | undefined, days: number) {
   return parsedDate.getTime() >= now.getTime() && parsedDate.getTime() <= limit.getTime();
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const access = await getAccessContext();
   if (!access) return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
 
   try {
+    const activeStationId = resolveActiveServiceStationId(req, access);
+    const alcantarilhaScope = await activeStationIsAlcantarilha(activeStationId);
+    const southShipIds = alcantarilhaScope ? await getSouthRegionShipIds() : [];
+    const southFilter = southShipIds.length > 0 ? southShipIds : [-1];
+    const shipScope = alcantarilhaScope ? { in: southFilter } : undefined;
+
     const [jangadas, certificados, pendingOrders, epirbs, extintores, fatos] = await Promise.all([
       prisma.jangada.findMany({
+        where: alcantarilhaScope
+          ? { OR: [{ shipId: { in: southFilter } }, { serviceStationId: activeStationId }] }
+          : undefined,
         select: {
           id: true,
           serial: true,
@@ -93,6 +104,9 @@ export async function GET() {
         orderBy: { id: "desc" },
       }),
       prisma.certificadoExtraido.findMany({
+        where: alcantarilhaScope
+          ? { jangada: { OR: [{ shipId: { in: southFilter } }, { serviceStationId: activeStationId }] } }
+          : undefined,
         select: {
           id: true,
           certificadoNumero: true,
@@ -112,6 +126,9 @@ export async function GET() {
       prisma.ordemServico.findMany({
         where: {
           status: "pendente",
+          ...(alcantarilhaScope
+            ? { OR: [{ shipId: { in: southFilter } }, { serviceStationId: activeStationId }] }
+            : {}),
         },
         select: {
           id: true,
@@ -132,6 +149,7 @@ export async function GET() {
       prisma.epirb.findMany({
         where: {
           estado: "Ativo",
+          ...(shipScope ? { shipId: shipScope } : {}),
         },
         select: {
           id: true,
@@ -150,6 +168,7 @@ export async function GET() {
       prisma.extintor.findMany({
         where: {
           estado: "Ativo",
+          ...(shipScope ? { shipId: shipScope } : {}),
         },
         select: {
           id: true,
@@ -167,6 +186,7 @@ export async function GET() {
       prisma.fatoImersao.findMany({
         where: {
           estado: "Ativo",
+          ...(shipScope ? { shipId: shipScope } : {}),
         },
         select: {
           id: true,

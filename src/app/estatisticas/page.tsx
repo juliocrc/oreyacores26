@@ -76,6 +76,7 @@ type InspectionBreakdown = {
 
 type Estatisticas = {
   geradoEm: string;
+  estacao?: { id: number; codigo: string; nome: string } | null;
   periodo?: { from: string | null; to: string | null };
   geral: {
     jangadas: number; navios: number; clientes: number; inspecoes: number;
@@ -232,6 +233,7 @@ export default function EstatisticasPage() {
     const rows: string[][] = [["Secção", "Métrica", "Valor"]];
     const push = (sec: string, k: string, v: string | number) => rows.push([sec, k, String(v)]);
     const g = data.geral;
+    push("Geral", "Estação", data.estacao ? `${data.estacao.codigo} · ${data.estacao.nome}` : "Visão global");
     push("Geral", "Período", periodLabel);
     push("Geral", "Jangadas", g.jangadas);
     push("Geral", "Navios", g.navios);
@@ -277,6 +279,9 @@ export default function EstatisticasPage() {
             <div>
               <h1 className="text-xl font-bold tracking-tight text-slate-800">Estatísticas & Business Intelligence</h1>
               <p className="text-xs text-slate-500">
+                {data?.estacao
+                  ? `Estação ${data.estacao.codigo} · ${data.estacao.nome} · `
+                  : "Visão global · "}
                 Indicadores operacionais, financeiros e de conformidade · período: {periodLabel}
                 {data ? ` · atualizado ${new Date(data.geradoEm).toLocaleString("pt-PT")}` : ""}
               </p>

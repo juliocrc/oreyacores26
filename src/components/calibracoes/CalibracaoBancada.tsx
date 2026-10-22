@@ -148,12 +148,13 @@ export function CalibracaoBancada({
                 </div>
 
                 {estado.type === "expired" && (
-                  <div className="absolute inset-x-3 bottom-3 bg-red-100 border border-red-300 text-red-700 text-[10px] font-bold rounded-lg px-2 py-1 text-center uppercase tracking-wide">
+                  <div className="pointer-events-none bg-red-100 border border-red-300 text-red-700 text-[10px] font-bold rounded-lg px-2 py-1 text-center uppercase tracking-wide">
                     Fora de serviço — {acaoRecalibrar.toLowerCase()}
                   </div>
                 )}
 
                 <button
+                  type="button"
                   onClick={() => onEdit(item)}
                   className={`mt-1 w-full py-2 rounded-xl text-xs font-bold border transition-colors ${
                     estado.type === "expired"

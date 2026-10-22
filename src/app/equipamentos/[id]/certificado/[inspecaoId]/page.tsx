@@ -2,6 +2,7 @@ import React from 'react';
 import prisma from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { formatValidityDisplay } from "@/lib/date-display";
+import PrintButton from "./PrintButton";
 
 type ColeteCertificado = {
   serial: string;
@@ -82,12 +83,7 @@ export default async function CertificadoColetePrintPage({
     <div className="bg-white text-slate-900 min-h-screen font-sans">
       {/* Botão de impressão flutuante (não aparece na impressão) */}
       <div className="fixed top-4 right-4 print:hidden">
-        <button 
-          onClick={() => window.print()}
-          className="bg-indigo-600 text-white px-6 py-2 rounded-xl shadow-lg font-bold hover:bg-indigo-700"
-        >
-          Imprimir / Guardar PDF
-        </button>
+        <PrintButton />
       </div>
 
       <div className="max-w-[21cm] mx-auto p-10 print:p-0">

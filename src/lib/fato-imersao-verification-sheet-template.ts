@@ -32,6 +32,10 @@ export type NavioFatosVerificationSheetInput = {
 
 function fmtDate(value?: string | null) {
   if (!value) return "";
+  if (/^\d{4}-\d{2}$/.test(value.trim())) {
+    const [y, m] = value.trim().split("-");
+    return `${m}/${y}`;
+  }
   if (/^\d{4}-\d{2}-\d{2}/.test(value)) {
     const [y, m, d] = value.slice(0, 10).split("-");
     return `${d}/${m}/${y}`;

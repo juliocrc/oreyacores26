@@ -141,6 +141,12 @@ export function buildInspectionCertificateInput(params: {
     hruSerial: jangada.hruReferencia,
     dataInspecao: lastInspecao?.dataInspecao || jangada.dataInspecao,
     cylinderDataTeste: jangada.cylinderDataTeste,
+    substituicoes: (lastInspecao?.artigos || []).map((artigo) => ({
+      descricao: artigo.descricao ?? artigo.name ?? null,
+      referencia: artigo.referencia ?? null,
+      quantidade: artigo.quantidade ?? null,
+      validade: artigo.validade ? String(artigo.validade) : null,
+    })),
   });
 
   const derived = buildWpDerivedValues({

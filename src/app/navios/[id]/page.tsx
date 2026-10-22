@@ -28,6 +28,13 @@ type ColeteFichaEditavel = {
   dataProxInspecao?: string | null;
 };
 
+type FatoFichaEditavel = {
+  id: number;
+  serial?: string | null;
+  dataInspecao?: string | null;
+  dataProxInspecao?: string | null;
+};
+
 // Realce a proxima inspecao quando a data ja passou ou esta a terminar, para
 // a lista da ficha do navio dar sinal do que esta em atraso.
 function coleteProxInspecaoVence(value?: string | null) {
@@ -480,6 +487,28 @@ export default function NavioPage() {
   const [selectedFatoImersaoId, setSelectedFatoImersaoId] = useState<string>("");
   const [selectedExtintorId, setSelectedExtintorId] = useState<string>("");
   const [associating, setAssociating] = useState(false);
+  const [creatingExtintor, setCreatingExtintor] = useState(false);
+  const [showNewExtintorForm, setShowNewExtintorForm] = useState(false);
+  const [newExtintor, setNewExtintor] = useState({
+    serial: '',
+    marca: '',
+    modelo: '',
+    capacidadeKg: '',
+    tipoAgente: '',
+    localizacao: '',
+    dataProxRecarga: '',
+  });
+  const [creatingEpirb, setCreatingEpirb] = useState(false);
+  const [showNewEpirbForm, setShowNewEpirbForm] = useState(false);
+  const [newEpirb, setNewEpirb] = useState({
+    serial: '',
+    marca: '',
+    modelo: '',
+    tipo: '',
+    hexId: '',
+    dataProxInspecao: '',
+    dataValidadeBateria: '',
+  });
 const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' });
   const [jangadaSearch, setJangadaSearch] = useState("");
   const [coleteSearch, setColeteSearch] = useState("");
@@ -489,12 +518,23 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
   const [generatingColeteCertificate, setGeneratingColeteCertificate] = useState(false);
   const [generatingCertificadosCarimbados, setGeneratingCertificadosCarimbados] = useState(false);
   const [generatingColeteVerificationSheet, setGeneratingColeteVerificationSheet] = useState(false);
+  const [generatingFatosCertificate, setGeneratingFatosCertificate] = useState(false);
+  const [generatingFatosVerificationSheet, setGeneratingFatosVerificationSheet] = useState(false);
   const [legalTab, setLegalTab] = useState<'legal' | 'mandatory'>('legal');
 
   // Edicao inline dos dados do colete directamente na lista da ficha do navio.
   const [editingColeteId, setEditingColeteId] = useState<number | null>(null);
   const [savingColeteId, setSavingColeteId] = useState<number | null>(null);
   const [coleteDraft, setColeteDraft] = useState<{ serial: string; dataInspecao: string; dataProxInspecao: string }>({
+    serial: '',
+    dataInspecao: '',
+    dataProxInspecao: '',
+  });
+
+  // Edicao inline dos dados do fato de imersao directamente na lista da ficha do navio.
+  const [editingFatoId, setEditingFatoId] = useState<number | null>(null);
+  const [savingFatoId, setSavingFatoId] = useState<number | null>(null);
+  const [fatoDraft, setFatoDraft] = useState<{ serial: string; dataInspecao: string; dataProxInspecao: string }>({
     serial: '',
     dataInspecao: '',
     dataProxInspecao: '',
@@ -924,6 +964,55 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
     }
   };
 
+  const startEditFato = (fato: FatoFichaEditavel) => {
+    setEditingFatoId(fato.id);
+    setFatoDraft({
+      serial: fato.serial || '',
+      dataInspecao: toLocalIsoDateValue(fato.dataInspecao),
+      dataProxInspecao: toLocalIsoDateValue(fato.dataProxInspecao),
+    });
+  };
+
+  const cancelEditFato = () => {
+    setEditingFatoId(null);
+    setFatoDraft({ serial: '', dataInspecao: '', dataProxInspecao: '' });
+  };
+
+  const saveFatoEdit = async (fatoId: number) => {
+    const serial = fatoDraft.serial.trim();
+    if (!serial) {
+      appToast.error('O numero de serie e obrigatorio.');
+      return;
+    }
+
+    setSavingFatoId(fatoId);
+    try {
+      const response = await fetch(`/api/fatos-imersao/${fatoId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          serial,
+          dataInspecao: fatoDraft.dataInspecao || null,
+          dataProxInspecao: fatoDraft.dataProxInspecao || null,
+        }),
+      });
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        appToast.error(payload?.error || 'Nao foi possivel guardar as alteracoes do fato de imersao.');
+        return;
+      }
+
+      await Promise.all([loadNavio(), loadFatosImersao()]);
+      cancelEditFato();
+      appToast.success('Fato de imersao atualizado com sucesso.');
+    } catch {
+      appToast.error('Nao foi possivel guardar as alteracoes do fato de imersao.');
+    } finally {
+      setSavingFatoId(null);
+    }
+  };
+
   const handleAssociarFatoImersao = async () => {
     if (!selectedFatoImersaoId || !data?.id) return;
 
@@ -1011,6 +1100,44 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
 
     await Promise.all([loadNavio(), loadJangadas(), loadColetes(), loadEpirbs(), loadFatosImersao(), loadExtintores()]);
     setAssociating(false);
+  };
+
+  const handleCriarExtintor = async () => {
+    if (!data?.id) return;
+    if (!newExtintor.serial.trim()) {
+      alert('Indique o número de série do extintor.');
+      return;
+    }
+
+    setCreatingExtintor(true);
+    try {
+      const response = await fetch('/api/extintores', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          shipId: data.id,
+          serial: newExtintor.serial.trim(),
+          marca: newExtintor.marca.trim() || null,
+          modelo: newExtintor.modelo.trim() || null,
+          capacidadeKg: newExtintor.capacidadeKg.trim() || null,
+          tipoAgente: newExtintor.tipoAgente.trim() || null,
+          localizacao: newExtintor.localizacao.trim() || null,
+          dataProxRecarga: newExtintor.dataProxRecarga.trim() || null,
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error || 'Não foi possível criar o extintor.');
+      }
+
+      setNewExtintor({ serial: '', marca: '', modelo: '', capacidadeKg: '', tipoAgente: '', localizacao: '', dataProxRecarga: '' });
+      await Promise.all([loadNavio(), loadExtintores()]);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Não foi possível criar o extintor.');
+    } finally {
+      setCreatingExtintor(false);
+    }
   };
 
   const handleGerarCertificadoColetes = async () => {
@@ -1183,6 +1310,44 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
 
     await Promise.all([loadNavio(), loadJangadas(), loadColetes(), loadEpirbs()]);
     setAssociating(false);
+  };
+
+  const handleCriarEpirb = async () => {
+    if (!data?.id) return;
+    if (!newEpirb.serial.trim()) {
+      alert('Indique o número de série do EPIRB.');
+      return;
+    }
+
+    setCreatingEpirb(true);
+    try {
+      const response = await fetch('/api/epirbs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          shipId: data.id,
+          serial: newEpirb.serial.trim(),
+          marca: newEpirb.marca.trim() || null,
+          modelo: newEpirb.modelo.trim() || null,
+          tipo: newEpirb.tipo.trim() || null,
+          hexId: newEpirb.hexId.trim() || null,
+          dataProxInspecao: newEpirb.dataProxInspecao.trim() || null,
+          dataValidadeBateria: newEpirb.dataValidadeBateria.trim() || null,
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error || 'Não foi possível criar o EPIRB.');
+      }
+
+      setNewEpirb({ serial: '', marca: '', modelo: '', tipo: '', hexId: '', dataProxInspecao: '', dataValidadeBateria: '' });
+      await Promise.all([loadNavio(), loadEpirbs()]);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Não foi possível criar o EPIRB.');
+    } finally {
+      setCreatingEpirb(false);
+    }
   };
 
   const scrollToSection = (sectionId: string) => {
@@ -1441,6 +1606,71 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
       window.URL.revokeObjectURL(url);
     } catch (err: any) {
       alert(err?.message || "Erro ao descarregar pack de segurança.");
+    }
+  };
+
+  const handleDownloadFatosCertificate = async () => {
+    if (!id) return;
+    setGeneratingFatosCertificate(true);
+    try {
+      const res = await fetch(`/api/fatos-imersao/certificado-navio?shipId=${id}`);
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null);
+        throw new Error(payload?.error || "Erro ao gerar o certificado dos fatos de imersão");
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Certificado_Fatos_Imersao_${data?.nome || id}.docx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert(err?.message || "Erro ao gerar o certificado dos fatos de imersão.");
+    } finally {
+      setGeneratingFatosCertificate(false);
+    }
+  };
+
+  const handleGerarFichaVerificacaoFatos = async () => {
+    if (!id || !data?.fatosImersao?.length) return;
+
+    const folderStatus = await ensureFolderPermissionNow();
+    setGeneratingFatosVerificationSheet(true);
+    try {
+      const response = await fetch(`/api/navios/${encodeURIComponent(id)}/ficha-verificacao-fatos`);
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error || 'Não foi possível gerar a ficha de verificação XLSX dos fatos de imersão.');
+      }
+
+      toastSavedPathIfPresent(response, 'Ficha de verificação de fatos de imersão');
+
+      const blob = await response.blob();
+      const contentDisposition = response.headers.get('content-disposition') || '';
+      const fileNameMatch = contentDisposition.match(/filename="?([^";]+)"?/i);
+      const fileName = fileNameMatch?.[1] || `ficha-verificacao-fatos-imersao-navio-${id}.xlsx`;
+
+      if (folderStatus !== 'granted') {
+        appToast.info(
+          folderStatus === 'not-configured'
+            ? 'Ficha gerada. Pasta de documentos não configurada — ficheiro vai para Downloads. Defina-a no menu da conta (canto superior direito).'
+            : 'Ficha gerada. Sem autorização para a pasta de documentos — ficheiro vai para Downloads.',
+        );
+      }
+
+      await saveShipDocument({
+        shipName: data?.nome,
+        filename: fileName,
+        blob,
+        label: 'Ficha de verificação de fatos de imersão',
+      });
+    } catch (error: any) {
+      alert(error?.message || 'Não foi possível gerar a ficha de verificação XLSX dos fatos de imersão.');
+    } finally {
+      setGeneratingFatosVerificationSheet(false);
     }
   };
 
@@ -1759,6 +1989,13 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
             Pack de Segurança (ZIP)
+          </button>
+          <button
+            onClick={handleDownloadFatosCertificate}
+            className="bg-cyan-700 hover:bg-cyan-800 text-white px-4 py-2 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-2 text-sm"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            Certificado Fatos de Imersão
           </button>
           <a href="/agenda" className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-2 text-sm">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
@@ -3285,9 +3522,33 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
       {/* Fatos de imersão associados */}
       <div id="section-fatos-imersao" className="bg-gradient-to-br from-sky-50 to-white rounded-2xl shadow-lg p-8 border border-sky-100 mt-8">
         <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
-          <h2 className="text-2xl font-bold text-sky-900 flex items-center gap-2">
-            Fatos de Imersão Associados
-          </h2>
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="text-2xl font-bold text-sky-900 flex items-center gap-2">
+              Fatos de Imersão Associados
+            </h2>
+            {data.fatosImersao && data.fatosImersao.length > 0 ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded text-sm font-medium shadow transition disabled:cursor-not-allowed disabled:bg-indigo-300"
+                  onClick={handleDownloadFatosCertificate}
+                  disabled={generatingFatosCertificate || generatingFatosVerificationSheet}
+                  title="Gerar um DOCX com o template oficial dos fatos de imersão"
+                >
+                  {generatingFatosCertificate ? 'A gerar certificado DOCX...' : 'Gerar certificado DOCX'}
+                </button>
+                <button
+                  type="button"
+                  className="bg-sky-700 hover:bg-sky-800 text-white px-3 py-2 rounded text-sm font-medium shadow transition disabled:cursor-not-allowed disabled:bg-sky-300"
+                  onClick={handleGerarFichaVerificacaoFatos}
+                  disabled={generatingFatosCertificate || generatingFatosVerificationSheet}
+                  title="Gerar a ficha de verificação múltipla XLSX dos fatos de imersão"
+                >
+                  {generatingFatosVerificationSheet ? 'A gerar ficha XLSX...' : 'Gerar ficha verificação XLSX'}
+                </button>
+              </div>
+            ) : null}
+          </div>
           <div className="flex items-center gap-2">
             <input
               type="text"
@@ -3332,40 +3593,109 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
                   <th className="p-3 font-semibold">Marca</th>
                   <th className="p-3 font-semibold">Modelo</th>
                   <th className="p-3 font-semibold">Tipo</th>
+                  <th className="p-3 font-semibold">Inspeção</th>
+                  <th className="p-3 font-semibold">Próx. Inspeção</th>
                   <th className="p-3 font-semibold">Estado</th>
                   <th className="p-3 font-semibold">Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {data.fatosImersao.map((f: any) => (
-                  <tr
-                    key={f.id}
-                    className="border-b last:border-0 hover:bg-sky-100 transition cursor-pointer"
-                    onClick={() => window.location.href = `/fatos-imersao/${f.id}`}
-                    title="Ver ficha do fato de imersão"
-                  >
-                    <td className="p-3 font-mono text-blue-900 underline hover:text-sky-700">{f.serial || '-'}</td>
-                    <td className="p-3">{f.marca || '-'}</td>
-                    <td className="p-3">{f.modelo || '-'}</td>
-                    <td className="p-3">{f.tipo || '-'}</td>
-                    <td className="p-3">{f.estado || '-'}</td>
-                    <td className="p-3" onClick={(e) => e.stopPropagation()}>
-                      <Link
-                        href={`/fatos-imersao/${f.id}`}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs mr-2 inline-block"
-                      >
-                        Ficha
-                      </Link>
-                      <button
-                        type="button"
-                        className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-xs"
-                        onClick={() => handleDesassociarFatoImersao(f.id)}
-                        disabled={associating}
-                      >
-                        Desassociar
-                      </button>
-                    </td>
-                  </tr>
+                  <Fragment key={f.id}>
+                    <tr
+                      className="border-b last:border-0 hover:bg-sky-100 transition cursor-pointer"
+                      onClick={() => window.location.href = `/fatos-imersao/${f.id}`}
+                      title="Ver ficha do fato de imersão"
+                    >
+                      <td className="p-3 font-mono text-blue-900 underline hover:text-sky-700">{f.serial || '-'}</td>
+                      <td className="p-3">{f.marca || '-'}</td>
+                      <td className="p-3">{f.modelo || '-'}</td>
+                      <td className="p-3">{f.tipo || '-'}</td>
+                      <td className="p-3 whitespace-nowrap">{formatValidityDisplay(f.dataInspecao)}</td>
+                      <td className="p-3 whitespace-nowrap">
+                        <span className={coleteProxInspecaoVence(f.dataProxInspecao) ? 'text-red-600 font-semibold' : ''}>
+                          {formatValidityDisplay(f.dataProxInspecao)}
+                        </span>
+                      </td>
+                      <td className="p-3">{f.estado || '-'}</td>
+                      <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                        <Link
+                          href={`/fatos-imersao/${f.id}`}
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs mr-2 inline-block"
+                        >
+                          Ficha
+                        </Link>
+                        <button
+                          type="button"
+                          className="bg-yellow-400 hover:bg-yellow-500 text-black px-2 py-1 rounded text-xs mr-2"
+                          onClick={() => (editingFatoId === f.id ? cancelEditFato() : startEditFato(f))}
+                        >
+                          {editingFatoId === f.id ? 'Fechar' : 'Editar'}
+                        </button>
+                        <button
+                          type="button"
+                          className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-xs"
+                          onClick={() => handleDesassociarFatoImersao(f.id)}
+                          disabled={associating}
+                        >
+                          Desassociar
+                        </button>
+                      </td>
+                    </tr>
+                    {editingFatoId === f.id && (
+                      <tr className="border-b bg-sky-50">
+                        <td colSpan={8} className="p-4" onClick={(e) => e.stopPropagation()}>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                            <label className="text-xs font-semibold text-slate-700">
+                              Numero de serie
+                              <input
+                                type="text"
+                                value={fatoDraft.serial}
+                                onChange={(e) => setFatoDraft((d) => ({ ...d, serial: e.target.value }))}
+                                className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-md text-sm font-mono"
+                              />
+                            </label>
+                            <label className="text-xs font-semibold text-slate-700">
+                              Data da inspecao
+                              <input
+                                type="date"
+                                value={fatoDraft.dataInspecao}
+                                onChange={(e) => setFatoDraft((d) => ({ ...d, dataInspecao: e.target.value }))}
+                                className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-md text-sm"
+                              />
+                            </label>
+                            <label className="text-xs font-semibold text-slate-700">
+                              Proxima inspecao
+                              <input
+                                type="date"
+                                value={fatoDraft.dataProxInspecao}
+                                onChange={(e) => setFatoDraft((d) => ({ ...d, dataProxInspecao: e.target.value }))}
+                                className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-md text-sm"
+                              />
+                            </label>
+                          </div>
+                          <div className="flex gap-2 mt-3">
+                            <button
+                              type="button"
+                              onClick={() => saveFatoEdit(f.id)}
+                              disabled={savingFatoId === f.id}
+                              className="bg-sky-700 hover:bg-sky-800 disabled:opacity-50 text-white px-4 py-2 rounded-md text-sm font-semibold"
+                            >
+                              {savingFatoId === f.id ? 'A guardar...' : 'Guardar alteracoes'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={cancelEditFato}
+                              disabled={savingFatoId === f.id}
+                              className="bg-white hover:bg-slate-100 disabled:opacity-50 border border-slate-300 px-4 py-2 rounded-md text-sm"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
@@ -3413,9 +3743,94 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
             >
               {associating ? 'A associar...' : 'Associar extintor'}
             </button>
+            <button
+              type="button"
+              className="border border-orange-300 text-orange-800 hover:bg-orange-50 px-3 py-1.5 rounded text-sm"
+              onClick={() => setShowNewExtintorForm((prev) => !prev)}
+            >
+              {showNewExtintorForm ? 'Fechar' : '+ Novo extintor'}
+            </button>
             <a href="/extintores" className="text-xs text-orange-700 underline">Abrir lista geral</a>
           </div>
         </div>
+
+        {showNewExtintorForm ? (
+          <div className="mb-5 rounded-xl border border-orange-200 bg-white p-4">
+            <p className="mb-3 text-sm font-semibold text-orange-900">Criar extintor e associar a este navio</p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <label className="text-xs font-medium text-slate-600">
+                Série *
+                <input
+                  className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                  value={newExtintor.serial}
+                  onChange={(e) => setNewExtintor({ ...newExtintor, serial: e.target.value })}
+                />
+              </label>
+              <label className="text-xs font-medium text-slate-600">
+                Marca
+                <input
+                  className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                  value={newExtintor.marca}
+                  onChange={(e) => setNewExtintor({ ...newExtintor, marca: e.target.value })}
+                />
+              </label>
+              <label className="text-xs font-medium text-slate-600">
+                Modelo
+                <input
+                  className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                  value={newExtintor.modelo}
+                  onChange={(e) => setNewExtintor({ ...newExtintor, modelo: e.target.value })}
+                />
+              </label>
+              <label className="text-xs font-medium text-slate-600">
+                Capacidade (kg)
+                <input
+                  type="number"
+                  step="0.5"
+                  className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                  value={newExtintor.capacidadeKg}
+                  onChange={(e) => setNewExtintor({ ...newExtintor, capacidadeKg: e.target.value })}
+                />
+              </label>
+              <label className="text-xs font-medium text-slate-600">
+                Agente
+                <input
+                  className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                  placeholder="Pó ABC, CO₂..."
+                  value={newExtintor.tipoAgente}
+                  onChange={(e) => setNewExtintor({ ...newExtintor, tipoAgente: e.target.value })}
+                />
+              </label>
+              <label className="text-xs font-medium text-slate-600">
+                Localização
+                <input
+                  className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                  value={newExtintor.localizacao}
+                  onChange={(e) => setNewExtintor({ ...newExtintor, localizacao: e.target.value })}
+                />
+              </label>
+              <label className="text-xs font-medium text-slate-600">
+                Próx. recarga
+                <input
+                  type="date"
+                  className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                  value={newExtintor.dataProxRecarga}
+                  onChange={(e) => setNewExtintor({ ...newExtintor, dataProxRecarga: e.target.value })}
+                />
+              </label>
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                className="rounded bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-50"
+                onClick={handleCriarExtintor}
+                disabled={creatingExtintor || !newExtintor.serial.trim()}
+              >
+                {creatingExtintor ? 'A criar...' : 'Criar e associar'}
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         {data.extintores && data.extintores.length > 0 ? (
           <div className="overflow-x-auto">
@@ -3504,9 +3919,93 @@ const [newJangada, setNewJangada] = useState({ serial: '', brand: '', model: '' 
             >
               {associating ? 'A associar...' : 'Associar EPIRB'}
             </button>
+            <button
+              type="button"
+              className="border border-violet-300 text-violet-800 hover:bg-violet-50 px-3 py-1.5 rounded text-sm"
+              onClick={() => setShowNewEpirbForm((prev) => !prev)}
+            >
+              {showNewEpirbForm ? 'Fechar' : '+ Novo EPIRB'}
+            </button>
             <a href="/epirbs" className="text-xs text-blue-700 underline">Abrir lista geral</a>
           </div>
         </div>
+
+        {showNewEpirbForm ? (
+          <div className="mb-5 rounded-xl border border-violet-200 bg-white p-4">
+            <p className="mb-3 text-sm font-semibold text-violet-900">Criar EPIRB e associar a este navio</p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <label className="text-xs font-medium text-slate-600">
+                Série *
+                <input
+                  className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                  value={newEpirb.serial}
+                  onChange={(e) => setNewEpirb({ ...newEpirb, serial: e.target.value })}
+                />
+              </label>
+              <label className="text-xs font-medium text-slate-600">
+                Marca
+                <input
+                  className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                  value={newEpirb.marca}
+                  onChange={(e) => setNewEpirb({ ...newEpirb, marca: e.target.value })}
+                />
+              </label>
+              <label className="text-xs font-medium text-slate-600">
+                Modelo
+                <input
+                  className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                  value={newEpirb.modelo}
+                  onChange={(e) => setNewEpirb({ ...newEpirb, modelo: e.target.value })}
+                />
+              </label>
+              <label className="text-xs font-medium text-slate-600">
+                Tipo
+                <input
+                  className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                  placeholder="406 MHz..."
+                  value={newEpirb.tipo}
+                  onChange={(e) => setNewEpirb({ ...newEpirb, tipo: e.target.value })}
+                />
+              </label>
+              <label className="text-xs font-medium text-slate-600">
+                HEX ID
+                <input
+                  className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                  value={newEpirb.hexId}
+                  onChange={(e) => setNewEpirb({ ...newEpirb, hexId: e.target.value })}
+                />
+              </label>
+              <label className="text-xs font-medium text-slate-600">
+                Próx. inspeção
+                <input
+                  type="date"
+                  className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                  value={newEpirb.dataProxInspecao}
+                  onChange={(e) => setNewEpirb({ ...newEpirb, dataProxInspecao: e.target.value })}
+                />
+              </label>
+              <label className="text-xs font-medium text-slate-600">
+                Validade bateria
+                <input
+                  type="date"
+                  className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                  value={newEpirb.dataValidadeBateria}
+                  onChange={(e) => setNewEpirb({ ...newEpirb, dataValidadeBateria: e.target.value })}
+                />
+              </label>
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                className="rounded bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
+                onClick={handleCriarEpirb}
+                disabled={creatingEpirb || !newEpirb.serial.trim()}
+              >
+                {creatingEpirb ? 'A criar...' : 'Criar e associar'}
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         {data.epirbs && data.epirbs.length > 0 ? (
           <div className="overflow-x-auto">

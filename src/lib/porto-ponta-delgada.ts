@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
+import { inferArmador } from "@/lib/porto-armadores";
 
 export type PortoMovimentoKind = "chegadas" | "em-porto" | "historico";
 
@@ -293,6 +294,7 @@ export async function syncPortoPontaDelgada(): Promise<PortoSyncResult> {
       navioNome: row.navioNome,
       matricula: row.imo,
       tipoCarga: mapPortoTipoCarga(row.tipoNavio),
+      armador: inferArmador(row.navioNome),
       cais: caisFor(row.tipoNavio),
       dataChegada: row.eta,
       dataPartida: row.etd,
@@ -307,7 +309,7 @@ export async function syncPortoPontaDelgada(): Promise<PortoSyncResult> {
       operations.push(
         prisma.portoEscala.update({
           where: { id: current.id },
-          data: { ...data, armador: current.armador },
+          data: { ...data, armador: current.armador || data.armador },
         }),
       );
       updated += 1;

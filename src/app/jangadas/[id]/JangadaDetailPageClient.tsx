@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
@@ -794,6 +794,10 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
   const [activeTab, setActiveTab] = useState<'dados' | 'artigos' | 'pack' | 'contentor' | 'historico' | 'testeWP' | 'boletins' | 'checklist' | 'dgrm'>('dados');
   const [data, setData] = useState<JangadaFormData>(initialData || {});
   const [editForm, setEditForm] = useState<JangadaFormData>(initialData ? { ...initialData } : {});
+  const isEditingRef = useRef(isEditing);
+  useEffect(() => {
+    isEditingRef.current = isEditing;
+  }, [isEditing]);
   const [saving, setSaving] = useState(false);
   const [loadingData, setLoadingData] = useState(!initialData);
   const [errorData, setErrorData] = useState(false);
@@ -1271,11 +1275,11 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
 
   const fetchJangadaData = async () => {
     try {
-      const res = await fetch(`/api/jangadas/${jangadaId}`);
+      const res = await fetch(`/api/jangadas/${jangadaId}`, { cache: 'no-store' });
       if (!res.ok) throw new Error('Not found');
       const json = await res.json();
       setData(json);
-      setEditForm(json);
+      if (!isEditingRef.current) setEditForm(json);
       const rawBulletins = (json.serviceBulletinsApplied || {}) as Record<string, unknown>;
       setBulletinsApplied(
         Object.entries(rawBulletins).reduce<Record<string, ServiceBulletinStatus>>((acc, [key, value]) => {
@@ -1599,6 +1603,11 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
     let phoneNum = clientePhone.replace(/[^\d+]/g, '');
     if (phoneNum.startsWith('00')) phoneNum = `+${phoneNum.slice(2)}`;
     if (/^[89]\d{8}$/.test(phoneNum)) phoneNum = `+351${phoneNum}`;
+    
+    if (!phoneNum) {
+      appToast.info("Cliente sem número de telemóvel na ficha. A abrir WhatsApp com mensagem predefinida...");
+    }
+
     const whatsappUrl = phoneNum
       ? `https://wa.me/${phoneNum.replace('+', '')}?text=${encodeURIComponent(message)}`
       : `https://wa.me/?text=${encodeURIComponent(message)}`;
@@ -1776,7 +1785,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
     try {
       // Enviar campos editáveis + artigos (para sincronizar no servidor)
       const {
-        inspecoes, certificadoAtivo, certificadosExtraidos,
+        inspecoes, certificadoAtivo, certificadosExtraidos, artigos,
         ownerDisplay, ownerClientId, shipDetails,
         mandatoryPackItems, mandatoryPackSource,
         applicableServiceBulletins,
@@ -1789,10 +1798,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
       const response = await fetch(`/api/jangadas/${jangadaId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...editableFields,
-          artigos: editForm.artigos || [],
-        }),
+        body: JSON.stringify(editableFields),
       });
 
       if (!response.ok) {

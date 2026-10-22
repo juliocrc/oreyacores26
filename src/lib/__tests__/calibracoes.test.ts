@@ -27,6 +27,7 @@ function registo(overrides: Partial<CalibracaoRegisto> = {}): CalibracaoRegisto 
     certificadoUrl: null,
     ativo: true,
     observacoes: null,
+    serviceStationId: 1,
     updatedAt: diasDesde(-10),
     ...overrides,
   };

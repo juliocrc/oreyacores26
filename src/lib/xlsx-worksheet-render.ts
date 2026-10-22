@@ -188,8 +188,13 @@ export function computeWorksheetLayout(
     contentHeight > 0 ? printableH / contentHeight : maxScale,
   );
 
-  const offsetX = margins.left;
-  const offsetY = margins.top;
+  const setup = worksheet.pageSetup || {};
+  const scaledWidth = contentWidth * scale;
+  const scaledHeight = contentHeight * scale;
+  const offsetX =
+    margins.left + (setup.horizontalCentered ? Math.max(0, (printableW - scaledWidth) / 2) : 0);
+  const offsetY =
+    margins.top + (setup.verticalCentered ? Math.max(0, (printableH - scaledHeight) / 2) : 0);
 
   const cellRect = (top: number, left: number, bottom: number, right: number) => {
     const x = offsetX + (colLeft.get(left) ?? 0) * scale;

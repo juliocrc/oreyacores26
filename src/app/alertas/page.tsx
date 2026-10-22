@@ -249,8 +249,27 @@ export default function AlertasPage() {
     }
 
     if (canal === "chamada" && number) {
-      window.location.href = `tel:${number}`;
-      setSendStatus({ ok: true, text: `A iniciar chamada para ${contactInfo.phone}.` });
+      setSendStatus({ ok: true, text: `A disparar chamada VoIP automática para ${contactInfo.phone}...` });
+      try {
+        const res = await fetch("/api/comunicacoes/voip-call", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              clienteNome: contactInfo.name || "Exmo. Cliente",
+              telefone: `+${number}`,
+              jangadaModel: selectedAlert?.referencia || "Jangada Salva-vidas",
+              capacidade: "12",
+              serial: selectedAlert?.referencia || "S/N",
+              navioNome: selectedAlert?.navioNome || "Embarcação",
+              dataValidade: selectedAlert?.data || "22/10/2026",
+            }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Falha na chamada VoIP.");
+        setSendStatus({ ok: true, text: `Chamada VoIP IA iniciada com sucesso para ${contactInfo.phone}!` });
+      } catch (err: any) {
+        setSendStatus({ ok: false, text: err?.message || "Erro ao iniciar chamada VoIP." });
+      }
       return;
     }
 

@@ -354,6 +354,37 @@ export default function MarinhaPage() {
                   </ul>
                 </div>
 
+                {zona.sigla === "CZMA" && (
+                  <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50/60 p-3.5">
+                    <p className="text-[10px] font-extrabold uppercase tracking-widest text-sky-900 mb-2">
+                      Estações Salva-Vidas e Embarcações Afetas (Açores)
+                    </p>
+                    <div className="grid gap-2 text-xs">
+                      <Link href="/marinha/esv-pdl" className="flex items-center justify-between rounded-lg bg-white p-2.5 border border-sky-100 hover:border-sky-300 transition shadow-xs">
+                        <div>
+                          <p className="font-bold text-slate-900">Estação Principal de Ponta Delgada</p>
+                          <p className="text-sky-700 font-semibold mt-0.5">Embarcação: Nossa Senhora da Boa Viagem</p>
+                        </div>
+                        <span className="rounded-md bg-sky-600 px-2 py-1 text-[10px] font-black text-white">ESV-PDL</span>
+                      </Link>
+                      <Link href="/marinha/esv-hor" className="flex items-center justify-between rounded-lg bg-white p-2.5 border border-sky-100 hover:border-sky-300 transition shadow-xs">
+                        <div>
+                          <p className="font-bold text-slate-900">Estação Principal da Horta</p>
+                          <p className="text-sky-700 font-semibold mt-0.5">Embarcação: Nossa Senhora da Conceição</p>
+                        </div>
+                        <span className="rounded-md bg-indigo-600 px-2 py-1 text-[10px] font-black text-white">ESV-HOR</span>
+                      </Link>
+                      <Link href="/marinha/esv-pdv" className="flex items-center justify-between rounded-lg bg-white p-2.5 border border-sky-100 hover:border-sky-300 transition shadow-xs">
+                        <div>
+                          <p className="font-bold text-slate-900">Estação Principal da Praia da Vitória / Angra</p>
+                          <p className="text-sky-700 font-semibold mt-0.5">Embarcação: Mestre Gringilha</p>
+                        </div>
+                        <span className="rounded-md bg-emerald-600 px-2 py-1 text-[10px] font-black text-white">ESV-PDV</span>
+                      </Link>
+                    </div>
+                  </div>
+                )}
+
                 {zona.nota ? (
                   <p className="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-800">
                     <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />

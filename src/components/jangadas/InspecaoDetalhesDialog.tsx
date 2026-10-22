@@ -302,6 +302,7 @@ export function InspecaoDetalhesDialog({
       hruValidade: snapshot?.hruValidade,
       dataInspecao: snapshot?.dataInspecao || inspecao.dataInspecao,
       cylinderDataTeste: snapshot?.cylinderDataTeste,
+      substituicoes: (snapshot?.artigos || inspecao.artigos || []) as any,
     });
   };
 
@@ -1011,11 +1012,7 @@ export function InspecaoDetalhesDialog({
                               <td className="px-5 py-3 text-slate-500">{artigo.codigoFabricante || '—'}</td>
                               <td className="px-5 py-3 text-center font-bold text-slate-700">{artigo.quantidade}</td>
                               <td className="px-5 py-3 text-center">
-                                {qtdSubstituida > 0 ? (
-                                  <span className="font-bold text-indigo-600">{qtdSubstituida}</span>
-                                ) : (
-                                  <span className="text-slate-400">—</span>
-                                )}
+                                <span className={qtdSubstituida > 0 ? "font-bold text-indigo-600" : "text-slate-400"}>{qtdSubstituida}</span>
                               </td>
                               <td className="px-5 py-3 text-slate-600 font-semibold">{formatMonthYear(artigo.validade)}</td>
                             </tr>
@@ -1333,11 +1330,7 @@ export function InspecaoDetalhesDialog({
                               <td className="px-5 py-3 text-slate-500">{artigo.codigoFabricante || '—'}</td>
                               <td className="px-5 py-3 text-center font-bold text-slate-700">{artigo.quantidade}</td>
                               <td className="px-5 py-3 text-center">
-                                {qtdSubstituida > 0 ? (
-                                  <span className="font-bold text-indigo-600">{qtdSubstituida}</span>
-                                ) : (
-                                  <span className="text-slate-400">—</span>
-                                )}
+                                <span className={qtdSubstituida > 0 ? "font-bold text-indigo-600" : "text-slate-400"}>{qtdSubstituida}</span>
                               </td>
                               <td className="px-5 py-3 text-slate-600 font-semibold">{formatMonthYear(artigo.validade)}</td>
                             </tr>

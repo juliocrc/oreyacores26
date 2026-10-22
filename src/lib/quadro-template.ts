@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs';
 import { toDateKey } from '@/lib/date-utils';
 import { loadTemplateBuffer } from '@/lib/template-loader';
+import { applyQuadroSubstituicoesToChecklist } from '@/lib/quadro-payload';
 
 type XlsxLoadArg = Parameters<ExcelJS.Xlsx['load']>[0];
 
@@ -446,6 +447,10 @@ function setChecklistCell(
     return;
   }
   if (!value) return;
+  if (cellAddress.startsWith('H')) {
+    setCenteredCell(cell, value);
+    return;
+  }
   setCell(cell, value);
 }
 
@@ -486,7 +491,12 @@ function fillTemplate(ws: ExcelJS.Worksheet, input: QuadroTemplateInput) {
   setCell(ws.getCell('I66'), formatMonthYear(input.cylinderHydroTestDate));
 
   // Preserve the template's formulas and labels in the pressure block.
-  setCell(ws.getCell('D69'), buildPressureUnitText(input.pressureUnit || 'inh2o'));
+  const pressureUnit = asString(input.pressureUnit);
+  if (pressureUnit) {
+    const pressureUnitLabel = pressureUnit.toUpperCase();
+    setCenteredCell(ws.getCell('D69'), `${buildPressureUnitText(pressureUnit)} [Unidade: ${pressureUnitLabel}]`);
+    setCenteredCell(ws.getCell('D70'), `Unidade WP: ${pressureUnitLabel}`);
+  }
   setCell(ws.getCell('H69'), formatValueWithUnit(input.tempInitial, '°C'));
   setCell(ws.getCell('J69'), formatValueWithUnit(input.tempFinal, '°C'));
   setCell(ws.getCell('H71'), formatValueWithUnit(input.baroInitial, 'hPa'));
@@ -515,7 +525,10 @@ function fillTemplate(ws: ExcelJS.Worksheet, input: QuadroTemplateInput) {
   setCell(ws.getCell('J51'), getTestDateCellValue(giDone, formatMonthYearSlash(input.giTestDate || defaultTestDate)));
   setCell(ws.getCell('J53'), getTestDateCellValue(loadDone, formatMonthYearSlash(input.loadTestDate || defaultTestDate)));
 
-  const checklist = input.checklist || {};
+  const checklist = applyQuadroSubstituicoesToChecklist(
+    { ...(input.checklist || {}) },
+    input.substituicoes,
+  );
   const batteryModel = inferBatteryModel(checklist.modelo_bateria || checklist.ref_bateria);
 
   const statusMappings: Array<[string, string]> = [
@@ -676,17 +689,7 @@ function configureQuadroPrintLayout(ws: ExcelJS.Worksheet) {
 }
 
 export async function buildQuadroInspectionArtifacts(input: QuadroTemplateInput) {
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load((await loadTemplateBuffer('template quadro.xlsx')) as unknown as XlsxLoadArg);
-
-  const worksheet = workbook.getWorksheet('QUADRO') || workbook.worksheets[0];
-
-  if (!worksheet) {
-    throw new Error('Folha QUADRO não encontrada no template quadro.');
-  }
-
-  fillTemplate(worksheet, input);
-  configureQuadroPrintLayout(worksheet);
+  const { workbook, worksheet } = await loadFilledQuadroWorkbook(input);
 
   // Add "Artigos a Expirar" sheet
   const expiringSheet = workbook.addWorksheet('Artigos a Expirar');
@@ -704,6 +707,22 @@ export async function buildQuadroInspectionArtifacts(input: QuadroTemplateInput)
 
   const fileName = buildQuadroFileName(input as QuadroTemplateInput & Record<string, unknown>);
   return { buffer, fileName };
+}
+
+export async function loadFilledQuadroWorkbook(input: QuadroTemplateInput) {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load((await loadTemplateBuffer('template quadro.xlsx')) as unknown as XlsxLoadArg);
+
+  const worksheet = workbook.getWorksheet('QUADRO') || workbook.worksheets[0];
+
+  if (!worksheet) {
+    throw new Error('Folha QUADRO não encontrada no template quadro.');
+  }
+
+  fillTemplate(worksheet, input);
+  configureQuadroPrintLayout(worksheet);
+
+  return { workbook, worksheet };
 }
 
 function addExpiringArticlesSheet(ws: ExcelJS.Worksheet, input: QuadroTemplateInput) {

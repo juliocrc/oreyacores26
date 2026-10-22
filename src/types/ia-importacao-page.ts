@@ -6,6 +6,7 @@ export type ExtractedArtigo = {
   validade?: string;
   quantidade?: number;
   referencia?: string;
+  codigoFabricante?: string;
 };
 
 export type AnalyzeResult = {

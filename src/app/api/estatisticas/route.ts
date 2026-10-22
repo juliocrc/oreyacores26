@@ -1,8 +1,25 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getAccessContext } from "@/lib/access-control";
+import {
+  ACTIVE_SERVICE_STATION_COOKIE,
+  resolveActiveServiceStationIdFromCookie,
+} from "@/lib/station-selection";
+import {
+  activeStationIsAlcantarilha,
+  SOUTH_REGION_ILHA_VALUES,
+} from "@/lib/alcantarilha-scope";
 
 export const maxDuration = 60;
+
+function readCookie(request: Request, name: string) {
+  const header = request.headers.get("cookie") || "";
+  for (const part of header.split(";")) {
+    const [key, ...valueParts] = part.trim().split("=");
+    if (key === name) return decodeURIComponent(valueParts.join("="));
+  }
+  return undefined;
+}
 
 const MONTH_LABELS = [
   "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
@@ -167,6 +184,18 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
     }
 
+    const activeStationId = resolveActiveServiceStationIdFromCookie(
+      readCookie(request, ACTIVE_SERVICE_STATION_COOKIE),
+      access,
+    );
+    const isAlcantarilha = await activeStationIsAlcantarilha(activeStationId);
+    const activeStation = activeStationId
+      ? await prisma.serviceStation.findUnique({
+          where: { id: activeStationId },
+          select: { id: true, codigo: true, nome: true },
+        })
+      : null;
+
     const { searchParams } = new URL(request.url);
     const rangeStart = parseDayStart(searchParams.get("from"));
     const rangeEnd = parseDayEnd(searchParams.get("to"));
@@ -189,7 +218,7 @@ export async function GET(request: Request) {
     const in60 = new Date(today.getTime() + 60 * 24 * 60 * 60 * 1000);
     const in90 = new Date(today.getTime() + 90 * 24 * 60 * 60 * 1000);
 
-    const [
+    let [
       jangadas,
       navios,
       clienteTotal,
@@ -210,6 +239,8 @@ export async function GET(request: Request) {
       prisma.jangada.findMany({
         select: {
           id: true,
+          serviceStationId: true,
+          serial: true,
           brand: true,
           model: true,
           capacity: true,
@@ -223,7 +254,13 @@ export async function GET(request: Request) {
       }),
       (async () => {
         const base = await prisma.navio.findMany({
-          select: { id: true, ilha: true, clienteId: true, tipoNavio: true },
+          select: {
+            id: true,
+            serviceStationId: true,
+            ilha: true,
+            clienteId: true,
+            tipoNavio: true,
+          },
         });
         const clienteIds = [...new Set(base.map((n) => n.clienteId).filter((v): v is number => v != null))];
         const clienteById = new Map(
@@ -236,6 +273,8 @@ export async function GET(request: Request) {
         );
         return base.map((n) => ({
           id: n.id,
+          serviceStationId: n.serviceStationId,
+          clienteId: n.clienteId,
           ilha: n.ilha,
           tipoNavio: n.tipoNavio,
           cliente: n.clienteId ? clienteById.get(n.clienteId) ?? null : null,
@@ -252,6 +291,7 @@ export async function GET(request: Request) {
       prisma.stock.findMany({
         select: {
           id: true,
+          serviceStationId: true,
           categoria: true,
           estadoArtigo: true,
           quantidade: true,
@@ -268,6 +308,7 @@ export async function GET(request: Request) {
       prisma.ordemServico.findMany({
         select: {
           id: true,
+          serviceStationId: true,
           status: true,
           tipo: true,
           prioridade: true,
@@ -293,16 +334,20 @@ export async function GET(request: Request) {
           cancelada: true,
           clienteId: true,
           cliente: { select: { nome: true } },
+          ordemServicos: { select: { ordemServicoId: true } },
         },
       }),
       prisma.movimentacaoStock.findMany({
-        select: { id: true, tipo: true, quantidade: true, createdAt: true },
+        select: { id: true, stockId: true, tipo: true, quantidade: true, createdAt: true },
       }),
       prisma.serviceStation.findMany({ select: { id: true, codigo: true, nome: true } }),
-      prisma.certificadoValidade.findMany({ select: { validade: true } }),
+      prisma.certificadoValidade.findMany({
+        select: { validade: true, certificado: { select: { raftSerial: true } } },
+      }),
       prisma.artigoJangada.findMany({
         where: { inspecaoId: { not: null } },
         select: {
+          inspecaoId: true,
           name: true,
           referencia: true,
           quantidade: true,
@@ -310,6 +355,88 @@ export async function GET(request: Request) {
         },
       }),
     ]);
+
+    // ── Âmbito por estação ativa ──
+    // Alcantarilha trabalha os navios da região Sul (ilha = "Sul") e tudo o
+    // que está ligado a esses navios. Sem estação ativa mantém-se a visão global.
+    if (activeStationId) {
+      const scopedNavios = navios.filter((navio) => {
+        if (navio.serviceStationId === activeStationId) return true;
+        return isAlcantarilha && SOUTH_REGION_ILHA_VALUES.includes(navio.ilha || "");
+      });
+      const scopedShipIds = new Set(scopedNavios.map((navio) => navio.id));
+
+      const scopedJangadas = jangadas.filter(
+        (jangada) =>
+          jangada.serviceStationId === activeStationId ||
+          (jangada.shipId != null && scopedShipIds.has(jangada.shipId)),
+      );
+      const scopedJangadaIds = new Set(scopedJangadas.map((jangada) => jangada.id));
+      const scopedJangadaSerials = new Set(
+        scopedJangadas.map((jangada) => String(jangada.serial || "").trim()).filter(Boolean),
+      );
+
+      navios = scopedNavios;
+      jangadas = scopedJangadas;
+
+      coletes = coletes.filter((colete) => colete.shipId != null && scopedShipIds.has(colete.shipId));
+      epirbs = epirbs.filter((epirb) => epirb.shipId != null && scopedShipIds.has(epirb.shipId));
+      fatos = fatos.filter((fato) => fato.shipId != null && scopedShipIds.has(fato.shipId));
+      extintores = extintores.filter(
+        (extintor) => extintor.shipId != null && scopedShipIds.has(extintor.shipId),
+      );
+
+      const scopedColeteIds = new Set(coletes.map((colete) => colete.id));
+      inspecoes = inspecoes.filter(
+        (inspecao) =>
+          (inspecao.jangadaId != null && scopedJangadaIds.has(inspecao.jangadaId)) ||
+          (inspecao.navioId != null && scopedShipIds.has(inspecao.navioId)) ||
+          (inspecao.coleteId != null && scopedColeteIds.has(inspecao.coleteId)),
+      );
+      const scopedInspecaoIds = new Set(inspecoes.map((inspecao) => inspecao.id));
+
+      stock = stock.filter((item) => item.serviceStationId === activeStationId);
+      const scopedStockIds = new Set(stock.map((item) => item.id));
+      movimentacoes = movimentacoes.filter((movimento) => scopedStockIds.has(movimento.stockId));
+
+      ordensServico = ordensServico.filter(
+        (ordem) => ordem.serviceStationId === activeStationId,
+      );
+      const scopedOrdemIds = new Set(ordensServico.map((ordem) => ordem.id));
+      faturas = faturas.filter((fatura) =>
+        fatura.ordemServicos.some((link) => scopedOrdemIds.has(link.ordemServicoId)),
+      );
+
+      artigosSubstituidosRaw = artigosSubstituidosRaw.filter(
+        (artigo) => artigo.inspecaoId != null && scopedInspecaoIds.has(artigo.inspecaoId),
+      );
+      certificadosValidade = certificadosValidade.filter(
+        (item) =>
+          item.certificado?.raftSerial != null &&
+          scopedJangadaSerials.has(item.certificado.raftSerial),
+      );
+
+      servicos = servicos.filter((servico) => servico.id === activeStationId);
+
+      const scopedClienteIds = new Set<number>();
+      for (const navio of scopedNavios) {
+        if (navio.clienteId != null) scopedClienteIds.add(navio.clienteId);
+      }
+      const directClients = await prisma.cliente.findMany({
+        where: { serviceStationId: activeStationId },
+        select: { id: true },
+      });
+      for (const cliente of directClients) scopedClienteIds.add(cliente.id);
+      clienteTotal = scopedClienteIds.size;
+      clientesSemContactoCnt = scopedClienteIds.size
+        ? await prisma.cliente.count({
+            where: {
+              id: { in: [...scopedClienteIds] },
+              OR: [{ email: null }, { email: "" }, { telefone: null, telmovel: null }],
+            },
+          })
+        : 0;
+    }
 
     // ── Filtro temporal (aplica-se a inspeções, OT, faturação e movimentos) ──
     const inspecoesFiltradas = inspecoes.filter((i) => inRange(parseFlexibleDate(i.dataInspecao)));
@@ -709,6 +836,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       geradoEm: new Date().toISOString(),
+      estacao: activeStation,
       periodo: {
         from: rangeStart ? rangeStart.toISOString().slice(0, 10) : null,
         to: rangeEnd ? rangeEnd.toISOString().slice(0, 10) : null,

@@ -19,6 +19,7 @@ export type MarinhaNavio = {
   base?: string;
   organizacao?: string;
   funcao?: string;
+  fotoUrl?: string;
 };
 
 export type MarinhaEspecificacao = {
@@ -307,30 +308,36 @@ export const marinhaClasses: MarinhaClasse[] = [
     navios: [
       {
         numero: "ESV-PDL",
-        nome: "Embarcação Salva-vidas de Ponta Delgada",
+        nome: "Nossa Senhora da Boa Viagem (UAM-691)",
+        ano: 2020,
         base: "Ponta Delgada, São Miguel",
         organizacao: "ISN — Estação Salva-vidas Principal de Ponta Delgada",
-        funcao: "Busca e salvamento oceânico e costeiro",
+        funcao: "Busca e salvamento oceânico e costeiro (SAR · MMSI: 263082000)",
+        fotoUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/NRP_Vasco_da_Gama_%28F330%29.jpg/800px-NRP_Vasco_da_Gama_%28F330%29.jpg",
         nota:
-          "A estação integra meios semi-rígidos de 3.ª geração, embarcações ligeiras e motas de água. Código de ficha da estação, não é número de amura oficial.",
+          "Embarcação Salva-vidas «Nossa Senhora da Boa Viagem» (UAM-691). Equipada com AIS, rádio VHF e meios de salvamento e socorro oceânico.",
       },
       {
         numero: "ESV-HOR",
-        nome: "Embarcação Salva-vidas da Horta",
+        nome: "Nossa Senhora da Conceição",
+        ano: 2020,
         base: "Horta, Faial",
         organizacao: "ISN — Estação Salva-vidas Principal da Horta",
-        funcao: "Busca e salvamento oceânico e costeiro",
+        funcao: "Busca e salvamento oceânico e costeiro (SAR · MMSI: 263080000)",
+        fotoUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/NRP_Vasco_da_Gama_%28F330%29.jpg/800px-NRP_Vasco_da_Gama_%28F330%29.jpg",
         nota:
-          "A estação integra embarcações semi-rígidas e meios ligeiros para intervenção costeira. Código de ficha da estação, não é número de amura oficial.",
+          "Embarcação Salva-vidas «Nossa Senhora da Conceição». Equipada para intervenção rápida em salvamento marítimo e apoio às fainas na Horta.",
       },
       {
         numero: "ESV-PDV",
-        nome: "Embarcação Salva-vidas da Praia da Vitória",
+        nome: "Mestre Gringilha (SR-38)",
+        ano: 2020,
         base: "Praia da Vitória, Terceira",
         organizacao: "ISN — Estação Salva-vidas Principal da Praia da Vitória/Angra",
-        funcao: "Busca e salvamento oceânico e costeiro",
+        funcao: "Busca e salvamento oceânico e costeiro (SR-38 · MMSI: 263058004)",
+        fotoUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/NRP_Vasco_da_Gama_%28F330%29.jpg/800px-NRP_Vasco_da_Gama_%28F330%29.jpg",
         nota:
-          "A estação integra embarcações semi-rígidas e meios ligeiros para intervenção costeira. Código de ficha da estação, não é número de amura oficial.",
+          "Lancha salva-vidas «Mestre Gringilha» (SR-38), em homenagem à memória das gentes do mar açorianas e dos antigos mestres da baleação e pesca na Ilha Terceira.",
       },
     ],
   },

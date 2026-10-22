@@ -5,18 +5,23 @@ import { appToast } from "@/lib/app-toast";
 import { subscribeServiceStationSync } from "@/lib/service-station-sync";
 import type { CalibracaoFormState, CalibracaoRegisto } from "@/lib/calibracoes";
 
-export function useCalibracoes(options: { seedCompressor?: boolean } = {}) {
-  const { seedCompressor = false } = options;
+export function useCalibracoes(
+  options: { seedCompressor?: boolean; includeUnassigned?: boolean } = {},
+) {
+  const { seedCompressor = false, includeUnassigned = false } = options;
   const [items, setItems] = useState<CalibracaoRegisto[]>([]);
   const [loading, setLoading] = useState(false);
 
   const fetchItems = useCallback(async () => {
     setLoading(true);
     try {
-      const url = seedCompressor
-        ? "/api/equipamentos-calibracao?seedCompressor=true"
-        : "/api/equipamentos-calibracao";
-      const res = await fetch(url, { cache: "no-store" });
+      const params = new URLSearchParams();
+      if (seedCompressor) params.set("seedCompressor", "true");
+      if (includeUnassigned) params.set("includeUnassigned", "1");
+      const query = params.toString();
+      const res = await fetch(`/api/equipamentos-calibracao${query ? `?${query}` : ""}`, {
+        cache: "no-store",
+      });
       if (!res.ok) throw new Error("Erro ao carregar os registos");
       setItems((await res.json()) as CalibracaoRegisto[]);
     } catch (err: unknown) {
@@ -24,7 +29,7 @@ export function useCalibracoes(options: { seedCompressor?: boolean } = {}) {
     } finally {
       setLoading(false);
     }
-  }, [seedCompressor]);
+  }, [seedCompressor, includeUnassigned]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- carregamento inicial dos registos a partir da API.

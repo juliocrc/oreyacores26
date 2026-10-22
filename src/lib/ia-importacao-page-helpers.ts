@@ -121,7 +121,7 @@ export function detectKnownArticleNameFromRow(row: Row): string {
 export function extractChecklistArticles(rows: Row[]) {
   const seen = new Set<string>();
 
-  return rows.reduce<Array<{ name?: string; validade?: string; quantidade?: number; referencia?: string }>>((acc, row) => {
+  return rows.reduce<Array<{ name?: string; validade?: string; quantidade?: number; referencia?: string; codigoFabricante?: string }>>((acc, row) => {
     const name =
       findRowValue(row, ["item", "artigo", "descricao", "material", "conteudo", "content"]) ||
       detectKnownArticleNameFromRow(row) ||
@@ -131,12 +131,22 @@ export function extractChecklistArticles(rows: Row[]) {
       findAnyDateInRow(row) ||
       undefined;
     const referencia = findRowValue(row, ["referencia", "ref", "codigo"]) || undefined;
+    const codigoFabricante =
+      findRowValue(row, [
+        "codigo fabricante",
+        "codigo do fabricante",
+        "manufacturer code",
+        "part number",
+        "part no",
+        "n fabricante",
+        "no fabricante",
+      ]) || undefined;
     const quantidade = asPositiveInt(findRowValue(row, ["quantidade", "qty", "qtd"]));
 
     if (!name) return acc;
     if (rowHasManufacturingDateMarker(row)) return acc;
 
-    const key = `${name}__${validade || ""}__${referencia || ""}`.toLowerCase();
+    const key = `${name}__${validade || ""}__${referencia || ""}__${codigoFabricante || ""}`.toLowerCase();
     if (seen.has(key)) return acc;
     seen.add(key);
 
@@ -145,6 +155,7 @@ export function extractChecklistArticles(rows: Row[]) {
       validade,
       quantidade,
       referencia,
+      codigoFabricante,
     });
     return acc;
   }, []);

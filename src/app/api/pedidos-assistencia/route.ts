@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAccessContext } from "@/lib/access-control";
 import { getApiSessionToken } from "@/lib/api-auth";
+import { resolveActiveServiceStationId } from "@/lib/station-selection";
+import { activeStationIsAlcantarilha, getSouthRegionShipIds } from "@/lib/alcantarilha-scope";
 import prisma from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { parsePedidoAssistenciaJangadaIds } from "@/lib/pedido-assistencia";
@@ -68,6 +70,9 @@ async function createInternalPedido(req: NextRequest, payload: Record<string, un
     return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
   }
 
+  const activeStationId = resolveActiveServiceStationId(req, access);
+  const alcantarilhaScope = await activeStationIsAlcantarilha(activeStationId);
+
   const tokenRole = String(token?.role || "USER");
   const role = tokenRole === "ADMIN" ? "ADMIN" : tokenRole === "CLIENTE" ? "CLIENTE" : "USER";
   if (role === "CLIENTE") {
@@ -94,13 +99,19 @@ async function createInternalPedido(req: NextRequest, payload: Record<string, un
 
   const navio = await prisma.navio.findUnique({
     where: { id: navioId },
-    select: { id: true, nome: true, clienteId: true },
+    select: { id: true, nome: true, clienteId: true, ilha: true, serviceStationId: true },
   });
   if (!navio) {
     return NextResponse.json({ error: "Navio não encontrado." }, { status: 404 });
   }
   if (navio.clienteId !== clienteId) {
     return NextResponse.json({ error: "O navio selecionado não pertence ao cliente escolhido." }, { status: 400 });
+  }
+  if (alcantarilhaScope) {
+    const southShipIds = await getSouthRegionShipIds();
+    if (!southShipIds.includes(navio.id) && navio.serviceStationId !== activeStationId) {
+      return NextResponse.json({ error: "O navio selecionado está fora da área da estação de serviço." }, { status: 403 });
+    }
   }
 
   const jangadaIds = parsePedidoAssistenciaJangadaIds(
@@ -129,7 +140,11 @@ async function createInternalPedido(req: NextRequest, payload: Record<string, un
   const email = cleanOptionalString(payload.email ?? payload.contactEmail) || cliente.email || undefined;
   const telefone = cleanOptionalString(payload.telefone ?? payload.contactPhone ?? payload.contactMobile) || cliente.telmovel || cliente.telefone || undefined;
   const dataPreferida = cleanOptionalString(payload.dataPreferida ?? payload.data);
-  const serviceStationId = parsePositiveInteger(payload.serviceStationId);
+  const requestedStationId = parsePositiveInteger(payload.serviceStationId);
+  if (alcantarilhaScope && requestedStationId && requestedStationId !== activeStationId) {
+    return NextResponse.json({ error: "Estação de serviço fora da área permitida." }, { status: 403 });
+  }
+  const serviceStationId = alcantarilhaScope ? activeStationId : requestedStationId;
 
   const metadados = {
     clienteId,
@@ -314,7 +329,12 @@ export async function GET(req: NextRequest) {
   const limite = Number.isFinite(limiteRaw) && limiteRaw > 0 ? Math.min(500, Math.round(limiteRaw)) : 50;
 
   try {
-    const where = estado ? { estado } : undefined;
+    const activeStationId = resolveActiveServiceStationId(req, access);
+    const alcantarilhaScope = await activeStationIsAlcantarilha(activeStationId);
+    const where: Prisma.PedidoAssistenciaWhereInput = {
+      ...(estado ? { estado } : {}),
+      ...(alcantarilhaScope ? { serviceStationId: activeStationId } : {}),
+    };
     const [pedidos, grouped, count] = await Promise.all([
       prisma.pedidoAssistencia.findMany({
         where,
@@ -327,7 +347,7 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: "desc" },
         take: limite,
       }),
-      prisma.pedidoAssistencia.groupBy({ by: ["estado"], _count: { _all: true } }),
+      prisma.pedidoAssistencia.groupBy({ by: ["estado"], where, _count: { _all: true } }),
       prisma.pedidoAssistencia.count({ where }),
     ]);
 
@@ -377,6 +397,17 @@ export async function PATCH(req: NextRequest) {
   const id = Number(payload.id);
   if (!Number.isFinite(id) || id <= 0) {
     return NextResponse.json({ error: "Campo obrigatório em falta: id." }, { status: 400 });
+  }
+
+  const activeStationId = resolveActiveServiceStationId(req, access);
+  if (await activeStationIsAlcantarilha(activeStationId)) {
+    const pedidoScope = await prisma.pedidoAssistencia.findUnique({
+      where: { id },
+      select: { serviceStationId: true },
+    });
+    if (!pedidoScope || pedidoScope.serviceStationId !== activeStationId) {
+      return NextResponse.json({ error: "Pedido fora da estação de serviço ativa." }, { status: 403 });
+    }
   }
 
   const data: Prisma.PedidoAssistenciaUpdateInput = {};

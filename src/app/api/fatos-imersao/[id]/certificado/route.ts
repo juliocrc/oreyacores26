@@ -6,6 +6,18 @@ function buildGeneratedCertificateNumber(fatoImersaoId: number, date = new Date(
   return `FI-${dateStr}-${fatoImersaoId}`;
 }
 
+async function readJsonBody(req: NextRequest): Promise<Record<string, string | undefined>> {
+  try {
+    const text = await req.text();
+    if (!text.trim()) return {};
+    const parsed = JSON.parse(text) as unknown;
+    if (parsed && typeof parsed === "object") return parsed as Record<string, string | undefined>;
+  } catch {
+    /* corpo vazio ou inválido */
+  }
+  return {};
+}
+
 export async function GET(_req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
@@ -39,7 +51,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
   try {
     const { id } = await context.params;
     const fatoImersaoId = parseInt(id, 10);
-    const body = await req.json();
+    const body = await readJsonBody(req);
 
     const fato = await prisma.fatoImersao.findUnique({
       where: { id: fatoImersaoId },

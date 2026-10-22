@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
     const tipo = searchParams.get('tipo');
     const ativo = searchParams.get('ativo');
     const seedCompressor = searchParams.get('seedCompressor') === 'true';
+    const includeUnassigned = access.isAdmin && searchParams.get('includeUnassigned') === '1';
 
     // Sincroniza o compressor com "Manutenção de ar comprimido v.2.xlsx".
     // Idempotente: upsert por referência. Preserva a data da última manutenção
@@ -88,7 +89,11 @@ export async function GET(request: NextRequest) {
 
     const where: Prisma.CalibracaoEquipamentoWhereInput = {};
     if (enforcedStationId) {
-      where.OR = [{ serviceStationId: enforcedStationId }, { serviceStationId: null }];
+      if (includeUnassigned) {
+        where.OR = [{ serviceStationId: enforcedStationId }, { serviceStationId: null }];
+      } else {
+        where.serviceStationId = enforcedStationId;
+      }
     }
     if (tipo) {
       where.tipo = tipo;

@@ -1,14 +1,15 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { appToast } from "@/lib/app-toast";
-import { ArrowLeft, Save, ClipboardCheck, Award, Shirt, Wand2, ImagePlus, Trash2 } from "lucide-react";
+import { ArrowLeft, Save, ClipboardCheck, Award, Shirt, Wand2, ImagePlus, Trash2, Printer } from "lucide-react";
 import { FATO_IMERSAO_CHECKLIST_OPTIONS } from "@/types/fatos-imersao-page";
 import { FATO_IMERSAO_STATUS } from "@/lib/status-constants";
 import ImmersionSuitDiagram from "@/components/fatos-imersao/ImmersionSuitDiagram";
 import { berLabel, parseChecklistJson } from "@/lib/fatos-imersao-service";
-import { toDisplayDate, toDisplayValidade, normalizeDateInput, toStorageValidade } from "@/lib/fato-date-utils";
+import { toDisplayDate, toDisplayValidade, normalizeDateInput, toStorageValidade, toMonthInput, normalizeMonthInput } from "@/lib/fato-date-utils";
 
 const CHECK_FIELDS: Array<{ key: string; label: string }> = [
   { key: "tecidoExterior", label: "Tecido exterior" },
@@ -23,6 +24,12 @@ const CHECK_FIELDS: Array<{ key: string; label: string }> = [
   { key: "impermeabilidade", label: "Impermeabilidade" },
 ];
 
+function toDateInput(value?: string | null): string {
+  if (!value) return "";
+  const match = String(value).match(/^\d{4}-\d{2}-\d{2}/);
+  return match ? match[0] : "";
+}
+
 export default function FatoImersaoDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -35,7 +42,13 @@ export default function FatoImersaoDetailPage() {
     inspectorNome: "",
     observacoes: "",
   });
-  const [cert, setCert] = useState({ resultado: "Aprovado", emitidoPor: "", observacoes: "" });
+  const [cert, setCert] = useState({
+    resultado: "Aprovado",
+    emitidoPor: "",
+    observacoes: "",
+    dataCertificado: "",
+    dataValidade: "",
+  });
   const [evidencias, setEvidencias] = useState<any[]>([]);
   const [uploading, setUploading] = useState(false);
 
@@ -87,6 +100,13 @@ export default function FatoImersaoDetailPage() {
         testeImpermeabilidade: data.testeImpermeabilidade || "",
         testeFlutuabilidade: data.testeFlutuabilidade || "",
         testeFecho: data.testeFecho || "",
+      });
+      setCert({
+        resultado: data.certificado?.resultado || "Aprovado",
+        emitidoPor: data.certificado?.emitidoPor || "",
+        observacoes: data.certificado?.observacoes || "",
+        dataCertificado: toDateInput(data.certificado?.dataCertificado) || toDateInput(data.dataInspecao),
+        dataValidade: toDateInput(data.certificado?.dataValidade) || toDateInput(data.dataProxInspecao),
       });
       const navData = await navRes.json();
       setNavios(Array.isArray(navData) ? navData : []);
@@ -179,7 +199,11 @@ export default function FatoImersaoDetailPage() {
       const res = await fetch(`/api/fatos-imersao/${id}/certificado`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(cert),
+        body: JSON.stringify({
+          ...cert,
+          dataCertificado: cert.dataCertificado || undefined,
+          dataValidade: cert.dataValidade || undefined,
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || "Erro no certificado");
@@ -244,17 +268,26 @@ export default function FatoImersaoDetailPage() {
           ["tamanho", "Tamanho"],
           ["tipo", "Tipo"],
           ["material", "Material"],
-          ["dataFabrico", "Data fabrico (dd/mm/aaaa)"],
+          ["dataFabrico", "Data fabrico (MM/AAAA)"],
           ["dataInspecao", "Data inspeção (dd/mm/aaaa)"],
           ["dataProxInspecao", "Próxima inspeção (dd/mm/aaaa)"],
         ].map(([key, label]) => (
           <label key={key} className="text-sm">
             <span className="text-slate-600">{label}</span>
-            <input
-              value={form[key] || ""}
-              onChange={(e) => setForm({ ...form, [key]: e.target.value })}
-              className="mt-1 w-full border rounded-lg px-3 py-2"
-            />
+            {key === "dataFabrico" ? (
+              <input
+                type="month"
+                value={toMonthInput(form[key])}
+                onChange={(e) => setForm({ ...form, [key]: normalizeMonthInput(e.target.value) })}
+                className="mt-1 w-full border rounded-lg px-3 py-2"
+              />
+            ) : (
+              <input
+                value={form[key] || ""}
+                onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+                className="mt-1 w-full border rounded-lg px-3 py-2"
+              />
+            )}
           </label>
         ))}
         <label className="text-sm">
@@ -478,25 +511,36 @@ export default function FatoImersaoDetailPage() {
           Certificado
         </h2>
         {item.certificado?.numeroCertificado ? (
-          <div className="text-sm bg-amber-50 border border-amber-100 rounded-lg p-3">
-            <div className="font-semibold">{item.certificado.numeroCertificado}</div>
-            <div className="text-slate-600">
-              Resultado: {item.certificado.resultado}
-              {item.certificado.dataValidade
-                ? ` · Validade: ${toDisplayDate(item.certificado.dataValidade)}`
-                : ""}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-100 bg-amber-50 p-3 text-sm">
+            <div>
+              <div className="font-semibold">{item.certificado.numeroCertificado}</div>
+              <div className="text-slate-600">
+                Resultado: {item.certificado.resultado}
+                {item.certificado.dataValidade
+                  ? ` · Validade: ${toDisplayDate(item.certificado.dataValidade)}`
+                  : ""}
+              </div>
             </div>
+            <Link
+              href={`/fatos-imersao/${id}/certificado`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-semibold text-amber-800 transition hover:bg-amber-100"
+            >
+              <Printer className="h-4 w-4" />
+              Abrir / imprimir certificado
+            </Link>
           </div>
         ) : (
           <p className="text-sm text-slate-400">Ainda sem certificado emitido.</p>
         )}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <label className="text-sm">
             <span className="text-slate-600">Resultado</span>
             <select
               value={cert.resultado}
               onChange={(e) => setCert({ ...cert, resultado: e.target.value })}
-              className="mt-1 w-full border rounded-lg px-3 py-2"
+              className="mt-1 w-full rounded-lg border px-3 py-2"
             >
               <option>Aprovado</option>
               <option>Reprovado</option>
@@ -508,21 +552,39 @@ export default function FatoImersaoDetailPage() {
             <input
               value={cert.emitidoPor}
               onChange={(e) => setCert({ ...cert, emitidoPor: e.target.value })}
-              className="mt-1 w-full border rounded-lg px-3 py-2"
+              className="mt-1 w-full rounded-lg border px-3 py-2"
             />
           </label>
-          <label className="text-sm md:col-span-3">
+          <label className="text-sm">
+            <span className="text-slate-600">Data do certificado</span>
+            <input
+              type="date"
+              value={cert.dataCertificado}
+              onChange={(e) => setCert({ ...cert, dataCertificado: e.target.value })}
+              className="mt-1 w-full rounded-lg border px-3 py-2"
+            />
+          </label>
+          <label className="text-sm">
+            <span className="text-slate-600">Válido até</span>
+            <input
+              type="date"
+              value={cert.dataValidade}
+              onChange={(e) => setCert({ ...cert, dataValidade: e.target.value })}
+              className="mt-1 w-full rounded-lg border px-3 py-2"
+            />
+          </label>
+          <label className="text-sm md:col-span-2">
             <span className="text-slate-600">Observações</span>
             <input
               value={cert.observacoes}
               onChange={(e) => setCert({ ...cert, observacoes: e.target.value })}
-              className="mt-1 w-full border rounded-lg px-3 py-2"
+              className="mt-1 w-full rounded-lg border px-3 py-2"
             />
           </label>
         </div>
         <button
           onClick={handleEmitCertificado}
-          className="inline-flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg text-sm"
+          className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm text-white hover:bg-amber-700"
         >
           Emitir / atualizar certificado
         </button>

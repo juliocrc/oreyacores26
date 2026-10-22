@@ -1,1 +1,0 @@
-ALTER TABLE "Navio" ADD COLUMN "aisUpdatedAt" TIMESTAMP(3);

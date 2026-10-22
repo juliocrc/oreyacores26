@@ -24,11 +24,11 @@ export type BuildOreyCertificatePdfOptions = {
   verification?: OreyCertificatePdfVerification;
 };
 
-function isImageDataUrl(value?: string | null): value is string {
+export function isImageDataUrl(value?: string | null): value is string {
   return typeof value === "string" && /^data:image\/(png|jpe?g|webp);base64,/i.test(value);
 }
 
-function imageFormat(dataUrl: string): "PNG" | "JPEG" | "WEBP" {
+export function imageFormat(dataUrl: string): "PNG" | "JPEG" | "WEBP" {
   if (dataUrl.startsWith("data:image/png")) return "PNG";
   if (dataUrl.startsWith("data:image/webp")) return "WEBP";
   return "JPEG";
@@ -49,8 +49,10 @@ export async function buildOreyCertificatePdfBuffer(
 ): Promise<Buffer> {
   const { workbook, worksheet } = await loadFilledCertificateWorkbook(input);
 
-  // No certificado carimbado o nome da estação consta já no carimbo oficial,
-  // pelo que as áreas de texto da estação são limpas (clearCertificateStationText).
+  // No certificado carimbado o nome da estação consta já no carimbo oficial.
+  // A linha "For authorized servicing station" (I62:L62) é removida apenas no
+  // PDF; o Excel mantém o texto do template.
+  worksheet.getCell("I62").value = null;
 
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const layout = renderWorksheetToPdf(doc, worksheet, workbook, {
@@ -62,23 +64,24 @@ export async function buildOreyCertificatePdfBuffer(
     logoWidthMm: 45,
   });
 
-  // Carimbo oficial na área I61:L61. A célula tem texto Arial 11 pt; o carimbo
-  // é dimensionado para a mesma altura de linha de texto (~4 mm), sem voltar a
-  // preencher toda a área de assinatura.
+  // Carimbo oficial na área I61:L65. A imagem é reproduzida ao seu tamanho
+  // natural (digitalização a 300 dpi), escalada com o resto do certificado e
+  // limitada à área disponível para não invadir a linha da assinatura.
   const stampImage = options.stamp?.imageDataUrl;
   const stationName = String(options.stamp?.stationName ?? "").trim();
-  const stampRegion = layout.cellRect(61, 9, 61, 12);
+  const stampRegion = layout.cellRect(61, 9, 65, 12);
   if (isImageDataUrl(stampImage)) {
     const size = imageSizeFromDataUrl(stampImage) || { width: 574, height: 265 };
     const aspect = size.width > 0 ? size.height / size.width : 265 / 574;
-    let height = Math.min(stampRegion.h * 0.8, 4.2);
-    let width = height / aspect;
-    if (width > stampRegion.w * 0.95) {
-      width = stampRegion.w * 0.95;
-      height = width * aspect;
+    const naturalWidth = (size.width * 25.4) / 300 * layout.scale;
+    let width = Math.min(naturalWidth, stampRegion.w * 0.98);
+    let height = width * aspect;
+    if (height > stampRegion.h * 0.98) {
+      height = stampRegion.h * 0.98;
+      width = height / aspect;
     }
     const x = stampRegion.x + (stampRegion.w - width) / 2;
-    const y = stampRegion.y + (stampRegion.h - height) / 2;
+    const y = stampRegion.y + 0.4;
     try {
       doc.addImage(stampImage, imageFormat(stampImage), x, y, width, height);
     } catch {
@@ -87,7 +90,7 @@ export async function buildOreyCertificatePdfBuffer(
   } else if (stationName) {
     // Sem imagem de carimbo: ainda assim inscreve o nome da estação.
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
+    doc.setFontSize(11);
     doc.setTextColor(0, 0, 0);
     doc.text(stationName, stampRegion.x + stampRegion.w / 2, stampRegion.y + stampRegion.h / 2, { align: "center" });
   }

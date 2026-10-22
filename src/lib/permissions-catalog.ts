@@ -11,6 +11,7 @@ export type PermissionModuleKey =
   | "logistica"
   | "alertas"
   | "inspecoes"
+  | "ia-importacao"
 
   | "relatorios"
   | "jangadas"
@@ -42,6 +43,7 @@ export const PERMISSION_MODULE_OPTIONS: Array<{ key: PermissionModuleKey; label:
   { key: "calibracoes", label: "Calibrações", href: "/calibracoes" },
   { key: "logistica", label: "Logística", href: "/logistica" },
   { key: "alertas", label: "Alertas", href: "/alertas" },
+  { key: "ia-importacao", label: "Análise e Importação IA", href: "/ia-importacao" },
 
   { key: "relatorios", label: "Relatórios", href: "/relatorios" },
   { key: "jangadas", label: "Jangadas", href: "/" },
@@ -74,6 +76,7 @@ export const PAGE_PREFIX_OPTIONS: Array<{ key: string; label: string; prefix: st
   { key: "calibracoes", label: "Calibrações", prefix: "/calibracoes" },
   { key: "logistica", label: "Logística", prefix: "/logistica" },
   { key: "alertas", label: "Alertas", prefix: "/alertas" },
+  { key: "ia-importacao", label: "Análise e Importação IA", prefix: "/ia-importacao" },
 
   { key: "relatorios", label: "Relatórios", prefix: "/relatorios" },
   { key: "jangadas", label: "Jangadas (detalhe/lista)", prefix: "/jangadas" },

@@ -7,6 +7,30 @@ import { loadTemplateBuffer } from "@/lib/template-loader";
 const WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 const ROWS_PER_PAGE = 14;
 
+export type ShipCertificateLayout = {
+  templateFile: string;
+  rowsPerPage: number;
+  rowCells: {
+    serial: number;
+    marca: number;
+    modelo: number;
+    dataFabrico: number;
+    status: number;
+  };
+  footerValueCells: {
+    serviceStation: number;
+    placeAndDate: number;
+    nextInspection: number;
+  };
+};
+
+const COLETES_LAYOUT: ShipCertificateLayout = {
+  templateFile: "template certificado coletes.docx",
+  rowsPerPage: ROWS_PER_PAGE,
+  rowCells: { serial: 3, marca: 1, modelo: 2, dataFabrico: 4, status: 5 },
+  footerValueCells: { serviceStation: 0, placeAndDate: 1, nextInspection: 2 },
+};
+
 export type ColeteCertificateRow = {
   marca: string;
   modelo: string;
@@ -176,7 +200,7 @@ function fillHeaderTable(table: Element, input: NavioColetesCertificateInput) {
   setCellText(row2[3], input.portOfCall || "");
 }
 
-function fillRowsTable(table: Element, rowsForPage: ColeteCertificateRow[]) {
+function fillRowsTable(table: Element, rowsForPage: ColeteCertificateRow[], layout: ShipCertificateLayout) {
   const rows = getChildElements(table, "tr");
   const dataRows = rows.slice(1);
 
@@ -184,35 +208,46 @@ function fillRowsTable(table: Element, rowsForPage: ColeteCertificateRow[]) {
     const cells = getChildElements(row, "tc");
     const current = rowsForPage[index] || null;
     setCellText(cells[0], current ? String(index + 1) : "");
-    setCellText(cells[1], current?.marca || "");
-    setCellText(cells[2], current?.modelo || "");
-    setCellText(cells[3], current?.serial || "");
-    setCellText(cells[4], formatValidityDisplay(current?.dataFabrico) === "—" ? "" : formatValidityDisplay(current?.dataFabrico));
-    setCellText(cells[5], current?.status || "");
+    setCellText(cells[layout.rowCells.marca], current?.marca || "");
+    setCellText(cells[layout.rowCells.modelo], current?.modelo || "");
+    setCellText(cells[layout.rowCells.serial], current?.serial || "");
+    setCellText(
+      cells[layout.rowCells.dataFabrico],
+      formatValidityDisplay(current?.dataFabrico) === "—" ? "" : formatValidityDisplay(current?.dataFabrico)
+    );
+    setCellText(cells[layout.rowCells.status], current?.status || "");
   });
 }
 
-function fillFooterTable(table: Element, input: NavioColetesCertificateInput) {
+function fillFooterTable(table: Element, input: NavioColetesCertificateInput, layout: ShipCertificateLayout) {
   const rows = getChildElements(table, "tr");
   const valueCells = getChildElements(rows[1], "tc");
-  setCellText(valueCells[0], input.serviceStation || "");
-  setCellText(valueCells[1], input.inspectionPlaceAndDate || "");
-  setCellText(valueCells[2], input.nextInspectionDate || "");
+  setCellText(valueCells[layout.footerValueCells.serviceStation], input.serviceStation || "");
+  setCellText(valueCells[layout.footerValueCells.placeAndDate], input.inspectionPlaceAndDate || "");
+  setCellText(valueCells[layout.footerValueCells.nextInspection], input.nextInspectionDate || "");
 }
 
-function fillPageContent(pageNodes: Element[], input: NavioColetesCertificateInput, rowsForPage: ColeteCertificateRow[]) {
+function fillPageContent(
+  pageNodes: Element[],
+  input: NavioColetesCertificateInput,
+  rowsForPage: ColeteCertificateRow[],
+  layout: ShipCertificateLayout
+) {
   const tables = getTopLevelTables(pageNodes);
   if (tables.length < 3) {
-    throw new Error("Estrutura inesperada do template de certificado de coletes.");
+    throw new Error("Estrutura inesperada do template de certificado.");
   }
 
   fillHeaderTable(tables[0], input);
-  fillRowsTable(tables[1], rowsForPage);
-  fillFooterTable(tables[2], input);
+  fillRowsTable(tables[1], rowsForPage, layout);
+  fillFooterTable(tables[2], input, layout);
 }
 
-export async function generateNavioColetesCertificateDocx(input: NavioColetesCertificateInput) {
-  const templateBuffer = await loadTemplateBuffer("template certificado coletes.docx");
+export async function generateNavioCertificateDocx(
+  input: NavioColetesCertificateInput,
+  layout: ShipCertificateLayout
+) {
+  const templateBuffer = await loadTemplateBuffer(layout.templateFile);
   const zip = await JSZip.loadAsync(templateBuffer);
   const documentXmlFile = zip.file("word/document.xml");
 
@@ -232,12 +267,12 @@ export async function generateNavioColetesCertificateDocx(input: NavioColetesCer
   const baseNodes = getChildElements(body).filter((node) => getLocalName(node) !== "sectPr");
   baseNodes.forEach((node) => body.removeChild(node));
 
-  const pages = chunkRows(input.rows, ROWS_PER_PAGE);
+  const pages = chunkRows(input.rows, layout.rowsPerPage);
 
   pages.forEach((pageRows, pageIndex) => {
     const clonedNodes = baseNodes.map((node) => node.cloneNode(true) as Element);
     clonedNodes.forEach((node) => body.insertBefore(node, sectionProps));
-    fillPageContent(clonedNodes, input, pageRows);
+    fillPageContent(clonedNodes, input, pageRows, layout);
 
     if (pageIndex < pages.length - 1) {
       body.insertBefore(createPageBreakParagraph(doc), sectionProps);
@@ -247,4 +282,8 @@ export async function generateNavioColetesCertificateDocx(input: NavioColetesCer
   const serializer = new XMLSerializer();
   zip.file("word/document.xml", serializer.serializeToString(doc));
   return zip.generateAsync({ type: "nodebuffer" });
+}
+
+export async function generateNavioColetesCertificateDocx(input: NavioColetesCertificateInput) {
+  return generateNavioCertificateDocx(input, COLETES_LAYOUT);
 }

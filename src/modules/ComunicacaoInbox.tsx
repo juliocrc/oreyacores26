@@ -335,6 +335,35 @@ export default function ComunicacaoInbox({
     }
   };
 
+  const handleTwilioVoipCall = async () => {
+    const phone = destinatario.trim() || conversaAtual?.contacto || "+351910000000";
+    const name = conversaAtual?.nome || "Artur Manuel Santos Arraial Pacheco";
+    try {
+      setSending(true);
+      const res = await fetch("/api/comunicacoes/voip-call", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clienteNome: name,
+          telefone: phone,
+          jangadaModel: "SEASAVA PLUS R",
+          capacidade: "12",
+          serial: "4583200300158",
+          navioNome: "Pesca Açores",
+          dataValidade: "22/10/2026",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Falha na chamada VoIP.");
+      appToast.success(`Chamada VoIP REST API iniciada com sucesso para ${name} (${phone})!`);
+      await fetchHistory();
+    } catch (err: any) {
+      appToast.error(err?.message || "Erro ao iniciar chamada VoIP.");
+    } finally {
+      setSending(false);
+    }
+  };
+
   const descartar = async (c: Comunicacao) => {
     if (typeof window !== "undefined" && !window.confirm("Descartar esta mensagem do histórico?")) return;
     try {
@@ -409,6 +438,41 @@ export default function ComunicacaoInbox({
             >
               <RefreshCw size={13} /> Atualizar
             </button>
+          </div>
+        </div>
+
+        {/* Tecnico / VoIP & WhatsApp Banner */}
+        <div className="rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-900 via-slate-900 to-sky-950 p-5 text-white shadow-md flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/30">
+              <Smartphone size={24} />
+            </span>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="rounded-full bg-emerald-500/25 px-2.5 py-0.5 text-[10px] font-black uppercase text-emerald-300 ring-1 ring-emerald-500/30">
+                  Estação de Serviço dos Açores
+                </span>
+                <span className="font-mono text-xs text-slate-300">Técnico Responsável</span>
+              </div>
+              <h2 className="text-xl font-black mt-0.5">Júlio Correia · +351 961 705 081</h2>
+              <p className="text-xs text-slate-300">Central ativa para chamadas VoIP, WhatsApp, SMS e E-mail.</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <a
+              href="tel:+351961705081"
+              className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 transition"
+            >
+              <Smartphone size={14} /> Ligar VoIP (+351 961 705 081)
+            </a>
+            <a
+              href="https://wa.me/351961705081"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-xs font-bold text-slate-950 shadow-sm hover:bg-emerald-400 transition"
+            >
+              <MessageCircle size={14} /> WhatsApp Directo
+            </a>
           </div>
         </div>
 
@@ -670,14 +734,24 @@ export default function ComunicacaoInbox({
                     className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
                   />
                 </div>
-                <button
-                  onClick={handleEnviar}
-                  disabled={sending}
-                  className={`self-end flex items-center justify-center gap-2 rounded-xl px-6 py-3 font-bold text-white transition disabled:opacity-50 ${acentoAtivo}`}
-                >
-                  {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-                  {responderA ? "Responder" : tipo === "WHATSAPP" ? "Abrir WhatsApp" : `Enviar ${tipo}`}
-                </button>
+                <div className="flex items-center gap-2 self-end">
+                  <button
+                    onClick={handleTwilioVoipCall}
+                    disabled={sending}
+                    className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 font-bold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                    title="Ligar automaticamente por voz IA para o cliente"
+                  >
+                    <Smartphone size={16} /> Ligar VoIP IA
+                  </button>
+                  <button
+                    onClick={handleEnviar}
+                    disabled={sending}
+                    className={`flex items-center justify-center gap-2 rounded-xl px-6 py-3 font-bold text-white transition disabled:opacity-50 ${acentoAtivo}`}
+                  >
+                    {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                    {responderA ? "Responder" : tipo === "WHATSAPP" ? "Abrir WhatsApp" : `Enviar ${tipo}`}
+                  </button>
+                </div>
               </div>
               <div className="flex items-center gap-2 text-[11px] text-slate-400">
                 <ArrowDownLeft size={12} />

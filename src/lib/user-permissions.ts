@@ -160,8 +160,8 @@ export function defaultPermissionsForRole(role: "ADMIN" | "USER" | "CLIENTE"): E
     };
   }
 
-  const defaultModules = ["dashboard", "jangadas", "estacao-servico"] as PermissionModuleKey[];
-  const defaultPages = ["/", "/", "/jangadas", "/estacao-servico"];
+  const defaultModules = ["dashboard", "jangadas", "estacao-servico", "ia-importacao"] as PermissionModuleKey[];
+  const defaultPages = ["/", "/", "/jangadas", "/estacao-servico", "/ia-importacao"];
 
   return {
     visibleModules: defaultModules,

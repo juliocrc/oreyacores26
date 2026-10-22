@@ -8,6 +8,7 @@ const FILES = [
   "template certificado orey.xltx",
   "template quadro.xlsx",
   "template certificado coletes.docx",
+  "template certificado fatos de imersao.docx",
   "template Ficha de Verif. Múltipla.xlsx",
   "terceiro template.xlsx",
   "FICHA_DGRM_TEMPLATE.docx",
