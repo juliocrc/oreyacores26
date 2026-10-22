@@ -24,8 +24,9 @@ const MODULOS = [
   "/backups",
   "/porto-ponta-delgada",
   "/contentores",
-  "/marinha",
-  "/ia-importacao",
+   "/marinha",
+   "/globalfishazores",
+   "/ia-importacao",
   // Ordens de Serviço
   "/criar-ot",
   "/ordens-servico",
@@ -56,8 +57,9 @@ const MODULOS = [
   // Documentação & Qualidade
   "/qualidade-dados",
   "/integridade",
-  "/dgrm",
-  "/auditorias",
+   "/dgrm",
+   "/survitec-auditoria",
+   "/auditorias",
   "/departamento-tecnico",
   "/legislacao",
   "/fotos",
