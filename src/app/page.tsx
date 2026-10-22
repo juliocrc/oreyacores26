@@ -7,6 +7,7 @@ import { getAccessContext } from "@/lib/access-control";
 import { ACTIVE_SERVICE_STATION_COOKIE, resolveActiveServiceStationIdFromCookie } from "@/lib/station-selection";
 import { getAuthSession } from "@/auth";
 import { TrocarTecnicoBotao } from "./TrocarTecnicoBotao";
+import ExpiryAlertsWidget from "@/components/ExpiryAlertsWidget";
 
 export const metadata: Metadata = {
   title: "Inspeções",
@@ -228,6 +229,10 @@ export default async function InicioPage() {
             </span>
           </Link>
         ))}
+      </section>
+
+      <section className="mt-8">
+        <ExpiryAlertsWidget />
       </section>
 
       <section className="mt-8">
