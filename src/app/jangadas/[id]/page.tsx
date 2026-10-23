@@ -48,6 +48,7 @@ export default async function JangadaInspectionPage({ params }: { params: Promis
     dataInspecao: jangadaRaw.dataInspecao || latestInspection?.dataInspecao || null,
     dataProxInspecao: jangadaRaw.dataProxInspecao || latestInspection?.dataProxInspecao || null,
     ultimoCertificadoNumero: jangadaRaw.ultimoCertificadoNumero || latestInspection?.certificadoNumero || null,
+    ordemServico: (jangadaRaw as any).ordemServico || latestInspection?.numeroObra || null,
   };
 
   function nullToUndefined<T>(obj: T): T {

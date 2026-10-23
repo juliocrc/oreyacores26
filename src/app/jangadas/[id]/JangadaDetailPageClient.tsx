@@ -630,6 +630,9 @@ function EspelhoChecklist({ data, artigos }: { data: JangadaFormData; artigos: A
   };
 
   const testesPresentes = ESPELHO_TESTES.map((t) => ({ ...t, value: checklist[t.key] })).filter((t) => t.value != null && String(t.value).trim() !== '');
+  const lastInspCard = data.inspecoes && data.inspecoes.length > 0
+    ? [...data.inspecoes].sort((a: any, b: any) => new Date(b.dataInspecao).getTime() - new Date(a.dataInspecao).getTime())[0]
+    : null;
 
   return (
     <div className="space-y-5">
@@ -657,7 +660,7 @@ function EspelhoChecklist({ data, artigos }: { data: JangadaFormData; artigos: A
           </div>
           <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
             <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Ordem de Serviço</p>
-            <p className="mt-1 text-sm font-semibold text-slate-800">{String(data.ordemServico || data.ultimaOrdemServico || '—')}</p>
+            <p className="mt-1 text-sm font-semibold text-slate-800">{String(data.ordemServico || data.ultimaOrdemServico || lastInspCard?.numeroObra || '—')}</p>
           </div>
           <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
             <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Artigos no pack</p>
@@ -3625,7 +3628,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                       onChange={(e) => handleEditChange('ordemServico', e.target.value)} 
                     />
                   ) : (
-                    <p className="font-semibold text-slate-800">{String(data.ordemServico || data.ultimaOrdemServico || '—')}</p>
+                    <p className="font-semibold text-slate-800">{String(data.ordemServico || data.ultimaOrdemServico || lastInspecao?.numeroObra || '—')}</p>
                   )}
                 </div>
               </div>
