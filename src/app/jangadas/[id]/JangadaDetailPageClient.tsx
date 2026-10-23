@@ -656,6 +656,10 @@ function EspelhoChecklist({ data, artigos }: { data: JangadaFormData; artigos: A
             <p className="mt-1 text-sm font-semibold text-slate-800">{data.ultimoCertificadoNumero || data.certificadoExternoNumero || '—'}</p>
           </div>
           <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Ordem de Serviço</p>
+            <p className="mt-1 text-sm font-semibold text-slate-800">{String(data.ordemServico || data.ultimaOrdemServico || '—')}</p>
+          </div>
+          <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
             <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Artigos no pack</p>
             <p className="mt-1 text-sm font-semibold text-slate-800">{artigos.length}</p>
           </div>
