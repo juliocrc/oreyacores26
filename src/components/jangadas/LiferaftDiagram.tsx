@@ -64,12 +64,14 @@ export default function LiferaftDiagram({ jangada, artigos, checklist = {} }: Li
 
   // Aplicabilidade da HRU (SIM/NAO) vem do wizard/checklist — se NAO, não é N/D nem crítico
   const _chk = checklist as Record<string, unknown>;
-  const hruNaoAplicavel =
+  const hasHruData = Boolean(jangada.hruValidade || jangada.hruReferencia || jangada.hruSerial || jangada.hruDataInstalacao);
+  const explicitNao =
     (typeof _chk._hruAplicavel === "string" && _chk._hruAplicavel.trim() !== ""
       ? _chk._hruAplicavel
       : typeof _chk.hru_aplicavel === "string" && _chk.hru_aplicavel.trim() !== ""
       ? _chk.hru_aplicavel
       : (jangada as Record<string, unknown>).hruAplicavel ?? "") === "NAO";
+  const hruNaoAplicavel = explicitNao && !hasHruData;
 
   // Estado das luzes exterior/interior sincronizado com o wizard (status + validade + voltagem)
   const luzExtStatus = mapChkStatus(luzExtChk.status);

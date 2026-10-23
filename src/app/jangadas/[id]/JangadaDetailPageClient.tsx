@@ -3610,7 +3610,20 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                   ) : (
                     <p className="font-semibold text-slate-800">{data.ultimoCertificadoNumero || '—'}</p>
                   )}
-             </div>
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Nº da Ordem de Serviço</span>
+                  {isEditing ? (
+                    <input 
+                      className="w-full border-slate-200 rounded-xl px-4 py-2.5 bg-slate-50 text-sm"
+                      value={String(editForm.ordemServico || '')} 
+                      onChange={(e) => handleEditChange('ordemServico', e.target.value)} 
+                    />
+                  ) : (
+                    <p className="font-semibold text-slate-800">{String(data.ordemServico || data.ultimaOrdemServico || '—')}</p>
+                  )}
+                </div>
               </div>
 
               {/* Diagrama Interativo da Jangada */}
