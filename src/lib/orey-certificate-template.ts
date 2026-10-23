@@ -171,8 +171,18 @@ export function removeGreenLikeFills(worksheet: ExcelJS.Worksheet) {
  * estação em G48 é mantido em ambos os certificados.
  */
 export function clearCertificateStationText(worksheet: ExcelJS.Worksheet) {
+  worksheet.eachRow({ includeEmpty: true }, (row) => {
+    row.eachCell({ includeEmpty: true }, (cell) => {
+      const text = String(cell.value || "").toLowerCase();
+      if (text.includes("signature") || text.includes("assinatura")) {
+        cell.value = null;
+      }
+    });
+  });
+
+  // Also clear stamp area explicitly
   const ranges: Array<[number, number, number, number]> = [
-    [61, 9, 61, 12], // I61:L61
+    [60, 9, 66, 14],
   ];
 
   for (const [top, left, bottom, right] of ranges) {
@@ -184,15 +194,6 @@ export function clearCertificateStationText(worksheet: ExcelJS.Worksheet) {
       }
     }
   }
-
-  worksheet.eachRow({ includeEmpty: true }, (row) => {
-    row.eachCell({ includeEmpty: true }, (cell) => {
-      const val = String(cell.value || "").trim().toLowerCase();
-      if (val === "signature" || val.includes("signature")) {
-        cell.value = null;
-      }
-    });
-  });
 }
 
 function findFirstValidity(checklist: Record<string, unknown> | undefined, keys: string[]) {
