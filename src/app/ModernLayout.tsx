@@ -921,29 +921,6 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
             )}
           </Typography>
           <Box sx={{ flexGrow: 1 }} />
-          <Button
-            component={Link}
-            href="/ordens-servico?openRequest=true"
-            variant="contained"
-            sx={{
-              mr: 2,
-              borderRadius: '999px',
-              bgcolor: '#e11d48',
-              color: 'white',
-              fontWeight: 800,
-              fontSize: '12px',
-              textTransform: 'none',
-              px: 2,
-              py: 0.75,
-              boxShadow: '0 2px 8px rgba(225, 29, 72, 0.3)',
-              '&:hover': {
-                bgcolor: '#be123c',
-              },
-              display: { xs: 'flex', sm: 'flex' },
-            }}
-          >
-            Pedir Assistência
-          </Button>
           {!isStandalonePage && canRenderInteractiveHeader ? (
             <Button
               color="inherit"

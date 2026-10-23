@@ -2009,6 +2009,48 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
     return checklist;
   };
 
+  const handleGerarQuadroPdf = async () => {
+    if (aGerarDoc) return;
+    setAGerarDoc('quadro');
+    try {
+      const payload = {
+        shipName: data.shipNameManual || linkedShip?.nome || '',
+        raftSerial: data.serial || '',
+        brand: data.brand || '',
+        raftModel: data.model || '',
+        raftCapacity: data.capacity || 0,
+        manufactureDate: data.dataFabrico || '',
+        inspectionDate: data.dataInspecao || '',
+        nextInspectionDate: data.dataProxInspecao || '',
+        packType: data.packType || '',
+        certNumber: data.ultimoCertificadoNumero || lastInspecao?.certificadoNumero || '',
+        numeroObra: String(data.ordemServico || data.numeroObra || lastInspecao?.numeroObra || ''),
+        checklist: lastInspecao?.checklistSnapshot || data.inspectionChecklistValues || {},
+        substituicoes: [],
+      };
+      const res = await fetch('/api/exportar-raft-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error('Não foi possível gerar o quadro PDF.');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Quadro_de_inspecao_${data.serial || 'jangada'}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      appToast.success('Quadro PDF gerado com sucesso.');
+    } catch (err: any) {
+      appToast.error(err.message || 'Erro ao gerar quadro PDF.');
+    } finally {
+      setAGerarDoc(null);
+    }
+  };
+
   const handleExportCertificadoExcel = async () => {
     if (aGerarDoc) return;
     setAGerarDoc('certificado');
@@ -3084,6 +3126,17 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                   Gerar Etiqueta QR
                 </button>
                 <button
+                  onClick={handleGerarQuadroPdf}
+                  disabled={aGerarDoc !== null}
+                  title={aGerarDoc === 'quadro' ? 'A gerar o quadro PDF...' : 'Gera o quadro PDF oficial da inspeção'}
+                  className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-all shadow-sm disabled:opacity-60 disabled:cursor-progress"
+                >
+                  {aGerarDoc === 'quadro'
+                    ? <Loader2 size={18} className="animate-spin text-indigo-600" />
+                    : <Printer size={18} className="text-indigo-600" />}
+                  {aGerarDoc === 'quadro' ? 'A gerar...' : 'Gerar Quadro PDF'}
+                </button>
+                <button
                   onClick={handleExportCertificadoExcel}
                   disabled={aGerarDoc !== null}
                   title={aGerarDoc === 'certificado' ? 'A gerar o certificado...' : undefined}
@@ -3884,6 +3937,19 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                     />
                   ) : (
                     <p className="font-semibold text-slate-800">{data.hruReferencia || 'Não aplicável / Não instalado'}</p>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">N.º de Série do HRU</span>
+                  {isEditing ? (
+                    <input 
+                      className="w-full border-slate-200 rounded-xl px-4 py-2 bg-slate-50 text-sm"
+                      value={String(editForm.hruSerial || '')} 
+                      onChange={(e) => handleEditChange('hruSerial', e.target.value)} 
+                    />
+                  ) : (
+                    <p className="font-semibold text-slate-800">{String(data.hruSerial || '—')}</p>
                   )}
                 </div>
 
