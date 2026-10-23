@@ -1323,6 +1323,31 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
   }
 }
 
+export async function PATCH(req: NextRequest, context: { params: Promise<{ id: string }> }) {
+  try {
+    const access = await getAccessContext();
+    if (!access) return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
+
+    const { id: rawId } = await context.params;
+    const id = Number(rawId);
+    if (!id) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
+
+    const body = await req.json().catch(() => ({}));
+    const updateData: any = {};
+    if (body.shipNameManual !== undefined) updateData.shipNameManual = String(body.shipNameManual || "");
+    if (body.shipId !== undefined) updateData.shipId = body.shipId ? Number(body.shipId) : null;
+
+    const updated = await prisma.jangada.update({
+      where: { id },
+      data: updateData,
+    });
+
+    return NextResponse.json({ success: true, updated });
+  } catch (err: unknown) {
+    return buildDatabaseErrorResponse(err, err instanceof Error ? err.message : "Erro ao atualizar jangada");
+  }
+}
+
 export async function PUT(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const access = await getAccessContext();
