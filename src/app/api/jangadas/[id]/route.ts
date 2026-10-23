@@ -419,6 +419,7 @@ function buildJangadaUpdateData(
     "testeWPCamaraInferiorFim",
     "testeWPCamaraInferiorQueda",
     "signatureBase64",
+    "ordemServico",
   ] as const;
 
   const data: Record<string, unknown> = {};
@@ -427,6 +428,17 @@ function buildJangadaUpdateData(
     if (Object.prototype.hasOwnProperty.call(input, key)) {
       data[key] = input[key] === undefined ? null : input[key];
     }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(input, "ordemServico")) {
+    const val = input.ordemServico === undefined || input.ordemServico === "" ? null : String(input.ordemServico);
+    data.numeroObra = val;
+    data.ordemServico = val;
+  }
+  if (Object.prototype.hasOwnProperty.call(input, "numeroObra")) {
+    const val = input.numeroObra === undefined || input.numeroObra === "" ? null : String(input.numeroObra);
+    data.numeroObra = val;
+    data.ordemServico = val;
   }
 
   const normalizeDecimalSeparator = (value: unknown): unknown => {

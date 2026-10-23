@@ -1434,6 +1434,12 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
   const handleEditChange = (field: string, value: unknown) => {
     setEditForm((prev: JangadaFormData) => {
       const updated = { ...prev, [field]: value } as JangadaFormData;
+      if (field === 'ordemServico') {
+        (updated as any).numeroObra = value;
+      }
+      if (field === 'numeroObra') {
+        (updated as any).ordemServico = value;
+      }
       // Limpar modelo quando a marca muda
       if (field === 'brand') {
         updated.model = '';
