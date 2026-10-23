@@ -69,19 +69,19 @@ export async function buildOreyCertificatePdfBuffer(
   // limitada à área disponível para não invadir a linha da assinatura.
   const stampImage = options.stamp?.imageDataUrl;
   const stationName = String(options.stamp?.stationName ?? "").trim();
-  const stampRegion = layout.cellRect(61, 9, 65, 12);
+  const stampRegion = layout.cellRect(60, 9, 66, 13);
   if (isImageDataUrl(stampImage)) {
     const size = imageSizeFromDataUrl(stampImage) || { width: 574, height: 265 };
     const aspect = size.width > 0 ? size.height / size.width : 265 / 574;
     const naturalWidth = (size.width * 25.4) / 300 * layout.scale;
-    let width = Math.min(naturalWidth, stampRegion.w * 0.98);
+    let width = Math.min(naturalWidth, stampRegion.w * 1.15);
     let height = width * aspect;
-    if (height > stampRegion.h * 0.98) {
-      height = stampRegion.h * 0.98;
+    if (height > stampRegion.h * 1.15) {
+      height = stampRegion.h * 1.15;
       width = height / aspect;
     }
     const x = stampRegion.x + (stampRegion.w - width) / 2;
-    const y = stampRegion.y + 0.4;
+    const y = stampRegion.y - 1.0;
     try {
       doc.addImage(stampImage, imageFormat(stampImage), x, y, width, height);
     } catch {

@@ -296,7 +296,7 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
   const isLoginPage = pathname === '/login' || pathname === '/area-cliente/login';
   const isAreaClientePage = pathname === '/area-cliente';
   const isStandalonePage =
-    isLoginPage || isAreaClientePage || pathname.startsWith('/estado-jangada');
+    isLoginPage || isAreaClientePage || pathname.startsWith('/estado-jangada') || pathname.startsWith('/verificar');
   const user = session?.user;
   const userInitial =
     user?.name?.trim()?.charAt(0)?.toUpperCase() ||

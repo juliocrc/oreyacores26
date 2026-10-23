@@ -184,6 +184,15 @@ export function clearCertificateStationText(worksheet: ExcelJS.Worksheet) {
       }
     }
   }
+
+  worksheet.eachRow({ includeEmpty: true }, (row) => {
+    row.eachCell({ includeEmpty: true }, (cell) => {
+      const val = String(cell.value || "").trim().toLowerCase();
+      if (val === "signature" || val.includes("signature")) {
+        cell.value = null;
+      }
+    });
+  });
 }
 
 function findFirstValidity(checklist: Record<string, unknown> | undefined, keys: string[]) {
