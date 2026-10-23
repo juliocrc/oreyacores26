@@ -1836,6 +1836,8 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
 
     return NextResponse.json({
       ...updated,
+      ordemServico: updated.numeroObra || null,
+      numeroObra: updated.numeroObra || null,
       brand: normalizeBrandName(updated.brand, updated.model),
       model: normalizeRaftModel(updated.model, updated.brand, updated.packType),
       cylinderSistema: canonicalizeCylinderSistema(updated.cylinderSistema),
