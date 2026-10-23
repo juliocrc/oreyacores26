@@ -300,6 +300,23 @@ export default function NaviosWizard() {
     [],
   );
 
+  async function handleMergeDuplicates() {
+    if (!window.confirm("Pretende fundir/unir automaticamente todos os navios com o mesmo nome (como 'Nossa Senhora da Boa Viagem'), mantendo o registo principal com mais jangadas e associando todas as vistorias e equipamentos?")) return;
+    try {
+      const res = await fetch("/api/navios/merge-duplicates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dryRun: false }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro ao unir navios duplicados.");
+      alert(`Fusão concluída! ${data.merged || 0} grupo(s) de navios duplicados unidos com sucesso.`);
+      await fetchNavios();
+    } catch (err: any) {
+      alert(err.message || "Erro ao unir navios.");
+    }
+  }
+
   async function fetchNavios() {
     const seq = ++naviosFetchSeq.current;
     setLoading(true);
@@ -1138,23 +1155,32 @@ export default function NaviosWizard() {
               </div>
             </div>
 
-            <div className="flex gap-2 mb-3">
-              {(
-                [
-                  { key: 'quadros', label: 'Quadros' },
-                  { key: 'lista', label: 'Lista' },
-                  { key: 'detalhes', label: 'Detalhes' },
-                ] as const
-              ).map(mode => (
-                <button
-                  key={mode.key}
-                  type="button"
-                  onClick={() => setViewMode(mode.key)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${viewMode === mode.key ? 'bg-blue-700 text-white border-blue-700' : 'bg-white text-gray-700 border-gray-300'}`}
-                >
-                  {mode.label}
-                </button>
-              ))}
+            <div className="flex items-center gap-2 mb-3">
+              <div className="flex gap-2">
+                {(
+                  [
+                    { key: 'quadros', label: 'Quadros' },
+                    { key: 'lista', label: 'Lista' },
+                    { key: 'detalhes', label: 'Detalhes' },
+                  ] as const
+                ).map(mode => (
+                  <button
+                    key={mode.key}
+                    type="button"
+                    onClick={() => setViewMode(mode.key)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${viewMode === mode.key ? 'bg-blue-700 text-white border-blue-700' : 'bg-white text-gray-700 border-gray-300'}`}
+                  >
+                    {mode.label}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={handleMergeDuplicates}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500 text-white hover:bg-amber-600 shadow-sm ml-auto"
+              >
+                ⚡ Unir Navios Duplicados (ex: Nossa Senhora da Boa Viagem)
+              </button>
             </div>
             <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
               <div

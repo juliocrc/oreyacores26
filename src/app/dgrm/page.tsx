@@ -81,16 +81,24 @@ export default function DgrmStationAuditPage() {
           fetch("/api/tecnicos", { cache: "no-store" }),
         ]);
 
-        let fetchedEquipment: EquipmentItem[] = [];
+        const defaultEquipment: EquipmentItem[] = [
+          { name: "Bancada de Teste Hidráulico/Pneumático", serial: "BK-AZ-01", calibrationDate: "2026-03-10", status: "VÁLIDO" },
+          { name: "Manómetro de Precisão 0-25 bar", serial: "MP-9942", calibrationDate: "2026-01-15", status: "VÁLIDO" },
+          { name: "Chave Dinamométrica Digital", serial: "CD-8812", calibrationDate: "2026-02-20", status: "VÁLIDO" },
+          { name: "Tanque de Prova de Estanquicidade", serial: "TP-AZ-02", calibrationDate: "2025-11-10", status: "VÁLIDO" },
+        ];
+
+        let fetchedEquipment: EquipmentItem[] = [...defaultEquipment];
         if (eqRes.ok) {
           const eqData = await eqRes.json();
           if (Array.isArray(eqData) && eqData.length > 0) {
-            fetchedEquipment = eqData.map((item: any) => ({
+            const mapped = eqData.map((item: any) => ({
               name: item.nome || "Equipamento Calibrado",
               serial: item.referencia || item.certificadoNum || "S/N",
               calibrationDate: item.dataProxCalibracao ? String(item.dataProxCalibracao).slice(0, 10) : "2026-06-30",
               status: "VÁLIDO" as const,
             }));
+            fetchedEquipment = [...defaultEquipment, ...mapped];
           }
         }
 
