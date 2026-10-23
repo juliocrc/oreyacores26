@@ -1408,6 +1408,11 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
         "radarReflectorValidade",
       ],
     ) as Record<string, unknown>;
+
+    if (rawData.ordemServico !== undefined) {
+      rawData.numeroObra = rawData.ordemServico;
+      delete rawData.ordemServico;
+    }
     const canEditJangadasPage = access.isAdmin || canEditPath(access.permissions, "/jangadas");
 
     if (!access.isAdmin && !canEditJangadasPage) {
