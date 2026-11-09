@@ -11,8 +11,10 @@ import { FOOD_RATIONS_REFERENCE_CANDIDATES } from './stock-reference-rules';
 export function normalizePressureUnit(value: unknown) {
   const raw = String(value ?? '').trim().toLowerCase();
   if (raw === 'inhg') return 'inhg' as const;
-  if (raw === 'mbar' || raw === 'mb' || raw === 'hpa') return 'hpa' as const;
-  return 'inh2o' as const;
+  if (raw === 'inh2o') return 'inh2o' as const;
+  // mbar, mb and hPa are equivalent; display as mbar (never hPa).
+  if (raw === 'mbar' || raw === 'mb' || raw === 'hpa' || raw === 'hpa') return 'mbar' as const;
+  return 'mbar' as const;
 }
 
 export function parseDecimalValue(value: unknown): number | null {
@@ -23,17 +25,17 @@ export function parseDecimalValue(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-export function convertPressureToMbar(value: unknown, unit: 'inh2o' | 'inhg' | 'hpa') {
+export function convertPressureToMbar(value: unknown, unit: 'inh2o' | 'inhg' | 'mbar' | 'hpa') {
   const parsed = parseDecimalValue(value);
   if (parsed === null) return null;
-  if (unit === 'hpa') return parsed;
+  if (unit === 'hpa' || unit === 'mbar') return parsed;
   if (unit === 'inhg') return parsed * 33.8638866667;
   return parsed * 2.490889;
 }
 
-export function convertMbarToUnit(value: number | null, unit: 'inh2o' | 'inhg' | 'hpa') {
+export function convertMbarToUnit(value: number | null, unit: 'inh2o' | 'inhg' | 'mbar' | 'hpa') {
   if (value === null || !Number.isFinite(value)) return null;
-  if (unit === 'hpa') return value;
+  if (unit === 'hpa' || unit === 'mbar') return value;
   if (unit === 'inhg') return value / 33.8638866667;
   return value / 2.490889;
 }

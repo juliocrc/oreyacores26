@@ -65,7 +65,7 @@ export function InspectionResponsibleField({ editing, inspection, stationId, sel
   }, [editing, stationId]);
   const name = selection?.nome ?? inspectionResponsibleName(inspection);
   return <div className="space-y-1 md:col-span-2">
-    <label htmlFor="test-responsible" className="text-xs font-bold uppercase tracking-wider text-slate-400">Tecnico Responsavel pelo Ensaio</label>
+    <label htmlFor="test-responsible" className="text-xs font-bold uppercase tracking-wider text-slate-400">Técnico responsável pela inspeção</label>
     {editing ? <>
       <select id="test-responsible" value={selection ? String(selection.tecnicoId) : ''} disabled={!inspection || !stationId || error}
         className="w-full border-slate-200 rounded-xl px-4 py-2 bg-white text-sm"

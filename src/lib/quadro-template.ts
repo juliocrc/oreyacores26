@@ -3,7 +3,7 @@ import { isSosDocumentRaft, SOS_DOCUMENT_NOTICE } from './raft-document-rules';
 import { resolveFiringHeadDesignation } from '@/lib/firing-head';
 import { toDateKey, parseMonthYearValue } from '@/lib/date-utils';
 import { loadTemplateBuffer } from '@/lib/template-loader';
-import { applyQuadroSubstituicoesToChecklist, applyDocumentPackApplicability, documentAllowsFoodRations, isDocumentFoodRationArticle } from '@/lib/quadro-payload';
+import { applyQuadroSubstituicoesToChecklist, applyDocumentPackApplicability, documentAllowsFoodRations, isDocumentFoodRationArticle, normalizePressureUnit } from '@/lib/quadro-payload';
 
 type XlsxLoadArg = Parameters<ExcelJS.Xlsx['load']>[0];
 
@@ -271,11 +271,11 @@ function getTestDateCellValue(status: string, dateValue: string) {
 }
 
 function buildPressureUnitText(unit: unknown) {
-  const normalized = asString(unit).toLowerCase();
+  const normalized = normalizePressureUnit(asString(unit)).toLowerCase();
   const inH2O = normalized === 'inh2o' ? 'X' : ' ';
   const inHg = normalized === 'inhg' ? 'X' : ' ';
-  const metric = normalized === 'mbar' || normalized === 'mb' || normalized === 'hpa' ? 'X' : ' ';
-  const metricLabel = normalized === 'hpa' ? 'hPa' : 'mbar';
+  const metric = normalized === 'mbar' ? 'X' : ' ';
+  const metricLabel = 'mbar';
   return `inH2O [ ${inH2O} ] inHg [ ${inHg} ] ${metricLabel} [ ${metric} ]`;
 }
 
@@ -525,14 +525,16 @@ function fillTemplate(ws: ExcelJS.Worksheet, input: QuadroTemplateInput) {
 
   // Preserve the template's formulas and labels in the pressure block.
   const pressureUnit = asString(input.pressureUnit);
+  const unitLabel = normalizePressureUnit(pressureUnit) === 'inh2o' ? 'inH2O' : normalizePressureUnit(pressureUnit) === 'inhg' ? 'inHg' : 'mbar';
   // D69:E70 is one merged cell. Writing D70 overwrites D69 and destroys
   // the template's three-option layout. Never leave the template's sample X.
   setCenteredCell(ws.getCell('D69'), buildPressureUnitText(pressureUnit));
   setCell(ws.getCell('H69'), formatValueWithUnit(input.tempInitial, '°C'));
   setCell(ws.getCell('J69'), formatValueWithUnit(input.tempFinal, '°C'));
-  setCell(ws.getCell('H71'), formatValueWithUnit(input.baroInitial, 'hPa'));
-  setCell(ws.getCell('J71'), formatValueWithUnit(input.baroFinal, 'hPa'));
+  setCell(ws.getCell('H71'), formatValueWithUnit(input.baroInitial, unitLabel));
+  setCell(ws.getCell('J71'), formatValueWithUnit(input.baroFinal, unitLabel));
   setCenteredCell(ws.getCell('C72'), input.wpStartTime);
+  setCenteredCell(ws.getCell('D72'), input.wpEndTime);
   setCenteredCell(ws.getCell('C73'), input.wpUpperStart);
   setCenteredCell(ws.getCell('D73'), input.wpUpperCorrected || input.wpUpperEnd);
   setCenteredCell(ws.getCell('E73'), getPressureDropPercent(input, false));

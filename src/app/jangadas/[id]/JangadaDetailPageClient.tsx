@@ -3875,11 +3875,13 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                   )}
                 </div>
 
-                <div className="space-y-1">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Técnico da inspeção</span>
-                  <p className="font-semibold text-slate-800">{inspectionResponsibleName(certificateInspection) || 'Não identificado'}</p>
-                  {certificateInspection && !inspectionResponsibleName(certificateInspection) && <p className="text-xs text-amber-700">Técnico não registado nesta inspeção.</p>}
-                </div>
+                <InspectionResponsibleField
+                  editing={isEditing}
+                  inspection={certificateInspection ?? undefined}
+                  stationId={Number(data.serviceStationId) || undefined}
+                  selection={isEditing ? editForm.inspectionResponsible : undefined}
+                  onChange={selection => handleEditChange('inspectionResponsible', selection)}
+                />
 
                 <div className="space-y-1">
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Data da inspeção do certificado</span>
@@ -5731,6 +5733,10 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
             lowerStart: wpSource.testeWPCamaraInferiorInicio,
             lowerEnd: wpSource.testeWPCamaraInferiorFim,
           });
+          const wpDisplayUnit = (() => {
+            const u = String(wpSource.testeWPUnidadePressao || 'mbar').toLowerCase();
+            return u === 'inh2o' ? 'inH2O' : u === 'inhg' ? 'inHg' : 'mbar';
+          })();
 
           const camarasTestsBase = camarasTests;
           const wpArcos = (camarasTestsBase?.arcos || []).filter(
@@ -6022,7 +6028,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
 
                       {/* Pressões Atmosféricas */}
                       <div className="space-y-1">
-                        <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Pressão Atmosférica Inicial (hPa)</span>
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Pressão Atmosférica Inicial ({wpDisplayUnit})</span>
                         {isEditing ? (
                           <input
                             className="w-full border-slate-200 rounded-xl px-4 py-2 bg-white text-sm focus:ring-2 focus:ring-indigo-500"
@@ -6031,12 +6037,12 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                             onChange={(e) => handleWpFieldChange('testeWPPressaoAtmosfericaInicial', e.target.value)}
                           />
                         ) : (
-                          <p className="font-semibold text-slate-800">{data.testeWPPressaoAtmosfericaInicial ? `${data.testeWPPressaoAtmosfericaInicial} hPa` : '—'}</p>
+                          <p className="font-semibold text-slate-800">{data.testeWPPressaoAtmosfericaInicial ? `${data.testeWPPressaoAtmosfericaInicial} ${wpDisplayUnit}` : '—'}</p>
                         )}
                       </div>
 
                       <div className="space-y-1">
-                        <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Pressão Atmosférica Final (hPa)</span>
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Pressão Atmosférica Final ({wpDisplayUnit})</span>
                         {isEditing ? (
                           <input
                             className="w-full border-slate-200 rounded-xl px-4 py-2 bg-white text-sm focus:ring-2 focus:ring-indigo-500"
@@ -6045,7 +6051,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                             onChange={(e) => handleWpFieldChange('testeWPPressaoAtmosfericaFinal', e.target.value)}
                           />
                         ) : (
-                          <p className="font-semibold text-slate-800">{data.testeWPPressaoAtmosfericaFinal ? `${data.testeWPPressaoAtmosfericaFinal} hPa` : '—'}</p>
+                          <p className="font-semibold text-slate-800">{data.testeWPPressaoAtmosfericaFinal ? `${data.testeWPPressaoAtmosfericaFinal} ${wpDisplayUnit}` : '—'}</p>
                         )}
                       </div>
                     </div>
@@ -6571,6 +6577,12 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
             lowerStart: data.testeWPCamaraInferiorInicio,
             lowerEnd: data.testeWPCamaraInferiorFim,
           });
+          const wpUnitLabel = (() => {
+            const u = String(data.testeWPUnidadePressao || 'mbar').toLowerCase();
+            if (u === 'inh2o') return 'inH2O';
+            if (u === 'inhg') return 'inHg';
+            return 'mbar';
+          })();
 
           const completedInspections = (data.inspecoes || [])
             .filter((insp: Inspecao) => insp.status === 'Concluída')
@@ -6696,13 +6708,13 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                         <tr className="border-b border-slate-100 bg-slate-50/30">
                           <td className="px-2 py-0.5 font-semibold text-slate-450">Pressão Atmosférica WP</td>
                           <td className="px-2 py-0.5 text-slate-700">
-                            {data.testeWPPressaoAtmosfericaInicial ? `${data.testeWPPressaoAtmosfericaInicial} hPa` : '—'} / {data.testeWPPressaoAtmosfericaFinal ? `${data.testeWPPressaoAtmosfericaFinal} hPa` : '—'}
+                            {data.testeWPPressaoAtmosfericaInicial ? `${data.testeWPPressaoAtmosfericaInicial} ${wpUnitLabel}` : '—'} / {data.testeWPPressaoAtmosfericaFinal ? `${data.testeWPPressaoAtmosfericaFinal} ${wpUnitLabel}` : '—'}
                           </td>
                         </tr>
                         <tr className="border-b border-slate-100">
                           <td className="px-2 py-0.5 font-semibold text-slate-450">Câmara Sup.</td>
                           <td className="px-2 py-0.5 text-slate-700">
-                            <div>{data.testeWPCamaraSuperiorInicio || '—'} → {data.testeWPCamaraSuperiorFim || '—'} {data.testeWPUnidadePressao === 'mbar' ? 'hPa' : (data.testeWPUnidadePressao || 'hPa')}</div>
+                            <div>{data.testeWPCamaraSuperiorInicio || '—'} → {data.testeWPCamaraSuperiorFim || '—'} {wpUnitLabel}</div>
                             <div className="text-[7.2px] text-slate-500">
                               Queda: {wpPrintDerived.upper.dropDisplay || '—'} ({wpPrintDerived.upper.dropPercentDisplay ? `${wpPrintDerived.upper.dropPercentDisplay}%` : '—'}) 
                               <span className={`ml-1 font-bold ${wpPrintDerived.upper.passes === true ? 'text-emerald-600' : wpPrintDerived.upper.passes === false ? 'text-rose-600' : ''}`}>
@@ -6714,7 +6726,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                         <tr className="border-b border-slate-100">
                           <td className="px-2 py-0.5 font-semibold text-slate-450">Câmara Inf.</td>
                           <td className="px-2 py-0.5 text-slate-700">
-                            <div>{data.testeWPCamaraInferiorInicio || '—'} → {data.testeWPCamaraInferiorFim || '—'} {data.testeWPUnidadePressao === 'mbar' ? 'hPa' : (data.testeWPUnidadePressao || 'hPa')}</div>
+                            <div>{data.testeWPCamaraInferiorInicio || '—'} → {data.testeWPCamaraInferiorFim || '—'} {wpUnitLabel}</div>
                             <div className="text-[7.2px] text-slate-500">
                               Queda: {wpPrintDerived.lower.dropDisplay || '—'} ({wpPrintDerived.lower.dropPercentDisplay ? `${wpPrintDerived.lower.dropPercentDisplay}%` : '—'}) 
                               <span className={`ml-1 font-bold ${wpPrintDerived.lower.passes === true ? 'text-emerald-600' : wpPrintDerived.lower.passes === false ? 'text-rose-600' : ''}`}>
