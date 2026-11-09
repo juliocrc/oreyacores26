@@ -8,10 +8,6 @@
     {
       "path": "/api/cron/lembretes-cobranca",
       "schedule": "0 9 * * *"
-    },
-    {
-      "path": "/api/cron/porto-ponta-delgada",
-      "schedule": "0 * * * *"
     }
   ]
 }
