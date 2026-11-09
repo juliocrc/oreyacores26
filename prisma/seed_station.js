@@ -175,10 +175,12 @@ async function main() {
 
   // Stock checklist (global, sem station)
   for (const [i, name] of QUADRO_ARTIGOS_BASE.entries()) {
-    const existing = await prisma.stock.findFirst({ where: { referencia: `CHK${i + 1}`, serviceStationId: null } });
+    const matches = await prisma.stock.findMany({ where: { referencia: `CHK${i + 1}`, serviceStationId: null, OR: [{ lote: '' }, { lote: null }] } });
+    if (matches.length > 1) throw new Error('Ambiguous legacy stock; seed requires an explicit Stock ID.');
+    const existing = matches[0];
     if (!existing) {
       await prisma.stock.create({
-        data: { referencia: `CHK${i + 1}`, descricao: name, categoria: 'Checklist', associavelJangada: true, precoCompra: 0, precoVenda: 0, quantidade: 0 },
+        data: { referencia: `CHK${i + 1}`, lote: '', descricao: name, categoria: 'Checklist', associavelJangada: true, precoCompra: 0, precoVenda: 0, quantidade: 0 },
       });
     }
   }
@@ -194,10 +196,13 @@ async function main() {
     { ref: 'FAC-001', desc: 'Faca flutuante', cat: 'Ferramentas', qty: 6, pCompra: 15, pVenda: 30 },
   ];
   for (const item of stockItems) {
+    const legacy = await prisma.stock.findMany({ where: { referencia: item.ref, serviceStationId: station.id, lote: null } });
+    if (legacy.length > 1) throw new Error('Ambiguous legacy stock; seed requires an explicit Stock ID.');
+    if (legacy.length) { console.log(`Preserved unknown legacy stock ID ${legacy[0].id}`); continue; }
     await prisma.stock.upsert({
-      where: { referencia_serviceStationId: { referencia: item.ref, serviceStationId: station.id } },
+      where: { referencia_serviceStationId_lote: { referencia: item.ref, serviceStationId: station.id, lote: '' } },
       update: { descricao: item.desc, categoria: item.cat, quantidade: item.qty, precoCompra: item.pCompra, precoVenda: item.pVenda },
-      create: { referencia: item.ref, descricao: item.desc, categoria: item.cat, quantidade: item.qty, precoCompra: item.pCompra, precoVenda: item.pVenda, serviceStationId: station.id, estadoArtigo: 'ATIVO', associavelJangada: true },
+      create: { referencia: item.ref, lote: '', descricao: item.desc, categoria: item.cat, quantidade: item.qty, precoCompra: item.pCompra, precoVenda: item.pVenda, serviceStationId: station.id, estadoArtigo: 'ATIVO', associavelJangada: true },
     });
   }
   console.log('  Stock OK');

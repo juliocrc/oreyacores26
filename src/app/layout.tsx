@@ -12,6 +12,7 @@ import { APP_METADATA } from "@/lib/app-config";
 import { DEFAULT_APP_THEME } from "@/theme";
 import { ToastContainer } from "@/components/shared/Toast";
 import ScrollToTop from "@/components/shared/ScrollToTop";
+import JulinhoAssistant from "@/components/julinho/JulinhoAssistant";
 import Script from "next/script";
 // Font imports removed to avoid external network dependency during build
 // Using system default fonts
@@ -35,6 +36,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <RuntimeClientGuard />
           <Providers session={session}>
             <ModernLayout>{children}</ModernLayout>
+            <JulinhoAssistant />
           </Providers>
         </AppRouterCacheProvider>
         <ScrollToTop />

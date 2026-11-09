@@ -20,6 +20,10 @@ import type { Prisma } from "@prisma/client";
 const MAX_TENTATIVAS = 8;
 
 export type DeclaracaoIsencaoIvaInput = {
+  clienteId?: number | null;
+  navioId?: number | null;
+  idempotencyKey?: string | null;
+  snapshotJson?: string | null;
   clienteNome?: string | null;
   clienteNif?: string | null;
   navioNome?: string | null;
@@ -36,6 +40,12 @@ export type DeclaracaoIsencaoIvaInput = {
 };
 
 export type DeclaracaoIsencaoIvaEmitida = {
+  pdfAssinadoMeta: string | null;
+  updatedAt: Date;
+  clienteId: number | null;
+  navioId: number | null;
+  idempotencyKey: string | null;
+  snapshotJson: string | null;
   id: number;
   numeroSequencial: number;
   ano: number;
@@ -100,8 +110,8 @@ function isRetryableTransactionError(error: unknown): boolean {
 /**
  * Emite uma declaração, consumindo o próximo número da sequência do ano.
  *
- * A leitura do máximo e a inserção correm na mesma transação para que duas
- * emissões concorrentes não possam ficar com o mesmo sequencial.
+ * A transacao agrupa a leitura e a insercao. As restricoes unicas de numero
+ * e (ano, sequencial) arbitram corridas; os perdedores repetem a transacao.
  */
 export async function emitirDeclaracaoIsencaoIva(
   input: DeclaracaoIsencaoIvaInput = {},
@@ -111,8 +121,21 @@ export async function emitirDeclaracaoIsencaoIva(
 
   let ultimoErro: unknown;
 
+  const existing = async () => {
+    if (!input.idempotencyKey) return null;
+    const row = await prisma.declaracaoIsencaoIva.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
+    if (row && (row.clienteId !== input.clienteId || row.navioId !== input.navioId ||
+      row.emitidoPorId !== input.emitidoPorId || row.codigoIsencaoIva !== normalizarTexto(input.codigoIsencaoIva) ||
+      row.origem !== input.origem)) {
+      throw new DeclaracaoIvaError("Chave de idempotencia reutilizada com outro pedido.", 409);
+    }
+    return row;
+  };
+
   for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa += 1) {
     try {
+      const anterior = await existing();
+      if (anterior) return anterior;
       const criada = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         const ultima = await tx.declaracaoIsencaoIva.findFirst({
           where: { ano },
@@ -123,6 +146,10 @@ export async function emitirDeclaracaoIsencaoIva(
 
         return tx.declaracaoIsencaoIva.create({
           data: {
+            clienteId: input.clienteId,
+            navioId: input.navioId,
+            idempotencyKey: input.idempotencyKey,
+            snapshotJson: input.snapshotJson,
             ano,
             numeroSequencial,
             numeroCompleto: buildNumeroCompleto(ano, numeroSequencial),
@@ -142,6 +169,8 @@ export async function emitirDeclaracaoIsencaoIva(
     } catch (error) {
       ultimoErro = error;
       if (!isUniqueViolation(error) && !isRetryableTransactionError(error)) throw error;
+      const anterior = await existing();
+      if (anterior) return anterior;
     }
   }
 
@@ -150,6 +179,10 @@ export async function emitirDeclaracaoIsencaoIva(
       ultimoErro instanceof Error ? ultimoErro.message : String(ultimoErro)
     }`,
   );
+}
+
+export class DeclaracaoIvaError extends Error {
+  constructor(message: string, public status: number) { super(message); }
 }
 
 function resolveAno(ano: number | null | undefined, referencia: Date): number {

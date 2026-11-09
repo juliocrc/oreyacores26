@@ -1,110 +1,87 @@
 "use client";
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect } from 'react';
 import { useJangadaWizardStore } from './store/useJangadaWizardStore';
 
 const AUTOSAVE_INTERVAL = 60000;
+const EXIT_WARNING = 'Existem alteracoes nao guardadas no servidor. O rascunho local nao substitui a gravacao da inspecao. Sair mesmo assim?';
 
-function getDraftKey(jangadaId: number | string | null): string | null {
-  if (!jangadaId) return null;
-  return `jangada-wizard-draft-${jangadaId}`;
+export function saveLocalWizardDraft(): boolean {
+  const state = useJangadaWizardStore.getState();
+  if (typeof localStorage === 'undefined') return false;
+  if (!state.jangadaId) return false;
+  try {
+    localStorage.setItem(`jangada-wizard-draft-${state.jangadaId}`, JSON.stringify({
+      inspectionData: state.inspectionData,
+      jangadaId: state.jangadaId,
+      inspecaoId: state.inspecaoId,
+      editVersions: state.editVersions,
+      hasServerChanges: state.hasServerChanges,
+      currentStep: state.currentStep,
+      currentStepKey: state.currentStepKey(),
+      savedAt: new Date().toISOString(),
+    }));
+    state.setLastSaved(new Date());
+    return true;
+  } catch (error) {
+    console.error('[AutoSave] Error saving draft:', error);
+    return false;
+  }
+}
+
+export function confirmWizardExit(): boolean {
+  const state = useJangadaWizardStore.getState();
+  if (!state.hasServerChanges) return true;
+  const saved = saveLocalWizardDraft();
+  return window.confirm(saved ? EXIT_WARNING : `${EXIT_WARNING}\nNao foi possivel preservar o rascunho local.`);
 }
 
 export function useAutoSave() {
-  const { inspectionData, jangadaId, inspecaoId, currentStep, currentStepKey, isDirty, setLastSaved } = useJangadaWizardStore();
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const lastDataRef = useRef<string>('');
-
-  const saveDraft = useCallback(() => {
-    try {
-      const key = getDraftKey(jangadaId);
-      if (!key) return;
-
-      const draft = {
-        inspectionData,
-        jangadaId,
-        inspecaoId,
-        currentStep,
-        currentStepKey: currentStepKey() || null,
-        savedAt: new Date().toISOString(),
-      };
-      const dataStr = JSON.stringify(draft);
-
-      if (dataStr !== lastDataRef.current) {
-        try {
-          localStorage.setItem(key, dataStr);
-        } catch (error) {
-          const quotaExceeded = error instanceof DOMException && error.name === 'QuotaExceededError';
-          if (!quotaExceeded) throw error;
-
-          try {
-            for (let i = localStorage.length - 1; i >= 0; i--) {
-              const storageKey = localStorage.key(i);
-              if (storageKey && storageKey !== key && storageKey.startsWith('jangada-wizard-draft-')) {
-                localStorage.removeItem(storageKey);
-              }
-            }
-            localStorage.setItem(key, dataStr);
-          } catch (retryError) {
-            console.error('[AutoSave] Error saving draft after cleanup:', retryError);
-            return;
-          }
-        }
-        lastDataRef.current = dataStr;
-        setLastSaved(new Date());
-      }
-    } catch (err) {
-      console.error('[AutoSave] Error saving draft:', err);
-    }
-  }, [inspectionData, jangadaId, inspecaoId, currentStep, currentStepKey, setLastSaved]);
-
-  const loadDraft = useCallback(() => {
-    try {
-      const key = getDraftKey(jangadaId);
-      if (!key) return null;
-      const saved = localStorage.getItem(key);
-      if (!saved) return null;
-      return JSON.parse(saved);
-    } catch (err) {
-      console.error('[AutoSave] Error loading draft:', err);
-      return null;
-    }
-  }, [jangadaId]);
-
-  const clearDraft = useCallback(() => {
-    try {
-      const key = getDraftKey(jangadaId);
-      if (!key) return;
-      localStorage.removeItem(key);
-      lastDataRef.current = '';
-    } catch (err) {
-      console.error('[AutoSave] Error clearing draft:', err);
-    }
-  }, [jangadaId]);
-
   useEffect(() => {
-    if (isDirty) {
-      intervalRef.current = setInterval(saveDraft, AUTOSAVE_INTERVAL);
-    }
-
+    const savePending = () => {
+      const state = useJangadaWizardStore.getState();
+      if (state.isDirty || state.hasServerChanges) saveLocalWizardDraft();
+    };
+    const interval = setInterval(savePending, AUTOSAVE_INTERVAL);
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      savePending();
+      if (useJangadaWizardStore.getState().hasServerChanges) {
+        event.preventDefault();
+        event.returnValue = '';
+      }
+    };
+    const click = (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      const anchor = event.target instanceof Element ? event.target.closest('a[href]') : null;
+      if (!(anchor instanceof HTMLAnchorElement) || anchor.download || (anchor.target && anchor.target !== '_self')) return;
+      const next = new URL(anchor.href, window.location.href);
+      if (next.pathname === location.pathname && next.search === location.search) return;
+      if (!confirmWizardExit()) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+    const visibility = () => { if (document.visibilityState === 'hidden') savePending(); };
+    window.addEventListener('beforeunload', beforeUnload);
+    window.addEventListener('pagehide', savePending);
+    document.addEventListener('visibilitychange', visibility);
+    document.addEventListener('click', click, true);
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
+      savePending();
+      clearInterval(interval);
+      window.removeEventListener('beforeunload', beforeUnload);
+      window.removeEventListener('pagehide', savePending);
+      document.removeEventListener('visibilitychange', visibility);
+      document.removeEventListener('click', click, true);
     };
-  }, [isDirty, saveDraft]);
+  }, []);
 
-  useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (isDirty) {
-        saveDraft();
-        e.preventDefault();
-        e.returnValue = '';
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [isDirty, saveDraft]);
-
-  return { saveDraft, loadDraft, clearDraft };
+  return {
+    saveDraft: saveLocalWizardDraft,
+    loadDraft: () => {
+      try {
+        return JSON.parse(localStorage.getItem(`jangada-wizard-draft-${useJangadaWizardStore.getState().jangadaId}`) || 'null');
+      } catch { return null; }
+    },
+    clearDraft: () => localStorage.removeItem(`jangada-wizard-draft-${useJangadaWizardStore.getState().jangadaId}`),
+  };
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { parseOrdemServicoMeta } from "@/lib/ordens-servico";
 import { buildDatabaseErrorResponse } from "@/lib/database-errors";
+import { roundQuoteMoney } from "@/lib/ordem-quote-input";
 
 function parseIdFromRequest(req: NextRequest) {
   const url = new URL(req.url);
@@ -88,15 +89,22 @@ export async function GET(req: NextRequest) {
     const linhasMeta = Array.isArray(meta.linhas) ? meta.linhas : [];
 
     const linhasDocumento = [
-      ...linhasMeta.map((line, index) => ({
-        id: String(line.referencia || `LINHA-${index + 1}`),
-        tipo: "servico",
-        referencia: String(line.referencia || "").trim() || null,
-        descricao: String(line.descricao || "").trim() || "Serviço",
-        quantidade: Math.max(0, Number(line.quantidade || 0)),
-        precoUnitario: Math.max(0, Number(line.unitPrice || 0)),
-        total: Math.max(0, Number(line.total || (Number(line.quantidade || 0) * Number(line.unitPrice || 0)))),
-      })),
+      ...linhasMeta.map((line, index) => {
+        const aggregateOnly = line.quantidade == null && line.unitPrice == null && line.precoUnitario == null;
+        const quantidade = aggregateOnly ? 1 : Math.max(0, Number(line.quantidade ?? 0));
+        const precoUnitario = Math.max(0, Number(aggregateOnly ? line.total ?? 0 : line.unitPrice ?? line.precoUnitario ?? 0));
+        const descontoPercentual = Number(line.descontoPercentual ?? 0);
+        return {
+          id: String(line.referencia || `LINHA-${index + 1}`),
+          tipo: "servico",
+          referencia: String(line.referencia || "").trim() || null,
+          descricao: String(line.descricao || "").trim() || "Serviço",
+          quantidade,
+          precoUnitario,
+          descontoPercentual,
+          total: Math.max(0, Number(line.total ?? roundQuoteMoney(quantidade * precoUnitario * (1 - descontoPercentual / 100)))),
+        };
+      }),
       ...materials.map((line, index) => {
         const quantidade = Math.max(0, Number(line.quantidadeUsada ?? line.quantidadePrevista ?? 0));
         const precoUnitario = Math.max(0, Number(line.precoUnitario || 0));

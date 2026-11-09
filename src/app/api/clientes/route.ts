@@ -4,15 +4,17 @@ import type { Prisma } from "@prisma/client";
 import { logAuditoria } from "@/lib/auditoria";
 import { isValidNif, normalizePhone } from "@/lib/validators";
 import { deriveClienteAddressFields } from "@/lib/client-address";
-import { getAccessContext } from "@/lib/access-control";
+import { apiStationScope, requireApiAccess } from "@/lib/api-access";
 import { getCanonicalNavioLocationLabel } from "@/lib/navios-page-helpers";
 import { normalizeClienteIslandValue } from "@/lib/azores-islands";
 import { resolveActiveServiceStationId } from "@/lib/station-selection";
 
-async function syncClienteIslandToNavios(clienteId: number, ilha: string | null) {
+class ClientBatchScopeError extends Error {}
+
+async function syncClienteIslandToNavios(clienteId: number, ilha: string | null, scope: ReturnType<typeof apiStationScope>) {
   if (!ilha) return;
   await prisma.navio.updateMany({
-    where: { clienteId },
+    where: { clienteId, ...scope },
     data: { ilha },
   });
 }
@@ -51,17 +53,22 @@ function sanitizeClientePayload(data: unknown) {
 // DELETE em lote: recebe { ids: number[] }
 export async function DELETE(req: NextRequest) {
   try {
+    const { access, error } = await requireApiAccess("/clientes", { write: true });
+    if (error) return error;
+    const scope = apiStationScope(access, resolveActiveServiceStationId(req, access));
     const { searchParams } = new URL(req.url);
     const idParam = searchParams.get("id");
 
     // Exclusão individual via querystring: /api/clientes?id=123
     if (idParam) {
       const id = Number(idParam);
-      if (Number.isNaN(id)) {
+      if (!Number.isSafeInteger(id) || id <= 0) {
         return NextResponse.json({ error: "ID inválido." }, { status: 400 });
       }
 
-      await prisma.cliente.delete({ where: { id } });
+      const existing = await prisma.cliente.findFirst({ where: { id, ...scope }, select: { id: true } });
+      if (!existing) return NextResponse.json({ error: "Cliente não encontrado." }, { status: 404 });
+      await prisma.cliente.delete({ where: { id, ...scope } });
       await logAuditoria({
         tabela: "Cliente",
         tipoOperacao: "DELETE",
@@ -74,14 +81,25 @@ export async function DELETE(req: NextRequest) {
     // Exclusão em lote via body: { ids: number[] }
     const rawBody = await req.text();
     const parsedBody = rawBody ? JSON.parse(rawBody) : {};
-    const ids = Array.isArray(parsedBody?.ids) ? parsedBody.ids : [];
+    const ids: number[] = Array.isArray(parsedBody?.ids) ? parsedBody.ids : [];
 
     if (ids.length === 0) {
       return NextResponse.json({ error: "Envie um ID (?id=) ou um array de IDs para exclusão em lote." }, { status: 400 });
     }
+    if (ids.length > 500 || ids.some(id => !Number.isSafeInteger(id) || id <= 0) || new Set(ids).size !== ids.length) {
+      return NextResponse.json({ error: "IDs inválidos ou repetidos (máximo 500)." }, { status: 400 });
+    }
 
-    const existentes = await prisma.cliente.findMany({ where: { id: { in: ids } } });
-    await prisma.cliente.deleteMany({ where: { id: { in: ids } } });
+    const where = { id: { in: ids }, ...scope };
+    const existentes = await prisma.$transaction(async tx => {
+      const records = await tx.cliente.findMany({ where, omit: { verificationCode: true, verificationCodeExpires: true } });
+      if (records.length !== ids.length) throw new ClientBatchScopeError();
+      const deleted = await tx.cliente.deleteMany({ where });
+      // A station reassignment between the read and write must roll back the
+      // entire batch, rather than committing a partial deletion.
+      if (deleted.count !== ids.length) throw new ClientBatchScopeError();
+      return records;
+    });
     await Promise.all(
       existentes.map((item) =>
         logAuditoria({
@@ -95,25 +113,20 @@ export async function DELETE(req: NextRequest) {
     );
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof ClientBatchScopeError) {
+      return NextResponse.json({ error: "Um ou mais clientes não estão disponíveis nesta estação." }, { status: 404 });
+    }
     return NextResponse.json({ error: (error as Error)?.message || "Erro ao excluir clientes." }, { status: 500 });
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const access = await getAccessContext();
-    if (!access) return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
+    const { access, error } = await requireApiAccess("/clientes", { write: true });
+    if (error) return error;
 
     const body = await req.json();
     const data = sanitizeClientePayload(body);
-      if (data.nome) {
-        const existingCliente = await prisma.cliente.findFirst({ where: { nome: data.nome } });
-        if (existingCliente) return NextResponse.json({ error: "J� existe um cliente com esse nome registado." }, { status: 400 });
-      }
-      if (data.nome) {
-        const existingCliente = await prisma.cliente.findFirst({ where: { nome: data.nome } });
-        if (existingCliente) return NextResponse.json({ error: "J� existe um cliente com esse nome registado." }, { status: 400 });
-      }
 
     if (!data.nome || !data.nome.trim()) {
       return NextResponse.json({ error: "Nome do cliente é obrigatório." }, { status: 400 });
@@ -125,6 +138,16 @@ export async function POST(req: NextRequest) {
 
     const activeStationId = resolveActiveServiceStationId(req, access);
     const enforcedServiceStationId = activeStationId || access.stationId || access.allowedStationIds[0] || null;
+    if (!access.isAdmin && !enforcedServiceStationId) {
+      return NextResponse.json({ error: "Estação autorizada obrigatória." }, { status: 403 });
+    }
+    const existingCliente = await prisma.cliente.findFirst({
+      where: { nome: data.nome, ...apiStationScope(access, enforcedServiceStationId) },
+      select: { id: true },
+    });
+    if (existingCliente) {
+      return NextResponse.json({ error: "Já existe um cliente com esse nome registado nesta estação." }, { status: 400 });
+    }
 
     const cliente = await prisma.cliente.create({
       data: {
@@ -160,12 +183,13 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    const access = await getAccessContext();
-    if (!access) return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
+    const { access, error } = await requireApiAccess("/clientes", { write: true });
+    if (error) return error;
+    const scope = apiStationScope(access, resolveActiveServiceStationId(req, access));
 
     const { searchParams } = new URL(req.url);
     const id = Number(searchParams.get("id"));
-    if (Number.isNaN(id)) {
+    if (!Number.isSafeInteger(id) || id <= 0) {
       return NextResponse.json({ error: "ID inválido." }, { status: 400 });
     }
 
@@ -189,7 +213,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "Sem dados para atualizar." }, { status: 400 });
     }
 
-    const antes = await prisma.cliente.findUnique({ where: { id } });
+    const antes = await prisma.cliente.findFirst({ where: { id, ...scope }, omit: { verificationCode: true, verificationCodeExpires: true } });
     if (!antes) {
       return NextResponse.json({ error: "Cliente não encontrado." }, { status: 404 });
     }
@@ -200,11 +224,12 @@ export async function PUT(req: NextRequest) {
     }
 
     const cliente = await prisma.cliente.update({
-      where: { id },
+      where: { id, ...scope },
       data,
+      omit: { verificationCode: true, verificationCodeExpires: true },
     });
 
-    await syncClienteIslandToNavios(cliente.id, cliente.ilha);
+    await syncClienteIslandToNavios(cliente.id, cliente.ilha, scope);
 
     await logAuditoria({
       tabela: "Cliente",
@@ -222,8 +247,8 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  const access = await getAccessContext();
-  if (!access) return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
+  const { access, error } = await requireApiAccess("/clientes");
+  if (error) return error;
 
   const { searchParams } = new URL(req.url);
   const where: Prisma.ClienteWhereInput = {};
@@ -247,15 +272,11 @@ export async function GET(req: NextRequest) {
     ];
   }
 
-  const activeStationId = resolveActiveServiceStationId(req, access);
-  if (activeStationId) {
-    where.serviceStationId = activeStationId;
-  } else if (!access.isAdmin) {
-    where.serviceStationId = { in: access.allowedStationIds.length ? access.allowedStationIds : [-1] };
-  }
-
+  // Leitura global por pedido do utilizador: permitir visualização de clientes de
+  // qualquer estação. As escritas mantêm-se escopadas.
   const clientes = await prisma.cliente.findMany({
     where,
+    omit: { verificationCode: true, verificationCodeExpires: true },
     include: {
       navios: {
         select: {
@@ -264,6 +285,7 @@ export async function GET(req: NextRequest) {
           matricula: true,
           ilha: true,
           tipoPesca: true,
+          serviceStationId: true,
         },
       },
     },

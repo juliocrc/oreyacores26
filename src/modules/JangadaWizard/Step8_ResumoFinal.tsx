@@ -1,35 +1,71 @@
 "use client";
 import React, { useMemo, useEffect, useState } from 'react';
 import { useJangadaWizardStore } from './store/useJangadaWizardStore';
-import { AlertTriangle, CheckCircle, Save, FileText, Anchor, ShieldAlert, QrCode as QrCodeIcon, ExternalLink } from 'lucide-react';
+import { AlertTriangle, CheckCircle, FileText, Anchor, ShieldAlert, QrCode as QrCodeIcon, ExternalLink } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import QRCode from 'react-qr-code';
-import { appToast } from '@/lib/app-toast';
-import { enqueueOfflineSyncOperation } from '@/lib/offline-sync/client';
 import { formatDateDisplay } from '@/lib/date-display';
-import { parseMonthYearValue } from '@/lib/date-utils';
 import { getIvaRate, calcIva, round2 } from '@/lib/iva';
 import { getWizardSteps, getStepIndexByKey } from './steps';
-import { setWizardFinisher } from './wizardFinisher';
-import { MIN_REABERTURA_JUSTIFICACAO } from '@/lib/inspecao-lock';
-import { isArticleNonExpiring, isArticleValidityRequired } from '@/modules/rafts/mandatoryPack';
+import { isArticleValidityRequired } from '@/modules/rafts/mandatoryPack';
+import { computeFinishWarnings } from './finalizeInspection';
+import { getArticleExpiryReason, getArticleExpiryStatus, isComponentExpiryControlled, resolveArticleNextInspection } from './articleExpiry';
+import type { InspectionData } from './types';
+import { withoutSosEquipment } from './sosRules';
+import { installedHruDue } from '@/lib/hammar-h20';
+
+export function getSummaryExceptionRows(data: InspectionData) {
+  data = withoutSosEquipment(data);
+  const nextInspection = resolveArticleNextInspection(data);
+  const rows: { key: string; article: string; problem: string; decision: string; justification: string; stepKey: string }[] = [];
+  const add = (key: string, article: string, stepKey: string, validity: string | undefined, controlled: boolean, replaced: boolean, reason: string | undefined, failed = false) => {
+    const expiryProblem = controlled && getArticleExpiryStatus(validity, nextInspection) !== 'ok'
+      ? getArticleExpiryReason(validity, nextInspection) : '';
+    if (!failed && !expiryProblem) return;
+    rows.push({ key, article, stepKey,
+      problem: [failed ? 'REPROVADO' : '', expiryProblem].filter(Boolean).join(' · '),
+      decision: controlled && getArticleExpiryStatus(validity, nextInspection) === 'pending'
+        ? 'Verificação de validade pendente'
+        : replaced ? (expiryProblem ? 'Substituído; validade ainda por resolver' : 'Substituído') : reason?.trim() ? 'Não substituído (exceção registada)' : 'Decisão por registar',
+      justification: reason?.trim() || 'Sem justificação registada',
+    });
+  };
+  for (const [id, item] of Object.entries(data.checklist || {})) {
+    if (id.startsWith('_') || !item || ['NA', 'N/A'].includes(item.status || '')) continue;
+    add(`checklist:${id}`, id.replace(/_/g, ' '), 'checklist', item.validade,
+      item.validade !== undefined || ['luz_exterior_bateria', 'luz_interior_bateria'].includes(id),
+      item.status === 'SUBSTITUIDO', item.justificacaoNaoSubstituicao, item.status === 'REPROVADO');
+  }
+  for (const [id, item] of Object.entries(data.packItems || {})) {
+    add(`pack:${id}`, item.name || item.descricao || id, 'pack', item.validade,
+      isArticleValidityRequired({ name: item.name, referencia: item.referencia }), Number(item.quantidade) > 0, item.justificacaoNaoSubstituicao, item.estado === 'REPROVADO');
+  }
+  for (const [index, item] of (data.componentes || []).entries()) {
+    if (data.hruAplicavel === 'SIM' && /\b(?:HRU|HAMMAR|H20)\b/i.test(`${item.type || ''} ${item.reference || ''}`)) continue;
+    add(`componentes:${item.id || index}`, item.type || item.reference || 'Componente', 'componentes', item.validade,
+      isComponentExpiryControlled(item), item.estado === 'SUBSTITUIDO', item.justificacaoNaoSubstituicao, item.estado === 'REPROVADO');
+  }
+  if (data.hruAplicavel === 'SIM') {
+    const due = installedHruDue(data.hruReference, data.hruDataInstalacao);
+    if (due) add('hru', 'HRU — prazo após instalação', 'componentes', due, true,
+      data.hruSubstituido === true, typeof data.hruJustificacaoNaoSubstituicao === 'string' ? data.hruJustificacaoNaoSubstituicao : undefined);
+  }
+  return rows;
+}
 
 export default function Step8_ResumoFinal() {
   const router = useRouter();
   const { 
     jangadaId,
-    shipId,
     inspecaoId,
-    setInspecaoId,
-    inspectionData, 
+    inspectionData: rawInspectionData,
+    globalStock,
     setInspectionData,
     setStepByKey,
-    setIsSaving,
-    isSaving,
     hideOrcamento,
     inspecoes,
-    setInspecoes
   } = useJangadaWizardStore();
+  const inspectionData = withoutSosEquipment(rawInspectionData);
 
   const [selectedTecnicoId, setSelectedTecnicoId] = useState<string>('');
   const [tecnicos, setTecnicos] = useState<any[]>([]);
@@ -108,634 +144,38 @@ export default function Step8_ResumoFinal() {
     return null;
   };
 
-  // Validate the data to generate warnings
   const warnings = useMemo(() => {
-    const list: { text: string; stepKey: string; isCritical: boolean }[] = [];
-    const today = new Date();
-    const insDate = inspectionData.dataInspecao ? new Date(inspectionData.dataInspecao) : today;
-
-    // Step 1 Validations
-    if (!inspectionData.serial) list.push({ text: 'Nº de Série da jangada não definido.', stepKey: 'dados', isCritical: true });
-    if (!inspectionData.brand || !inspectionData.model) list.push({ text: 'Marca ou Modelo da jangada não definidos.', stepKey: 'dados', isCritical: true });
-    if (!inspectionData.packType) list.push({ text: 'Tipo de Pack não selecionado.', stepKey: 'dados', isCritical: true });
-    if (!inspectionData.dataProxInspecao) list.push({ text: 'Data da Próxima Inspeção não definida.', stepKey: 'dados', isCritical: true });
-    
-    // Step 2 Validations
-    const checklistItems = Object.values(inspectionData.checklist || {});
-    const reprovados = checklistItems.filter((item: any) => item.status === 'REPROVADO');
-    if (reprovados.length > 0) {
-      list.push({ text: `Existem ${reprovados.length} itens do checklist exterior/interior marcados como Reprovado.`, stepKey: 'checklist', isCritical: true });
+    const list = computeFinishWarnings(inspectionData, globalStock.length ? globalStock : undefined);
+    if (!selectedTecnicoId && !list.some(w => w.stepKey === 'resumo')) {
+      list.push({ text: 'Técnico responsável não selecionado.', stepKey: 'resumo', isCritical: true, blocksCompletion: true });
     }
-    if (inspectionData.abate?.ativo) {
-      const motivoAbate = String(inspectionData.abate.motivo || '').trim();
-      list.push({
-        text: motivoAbate
-          ? `Jangada assinalada para ABATE — motivo ${motivoAbate} registado. Será emitida a Ficha de Abate (IM.049/00).`
-          : 'Jangada assinalada para ABATE, mas sem motivo selecionado no passo 2.',
-        stepKey: 'checklist',
-        isCritical: !motivoAbate,
-      });
-    }
-
-    // Step 3 Validations
-    const componentes = inspectionData.componentes || [];
-    const missingValidades = componentes.filter((c: any) => !c.validade);
-    if (missingValidades.length > 0) {
-      list.push({ text: `Falta definir a validade em ${missingValidades.length} componente(s) crítico(s).`, stepKey: 'componentes', isCritical: true });
-    }
-
-    // Step 4 Validations - Pack consumíveis (apenas artigos com validade)
-    const packItems = Object.values(inspectionData.packItems || {});
-    const packItemsComValidade = packItems.filter(
-      (item: any) => isArticleValidityRequired({ name: item.name, referencia: item.referencia })
-    );
-    const consumiveisSemValidade = packItemsComValidade.filter(
-      (item: any) => !item.validade || String(item.validade).trim() === ''
-    );
-    if (consumiveisSemValidade.length > 0) {
-      list.push({ text: `${consumiveisSemValidade.length} itens obrigatórios do pack sem validade registada.`, stepKey: 'pack', isCritical: true });
-    }
-    const consumiveisSubstituidosSemValidade = packItemsComValidade.filter(
-      (item: any) => Number(item.quantidade) > 0 && (!item.validade || String(item.validade).trim() === '')
-    );
-    if (consumiveisSubstituidosSemValidade.length > 0) {
-      list.push({ text: `Foram substituídos ${consumiveisSubstituidosSemValidade.length} consumíveis sem registo de nova validade.`, stepKey: 'pack', isCritical: true });
-    }
-    
-    // Validades a expirar (dias restantes)
-    packItems.forEach((item: any) => {
-      if (item.validade) {
-        const vParsed = parseMonthYearValue(item.validade);
-        if (!vParsed) return;
-        const expDate = new Date(vParsed.year, vParsed.month - 1, 1);
-        const diffTime = expDate.getTime() - insDate.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        if (diffDays < 0) {
-          list.push({ text: `${item.name}: validade expirada há ${Math.abs(diffDays)} dias (${formatMonthYearDisplay(item.validade)})`, stepKey: 'pack', isCritical: true });
-        } else if (diffDays <= 30) {
-          list.push({ text: `${item.name}: validade expira em ${diffDays} dias (${formatMonthYearDisplay(item.validade)})`, stepKey: 'pack', isCritical: diffDays <= 0 });
-        } else if (diffDays <= 90) {
-          list.push({ text: `${item.name}: validade em ${diffDays} dias (${formatMonthYearDisplay(item.validade)})`, stepKey: 'pack', isCritical: false });
-        }
-      }
-    });
-
-    // Step 5 Validations - Cilindro
-    if (!inspectionData.cylinder?.serial) list.push({ text: 'Nº de Série do cilindro não definido.', stepKey: 'cilindros', isCritical: false });
-    if (!inspectionData.cylinder?.pesoBruto) list.push({ text: 'Peso Bruto do cilindro não verificado.', stepKey: 'cilindros', isCritical: false });
-    
-    const rawProxTeste = inspectionData.cylinder?.dataProxTeste || inspectionData.cylinder?.nextTestDate;
-    if (rawProxTeste) {
-      const expDate = new Date(rawProxTeste);
-      if (!isNaN(expDate.getTime())) {
-        const diffTime = expDate.getTime() - insDate.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        if (diffDays < 0) {
-          list.push({
-            text: `Teste hidráulico cilindro (${inspectionData.cylinder?.serial || 'S/N'}) expirado desde ${expDate.toLocaleDateString('pt-PT')} (${Math.abs(diffDays)} dias)`,
-            stepKey: 'cilindros',
-            isCritical: true,
-          });
-        } else if (diffDays <= 90) {
-          list.push({
-            text: `Teste hidráulico cilindro (${inspectionData.cylinder?.serial || 'S/N'}) expira em ${diffDays} dias (${expDate.toLocaleDateString('pt-PT')})`,
-            stepKey: 'cilindros',
-            isCritical: diffDays <= 30,
-          });
-        }
-      }
-    }
-
-    // HRU Validade
-    if (inspectionData.hruValidade || inspectionData.hruExpiry) {
-      const hruParsed = parseMonthYearValue(inspectionData.hruValidade || inspectionData.hruExpiry);
-      if (hruParsed) {
-        const hruDate = new Date(hruParsed.year, hruParsed.month - 1, 1);
-        const diffTime = hruDate.getTime() - insDate.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        if (diffDays < 0) {
-          list.push({ text: `HRU (${inspectionData.hruReference || 'S/R'}) expirado há ${Math.abs(diffDays)} dias`, stepKey: 'componentes', isCritical: true });
-        } else if (diffDays <= 90) {
-          list.push({ text: `HRU (${inspectionData.hruReference || 'S/R'}) expira em ${diffDays} dias`, stepKey: 'componentes', isCritical: diffDays <= 30 });
-        }
-      }
-    } else {
-      list.push({ text: 'HRU: referência ou validade não definidas', stepKey: 'componentes', isCritical: true });
-    }
-
-    // Step 6 Validations
-    const testes = Object.values(inspectionData.testes || {});
-    if (testes.includes('REPROVOU')) {
-      list.push({ text: 'Existem testes operacionais/pressão que reprovararam.', stepKey: 'testes', isCritical: true });
-    }
-
-    // Step 7 Validations - Reconciliação substituições vs orçamento
-    const orcamentoLinhas = inspectionData.orcamento?.linhas || [];
-    if (orcamentoLinhas.length > 0) {
-      const substituidos = [
-        ...Object.values(inspectionData.packItems || {}).filter(
-          (item: any) =>
-            Number(item.quantidade) > 0 &&
-            !isArticleNonExpiring({ name: item.name, referencia: item.referencia })
-        ),
-        ...(inspectionData.componentes || []).filter(
-          (comp: any) => (comp.reference || comp.stockId) && Boolean(comp.validade)
-        ),
-      ];
-      substituidos.forEach((sub: any) => {
-        const ref = sub.referencia || sub.reference || sub.name;
-        if (!ref) return;
-        const qty = Number(sub.quantidade) || (sub.checklistName ? 1 : 1);
-        const linha = orcamentoLinhas.find(
-          (l: any) => l.referencia === ref || (l.stockId && String(l.stockId) === String(sub.stockId))
-        );
-        if (!linha) {
-          list.push({ text: `${ref}: substituído mas sem linha correspondente no orçamento.`, stepKey: 'orcamento', isCritical: false });
-        } else if (Number(linha.quantidade) !== qty) {
-          list.push({ text: `${ref}: quantidade divergente entre substituições (${qty}) e orçamento (${Number(linha.quantidade)}).`, stepKey: 'orcamento', isCritical: false });
-        }
-      });
-    }
-
-    return list;
-  }, [inspectionData]);
-
-  function formatMonthYearDisplay(val: string) {
-    if (!val) return '—';
-    const [y, m] = String(val ?? "").split('-').map(Number);
-    return `${String(m).padStart(2, '0')}-${y}`;
-  }
+    return list.map(w => ({ ...w, blocksCompletion: false }));
+  }, [inspectionData, globalStock, selectedTecnicoId]);
 
   const wizardSteps = useMemo(
     () => getWizardSteps(inspectionData, { hideOrcamento }),
     [inspectionData, hideOrcamento],
   );
 
+  const visibleStepKeyOf = (stepKey: string) => {
+    const key = stepKey === 'orcamento' && hideOrcamento ? 'artigos' : stepKey;
+    return getStepIndexByKey(wizardSteps, key) > 0 ? key : 'resumo';
+  };
+
   const stepNumberOf = (stepKey: string) => {
-    const idx = getStepIndexByKey(wizardSteps, stepKey);
+    const idx = getStepIndexByKey(wizardSteps, visibleStepKeyOf(stepKey));
     return idx > 0 ? idx : 1;
   };
 
   const criticalCount = warnings.filter(w => w.isCritical).length;
-
-  const buildSavePayload = (isFinal = false) => {
-    const packSubstitutions = Object.values(inspectionData.packItems || {})
-      .filter((item: any) => item.quantidade > 0)
-      .map((item: any) => ({
-        stockId: item.stockId || null,
-        referencia: item.referencia,
-        descricao: item.descricao || item.name,
-        quantidade: item.quantidade,
-        motivo: "Substituição Inspeção",
-        validade: item.validade || null,
-        codigoFabricante: item.codigoFabricante || null,
-      }));
-
-    const compSubstitutions = (inspectionData.componentes || [])
-      .filter((comp: any) => comp.stockId || comp.reference) // Apenas os que têm referência preenchida
-      .map((comp: any) => ({
-        stockId: comp.stockId || null,
-        referencia: comp.reference,
-        descricao: comp.name || "Componente",
-        quantidade: 1, // Componentes normais são 1 por 1
-        motivo: "Substituição Inspeção",
-        validade: comp.validade || null,
-        codigoFabricante: null,
-      }));
-
-    const closureSubstitutions = (inspectionData.containerClosureItems || [])
-      .filter((item: any) => Number(item.quantidade) > 0)
-      .map((item: any) => ({
-        stockId: item.stockId || null,
-        referencia: item.referencia,
-        name: item.descricao || "Equipamento de fecho do contentor",
-        descricao: item.descricao || "Equipamento de fecho do contentor",
-        quantidade: item.quantidade,
-        precoUnitario: Number(item.unitPrice) || 0,
-        motivo: "Fecho do Contentor",
-        validade: null,
-        codigoFabricante: item.partNumber || null,
-        kind: item.kind || "autocolante",
-      }));
-
-    const artigosSubstituidos = [...packSubstitutions, ...compSubstitutions, ...closureSubstitutions];
-
-    const testes = inspectionData.testes || {};
-    const defaultUnit = testes.wpUnidadePressao || 'hpa';
-    const supUnit = testes.wpCamaraSupUnidade || defaultUnit;
-    const infUnit = testes.wpCamaraInfUnidade || defaultUnit;
-
-    const tIn = parseFloat(testes.wpTempInicio || '0');
-    const tOut = parseFloat(testes.wpTempFim || '0');
-    const pAtmIn = parseFloat(testes.wpPressaoAtmInicio || '0');
-    const pAtmOut = parseFloat(testes.wpPressaoAtmFim || '0');
-    
-    const supIn = parseFloat(testes.wpCamaraSupInicio || '0');
-    const supOut = parseFloat(testes.wpCamaraSupFim || '0');
-    const infIn = parseFloat(testes.wpCamaraInfInicio || '0');
-    const infOut = parseFloat(testes.wpCamaraInfFim || '0');
-
-    const toMbar = (val: number, u: string) => {
-      if (isNaN(val) || val <= 0) return NaN;
-      if (u === 'inhg') return val * 33.8638866667;
-      if (u === 'inh2o') return val * 2.490889;
-      return val;
-    };
-
-    const fromMbar = (val: number, u: string) => {
-      if (isNaN(val) || val <= 0) return NaN;
-      if (u === 'inhg') return val / 33.8638866667;
-      if (u === 'inh2o') return val / 2.490889;
-      return val;
-    };
-
-    let supDropStr = "";
-    let infDropStr = "";
-
-    if (!isNaN(tIn) && !isNaN(tOut) && !isNaN(pAtmIn) && !isNaN(pAtmOut)) {
-      const tempDelta = tOut - tIn;
-      const baroDelta = pAtmOut - pAtmIn;
-      const correctionTempMb = -(tempDelta * 4);
-      const correctionBaroMb = baroDelta;
-      const totalCorrectionMb = correctionTempMb + correctionBaroMb;
-
-      if (!isNaN(supIn) && !isNaN(supOut)) {
-        const startMb = toMbar(supIn, supUnit);
-        const endMb = toMbar(supOut, supUnit);
-        const correctedEndMb = endMb + totalCorrectionMb;
-        const dropMb = Math.max(0, startMb - correctedEndMb);
-        const percent = startMb > 0 ? (dropMb / startMb) * 100 : 0;
-        supDropStr = isNaN(dropMb) ? "" : `${fromMbar(dropMb, supUnit).toFixed(2)} ${supUnit} (${percent.toFixed(1)}%)`;
-      }
-
-      if (!isNaN(infIn) && !isNaN(infOut)) {
-        const startMb = toMbar(infIn, infUnit);
-        const endMb = toMbar(infOut, infUnit);
-        const correctedEndMb = endMb + totalCorrectionMb;
-        const dropMb = Math.max(0, startMb - correctedEndMb);
-        const percent = startMb > 0 ? (dropMb / startMb) * 100 : 0;
-        infDropStr = isNaN(dropMb) ? "" : `${fromMbar(dropMb, infUnit).toFixed(2)} ${infUnit} (${percent.toFixed(1)}%)`;
-      }
-    }
-
-    const ordemId = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('ordemId') : null;
-
-    return {
-      // Identificação e Jangada Fields
-      ...inspectionData,
-      id: inspecaoId || undefined,
-      shipId: shipId,
-      raftId: jangadaId,
-      navioNome: inspectionData.shipName || inspectionData.shipNameManual || null,
-      shipNameManual: inspectionData.shipName || inspectionData.shipNameManual || null,
-      jangadaSerial: inspectionData.serial || null,
-      date: inspectionData.dataInspecao || new Date().toISOString().slice(0, 10),
-      dataProxInspecao: inspectionData.dataProxInspecao || null,
-      
-      owner: inspectionData.owner || null,
-      launchType: inspectionData.launchType || null,
-      painterLength: inspectionData.painterLength || null,
-      maxStowageHeight: inspectionData.maxStowageHeight || null,
-      fabricType: inspectionData.fabricType || null,
-
-      // Cilindros Fields
-      cylinderSerial: inspectionData.cylinder?.serial || null,
-      cylinderPesoBruto: inspectionData.cylinder?.pesoBruto || null,
-      cylinderTara: inspectionData.cylinder?.tara || null,
-      cylinderCo2: inspectionData.cylinder?.co2 || null,
-      cylinderN2: inspectionData.cylinder?.n2 || null,
-      cylinderDataTeste: inspectionData.cylinder?.dataTeste || null,
-      cylinderDataProxTeste: inspectionData.cylinder?.dataProxTeste || null,
-      
-      // Testes
-      testeWP: testes.testeWP || null,
-      testeNAP: testes.testeNAP || null,
-      testeFS: testes.testeFS || null,
-      testeGI: testes.testeGI || null,
-      testeDL: testes.testeDL || null,
-
-      testeWPUnidadePressao: testes.wpUnidadePressao || null,
-      testeWPHoraInicio: testes.wpHoraInicio || null,
-      testeWPHoraFim: testes.wpHoraFim || null,
-      testeWPTemperaturaInicial: testes.wpTempInicio || null,
-      testeWPTemperaturaFinal: testes.wpTempFim || null,
-      testeWPPressaoAtmosfericaInicial: testes.wpPressaoAtmInicio || null,
-      testeWPPressaoAtmosfericaFinal: testes.wpPressaoAtmFim || null,
-      testeWPCamaraSuperiorInicio: testes.wpCamaraSupInicio || null,
-      testeWPCamaraSuperiorFim: testes.wpCamaraSupFim || null,
-      testeWPCamaraSuperiorQueda: supDropStr || null,
-      testeWPCamaraInferiorInicio: testes.wpCamaraInfInicio || null,
-      testeWPCamaraInferiorFim: testes.wpCamaraInfFim || null,
-      testeWPCamaraInferiorQueda: infDropStr || null,
-
-      // Inspeção Fields
-      status: isFinal ? (inspectionData.abate?.ativo ? "Condenada" : "Concluída") : "Draft",
-      responsavel: inspectionData.responsavel || "Operador",
-       applyStockMovements: isFinal,
-       signatureBase64: inspectionData.signatureBase64 || null,
-       clienteAssinaturaBase64: inspectionData.clienteAssinaturaBase64 || null,
-       clienteNomeAssinatura: inspectionData.clienteNomeAssinatura || null,
-       guiaTransporteUrl: inspectionData.guiaTransporteUrl || null,
-      checklistSnapshot: {
-        ...(inspectionData.checklist || {}),
-        _hruAplicavel: inspectionData.hruAplicavel || 'NAO',
-        _dataUltimoGi: inspectionData.dataUltimoGi || '',
-      },
-      artigosSubstituidos,
-      orcamento: {
-        linhas: (inspectionData.orcamento?.linhas || []).map((linha) => ({
-          id: linha.id || undefined,
-          stockId: linha.stockId ?? null,
-          referencia: linha.referencia || "",
-          descricao: linha.descricao || "",
-          quantidade: Number(linha.quantidade) || 0,
-          precoUnitario: Number(linha.unitPrice) || 0,
-          total: Math.round((Number(linha.quantidade) || 0) * (Number(linha.unitPrice) || 0) * 100) / 100,
-          source: linha.source || "manual",
-        })),
-        valorMaoObra: 0,
-        valorDesconto: Number(inspectionData.orcamento?.valorDesconto || 0),
-        isIsentoIva: Boolean(inspectionData.orcamento?.isIsentoIva),
-        usarOrcamento: Boolean(inspectionData.orcamento?.usarOrcamento),
-        removedIds: inspectionData.orcamento?.removedIds || [],
-        aprovacaoWhatsApp: inspectionData.orcamento?.aprovacaoWhatsApp || null,
-        certificadoRevisao: inspectionData.orcamento?.certificadoRevisao || null,
-      },
-      ordemId: ordemId ? parseInt(ordemId, 10) : null,
-    };
-  };
-
-  const saveToBackend = async (isFinal: boolean) => {
-    try {
-      setIsSaving(true);
-      const payload = buildSavePayload(isFinal);
-
-      if (typeof window !== 'undefined' && !window.navigator.onLine) {
-        try {
-          const method = inspecaoId ? 'PUT' : 'POST';
-          const path = inspecaoId ? `/api/inspecoes?id=${inspecaoId}` : '/api/inspecoes';
-          const queued = enqueueOfflineSyncOperation({
-            path,
-            method: method as 'PUT' | 'POST',
-            body: payload,
-            entityType: 'jangada-inspection',
-            entityId: String(inspecaoId || jangadaId),
-            summary: `Inspeção offline: ${inspectionData.serial || jangadaId}`,
-          });
-
-          if (queued) {
-            appToast.warning("Sem ligação à internet. A inspeção foi enfileirada para sincronização automática.");
-            if (isFinal) {
-              setStepByKey('certificados');
-            }
-          } else {
-            appToast.error("Fila offline cheia. Não foi possível guardar a inspeção.");
-          }
-        } catch (err) {
-          console.error("Erro ao enfileirar offline:", err);
-          appToast.error("Ocorreu um erro ao guardar a inspeção localmente.");
-        } finally {
-          setIsSaving(false);
-        }
-        return;
-      }
-
-      // 1. Guarda / Finaliza Inspecao. Vai primeiro de propósito: se a inspeção
-      //    estiver finalizada, o servidor recusa (409) e a jangada e o navio
-      //    ficam intactos. Nesse caso pedimos a justificação de reabertura e
-      //    repetimos a gravação — a alteração fica registada em auditoria e o
-      //    servidor volta a carimbar a inspeção, o histórico e a ficha da jangada.
-      const method = inspecaoId ? "PUT" : "POST";
-      const url = inspecaoId ? `/api/inspecoes?id=${inspecaoId}` : '/api/inspecoes';
-
-      const sendSave = (body: unknown) => fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      let saveBody: unknown = payload;
-      let inspRes = await sendSave(saveBody);
-
-      if (inspRes.status === 409) {
-        const lockJson = await inspRes.json().catch(() => ({}));
-        if (lockJson?.motivo === 'pedido-de-reabertura') {
-          const certificado = String(inspectionData.certificadoNumero || '').trim();
-          const justificacao = typeof window !== 'undefined'
-            ? window.prompt(
-                `A inspeção${certificado ? ` do certificado ${certificado}` : ''} está finalizada e não pode ser alterada.` +
-                `\n\nPara a corrigir, escreva a justificação da reabertura (mínimo ${MIN_REABERTURA_JUSTIFICACAO} caracteres).` +
-                "\nA alteração fica registada em auditoria.",
-                "",
-              )
-            : null;
-
-          if (justificacao === null) {
-            appToast.info("Reabertura cancelada. A inspeção permanece inalterada.");
-            return;
-          }
-          const texto = justificacao.trim();
-          if (texto.length < MIN_REABERTURA_JUSTIFICACAO) {
-            appToast.error(`A justificação da reabertura tem de ter pelo menos ${MIN_REABERTURA_JUSTIFICACAO} caracteres.`, 7000);
-            return;
-          }
-          saveBody = { ...payload, reabrir: true, reaberturaJustificacao: texto };
-          inspRes = await sendSave(saveBody);
-        }
-      }
-
-      if (!inspRes.ok) {
-        const errorJson = await inspRes.json().catch(() => ({}));
-        throw new Error(
-          errorJson.error
-            || errorJson.message
-            || `Erro ao gravar a inspeção (Código ${inspRes.status})`
-        );
-      }
-
-      const savedInsp = await inspRes.json().catch(() => ({}));
-      if (savedInsp?.id) {
-        setInspecaoId(savedInsp.id);
-      }
-
-      // Avisa stockWarnings devolvidas pelo servidor (ex.: stock insuficiente
-      // para artigos substituídos na validação) — nº visível ao técnico.
-      const stockWarnings: string[] = Array.isArray(savedInsp?.stockWarnings)
-        ? savedInsp.stockWarnings.filter((w: unknown): w is string => typeof w === 'string' && Boolean(w.trim()))
-        : [];
-      stockWarnings.forEach((warning) => appToast.warning(`Stock: ${warning}`));
-
-      // 2. Atualiza Jangada (testes, etc). Campos já garantidos pela gravação da
-      // inspeção (saveInspection escreve sempre numeroObra, cylinderSerial,
-      // cylinderDataTeste, testeFS/NAP/GI/DL e signatureBase64 na jangada) não são
-      // repetidos aqui — evitam dupla escrita do mesmo valor.
-      if (jangadaId) {
-        const jangadaPayload: Record<string, any> = {
-          brand: inspectionData.brand,
-          model: inspectionData.model,
-          serial: inspectionData.serial,
-          packType: inspectionData.packType,
-          capacity: inspectionData.capacity,
-          dataFabrico: inspectionData.dataFabrico,
-          launchType: inspectionData.launchType,
-          fabricType: inspectionData.fabricType,
-          painterLength: inspectionData.painterLength,
-          maxStowageHeight: inspectionData.maxStowageHeight,
-          hruReferencia: inspectionData.hruReference,
-          hruSerial: inspectionData.hruSerial || null,
-          hruValidade: inspectionData.hruExpiry,
-          hruAplicavel: inspectionData.hruAplicavel || 'NAO',
-          radarReflector: inspectionData.radarReflector,
-          radarReflectorValidade: inspectionData.radarReflectorExpiry,
-          owner: inspectionData.owner,
-          certificadoExternoNumero: (inspectionData.certificadoExternoNumero || '').trim() || null,
-          certificadoExternoUrl: (inspectionData.certificadoExternoUrl || '').trim() || null,
-          // Cylinder data (pesos e próx. teste são complementares à jangada;
-          // serial e dataTeste são gravados pela inspeção)
-          cylinderPesoBruto: inspectionData.cylinder?.pesoBruto,
-          cylinderTara: inspectionData.cylinder?.tara,
-          cylinderCo2: inspectionData.cylinder?.co2,
-          cylinderN2: inspectionData.cylinder?.n2,
-          cylinderDataProxTeste: inspectionData.cylinder?.dataProxTeste,
-          // Test results (testeWP e detalhes WP/NAP não são garantidos pela
-          // gravação da inspeção — a snapshot da checklist não os contém)
-          testeWP: inspectionData.testes?.testeWP,
-          // WP test details
-          testeWPUnidadePressao: inspectionData.testes?.wpUnidadePressao,
-          testeWPHoraInicio: inspectionData.testes?.wpHoraInicio,
-          testeWPHoraFim: inspectionData.testes?.wpHoraFim,
-          testeWPTemperaturaInicial: inspectionData.testes?.wpTempInicio,
-          testeWPTemperaturaFinal: inspectionData.testes?.wpTempFim,
-          testeWPPressaoAtmosfericaInicial: inspectionData.testes?.wpPressaoAtmInicio,
-          testeWPPressaoAtmosfericaFinal: inspectionData.testes?.wpPressaoAtmFim,
-          testeWPCamaraSuperiorInicio: inspectionData.testes?.wpCamaraSupInicio,
-          testeWPCamaraSuperiorFim: inspectionData.testes?.wpCamaraSupFim,
-          testeWPCamaraInferiorInicio: inspectionData.testes?.wpCamaraInfInicio,
-          testeWPCamaraInferiorFim: inspectionData.testes?.wpCamaraInfFim,
-          testeWPInstrumento: inspectionData.testes?.wpManometroId,
-          testeWPBarometro: inspectionData.testes?.wpBarometroId,
-          // NAP test details
-          testeNAPUnidadePressao: inspectionData.testes?.napUnidadePressao,
-          testeNAPHoraInicio: inspectionData.testes?.napHoraInicio,
-          testeNAPHoraFim: inspectionData.testes?.napHoraFim,
-          testeNAPTemperaturaInicial: inspectionData.testes?.napTempInicio,
-          testeNAPTemperaturaFinal: inspectionData.testes?.napTempFim,
-          testeNAPPressaoAtmosfericaInicial: inspectionData.testes?.napPressaoAtmInicio,
-          testeNAPPressaoAtmosfericaFinal: inspectionData.testes?.napPressaoAtmFim,
-          testeNAPCamaraSuperiorInicio: inspectionData.testes?.napCamaraSupInicio,
-          testeNAPCamaraSuperiorFim: inspectionData.testes?.napCamaraSupFim,
-          testeNAPCamaraInferiorInicio: inspectionData.testes?.napCamaraInfInicio,
-          testeNAPCamaraInferiorFim: inspectionData.testes?.napCamaraInfFim,
-          testeNAPInstrumento: inspectionData.testes?.napManometroId,
-          // Boletins de serviço aplicados
-          serviceBulletinsApplied: inspectionData.serviceBulletinsApplied || {},
-          // Abate da jangada (ficha IM.049/00)
-          abate: inspectionData.abate || null,
-        };
-
-        const jangadaRes = await fetch(`/api/jangadas/${jangadaId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(jangadaPayload),
-        });
-        if (!jangadaRes.ok) {
-          const errorJson = await jangadaRes.json().catch(() => ({}));
-          throw new Error(errorJson.error || errorJson.message || `Erro ao atualizar dados da jangada (Código ${jangadaRes.status})`);
-        }
-      }
-
-      // 3. Atualiza Navio se associado
-      if (shipId) {
-        try {
-          const shipRes = await fetch(`/api/navios/${shipId}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              proprietario: inspectionData.owner,
-              bandeira: inspectionData.shipFlag,
-              imo: inspectionData.shipImo,
-              callSignal: inspectionData.shipCallSign,
-            }),
-          });
-          if (!shipRes.ok) {
-            console.warn("Erro ao atualizar dados do navio:", shipRes.status);
-          }
-        } catch (shipErr) {
-          console.error("Erro ao atualizar dados do navio:", shipErr);
-        }
-      }
-
-      if (isFinal) {
-        if (jangadaId) {
-          localStorage.removeItem(`jangada-wizard-draft-${jangadaId}`);
-          fetch(`/api/inspecoes?jangadaId=${jangadaId}`)
-            .then(res => {
-              if (!res.ok) throw new Error(`HTTP ${res.status}`);
-              return res.json();
-            })
-            .then(data => setInspecoes(Array.isArray(data) ? data : []))
-            .catch(err => console.error('Erro ao atualizar histórico de inspeções:', err));
-        }
-        appToast.success("Inspeção concluída com sucesso!");
-        setTimeout(() => {
-          if (jangadaId) {
-            router.push(`/jangadas/${jangadaId}`);
-          } else if (shipId) {
-            router.push(`/navios/${shipId}`);
-          } else {
-            router.push('/jangadas');
-          }
-        }, 800);
-      } else {
-        appToast.success("Rascunho guardado com sucesso!");
-        router.refresh();
-      }
-    } catch (error) {
-      console.error(error);
-      const message = error instanceof Error && error.message
-        ? error.message
-        : "Ocorreu um erro ao gravar. Verifica a tua ligação.";
-      appToast.error(message);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleFinish = () => {
-    const missing: string[] = [];
-    if (!selectedTecnicoId) missing.push("Técnico responsável selecionado");
-    if (missing.length > 0) {
-      alert(
-        `Não é possível fechar a inspeção. Faltam os seguintes itens obrigatórios:\n\n${missing
-          .map((m) => `• ${m}`)
-          .join("\n")}`,
-      );
-      return;
-    }
-
-    const criticalWarnings = warnings.filter(w => w.isCritical);
-
-    if (criticalWarnings.length > 0) {
-      const msg = `Existem ${criticalWarnings.length} avisos ou validações pendentes:\n\n${criticalWarnings.map(w => `• ${w.text}`).join('\n')}\n\nDeseja finalizar mesmo assim? A inspeção será gravada (apenas o Abate marca como Condenada).`;
-      if (!window.confirm(msg)) return;
-    }
-    saveToBackend(true);
-  };
-
-  // Regista o handler de finalização para o WizardLayout conseguir fechar a
-  // inspeção a partir de qualquer passo (ex: Histórico), mesmo com o Step8
-  // desmontado. Re-regista em cada render para usar o handleFinish mais recente.
-  useEffect(() => {
-    setWizardFinisher(handleFinish);
-    return () => setWizardFinisher(null);
-  }, [handleFinish]);
+  const exceptionRows = getSummaryExceptionRows(inspectionData);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">{stepNumberOf('resumo') > 0 ? `${stepNumberOf('resumo')}. ` : ''}Fecho & Resumo</h2>
-          <p className="text-slate-600 mt-1">Valide os alertas automáticos antes de fechar e emitir o certificado.</p>
+          <h2 className="text-2xl font-bold text-slate-800">{stepNumberOf('resumo') > 0 ? `${stepNumberOf('resumo')}. ` : ''}Resumo e revisão da inspeção</h2>
+          <p className="text-slate-600 mt-1">Reveja os dados, os alertas e o técnico responsável. No passo seguinte pode pré-visualizar os documentos antes de guardar.</p>
         </div>
         <button
           type="button"
@@ -792,10 +232,10 @@ export default function Step8_ResumoFinal() {
               </div>
             </div>
           )}
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+          <div id="inspection-finish-warnings" tabIndex={-1} className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
             <div className="bg-slate-50 border-b border-slate-200 px-6 py-4 flex items-center gap-3">
               <ShieldAlert className="text-slate-500" size={20} />
-              <h3 className="text-lg font-bold text-slate-800">Validação do Sistema</h3>
+              <h3 className="text-lg font-bold text-slate-800">Validação do Sistema: lista consolidada</h3>
             </div>
             
             <div className="p-6">
@@ -811,40 +251,30 @@ export default function Step8_ResumoFinal() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {warnings.map((warning, idx) => (
-                    <div 
-                      key={idx} 
-                      className={`flex items-start justify-between gap-4 p-4 rounded-xl border-l-4 ${
-                        warning.isCritical 
-                          ? 'bg-red-50 border-red-300 border-l-red-500 text-red-900' 
-                          : 'bg-amber-50 border-amber-300 border-l-amber-500 text-amber-900'
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${warning.isCritical ? 'bg-red-100' : 'bg-amber-100'}`}>
-                          <AlertTriangle className={`${warning.isCritical ? 'text-red-500' : 'text-amber-500'}`} size={18} />
-                        </div>
-                        <div>
-                          <p className="font-bold text-sm leading-snug">{warning.text}</p>
-                          <span className={`inline-flex items-center mt-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                            warning.isCritical ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'
-                          }`}>
-                            {warning.isCritical ? 'Ação Crítica Obrigatória' : 'Aviso Informativo'}
-                          </span>
-                        </div>
+                    <section aria-label="Exceções consolidadas" className="rounded-xl border border-amber-200 bg-amber-50 overflow-hidden">
+                      <div className="p-4">
+                        <h4 className="font-bold text-amber-900">Exceções e decisões por artigo</h4>
+                        <p className="text-xs text-amber-800 mt-1">A justificação permite registar a decisão, mas não declara conformidade nem elimina a reprovação.</p>
+                        <p className="text-xs text-amber-800 mt-1">Reveja as pendências antes de concluir; permanecem registadas mesmo após a confirmação.</p>
                       </div>
-                      <button 
-                        onClick={() => setStepByKey(warning.stepKey)}
-                        className={`text-xs font-bold px-3.5 py-2 rounded-lg whitespace-nowrap shadow-sm transition-colors ${
-                          warning.isCritical 
-                            ? 'bg-red-500 hover:bg-red-600 text-white' 
-                            : 'bg-amber-500 hover:bg-amber-600 text-white'
-                        }`}
-                      >
-                        Corrigir Passo {stepNumberOf(warning.stepKey)}
-                      </button>
-                    </div>
-                  ))}
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm text-left">
+                          <thead className="bg-amber-100 text-amber-900"><tr>
+                            {['Artigo / Passo', 'Problema', 'Decisão', 'Justificação'].map(label => <th key={label} scope="col" className="p-3 font-bold">{label}</th>)}
+                          </tr></thead>
+                          <tbody>{warnings.map((warning, index) => {
+                            const row = exceptionRows.find(row => warning.articleKey ? row.key === warning.articleKey : row.stepKey === warning.stepKey && warning.text.startsWith(`${row.article}:`));
+                            const problem = row ? warning.text.split(`Justificação: ${row.justification}.`).join('') : warning.text;
+                            return <tr key={`${warning.stepKey}:${index}`} className="border-t border-amber-200 align-top">
+                              <td className="p-3"><button type="button" onClick={() => setStepByKey(visibleStepKeyOf(warning.stepKey))} className="font-bold text-indigo-700 hover:underline">{row?.article || `Passo ${stepNumberOf(warning.stepKey)}`}</button><span className="block text-xs">Corrigir Passo {stepNumberOf(warning.stepKey)}</span></td>
+                              <td className={`p-3 ${warning.isCritical ? 'text-red-800' : 'text-amber-900'}`}>{problem}<span className="block text-xs font-bold mt-1">{warning.blocksCompletion ? 'Impede a conclusão' : warning.isCritical ? 'Requer confirmação' : 'Aviso informativo'}</span></td>
+                              <td className="p-3 text-amber-900">{row?.decision || 'Rever no passo indicado'}</td>
+                              <td className="p-3 text-slate-700 whitespace-pre-wrap">{row?.justification || 'Não aplicável'}</td>
+                            </tr>;
+                          })}</tbody>
+                        </table>
+                      </div>
+                    </section>
                 </div>
               )}
             </div>
@@ -930,7 +360,7 @@ export default function Step8_ResumoFinal() {
                       <ShieldAlert size={15} />
                       Condenada (Abate)
                     </p>
-                  ) : criticalCount > 0 ? (
+                   ) : warnings.length > 0 ? (
                     <p className="font-bold text-sm text-amber-300 flex items-center gap-1.5">
                       <AlertTriangle size={15} />
                       Com Avisos Pendentes
@@ -975,31 +405,14 @@ export default function Step8_ResumoFinal() {
 
             <hr className="border-indigo-700 my-6" />
 
-            <div className="flex gap-3">
-              <button 
-                onClick={handleFinish}
-                disabled={isSaving}
-                className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${
-                  Boolean(inspectionData.abate?.ativo)
-                    ? 'bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/30'
-                    : criticalCount === 0 
-                      ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/30' 
-                      : 'bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-500/30'
-                }`}
-              >
-                <Save size={20} />
-                {isSaving
-                  ? "A Processar..."
-                  : Boolean(inspectionData.abate?.ativo)
-                    ? 'Finalizar como Condenada (Abate)'
-                    : (criticalCount === 0 ? 'Fechar Inspeção e Gravar' : 'Fechar Inspeção e Gravar (com avisos)')}
-              </button>
-            </div>
+            <p className="text-sm text-indigo-100">
+              Reveja o resumo e avance para Certificados. A gravação e finalização são feitas uma única vez, no último passo.
+            </p>
             {criticalCount > 0 && (
               <p className="text-center text-xs mt-3 text-amber-200">
                 {Boolean(inspectionData.abate?.ativo)
                   ? 'Jangada será finalizada como Condenada (Abate)'
-                  : 'A inspeção será gravada como Concluída com os avisos pendentes (apenas o Abate marca como Condenada). Podes corrigir depois.'}
+                  : 'Reveja os avisos antes de concluir. Pode finalizar com pendências; isso não significa que estejam resolvidas ou que o equipamento esteja conforme.'}
               </p>
             )}
 </div>

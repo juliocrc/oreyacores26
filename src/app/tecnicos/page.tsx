@@ -649,16 +649,17 @@ export default function TecnicosPage() {
       </div>
 
       {selectedTecnico ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4" onClick={closeTecnicoModal}>
-          <div className="w-full max-w-3xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
-            <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="fixed inset-0 z-[1500] flex items-center justify-center bg-black/50 p-2 sm:p-4" onClick={closeTecnicoModal}>
+          <div role="dialog" aria-modal="true" aria-labelledby="ausencias-title" className="flex max-h-[calc(100dvh-1rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)]" onClick={(event) => event.stopPropagation()}>
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 sm:px-5">
               <div>
-                <h3 className="text-lg font-semibold text-slate-900">Ausências e férias</h3>
+                <h3 id="ausencias-title" className="text-lg font-semibold text-slate-900">Ausências e férias</h3>
                 <p className="text-sm text-slate-500">Técnico: <span className="font-semibold text-slate-700">{selectedTecnico}</span></p>
               </div>
               <button type="button" onClick={closeTecnicoModal} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50">Fechar</button>
             </div>
 
+            <div className="min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-5">
             <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-4">
               <select
                 value={absenceForm.tipo}
@@ -827,8 +828,8 @@ export default function TecnicosPage() {
             <hr className="my-6 border-slate-200" />
 
             <div className="mb-4">
-              <h3 className="text-lg font-semibold text-slate-900">Certificacoes</h3>
-              <p className="text-sm text-slate-500">Certificacoes de fabricante do tecnico</p>
+              <h3 className="text-lg font-semibold text-slate-900">Certificações</h3>
+              <p className="text-sm text-slate-500">Certificações de fabricante do técnico</p>
             </div>
 
             <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-4">
@@ -888,6 +889,7 @@ export default function TecnicosPage() {
                   )}
                 </tbody>
               </table>
+            </div>
             </div>
           </div>
         </div>

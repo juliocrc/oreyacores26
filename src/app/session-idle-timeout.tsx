@@ -112,9 +112,8 @@ export default function SessionIdleTimeout() {
       }
       return;
     }
-    if (status === "unauthenticated") {
-      clearAppSessionCookie();
-    }
+    // A failed session poll can temporarily report unauthenticated. Keep the
+    // marker so recovery does not immediately trigger another sign-out.
   }, [status]);
 
   return null;

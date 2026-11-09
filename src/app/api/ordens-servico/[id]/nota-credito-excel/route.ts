@@ -5,8 +5,6 @@ import { getAccessContext } from "@/lib/access-control";
 import { carregarFaturaPorOrdemServico, resumoFatura } from "@/lib/faturamento";
 import { formatIsencaoIva } from "@/lib/iva-isencao-codes";
 
-const ISSUER_NAME = "Orey Técnica - Serviços Navais";
-
 function formatEuro(value: number) {
   return new Intl.NumberFormat("pt-PT", {
     style: "currency",
@@ -25,10 +23,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   try {
     const access = await getAccessContext();
     if (!access) return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
+    if (!access.isAdmin) return NextResponse.json({ error: "Acesso reservado a administradores." }, { status: 403 });
 
     const { id: rawId } = await params;
     const id = Number(rawId);
-    if (!Number.isFinite(id) || id <= 0) {
+    if (!Number.isSafeInteger(id) || id <= 0) {
       return NextResponse.json({ error: "ID inválido." }, { status: 400 });
     }
 
@@ -59,6 +58,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const link = await carregarFaturaPorOrdemServico(id);
     const fatura = link?.fatura ?? null;
+    if (!fatura?.notaCredito) return NextResponse.json({ error: "Nao existe nota de credito registada para esta ordem." }, { status: 404 });
     const resumo = resumoFatura(link ?? null);
     const ordens = (fatura ? resumo.ordens : [order]) as Array<typeof order>;
 
@@ -83,9 +83,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const tecnicoNome = resumo.tecnico || order.tecnico?.nome || null;
 
     const notaCreditoRegistada = fatura?.notaCredito ?? null;
-    const numeroNotaCredito = notaCreditoRegistada?.numeroNotaCredito || `NC-${numeroFatura}`;
-    const dataEmissaoNC = notaCreditoRegistada?.dataEmissao || new Date();
-    const motivo = notaCreditoRegistada?.motivo || "Anulação / correção da fatura de referência";
+    const numeroNotaCredito = notaCreditoRegistada.numeroNotaCredito;
+    const dataEmissaoNC = notaCreditoRegistada.dataEmissao;
+    const motivo = notaCreditoRegistada.motivo || "";
 
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("Nota de Crédito");

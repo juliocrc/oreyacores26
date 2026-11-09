@@ -192,6 +192,7 @@ export default function EstacoesPage() {
       <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Estações de Serviço</h1>
+          <p className="mt-1 text-sm font-semibold text-slate-700">Empresa proprietária das estações existentes: Orey Tecnica- Serviços Navais, Lda</p>
           <p className="mt-1 text-sm text-slate-500">
             Cada estação tem a sua própria ficha, stock, agenda, equipa, clientes, navios e jangadas.
             O seletor no topo isola os dados da estação ativa.

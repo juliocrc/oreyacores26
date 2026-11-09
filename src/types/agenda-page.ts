@@ -18,6 +18,7 @@ export type InspectionEvent = {
   color?: string;
   responsavel?: string;
   inspectionType?: InspectionType;
+  type?: string;
   durationMinutes?: number;
   bufferBeforeMinutes?: number;
   bufferAfterMinutes?: number;
@@ -29,6 +30,10 @@ export type ExpiringRaftInfo = { label: string; shipName: string; expiryFlag: st
 export type StaffTechnician = { id: number | string; nome: string; role?: string };
 
 export type InspectionCalendarProps = {
+  date: Date;
+  view: 'month' | 'week' | 'day';
+  onDateChange: (date: Date) => void;
+  onViewChange: (view: 'month' | 'week' | 'day') => void;
   events: InspectionEvent[];
   onSchedule: (event: InspectionEvent) => void;
   onEventDrop: (payload: CalendarMutationPayload) => void;
@@ -55,9 +60,33 @@ export type AgendaMetrics = {
 };
 
 export type CalendarMutationPayload = {
+  resourceId?: string;
   event?: InspectionEvent;
   start?: Date | string;
   end?: Date | string;
+};
+
+export type AgendaAvailabilityMinutes = {
+  availableMinutes: number;
+  occupiedMinutes: number;
+  freeMinutes: number;
+  overbookedMinutes: number;
+};
+
+export type AgendaSuggestion = { start: string; end: string; responsavel: string };
+export type AgendaAvailability = {
+  timeZone: string;
+  weekStart: string;
+  weekEnd: string;
+  technicians: {
+    id: string | number;
+    nome: string;
+    days: (AgendaAvailabilityMinutes & { date: string })[];
+    totals: AgendaAvailabilityMinutes;
+  }[];
+  suggestions: AgendaSuggestion[];
+  unassignedMinutes: number;
+  warnings?: string[];
 };
 
 export type AgendaExportRow = {

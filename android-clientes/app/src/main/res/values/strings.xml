@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="offline_title">Sem ligação</string>
+    <string name="offline_message">Não foi possível contactar o portal. Verifique a ligação à internet e tente novamente.</string>
+    <string name="retry">Tentar novamente</string>
+    <string name="document_saved">Documento guardado</string>
+    <string name="open">Abrir</string>
+    <string name="share">Partilhar</string>
+    <string name="close">Fechar</string>
+    <string name="pdf_title">Documento</string>
+    <string name="pdf_error">Não foi possível abrir este PDF.</string>
+
+    <!-- Novas funcionalidades -->
+    <string name="shortcut_invoices">Faturas</string>
+    <string name="shortcut_invoices_long">Ver as minhas faturas em PDF</string>
+    <string name="shortcut_proposals">Propostas</string>
+    <string name="shortcut_proposals_long">Ver propostas comerciais</string>
+    <string name="shortcut_dark_mode">Tema escuro</string>
+    <string name="shortcut_dark_mode_long">Alternar entre tema claro e escuro</string>
+
+    <string name="settings_title">Configurações</string>
+    <string name="settings_dark_mode">Modo escuro</string>
+    <string name="settings_high_contrast">Alto contraste</string>
+    <string name="settings_scan_qr">Ler QR Code</string>
+    <string name="settings_sign">Assinar documento</string>
+
+    <string name="signature_title">Assinatura</string>
+    <string name="signature_clear">Limpar</string>
+    <string name="signature_save">Guardar assinatura</string>
+    <string name="signature_hint">Assine no espaço abaixo</string>
+
+    <string name="qr_scan_title">Ler QR Code</string>
+    <string name="qr_scan_hint">Aponte a câmara para o código QR da fatura ou proposta</string>
+    <string name="qr_invalid">QR Code inválido</string>
+
+    <string name="notification_channel_portal">Portal do Cliente</string>
+    <string name="notification_channel_alerts">Alertas</string>
+
+    <string name="device_compromised">Dispositivo comprometido detectado. Contacte o suporte.</string>
+    <string name="update_required">É necessário atualizar a aplicação para continuar.</string>
+    <string name="update_now">Atualizar agora</string>
+    <string name="camera_permission_denied">É necessário permitir o acesso à câmara para ler QR Codes.</string>
+</resources>

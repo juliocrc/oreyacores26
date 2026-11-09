@@ -1007,6 +1007,12 @@ export function getMandatoryPackItemsForRaft(context: PackContext) {
   const capacity = Number(context.capacity || 0);
   const templateFallbacks = buildTemplateFallbackMap(String(context.packType || ''), capacity);
 
+  const brandKey = brand.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const modelKey = model.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const oceanUltra = brandKey === 'OCEANSAFETY' && /^(?:ISO|OCEANISO|OSISO|OCEANSAFETYISO)ULTRALITE$/.test(modelKey);
+  // The 2020 manual documents the UltraLite Pack 2, not a generic Pack 1 or SOLAS list.
+  if (oceanUltra && !matchesMandatoryPack('COASTAL', packCode, model)) return [];
+
   const technicalModel = findRaftTechnicalModel(brand, model);
   const selectedPack = technicalModel?.packEquipment?.find((entry) => matchesMandatoryPack(entry.pack, packCode, model))
     || technicalModel?.packEquipment?.find((entry) => matchesMandatoryPack(entry.pack, normalizeMandatoryPackCode(context.packType), model))

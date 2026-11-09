@@ -246,22 +246,12 @@ export function importLegacyOfflineInspections() {
     const inspId = !isNew && typeof id === "string" && String(id).trim() ? String(id) : undefined;
 
     const jangadaTouched = jangadaId != null && String(jangadaId).trim() !== "";
+    // Legacy paired writes have no safe token hand-off between requests.
+    // Keep the original draft for manual reconciliation, never upgrade its version.
     if (jangadaTouched) {
-      const jangadaBody: Record<string, unknown> = { ...body };
-      delete jangadaBody.checklist;
-      delete jangadaBody.packItems;
-      delete jangadaBody.artigosSubstituidos;
-      if (isNew) delete jangadaBody.id;
-      enqueueOfflineSyncOperation({
-        path: `/api/jangadas/${String(jangadaId)}`,
-        method: "PUT",
-        body: jangadaBody,
-        entityType: "jangada",
-        entityId: String(jangadaId),
-        summary: `Jangada #${String(jangadaId)} (rascunho legado)`,
-      });
+      remaining.push(item);
+      continue;
     }
-
     const queued = enqueueOfflineSyncOperation({
       path: inspId ? `/api/inspecoes?id=${inspId}` : "/api/inspecoes",
       method: inspId ? "PUT" : "POST",
@@ -341,6 +331,7 @@ export async function performOfflineAwareJsonRequest<T>(options: {
       entityId: options.queueEntry?.entityId,
       summary: options.queueEntry?.summary,
     });
+    if (!queued) throw new Error("A fila offline está cheia; a operação não foi guardada.");
     return { queued: true as const, data: null as T | null, queuedOperation: queued };
   };
 
@@ -408,10 +399,20 @@ export async function flushOfflineSyncQueue() {
     return null;
   }
 
-  const queue = readStoredQueue();
+  const storedQueue = readStoredQueue().map(op => {
+    const body = op.body as Record<string, unknown> | undefined;
+    const raftWrite = op.method === 'PUT' && /^\/api\/jangadas(?:\/\d+)?(?:\?|$)/.test(op.path);
+    const inspectionWrite = ['PUT', 'POST'].includes(op.method) && /^\/api\/inspecoes(?:\?|$)/.test(op.path);
+    const unversioned = (raftWrite && !body?.expectedUpdatedAt)
+      || (inspectionWrite && op.method === 'PUT' && !body?.expectedUpdatedAt)
+      || (inspectionWrite && (body?.raftId || body?.jangadaId) && !body?.expectedRaftUpdatedAt);
+    return unversioned ? { ...op, failedPermanently: true } : op;
+  });
+  writeStoredQueue(storedQueue);
+  const queue = storedQueue.filter(op => !op.failedPermanently);
   if (queue.length === 0) {
     clearRetryTimer();
-    writeStoredState({ syncing: false, online: true, lastError: null });
+    writeStoredState({ syncing: false, online: true, lastError: storedQueue.length ? 'Rascunhos bloqueados preservados. Compare com o servidor antes de repetir.' : null });
     return {
       ok: true,
       processedCount: 0,
@@ -457,7 +458,7 @@ export async function flushOfflineSyncQueue() {
           return {
             ...op,
             attemptCount: attempts,
-            failedPermanently: attempts >= MAX_RETRY_ATTEMPTS,
+            failedPermanently: failed.status === 409 || attempts >= MAX_RETRY_ATTEMPTS,
           };
         });
         writeStoredQueue(updatedQueue);

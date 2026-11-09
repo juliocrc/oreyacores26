@@ -27,6 +27,9 @@ ENV PRISMA_DISABLE_WARNINGS=1
 ENV NODE_ENV=production
 ENV DATABASE_URL=postgresql://placeholder:placeholder@localhost:5432/placeholder
 
+# Gerar os assets locais do OCR (o npm ci usa --ignore-scripts).
+RUN node scripts/copy-ocr-assets.cjs
+
 RUN npm run build
 
 # ── Stage 3: Production ──────────────────────────────────────
@@ -60,6 +63,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/templates ./templates
 
 # Copy and configure entrypoint
 COPY --from=builder --chown=nextjs:nodejs /app/docker-entrypoint-cloudrun.sh ./entrypoint.sh
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/check-runtime-database.cjs ./scripts/check-runtime-database.cjs
 RUN chmod +x ./entrypoint.sh
 
 # Ensure writable directories

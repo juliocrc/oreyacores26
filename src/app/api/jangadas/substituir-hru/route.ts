@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { resolveLotStock } from '@/lib/ordens-servico';
+import type { Prisma } from '@prisma/client';
 import { parseFlexibleDateValue } from '@/lib/date-display';
+import { equipmentAccess } from '@/lib/jangada-equipment-access';
+import { auditEquipment, equipmentSnapshot } from '@/lib/jangada-equipment-audit';
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const jangadaId = searchParams.get('jangadaId');
+    const guard = await equipmentAccess(Number(jangadaId));
+    if (guard.error) return guard.error;
 
     if (!jangadaId) {
       return NextResponse.json(
@@ -28,6 +34,7 @@ export async function GET(request: NextRequest) {
     // Obter HRUs disponíveis em stock
     const stockDisponivel = await prisma.stock.findMany({
       where: {
+        serviceStationId: jangada.serviceStationId,
         estadoArtigo: 'ATIVO',
         OR: [
           { referencia: '20701002' },
@@ -56,7 +63,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { jangadaId, novaReferencia, dataInstalacao } = body;
+    const { jangadaId, novaReferencia, dataInstalacao, stockId } = body;
+    const guard = await equipmentAccess(Number(jangadaId), true);
+    if (guard.error) return guard.error;
 
     const parsedJangadaId = parseInt(jangadaId, 10);
     if (isNaN(parsedJangadaId) || !novaReferencia || !dataInstalacao) {
@@ -91,15 +100,13 @@ export async function POST(request: NextRequest) {
       }
 
       // 2. Verificar stock do novo HRU
-      const novoStock = await tx.stock.findFirst({
-        where: { referencia: novaReferencia },
-      });
+      const novoStock = await resolveLotStock(tx, { stockId, referencia: novaReferencia }, jangada.serviceStationId);
 
       if (!novoStock) {
         throw new Error('Artigo do stock não encontrado');
       }
 
-      if (novoStock.quantidade < 1) {
+      if (novoStock.quantidade - novoStock.quantidadeReservada < 1) {
         throw new Error(`Stock insuficiente para o artigo ${novoStock.descricao} (${novaReferencia}).`);
       }
 
@@ -117,10 +124,11 @@ export async function POST(request: NextRequest) {
       const stockAntes = novoStock.quantidade;
       const stockDepois = stockAntes - 1;
 
-      await tx.stock.update({
-        where: { id: novoStock.id },
+      const stockUpdated = await tx.stock.updateMany({
+        where: { id: novoStock.id, quantidade: stockAntes, quantidadeReservada: novoStock.quantidadeReservada },
         data: { quantidade: stockDepois },
       });
+      if (stockUpdated.count !== 1) throw new Error('Lote alterado; tente novamente.');
 
       // 5. Registar movimentação de stock
       await tx.movimentacaoStock.create({
@@ -131,7 +139,7 @@ export async function POST(request: NextRequest) {
           quantidadeAntes: stockAntes,
           quantidadeDepois: stockDepois,
           motivo: `Substituição de HRU na jangada serial ${jangada.serial}`,
-          usuario: 'sistema',
+          usuario: guard.access.email,
         },
       });
 
@@ -145,11 +153,7 @@ export async function POST(request: NextRequest) {
         const existingArticle = await tx.artigoJangada.findFirst({
           where: {
             inspecaoId: lastInspecao.id,
-            OR: [
-              { referencia: novaReferencia },
-              { name: { contains: 'HRU' } },
-              { name: { contains: 'Disparo' } }
-            ]
+            stockId: novoStock.id,
           }
         });
 
@@ -159,6 +163,7 @@ export async function POST(request: NextRequest) {
             data: {
               quantidade: existingArticle.quantidade + 1,
               referencia: novaReferencia,
+              stockId: novoStock.id,
               name: novoStock.descricao,
               codigoFabricante: novoStock.codigoFabricante || undefined,
               validade: expiryDate,
@@ -172,39 +177,29 @@ export async function POST(request: NextRequest) {
               name: novoStock.descricao,
               quantidade: 1,
               referencia: novaReferencia,
+              stockId: novoStock.id,
               codigoFabricante: novoStock.codigoFabricante || undefined,
               validade: expiryDate,
             },
           });
         }
+        const snapshot = (lastInspecao.checklistSnapshot || {}) as Record<string, unknown>;
+        const expiry = (snapshot._articleExpiry || {}) as Record<string, unknown>;
+        const replacements = Array.isArray(expiry.replacements) ? expiry.replacements : [];
+        await tx.inspecao.update({ where: { id: lastInspecao.id }, data: {
+          checklistSnapshot: { ...snapshot, _articleExpiry: { ...expiry, replacements: [...replacements, {
+            stockId: novoStock.id, lote: novoStock.lote, referencia: novoStock.referencia,
+            quantidade: 1, validade: hruValidadeStr,
+          }] } } as Prisma.InputJsonValue,
+        } });
       }
 
-      // 7. Registar na auditoria
-      const auditoriaClient = tx.auditoria;
-      if (auditoriaClient) {
-        await auditoriaClient.create({
-          data: {
-            tabela: 'Jangada',
-            tipoOperacao: 'UPDATE',
-            idRegisto: parsedJangadaId,
-            descricao: `Substituição de HRU: ${jangada.hruReferencia || 'Sem HRU'} → ${novaReferencia}`,
-            usuario: 'sistema',
-            dadosAntes: JSON.stringify({
-              hruReferencia: jangada.hruReferencia,
-              hruDataInstalacao: jangada.hruDataInstalacao,
-              hruValidade: jangada.hruValidade,
-            }),
-            dadosDepois: JSON.stringify({
-              hruReferencia: novaReferencia,
-              hruDataInstalacao: dataInstalacao,
-              hruValidade: hruValidadeStr,
-            }),
-          },
-        });
-      }
+      await auditEquipment(tx, { jangadaId: parsedJangadaId, usuario: guard.access.email,
+        origem: "Substituição de HRU", antes: equipmentSnapshot(jangada), depois: equipmentSnapshot(jangadaAtualizada),
+      });
 
       return jangadaAtualizada;
-    });
+    }, { isolationLevel: 'Serializable' });
 
     return NextResponse.json({
       success: true,
@@ -216,7 +211,7 @@ export async function POST(request: NextRequest) {
     const message = error instanceof Error ? error.message : 'Erro ao substituir HRU';
     return NextResponse.json(
       { error: message },
-      { status: 500 }
+      { status: /stockId|lote|Lote|Stock insuficiente/.test(message) ? 400 : 500 }
     );
   }
 }

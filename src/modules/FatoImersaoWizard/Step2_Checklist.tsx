@@ -27,7 +27,7 @@ export default function Step2_Checklist({ onNext, onPrev }: Props) {
     <div className="space-y-6 animate-in fade-in duration-300">
       <div>
         <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">2. Checklist unificada</h2>
-        <p className="text-slate-600 mt-1">19 pontos Viking/Crewsaver + diagrama de fugas (form 11.1).</p>
+        <p className="text-slate-600 mt-1">Registe cada ponto; selecione N/A apenas quando não for aplicável. A estanquidade é registada no passo do ensaio.</p>
       </div>
 
       <ImmersionSuitDiagram
@@ -43,7 +43,7 @@ export default function Step2_Checklist({ onNext, onPrev }: Props) {
           </div>
           <div className="divide-y divide-slate-100">
             {FATO_CHECKLIST_ITEMS.filter((i) => i.group === g.id).map((item) => {
-              const val = inspectionData.checklist[item.key] || "OK";
+              const val = inspectionData.checklist[item.key] || "";
               return (
                 <div key={item.key} className="grid grid-cols-12 gap-3 px-5 py-3 items-center">
                   <div className="col-span-12 md:col-span-5">

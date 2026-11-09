@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
+import { isEditConflict, editConflictBody } from '@/lib/edit-conflict';
 import { Prisma } from "@prisma/client";
 import { buildDatabaseErrorResponse, extractErrorMessage } from "@/lib/database-errors";
 import { reverterMovimentosInspecao } from "@/lib/stock/inspecao-sync";
 
 function buildSaveErrorResponse(context: ReturnType<typeof beginApiRequest>, error: unknown, fallback: string) {
+  if (isEditConflict(error)) {
+    const response = NextResponse.json(editConflictBody(), { status: 409 });
+    finishApiRequest(context, 409);
+    return withRequestId(response, context);
+  }
   const safe = extractErrorMessage(error, fallback);
   const response = safe === fallback
     ? buildDatabaseErrorResponse(error, fallback)
@@ -12,10 +18,9 @@ function buildSaveErrorResponse(context: ReturnType<typeof beginApiRequest>, err
   finishApiRequest(context, response.status);
   return withRequestId(response, context);
 }
-import { generateInspectionCertificateNumber, generateNextObraNumber, resolveCertificateStationPrefix, saveInspection } from "@/app/inspecoes/actions";
+import { generateInspectionCertificateNumber, generateNextObraNumber, resolveCertificateStationPrefix, resolveObraNumberForRaft, saveInspection } from "@/app/inspecoes/actions";
 import { InspectionLockedError } from "@/lib/inspecao-lock";
 import { saveInspectionSnapshot } from '@/lib/inspection-snapshots';
-import { syncRaftChecklistDrivenArtigos } from "@/lib/checklist-sync";
 import { beginApiRequest, captureApiError, finishApiRequest, withRequestId } from '@/lib/observability';
 import { parseOrdemServicoMeta, toOrdemServicoMetaJson } from "@/lib/ordens-servico";
 import { getAccessContext } from "@/lib/access-control";
@@ -140,10 +145,14 @@ export async function GET(request: NextRequest) {
           stationPrefix = station ? resolveStationPrefix(station) : null;
         }
       }
-      const [certificadoNumero, numeroObra] = await Promise.all([
+      const [certificadoNumero, obraDaOrdem] = await Promise.all([
         generateInspectionCertificateNumber(referenceDate, stationPrefix),
-        generateNextObraNumber(referenceDate),
+        resolveObraNumberForRaft({
+          raftId: raftIdParam ? Number(raftIdParam) : null,
+          serial: serialParam,
+        }),
       ]);
+      const numeroObra = obraDaOrdem || (await generateNextObraNumber(referenceDate));
       return respond({ certificadoNumero, numeroObra }, undefined, { nextCertificate: true, referenceDate: referenceDate || null });
     }
 
@@ -282,9 +291,6 @@ export async function POST(req: NextRequest) {
 
       // Bateria de lítio / luz exterior da checklist → artigos ativos da jangada
       const rafIdFinal = Number(body?.jangadaId ?? body?.raftId) || null;
-      if (payload.applyStockMovements !== false && rafIdFinal && body?.checklistSnapshot) {
-        syncRaftChecklistDrivenArtigos(rafIdFinal, { checklistSnapshot: body.checklistSnapshot }).catch(() => {});
-      }
 
       const created = await prisma.inspecao.findUnique({
         where: { id: saved.id },
@@ -302,7 +308,7 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      return respond({ ...(created || {}), stockWarnings: saved.stockWarnings || [] }, undefined, { batch: false, inspecaoId: created?.id ?? null });
+      return respond({ ...(created || {}), updatedAt: saved.updatedAt, raftUpdatedAt: saved.raftUpdatedAt, stockWarnings: saved.stockWarnings || [] }, undefined, { batch: false, inspecaoId: created?.id ?? null });
     }
   } catch (error) {
     // Bloqueio por regra de negócio: 409, nao 500.
@@ -348,9 +354,6 @@ export async function PUT(req: NextRequest) {
 
     // Bateria de lítio / luz exterior da checklist → artigos ativos da jangada
     const rafIdFinal = Number(body?.jangadaId ?? body?.raftId) || null;
-    if (payload.applyStockMovements === true && rafIdFinal && body?.checklistSnapshot) {
-      syncRaftChecklistDrivenArtigos(rafIdFinal, { checklistSnapshot: body.checklistSnapshot }).catch(() => {});
-    }
 
     const updated = await prisma.inspecao.findUnique({
       where: { id: saved.id },
@@ -365,7 +368,7 @@ export async function PUT(req: NextRequest) {
       });
     }
 
-    return respond({ ...(updated || {}), stockWarnings: saved.stockWarnings || [] }, undefined, { inspecaoId: id });
+    return respond({ ...(updated || {}), updatedAt: saved.updatedAt, raftUpdatedAt: saved.raftUpdatedAt, stockWarnings: saved.stockWarnings || [] }, undefined, { inspecaoId: id });
   } catch (error) {
     // Bloqueio por regra de negócio: 409, nao 500.
     if (error instanceof InspectionLockedError) {

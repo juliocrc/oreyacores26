@@ -3,12 +3,10 @@ import { registarComunicacaoRecebida, ComunicacaoTipo } from "@/lib/communicatio
 
 export const runtime = "nodejs";
 
-const INBOUND_SECRET = process.env.COMUNICACOES_INBOUND_SECRET || "";
-
 /**
  * Endpoint público para receber comunicações inbound de providers externos
  * (SMS/Telegram/Email/WhatsApp). Requer segredo no header `x-inbound-secret`
- * quando COMUNICACOES_INBOUND_SECRET está definido no ambiente.
+ * configurado em COMUNICACOES_INBOUND_SECRET no ambiente.
  *
  * Body:
  *   { tipo: "SMS"|"WHATSAPP"|"EMAIL",
@@ -23,11 +21,13 @@ const INBOUND_SECRET = process.env.COMUNICACOES_INBOUND_SECRET || "";
  */
 export async function POST(req: NextRequest) {
   try {
-    if (INBOUND_SECRET) {
-      const header = req.headers.get("x-inbound-secret") || "";
-      if (header !== INBOUND_SECRET) {
-        return NextResponse.json({ error: "Segredo inválido." }, { status: 403 });
-      }
+    const secret = process.env.COMUNICACOES_INBOUND_SECRET || "";
+    if (!secret.trim()) {
+      return NextResponse.json({ error: "Webhook inbound não configurado." }, { status: 503 });
+    }
+    const header = req.headers.get("x-inbound-secret") || "";
+    if (header !== secret) {
+      return NextResponse.json({ error: "Segredo inválido." }, { status: 403 });
     }
 
     const body = await req.json().catch(() => ({}));

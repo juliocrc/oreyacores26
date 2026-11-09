@@ -19,42 +19,51 @@ import { Html5Qrcode } from 'html5-qrcode';
 interface QrReaderModalProps {
   open: boolean;
   onClose: () => void;
+  onScan?: (value: string) => void;
 }
 
-export default function QrReaderModal({ open, onClose }: QrReaderModalProps) {
+export default function QrReaderModal({ open, onClose, onScan }: QrReaderModalProps) {
   const router = useRouter();
   const [tabIndex, setTabIndex] = useState(0);
   const [manualSerial, setManualSerial] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  const handledRef = useRef(false);
+  const callbacksRef = useRef({ onScan, onClose });
+  callbacksRef.current = { onScan, onClose };
   const divId = 'html5-qrcode-reader-container';
 
   useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    handledRef.current = false;
     if (!open) {
       stopScanner();
       setErrorMsg(null);
       setManualSerial('');
     } else if (tabIndex === 0) {
       // Start camera after dialog is mounted
-      const timer = setTimeout(() => {
-        startScanner();
+      timer = setTimeout(() => {
+        void startScanner(() => cancelled);
       }, 300);
-      return () => clearTimeout(timer);
     }
     return () => {
-      stopScanner();
+      cancelled = true;
+      clearTimeout(timer);
+      void stopScanner();
     };
   }, [open, tabIndex]);
 
   const stopScanner = async () => {
+    const scanner = scannerRef.current;
+    scannerRef.current = null;
     try {
-      if (scannerRef.current) {
-        if (scannerRef.current.isScanning) {
-          await scannerRef.current.stop();
+      if (scanner) {
+        if (scanner.isScanning) {
+          await scanner.stop();
         }
-        scannerRef.current.clear();
-        scannerRef.current = null;
+        scanner.clear();
       }
     } catch (err) {
       console.error('Erro ao parar leitor QR:', err);
@@ -63,8 +72,9 @@ export default function QrReaderModal({ open, onClose }: QrReaderModalProps) {
     }
   };
 
-  const startScanner = async () => {
+  const startScanner = async (isCancelled: () => boolean) => {
     await stopScanner();
+    if (isCancelled()) return;
     setErrorMsg(null);
     try {
       const html5QrCode = new Html5Qrcode(divId);
@@ -77,14 +87,21 @@ export default function QrReaderModal({ open, onClose }: QrReaderModalProps) {
           qrbox: { width: 250, height: 250 },
         },
         (decodedText) => {
-          handleSuccessfulScan(decodedText);
+          if (!isCancelled()) handleSuccessfulScan(decodedText);
         },
         () => {
           // scanning frame error / no qr found in frame, ignore
         }
       );
+      // Camera permission can resolve after the modal has already closed.
+      if (isCancelled()) {
+        if (html5QrCode.isScanning) await html5QrCode.stop();
+        html5QrCode.clear();
+        return;
+      }
       setScanning(true);
     } catch (err) {
+      if (isCancelled()) return;
       console.error('Falha ao iniciar câmara:', err);
       setErrorMsg('Não foi possível aceder à câmara. Verifique as permissões do browser ou utilize o modo manual.');
       setScanning(false);
@@ -100,6 +117,14 @@ export default function QrReaderModal({ open, onClose }: QrReaderModalProps) {
     const cleaned = raw.trim();
     if (!cleaned) {
       setErrorMsg('Código QR vazio ou inválido.');
+      return;
+    }
+
+    if (handledRef.current) return;
+    handledRef.current = true;
+    if (callbacksRef.current.onScan) {
+      callbacksRef.current.onScan(cleaned);
+      callbacksRef.current.onClose();
       return;
     }
 
@@ -143,7 +168,7 @@ export default function QrReaderModal({ open, onClose }: QrReaderModalProps) {
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ fontWeight: 800, pb: 1 }}>
-        📸 Leitor de QR Code (Jangada / Certificado)
+        {onScan ? 'Leitor de codigo de stock' : '📸 Leitor de QR Code (Jangada / Certificado)'}
       </DialogTitle>
       <Tabs
         value={tabIndex}
@@ -180,26 +205,26 @@ export default function QrReaderModal({ open, onClose }: QrReaderModalProps) {
               }}
             />
             <Typography variant="caption" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>
-              Aponte a câmara para o QR Code da jangada, quadro de identificação ou certificado.
+              {onScan ? 'Aponte a camara para o codigo de barras ou QR do lote.' : 'Aponte a câmara para o QR Code da jangada, quadro de identificação ou certificado.'}
             </Typography>
           </Box>
         ) : (
           <Box component="form" onSubmit={handleManualSubmit} sx={{ py: 2 }}>
             <Stack spacing={2}>
               <Typography variant="body2" color="text.secondary">
-                Insira o número de série da jangada ou o código do certificado para aceder diretamente à ficha.
+                {onScan ? 'Insira o codigo de barras ou a referencia exata do artigo.' : 'Insira o número de série da jangada ou o código do certificado para aceder diretamente à ficha.'}
               </Typography>
               <TextField
-                label="Número de Série / Código"
+                label={onScan ? 'Codigo de barras / Referencia' : 'Número de Série / Código'}
                 fullWidth
                 variant="outlined"
                 value={manualSerial}
                 onChange={(e) => setManualSerial(e.target.value)}
                 autoFocus
-                placeholder="Ex: SR-12345 ou 2026/001"
+                placeholder={onScan ? 'Codigo do lote' : 'Ex: SR-12345 ou 2026/001'}
               />
               <Button type="submit" variant="contained" size="large">
-                Aceder à Ficha
+                {onScan ? 'Pesquisar artigo' : 'Aceder à Ficha'}
               </Button>
             </Stack>
           </Box>

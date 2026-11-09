@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import prisma from "@/lib/prisma";
 import { getAccessContext } from "@/lib/access-control";
+import { canEditStock } from "@/lib/stock-utils";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -184,6 +185,7 @@ export async function POST(req: NextRequest) {
   try {
     const access = await getAccessContext();
     if (!access) return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
+    if (!canEditStock(access)) return NextResponse.json({ error: "Sem permissao." }, { status: 403 });
 
     const formData = await req.formData();
     const file = formData.get("file");

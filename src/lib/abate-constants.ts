@@ -19,6 +19,7 @@ export const ABATE_TIPOS_BARCO: AbateTipoBarco[] = [
   { codigo: 10, label: "Barco de Recreio / Yacht" },
   { codigo: 11, label: "Jangada de Treino a bordo (indicar o tipo de barco)" },
   { codigo: 12, label: "Jangada de Treino mantida e inspeccionada em terra" },
+  { codigo: 13, label: "Rebocador" },
 ];
 
 export const ABATE_MOTIVOS: AbateMotivo[] = [

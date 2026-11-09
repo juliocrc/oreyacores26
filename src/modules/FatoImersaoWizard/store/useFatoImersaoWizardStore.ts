@@ -36,6 +36,10 @@ type InspectionData = {
   usoRegular: boolean;
   intervaloServicoMeses: number | null;
   inspectorNome: string;
+  manualReferencia: string;
+  manualRevisao: string;
+  equipamentoEnsaio: string;
+  reparacoes: string;
   checklist: Record<string, ChecklistResult | string>;
   componentes: FatoComponent[];
   leakMetodo: string;
@@ -81,6 +85,10 @@ const initialData = (): InspectionData => ({
   usoRegular: false,
   intervaloServicoMeses: null,
   inspectorNome: "",
+  manualReferencia: "",
+  manualRevisao: "",
+  equipamentoEnsaio: "",
+  reparacoes: "",
   checklist: defaultChecklist(),
   componentes: [
     { id: "light", name: "Luz de emergência", reference: "", stockId: null, validade: "", lote: "", substituido: false },
@@ -90,8 +98,8 @@ const initialData = (): InspectionData => ({
     { id: "tape", name: "Fita retro-refletora", reference: "", stockId: null, validade: "", lote: "", substituido: false },
     { id: "beeswax", name: "Beeswax / grease zip", reference: "", stockId: null, validade: "", lote: "", substituido: false },
   ],
-  leakMetodo: "soap_air",
-  leakPressaoInicial: "1.0",
+  leakMetodo: "",
+  leakPressaoInicial: "",
   leakPressaoFinal: "",
   leakDeltaP: "",
   leakUnidade: "kPa",

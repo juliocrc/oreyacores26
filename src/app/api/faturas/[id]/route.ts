@@ -9,10 +9,11 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     if (!access) {
       return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
     }
+    if (!access.isAdmin) return NextResponse.json({ error: "Acesso reservado a administradores." }, { status: 403 });
 
     const { id: rawId } = await context.params;
     const faturaId = Number(rawId);
-    if (!Number.isFinite(faturaId) || faturaId <= 0) {
+    if (!Number.isSafeInteger(faturaId) || faturaId <= 0) {
       return NextResponse.json({ error: "ID inválido." }, { status: 400 });
     }
 
@@ -21,7 +22,10 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     if (!pagamentoStatus) {
       return NextResponse.json({ error: "Estado de pagamento em falta." }, { status: 400 });
     }
-    const valorPago = typeof body?.valorPago === "number" ? body.valorPago : Number(body?.valorPago);
+    if (body?.valorPago !== undefined && (typeof body.valorPago !== "number" || !Number.isFinite(body.valorPago))) {
+      return NextResponse.json({ error: "Valor do pagamento inválido." }, { status: 400 });
+    }
+    const valorPago = body?.valorPago as number | undefined;
 
     const fatura = await atualizarPagamentoStatusFatura({
       faturaId,
@@ -30,7 +34,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       emitidaPor: access.email || "sistema",
     });
 
-    return NextResponse.json({ fatura, numeroRecibo: null });
+    return NextResponse.json({ fatura, numeroRecibo: fatura.numeroRecibo, valorPago: fatura.valorPago, valorPendente: fatura.valorPendente, pagamentoHistoricoSemRecibo: fatura.pagamentoHistoricoSemRecibo });
   } catch (error) {
     if (error instanceof FaturamentoError) {
       return NextResponse.json({ error: error.message }, { status: error.status });

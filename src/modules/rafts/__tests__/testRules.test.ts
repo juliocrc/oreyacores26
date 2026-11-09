@@ -130,6 +130,10 @@ describe('RFD SEASAVA PLUS / SEASAVA PLUS R — regras de teste aplicadas às me
 });
 
 describe('getTestRecommendations', () => {
+  it('does not claim a GI is overdue based only on raft age without its history', () => {
+    const gi = getTestRecommendations({ dataFabrico: '2015-01-01', inspectionDate: '2026-01-01' }).find(test => test.testId === 'testeGI');
+    expect(gi?.status).toBe('unknown');
+  });
   test('recomendação NAP no ano 20 (ano de GI) mantém status required e mensagem atualizada', () => {
     const recs = getTestRecommendations({
       brand: 'DSB',

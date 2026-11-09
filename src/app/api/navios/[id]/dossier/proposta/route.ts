@@ -66,7 +66,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
     // Estilo do cabeçalho principal
     worksheet.mergeCells("A1:H1");
     const titleCell = worksheet.getCell("A1");
-    titleCell.value = "OREY AZORES - PROPOSTA COMERCIAL DE MANUTENÇÃO";
+    titleCell.value = "OREY TECNICA- SERVIÇOS NAVAIS, LDA - PROPOSTA COMERCIAL DE MANUTENÇÃO";
     titleCell.font = { name: "Arial", size: 16, bold: true, color: { argb: "FFFFFF" } };
     titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "1E3A8A" } };
     titleCell.alignment = { horizontal: "center", vertical: "middle" };

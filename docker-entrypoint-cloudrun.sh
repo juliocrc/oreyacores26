@@ -9,11 +9,11 @@ if [ -z "$DATABASE_URL" ]; then
   exit 1
 fi
 
-echo "Running Prisma migrations against PostgreSQL..."
-npx prisma migrate deploy --schema prisma/schema.postgresql.prisma 2>&1 || {
-  echo "prisma migrate deploy failed, trying db push..."
-  npx prisma db push --schema prisma/schema.postgresql.prisma --accept-data-loss 2>&1 || echo "db push warning (non-fatal)"
-}
+# Schema changes are an approved release operation, never a startup fallback.
+# The repository also contains provider-specific migrations: do not replay the
+# SQLite migration history or run db push against the production database.
+echo "Checking PostgreSQL schema compatibility..."
+node /app/scripts/check-runtime-database.cjs
 
 echo "Starting server..."
 exec node server.js

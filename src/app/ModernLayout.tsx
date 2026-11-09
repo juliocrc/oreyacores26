@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import CommandPalette from '@/components/CommandPalette';
 import * as React from 'react';
 import Drawer from '@mui/material/Drawer';
@@ -12,6 +12,8 @@ import AppBar from '@mui/material/AppBar';
 import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
 import MenuIcon from '@mui/icons-material/Menu';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import Box from '@mui/material/Box';
 import Divider from '@mui/material/Divider';
 import Link from 'next/link';
@@ -43,6 +45,7 @@ import WorkModeToggle from '@/components/WorkModeToggle';
 import PWAInstallBanner from '@/components/PWAInstallBanner';
 import QrReaderModal from '@/components/shared/QrReaderModal';
 import { useAppThemeController } from './providers';
+import { SessionAccessBoundary } from './session-single-watcher';
 
 const drawerWidth = 244;
 const tabletDrawerWidth = 216;
@@ -80,121 +83,124 @@ type StationOption = {
 
 const navSections: NavSection[] = [
       {
-        label: 'Estação de Serviço',
+        label: 'EstaÃ§Ã£o de ServiÃ§o',
         items: [
-          { label: 'Agenda', href: '/agenda', icon: '🗓️', roles: ['ADMIN', 'USER'] },
+          { label: 'Agenda', href: '/agenda', icon: 'ðŸ—“ï¸', roles: ['ADMIN', 'USER'] },
           {
-            label: 'Estação de Serviço',
+            label: 'EstaÃ§Ã£o de ServiÃ§o',
             href: '/estacao-servico',
-            icon: '🏭',
+            icon: 'ðŸ­',
             roles: ['ADMIN', 'USER'],
           },
-          { label: 'Técnicos & Gestão', href: '/tecnicos', icon: '👷', roles: ['ADMIN', 'USER'] },
+          { label: 'TÃ©cnicos & GestÃ£o', href: '/tecnicos', icon: 'ðŸ‘·', roles: ['ADMIN', 'USER'] },
           {
-            label: 'Estatísticas da Estação',
+            label: 'EstatÃ­sticas da EstaÃ§Ã£o',
             href: '/estatisticas',
-            icon: '📊',
+            icon: 'ðŸ“Š',
             roles: ['ADMIN', 'USER'],
           },
-          { label: 'Oficina', href: '/oficina', icon: '🛠️', roles: ['ADMIN', 'USER'] },
-          { label: 'Calibrações', href: '/calibracoes', icon: '🎚️', roles: ['ADMIN', 'USER'] },
-          { label: 'Logística', href: '/logistica', icon: '🚚', roles: ['ADMIN'] },
-          { label: 'Porto de Ponta Delgada', href: '/porto-ponta-delgada', icon: '⚓', roles: ['ADMIN', 'USER'] },
-          { label: 'Navios de Contentores', href: '/contentores', icon: '🚢', roles: ['ADMIN', 'USER'] },
-           { label: 'Marinha Portuguesa', href: '/marinha', icon: '🛡️', roles: ['ADMIN', 'USER'] },
-           { label: 'GlobalFishAzores', href: '/globalfishazores', icon: '🌐', roles: ['ADMIN', 'USER'] },
-           { label: 'DGRM Vistorias', href: '/dgrm', icon: '📜', roles: ['ADMIN', 'USER'] },
-           { label: 'Auditoria Survitec', href: '/survitec-auditoria', icon: '🔍', roles: ['ADMIN', 'USER'] },
-          { label: 'Alertas', href: '/alertas', icon: '🚨', roles: ['ADMIN', 'USER'] },
+          { label: 'Oficina', href: '/oficina', icon: 'ðŸ› ï¸', roles: ['ADMIN', 'USER'] },
+          { label: 'CalibraÃ§Ãµes', href: '/calibracoes', icon: 'ðŸŽšï¸', roles: ['ADMIN', 'USER'] },
+          { label: 'LogÃ­stica', href: '/logistica', icon: 'ðŸšš', roles: ['ADMIN'] },
+          { label: 'Porto de Ponta Delgada', href: '/porto-ponta-delgada', icon: 'âš“', roles: ['ADMIN', 'USER'] },
+          { label: 'Navios de Contentores', href: '/contentores', icon: 'ðŸš¢', roles: ['ADMIN', 'USER'] },
+           { label: 'Marinha Portuguesa', href: '/marinha', icon: 'ðŸ›¡ï¸', roles: ['ADMIN', 'USER'] },
+           { label: 'GlobalFishAzores', href: '/globalfishazores', icon: 'ðŸŒ', roles: ['ADMIN', 'USER'] },
+           { label: 'DGRM Vistorias', href: '/dgrm', icon: 'ðŸ“œ', roles: ['ADMIN', 'USER'] },
+           { label: 'Auditoria Survitec', href: '/survitec-auditoria', icon: 'ðŸ”', roles: ['ADMIN', 'USER'] },
+          { label: 'Alertas', href: '/alertas', icon: 'ðŸš¨', roles: ['ADMIN', 'USER'] },
+          { label: 'NotificaÃ§Ãµes', href: '/notificacoes', roles: ['ADMIN', 'USER'] },
           {
-            label: 'Pedidos de Assistência',
+            label: 'Pedidos de AssistÃªncia',
             href: '/pedidos-assistencia',
-            icon: '📩',
+            icon: 'ðŸ“©',
             roles: ['ADMIN', 'USER'],
           },
-          { label: 'Backups', href: '/backups', icon: '💾', roles: ['ADMIN'] },
+          { label: 'Backups', href: '/backups', icon: 'ðŸ’¾', roles: ['ADMIN'] },
+          { label: 'AplicaÃ§Ãµes', href: '/aplicacoes', icon: 'ðŸ“±', roles: ['ADMIN', 'USER'] },
         ],
       },
   {
-    label: 'Ordens de Serviço',
+    label: 'Ordens de ServiÃ§o',
     items: [
-      { label: 'Criar OT', href: '/criar-ot', icon: '📝', roles: ['ADMIN', 'USER'] },
-      { label: 'Ordens de Serviço', href: '/ordens-servico', icon: '📋', roles: ['ADMIN', 'USER'] },
-      { label: 'Orçamentos', href: '/orcamentos', icon: '🧮', roles: ['ADMIN'] },
+      { label: 'Criar OT', href: '/criar-ot', icon: 'ðŸ“', roles: ['ADMIN', 'USER'] },
+      { label: 'Ordens de ServiÃ§o', href: '/ordens-servico', icon: 'ðŸ“‹', roles: ['ADMIN', 'USER'] },
+      { label: 'OrÃ§amentos', href: '/orcamentos', icon: 'ðŸ§®', roles: ['ADMIN'] },
     ],
   },
   {
-    label: 'Comercial & Faturação',
+    label: 'Comercial & FaturaÃ§Ã£o',
     items: [
-      { label: 'Faturação', href: '/faturacao', icon: '💳', roles: ['ADMIN'] },
-      { label: 'Cobranças', href: '/cobrancas', icon: '💰', roles: ['ADMIN'] },
-      { label: 'Contas a Receber', href: '/contas-receber', icon: '📊', roles: ['ADMIN'] },
+      { label: 'FaturaÃ§Ã£o', href: '/faturacao', icon: 'ðŸ’³', roles: ['ADMIN'] },
+      { label: 'CobranÃ§as', href: '/cobrancas', icon: 'ðŸ’°', roles: ['ADMIN'] },
+      { label: 'Contas a Receber', href: '/contas-receber', icon: 'ðŸ“Š', roles: ['ADMIN'] },
       {
-        label: 'Relatório de Validades',
+        label: 'RelatÃ³rio de Validades',
         href: '/relatorio-validades',
-        icon: '📅',
+        icon: 'ðŸ“…',
         roles: ['ADMIN', 'USER'],
       },
-      { label: 'Rentabilidade', href: '/rentabilidade', icon: '📊', roles: ['ADMIN'] },
+      { label: 'Rentabilidade', href: '/rentabilidade', icon: 'ðŸ“Š', roles: ['ADMIN'] },
     ],
   },
   {
     label: 'Frota e Equipamento',
     items: [
-      { label: 'Jangadas', href: '/jangadas', icon: '🛶', roles: ['ADMIN', 'USER'] },
-      { label: 'Estado Jangada', href: '/estado-jangada', icon: '🛟', roles: ['ADMIN', 'USER'] },
-      { label: 'Inspeções', href: '/inspecoes', icon: '🔍', roles: ['ADMIN', 'USER'] },
-      { label: 'Análise e Importação IA', href: '/ia-importacao', icon: '🤖', roles: ['ADMIN', 'USER'] },
-      { label: 'Packs', href: '/packs', icon: '🎒', roles: ['ADMIN', 'USER'] },
-      { label: 'Navios', href: '/navios', icon: '🚢', roles: ['ADMIN', 'USER'] },
-      { label: 'EPIRBs', href: '/epirbs', icon: '📡', roles: ['ADMIN', 'USER'] },
-      { label: 'Coletes', href: '/equipamentos', icon: '🦺', roles: ['ADMIN', 'USER'] },
-      { label: 'Fatos de Imersão', href: '/fatos-imersao', icon: '🧥', roles: ['ADMIN', 'USER'] },
-      { label: 'Cilindros', href: '/cilindros', icon: '🫙', roles: ['ADMIN'] },
+      { label: 'Jangadas', href: '/jangadas', icon: 'ðŸ›¶', roles: ['ADMIN', 'USER'] },
+      { label: 'Estado Jangada', href: '/estado-jangada', icon: 'ðŸ›Ÿ', roles: ['ADMIN', 'USER'] },
+      { label: 'InspeÃ§Ãµes', href: '/inspecoes', icon: 'ðŸ”', roles: ['ADMIN', 'USER'] },
+
+      { label: 'Packs', href: '/packs', icon: 'ðŸŽ’', roles: ['ADMIN', 'USER'] },
+      { label: 'Navios', href: '/navios', icon: 'ðŸš¢', roles: ['ADMIN', 'USER'] },
+      { label: 'EPIRBs', href: '/epirbs', icon: 'ðŸ“¡', roles: ['ADMIN', 'USER'] },
+      { label: 'Coletes', href: '/equipamentos', icon: 'ðŸ¦º', roles: ['ADMIN', 'USER'] },
+      { label: 'Fatos de ImersÃ£o', href: '/fatos-imersao', icon: 'ðŸ§¥', roles: ['ADMIN', 'USER'] },
+      { label: 'Cilindros', href: '/cilindros', icon: 'ðŸ«™', roles: ['ADMIN'] },
     ],
   },
   {
     label: 'Stock',
     items: [
-      { label: 'Stock', href: '/stock', icon: '📦', roles: ['ADMIN', 'USER'] },
-      { label: 'Reposições', href: '/stock/reposicoes', icon: '🔁', roles: ['ADMIN'] },
+      { label: 'Stock', href: '/stock', icon: 'ðŸ“¦', roles: ['ADMIN', 'USER'] },
+      { label: 'Leitor de Stock', href: '/stock/scanner', roles: ['ADMIN', 'USER'] },
+      { label: 'ReposiÃ§Ãµes', href: '/stock/reposicoes', icon: 'ðŸ”', roles: ['ADMIN'] },
     ],
   },
   {
     label: 'Clientes',
     items: [
-      { label: 'Clientes', href: '/clientes', icon: '👥', roles: ['ADMIN', 'USER'] },
-       { label: 'Comunicações & VoIP', href: '/comunicacoes', icon: '📨', roles: ['ADMIN', 'USER'] },
+      { label: 'Clientes', href: '/clientes', icon: 'ðŸ‘¥', roles: ['ADMIN', 'USER'] },
+       { label: 'ComunicaÃ§Ãµes & VoIP', href: '/comunicacoes', icon: 'ðŸ“¨', roles: ['ADMIN', 'USER'] },
     ],
   },
   {
-    label: 'Documentação & Qualidade',
+    label: 'DocumentaÃ§Ã£o & Qualidade',
     items: [
-      { label: 'Qualidade de Dados', href: '/qualidade-dados', icon: '✅', roles: ['ADMIN'] },
-      { label: 'Integridade', href: '/integridade', icon: '🔐', roles: ['ADMIN'] },
-      { label: 'Conformidade DGRM', href: '/dgrm', icon: '📄', roles: ['ADMIN'] },
-      { label: 'Auditorias', href: '/auditorias', icon: '🔎', roles: ['ADMIN'] },
-      { label: 'Propostas do Portal', href: '/portal-propostas', icon: '✅', roles: ['ADMIN'] },
+      { label: 'Qualidade de Dados', href: '/qualidade-dados', icon: 'âœ…', roles: ['ADMIN'] },
+      { label: 'Integridade', href: '/integridade', icon: 'ðŸ”', roles: ['ADMIN'] },
+      { label: 'Conformidade DGRM', href: '/dgrm', icon: 'ðŸ“„', roles: ['ADMIN'] },
+      { label: 'Auditorias', href: '/auditorias', icon: 'ðŸ”Ž', roles: ['ADMIN'] },
+      { label: 'Propostas do Portal', href: '/portal-propostas', icon: 'âœ…', roles: ['ADMIN'] },
       {
-        label: 'Departamento Técnico',
+        label: 'Departamento TÃ©cnico',
         href: '/departamento-tecnico',
-        icon: '🧠',
+        icon: 'ðŸ§ ',
         roles: ['ADMIN'],
       },
-      { label: 'Legislação', href: '/legislacao', icon: '⚖️', roles: ['ADMIN'] },
-      { label: 'Certificados Externos', href: '/fotos', icon: '📑', roles: ['ADMIN'] },
-      { label: 'Estatísticas', href: '/estatisticas', icon: '📊', roles: ['ADMIN', 'USER'] },
-      { label: 'Relatórios', href: '/relatorios', icon: '📈', roles: ['ADMIN'] },
-      { label: 'Contactos Internos', href: '/contactos-internos', icon: '☎️', roles: ['ADMIN'] },
+      { label: 'LegislaÃ§Ã£o', href: '/legislacao', icon: 'âš–ï¸', roles: ['ADMIN'] },
+      { label: 'Certificados Externos', href: '/fotos', icon: 'ðŸ“‘', roles: ['ADMIN'] },
+      { label: 'EstatÃ­sticas', href: '/estatisticas', icon: 'ðŸ“Š', roles: ['ADMIN', 'USER'] },
+      { label: 'RelatÃ³rios', href: '/relatorios', icon: 'ðŸ“ˆ', roles: ['ADMIN'] },
+      { label: 'Contactos Internos', href: '/contactos-internos', icon: 'â˜Žï¸', roles: ['ADMIN'] },
     ],
   },
   {
-    label: 'Administração',
+    label: 'AdministraÃ§Ã£o',
     items: [
-      { label: 'Utilizadores', href: '/utilizadores', icon: '👤', roles: ['ADMIN'] },
-      { label: 'Estações de Serviço', href: '/estacoes', icon: '🏭', roles: ['ADMIN'] },
-      { label: 'OneDrive', href: '/onedrive', icon: '☁️', roles: ['ADMIN'] },
-      { label: 'Registar', href: '/registar', icon: '➕', roles: ['ADMIN'] },
+      { label: 'Utilizadores', href: '/utilizadores', icon: 'ðŸ‘¤', roles: ['ADMIN'] },
+      { label: 'EstaÃ§Ãµes de ServiÃ§o', href: '/estacoes', icon: 'ðŸ­', roles: ['ADMIN'] },
+      { label: 'OneDrive', href: '/onedrive', icon: 'â˜ï¸', roles: ['ADMIN'] },
+      { label: 'Registar', href: '/registar', icon: 'âž•', roles: ['ADMIN'] },
     ],
   },
 ];
@@ -296,7 +302,11 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
   const isLoginPage = pathname === '/login' || pathname === '/area-cliente/login';
   const isAreaClientePage = pathname === '/area-cliente';
   const isStandalonePage =
-    isLoginPage || isAreaClientePage || pathname.startsWith('/estado-jangada') || pathname.startsWith('/verificar');
+    isLoginPage || isAreaClientePage || pathname === '/portal-cliente' || pathname.startsWith('/estado-jangada') || pathname.startsWith('/verificar');
+
+  const isPublicPage = isStandalonePage ||
+    ['/public', '/verificar', '/estado-jangada', '/area-cliente', '/selecionar-tecnico', '/registar']
+      .some(prefix => pathname.startsWith(prefix));
   const user = session?.user;
   const userInitial =
     user?.name?.trim()?.charAt(0)?.toUpperCase() ||
@@ -323,7 +333,8 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
   const visiblePagePrefixes = Array.isArray(user?.permissions?.visiblePages)
     ? user.permissions.visiblePages.map(item => String(item))
     : [];
-  const stationWideModuleKeys = new Set<string>(['ia-importacao']);
+  // MÃ³dulos disponÃ­veis a qualquer utilizador interno, sem permissÃ£o explÃ­cita.
+  const stationWideModuleKeys = new Set<string>(['aplicacoes']);
   const moduleKeyByHref: Record<string, string> = {
     '/': 'dashboard',
 
@@ -335,7 +346,7 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
     '/alertas': 'alertas',
     '/pedidos-assistencia': 'pedidos-assistencia',
     '/inspecoes': 'jangadas',
-    '/ia-importacao': 'ia-importacao',
+
 
     '/relatorios': 'relatorios',
     '/jangadas': 'jangadas',
@@ -369,6 +380,8 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
     '/estacoes': 'estacoes',
     '/registar': 'registar',
     '/backups': 'backups',
+    '/aplicacoes': 'aplicacoes',
+    '/porto-ponta-delgada': 'porto-ponta-delgada',
   };
 
   const visibleNavSections = navSections
@@ -441,7 +454,7 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
           setActiveStationId(payload?.activeStationId ?? stationId);
           setActiveStationCode(payload?.activeStation?.codigo || null);
           broadcastServiceStationSync('station-change');
-          // Os módulos são maioritariamente client components que carregam os
+          // Os mÃ³dulos sÃ£o maioritariamente client components que carregam os
           // dados no mount. Um refresh completo garante que agenda, stock,
           // clientes, navios, jangadas e OS passam a usar o novo cookie.
           window.location.reload();
@@ -630,7 +643,7 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
     if (name) {
       setDocumentsRootName(name);
       appToast.success(
-        `Pasta principal: ${name}. Serão criadas NAVIOS AÇORES e CERTIFICADOS AÇORES <ano> dentro dela.`,
+        `Pasta principal: ${name}. SerÃ£o criadas NAVIOS AÃ‡ORES e CERTIFICADOS AÃ‡ORES <ano> dentro dela.`,
       );
     }
   };
@@ -652,13 +665,13 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
         {sidebarCollapsed ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
             <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main', fontSize: 16 }}>
-              ⚓
+              âš“
             </Avatar>
           </Box>
         ) : (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
             <Avatar sx={{ width: 30, height: 30, bgcolor: 'primary.main', fontSize: 16 }}>
-              ⚓
+              âš“
             </Avatar>
             <Typography
               variant="h6"
@@ -690,7 +703,7 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
               transform: sidebarCollapsed ? 'rotate(180deg)' : 'none',
             }}
           >
-            ◀
+            â—€
           </Typography>
         </IconButton>
       </Toolbar>
@@ -774,7 +787,7 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
                           component="span"
                           sx={{ fontSize: sidebarCollapsed ? 18 : 15.5, lineHeight: 1 }}
                         >
-                          {item.icon || '•'}
+                          {item.icon || 'â€¢'}
                         </Typography>
                       </ListItemIcon>
                       {!sidebarCollapsed && (
@@ -860,7 +873,7 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
               },
             }}
           >
-            Pedir Assistência / Inspeção
+            Pedir AssistÃªncia / InspeÃ§Ã£o
           </Button>
         </Box>
       )}
@@ -868,6 +881,7 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
   );
 
   return (
+    <SessionAccessBoundary isPublic={isPublicPage}>
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
       <AppBar
         position="fixed"
@@ -879,6 +893,12 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
         }}
       >
         <Toolbar sx={{ gap: { xs: 0.5, sm: 1 } }}>
+          <IconButton color="inherit" aria-label="Retroceder" title="Retroceder" onClick={() => window.history.back()}>
+            <ArrowBackIcon />
+          </IconButton>
+          <IconButton color="inherit" aria-label="AvanÃ§ar" title="AvanÃ§ar" onClick={() => window.history.forward()}>
+            <ArrowForwardIcon />
+          </IconButton>
           {!isStandalonePage && (
             <IconButton
               color="inherit"
@@ -939,7 +959,7 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
                 '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.1)' },
               }}
             >
-              📸 Ler QR Code
+              ðŸ“¸ Ler QR Code
             </Button>
           ) : null}
           {!isStandalonePage && canRenderInteractiveHeader ? <WorkModeToggle /> : null}
@@ -970,9 +990,9 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
                   const value = String(event.target.value);
                   void handleSelectStation(value === '' ? null : Number(value));
                 }}
-                inputProps={{ 'aria-label': 'Selecionar estação de serviço' }}
+                inputProps={{ 'aria-label': 'Selecionar estaÃ§Ã£o de serviÃ§o' }}
               >
-                {canViewAllStations ? <option value="">Visão global (todas as estações)</option> : null}
+                {canViewAllStations ? <option value="">VisÃ£o global (todas as estaÃ§Ãµes)</option> : null}
                 {stationOptions.map(station => (
                   <option key={station.id} value={station.id}>
                     {station.nome}
@@ -1048,13 +1068,13 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
                 <MenuItem disabled>{userAccessLabel}</MenuItem>
                 <Divider />
                 <MenuItem disabled sx={{ fontSize: 12 }}>
-                  Pasta documentos: {documentsRootName || 'não definida'}
+                  Pasta documentos: {documentsRootName || 'nÃ£o definida'}
                 </MenuItem>
                 <MenuItem onClick={handleChooseDocumentFolder}>
-                  📁 Definir pasta de documentos
+                  ðŸ“ Definir pasta de documentos
                 </MenuItem>
                 <Divider />
-                <MenuItem onClick={handleLogout}>Terminar sessão</MenuItem>
+                <MenuItem onClick={handleLogout}>Terminar sessÃ£o</MenuItem>
               </Menu>
             </>
           ) : !isStandalonePage ? (
@@ -1102,9 +1122,9 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
           }}
         >
           <Box component="span" sx={{ fontSize: 16 }}>
-            ⚠️
+            âš ï¸
           </Box>
-          Modo Offline — as operações são guardadas localmente e serão sincronizadas ao voltar ao modo online
+          Modo Offline â€” as operaÃ§Ãµes sÃ£o guardadas localmente e serÃ£o sincronizadas ao voltar ao modo online
         </Box>
       )}
       {!isStandalonePage && (
@@ -1211,7 +1231,7 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
       >
         <Alert onClose={dismissLoginAlert} severity="info" variant="filled" sx={{ width: '100%' }}>
           {activeLoginAlert
-            ? `${activeLoginAlert.name || activeLoginAlert.email} iniciou sessão${activeLoginAlert.lastPath ? ` em ${activeLoginAlert.lastPath}` : ''}.`
+            ? `${activeLoginAlert.name || activeLoginAlert.email} iniciou sessÃ£o${activeLoginAlert.lastPath ? ` em ${activeLoginAlert.lastPath}` : ''}.`
             : ''}
         </Alert>
       </Snackbar>
@@ -1226,5 +1246,6 @@ export default function ModernLayout({ children }: { children: React.ReactNode }
         }
       `}</style>
     </Box>
+    </SessionAccessBoundary>
   );
 }

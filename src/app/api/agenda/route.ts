@@ -6,13 +6,16 @@ import { resolveActiveServiceStationId } from "@/lib/station-selection";
 import { activeStationIsAlcantarilha, getSouthRegionShipIds } from "@/lib/alcantarilha-scope";
 import {
   getInspectionDefaults,
+  resolveAgendaDuration,
   normalizeInspectionType,
+  normalizeEventStatus,
   type AgendaApiEvent,
   type AgendaApiPayload,
 } from "@/types/agenda";
-import { getTechnicianKeyByName, normalizeTechnicianName, getTechnicianNameByKey } from "@/lib/agenda-technicians";
+import { getTechnicianKeyByName, getTechnicianNameByKey } from "@/lib/agenda-technicians";
 import { getRaftsAExpiar, buildExpirationApiEvents } from "@/lib/agenda-expiracao";
 import { getGoogleCalendarConfig } from "@/lib/google-calendar-config";
+import { agendaWriteScope, validateAgendaWrite } from '@/lib/agenda-write-validation';
 
 const AGENDA_MARKER = "__AGENDA_EVENT__";
 const ACTIVE_ROLLOVER_STATUSES = new Set(["scheduled", "confirmed", "in_progress", "testing", "paused"]);
@@ -72,54 +75,6 @@ function getStartOfToday() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   return today;
-}
-
-function getStartOfDay(date: Date) {
-  const value = new Date(date);
-  value.setHours(0, 0, 0, 0);
-  return value;
-}
-
-function getEndOfDay(date: Date) {
-  const value = new Date(date);
-  value.setHours(23, 59, 59, 999);
-  return value;
-}
-
-async function hasVacationConflict(responsavelRaw: string | null | undefined, date: Date) {
-  const responsavel = normalizeTechnicianName(responsavelRaw);
-  if (!responsavel) return false;
-
-  const tecnicoKey = getTechnicianKeyByName(responsavel);
-  if (!tecnicoKey) return false;
-
-  const dataInicio = getStartOfDay(date);
-  const dataFim = getEndOfDay(date);
-
-  const holiday = await prisma.tecnicoAusencia.findFirst({
-    where: {
-      tecnicoKey,
-      tipo: "ferias",
-      dataInicio: { lte: dataFim },
-      dataFim: { gte: dataInicio },
-    },
-    select: { id: true },
-  });
-
-  return Boolean(holiday);
-}
-
-async function hasActiveRaftConflict(raftSerial: string, excludeId?: number) {
-  const existing = await prisma.agendaEvento.findFirst({
-    where: {
-      raftSerial,
-      status: { in: Array.from(ACTIVE_ROLLOVER_STATUSES) },
-      ...(excludeId ? { id: { not: excludeId } } : {}),
-    },
-    select: { id: true },
-  });
-
-  return Boolean(existing);
 }
 
 function getMinutesOfDay(date: Date) {
@@ -332,7 +287,7 @@ export async function GET(req: NextRequest) {
     status: ev.status || "scheduled",
     type: ev.type || "Inspeção",
     inspectionType: normalizeInspectionType(ev.inspectionType),
-    durationMinutes: ev.durationMinutes,
+    durationMinutes: resolveAgendaDuration(ev),
     bufferBeforeMinutes: ev.bufferBeforeMinutes,
     bufferAfterMinutes: ev.bufferAfterMinutes,
   } as AgendaApiEvent));
@@ -370,8 +325,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const unauthorized = await requireSession();
-  if (unauthorized) return unauthorized;
+  const scope = await agendaWriteScope(req);
+  if (scope.error) return scope.error;
 
   try {
     const body = (await req.json()) as AgendaApiPayload;
@@ -394,35 +349,24 @@ export async function POST(req: NextRequest) {
     const bufferBeforeMinutes = Number(body?.bufferBeforeMinutes ?? defaults.bufferBeforeMinutes);
     const bufferAfterMinutes = Number(body?.bufferAfterMinutes ?? defaults.bufferAfterMinutes);
 
-    if (await hasVacationConflict(body?.responsavel, parsedDate)) {
-      return NextResponse.json({ error: "O técnico selecionado está de férias nesta data." }, { status: 409 });
-    }
-
-    if (await hasActiveRaftConflict(raftSerial)) {
-      return NextResponse.json({ error: "Já existe um agendamento ativo para esta jangada. Cancele o agendamento anterior antes de criar outro." }, { status: 409 });
-    }
-
-    const access = await getAccessContext();
-    const activeStationId = access ? resolveActiveServiceStationId(req, access) : null;
     const raft = await prisma.jangada.findFirst({
-      where: { serial: { equals: raftSerial } },
+      where: { serial: { equals: raftSerial }, ...scope.where },
       select: { serviceStationId: true },
     });
+    if (!raft) return NextResponse.json({ error: 'Jangada não encontrada nesta estação.' }, { status: 404 });
+    const data = {
+      title: title || 'Inspeção', date: parsedDate, raftSerial, responsavel: body?.responsavel || '',
+      status: normalizeEventStatus(body?.status), type: body?.type || 'Inspeção', inspectionType,
+      durationMinutes: Number.isFinite(durationMinutes) && durationMinutes > 0 ? durationMinutes : defaults.durationMinutes,
+      bufferBeforeMinutes: Number.isFinite(bufferBeforeMinutes) && bufferBeforeMinutes >= 0 ? bufferBeforeMinutes : defaults.bufferBeforeMinutes,
+      bufferAfterMinutes: Number.isFinite(bufferAfterMinutes) && bufferAfterMinutes >= 0 ? bufferAfterMinutes : defaults.bufferAfterMinutes,
+      serviceStationId: raft.serviceStationId ?? scope.stationId,
+    };
+    const conflict = await validateAgendaWrite({ ...data, id: 0 });
+    if (conflict) return NextResponse.json({ error: conflict }, { status: 409 });
 
     const created = await prisma.agendaEvento.create({
-      data: {
-        title: title || "Inspeção",
-        date: parsedDate,
-        raftSerial,
-        responsavel: body?.responsavel || "",
-        status: body?.status || "scheduled",
-        type: body?.type || "Inspeção",
-        inspectionType,
-        durationMinutes: Number.isFinite(durationMinutes) ? durationMinutes : defaults.durationMinutes,
-        bufferBeforeMinutes: Number.isFinite(bufferBeforeMinutes) ? bufferBeforeMinutes : defaults.bufferBeforeMinutes,
-        bufferAfterMinutes: Number.isFinite(bufferAfterMinutes) ? bufferAfterMinutes : defaults.bufferAfterMinutes,
-        serviceStationId: raft?.serviceStationId ?? activeStationId,
-      },
+      data,
     });
 
     return NextResponse.json(
@@ -435,7 +379,7 @@ export async function POST(req: NextRequest) {
         status: created.status,
         type: created.type,
         inspectionType: normalizeInspectionType(created.inspectionType),
-        durationMinutes: created.durationMinutes,
+        durationMinutes: resolveAgendaDuration(created),
         bufferBeforeMinutes: created.bufferBeforeMinutes,
         bufferAfterMinutes: created.bufferAfterMinutes,
       } as AgendaApiEvent,
@@ -447,8 +391,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  const unauthorized = await requireSession();
-  if (unauthorized) return unauthorized;
+  const scope = await agendaWriteScope(req);
+  if (scope.error) return scope.error;
 
   try {
     const body = (await req.json()) as AgendaApiPayload;
@@ -469,39 +413,35 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "Campo date inválido." }, { status: 400 });
     }
 
-    const inspectionType = normalizeInspectionType(body?.inspectionType);
-    const defaults = getInspectionDefaults(inspectionType);
-    const durationMinutes = Number(body?.durationMinutes ?? defaults.durationMinutes);
-    const bufferBeforeMinutes = Number(body?.bufferBeforeMinutes ?? defaults.bufferBeforeMinutes);
-    const bufferAfterMinutes = Number(body?.bufferAfterMinutes ?? defaults.bufferAfterMinutes);
-
-    if (await hasVacationConflict(body?.responsavel, parsedDate)) {
-      return NextResponse.json({ error: "O técnico selecionado está de férias nesta data." }, { status: 409 });
-    }
-
-    const existing = await prisma.agendaEvento.findUnique({ where: { id } });
+    const existing = await prisma.agendaEvento.findFirst({ where: { id, ...scope.where } });
     if (!existing) {
       return NextResponse.json({ error: "Agendamento não encontrado." }, { status: 404 });
     }
 
-    if (await hasActiveRaftConflict(raftSerial, id)) {
-      return NextResponse.json({ error: "Já existe um agendamento ativo para esta jangada. Cancele o agendamento anterior antes de criar outro." }, { status: 409 });
+    const inspectionType = normalizeInspectionType(body?.inspectionType ?? existing.inspectionType);
+    const defaults = getInspectionDefaults(inspectionType);
+    const durationMinutes = body?.durationMinutes == null ? undefined : Number(body.durationMinutes);
+    const bufferBeforeMinutes = Number(body?.bufferBeforeMinutes ?? existing.bufferBeforeMinutes);
+    const bufferAfterMinutes = Number(body?.bufferAfterMinutes ?? existing.bufferAfterMinutes);
+
+    if (raftSerial !== existing.raftSerial && !await prisma.jangada.findFirst({ where: { serial: raftSerial, serviceStationId: existing.serviceStationId, ...scope.where }, select: { id: true } })) {
+      return NextResponse.json({ error: 'Jangada não encontrada nesta estação.' }, { status: 404 });
     }
+    const data = {
+      title: title || 'Inspeção', date: parsedDate, raftSerial,
+      responsavel: body?.responsavel ?? existing.responsavel ?? '', status: normalizeEventStatus(body?.status ?? existing.status),
+      type: body?.type || existing.type, inspectionType,
+      durationMinutes: durationMinutes !== undefined && Number.isFinite(durationMinutes) && durationMinutes > 0
+        ? durationMinutes : resolveAgendaDuration({ ...existing, inspectionType }),
+      bufferBeforeMinutes: Number.isFinite(bufferBeforeMinutes) && bufferBeforeMinutes >= 0 ? bufferBeforeMinutes : defaults.bufferBeforeMinutes,
+      bufferAfterMinutes: Number.isFinite(bufferAfterMinutes) && bufferAfterMinutes >= 0 ? bufferAfterMinutes : defaults.bufferAfterMinutes,
+    };
+    const conflict = await validateAgendaWrite({ ...data, id, serviceStationId: existing.serviceStationId });
+    if (conflict) return NextResponse.json({ error: conflict }, { status: 409 });
 
     const updated = await prisma.agendaEvento.update({
       where: { id },
-      data: {
-        title: title || "Inspeção",
-        date: parsedDate,
-        raftSerial,
-        responsavel: body?.responsavel || "",
-        status: body?.status || "scheduled",
-        type: body?.type || "Inspeção",
-        inspectionType,
-        durationMinutes: Number.isFinite(durationMinutes) ? durationMinutes : defaults.durationMinutes,
-        bufferBeforeMinutes: Number.isFinite(bufferBeforeMinutes) ? bufferBeforeMinutes : defaults.bufferBeforeMinutes,
-        bufferAfterMinutes: Number.isFinite(bufferAfterMinutes) ? bufferAfterMinutes : defaults.bufferAfterMinutes,
-      },
+      data,
     });
 
     return NextResponse.json({
@@ -513,7 +453,7 @@ export async function PUT(req: NextRequest) {
       status: updated.status,
       type: updated.type,
       inspectionType: normalizeInspectionType(updated.inspectionType),
-      durationMinutes: updated.durationMinutes,
+      durationMinutes: resolveAgendaDuration(updated),
       bufferBeforeMinutes: updated.bufferBeforeMinutes,
       bufferAfterMinutes: updated.bufferAfterMinutes,
     } as AgendaApiEvent);

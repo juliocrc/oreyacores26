@@ -8,11 +8,13 @@ import { appToast } from '@/lib/app-toast';
 import * as XLSX from 'xlsx';
 import { buildClosureOrcamentoLinha } from './containerClosure';
 import { useWhatsAppAllowed, WHATSAPP_ALLOWED_USER_EMAIL } from '@/lib/use-whatsapp-allowed';
-import { normalizeStockReferenceByRule } from '@/lib/stock-reference-rules';
+import { normalizeStockReferenceByRule, isServiceResourceReference } from '@/lib/stock-reference-rules';
 import { isArticleNonExpiring } from '@/modules/rafts/mandatoryPack';
 import { isComponenteSubstituido, isPackItemSubstituido } from '@/lib/substituicoes-inspecao';
 import { useRouter } from 'next/navigation';
 import { getStepNumberByKey } from './steps';
+import StockArticleThumbnail from '@/components/shared/StockArticleThumbnail';
+import { withoutSosEquipment } from './sosRules';
 
 const formatPrice = (value: number) => {
   return new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(value || 0);
@@ -27,11 +29,10 @@ const normalizePhone = (raw: string): string => {
 
 const round = (value: number) => Math.round((value || 0) * 100) / 100;
 
-// Chave de deduplicacao: linhas automaticas de pack/componente sao agrupadas
-// pela referencia; linhas manuais/servico/reparação mantêm-se individuais.
-const dedupeKeyOf = (linha: { id: string; referencia?: string | null; source?: string | null }) =>
+// Linhas automaticas so agrupam o mesmo stockId, nunca lotes da mesma referencia.
+const dedupeKeyOf = (linha: { id: string; stockId?: number | string | null; referencia?: string | null; source?: string | null }) =>
   linha.source === "pack" || linha.source === "componente"
-    ? `${linha.referencia || ""}::${linha.source}`
+    ? `${linha.stockId != null && linha.stockId !== '' ? `stock-${linha.stockId}` : linha.referencia || ""}::${linha.source}`
     : linha.id;
 
 // Embalagem comercial de comprimidos — o orçamento fatura por embalagem de 60 comprimidos a 19 euros.
@@ -69,7 +70,8 @@ const SERVICE_FIXED_PRICES: Record<string, number> = {
 };
 
 export default function Step7_Orcamento() {
-  const { inspectionData, setInspectionData, jangadaId, hideOrcamento } = useJangadaWizardStore();
+  const { inspectionData: rawInspectionData, setInspectionData, jangadaId, hideOrcamento } = useJangadaWizardStore();
+  const inspectionData = useMemo(() => withoutSosEquipment(rawInspectionData), [rawInspectionData]);
   const stepNo = getStepNumberByKey(inspectionData, 'orcamento', { hideOrcamento });
   const { allowed: whatsappAllowed } = useWhatsAppAllowed();
   const router = useRouter();
@@ -86,7 +88,7 @@ export default function Step7_Orcamento() {
   const getStockPrice = (referencia: string, stockId?: number | string | null) => {
     if (stockId != null && stockId !== "") {
       const byId = globalStock.find((s) => s.id === Number(stockId));
-      if (byId && Number(byId.precoVenda) > 0) return Number(byId.precoVenda) || 0;
+      return Number(byId?.precoVenda) || 0;
     }
     const byRef = globalStock.find(
       (s) => s.referencia && referencia && s.referencia.toLowerCase() === String(referencia).toLowerCase()
@@ -135,7 +137,7 @@ export default function Step7_Orcamento() {
         const unitPrice = isTablet ? 19 : stockPrice;
         const quantidade = roundQtyToCommercialPack(item, item.quantidade);
         return [{
-          id: `pack-${referencia}`,
+          id: `pack-${referencia}${item.stockId != null && item.stockId !== '' ? `-${item.stockId}` : ''}`,
           stockId: item.stockId ?? null,
           referencia,
           descricao: item.descricao || item.name || "Consumível",
@@ -219,12 +221,12 @@ export default function Step7_Orcamento() {
     for (const b of built) {
       if (removed.has(b.id) || removed.has(keyOf(b))) continue;
       const existing = current.find(
-        (l) => l.id === b.id || (l.referencia === b.referencia && l.source === b.source)
+        (l) => keyOf(l) === keyOf(b)
       );
       if (existing) {
         const quantidade = b.source === "service" ? existing.quantidade || 1 : b.quantidade;
         const unitPrice = Number(existing.unitPrice) > 0 ? Number(existing.unitPrice) : b.unitPrice;
-        pushLine({ ...existing, quantidade, unitPrice, total: round(quantidade * unitPrice) });
+        pushLine({ ...existing, ...b, quantidade, unitPrice, total: round(quantidade * unitPrice) });
       } else {
         pushLine({ ...b });
       }
@@ -255,8 +257,8 @@ export default function Step7_Orcamento() {
 
   useEffect(() => {
     const next = buildMergedLines();
-    const nextKey = next.map((l) => `${l.id}::${l.quantidade}::${l.unitPrice}`).join("|");
-    const curKey = linhas.map((l) => `${l.id}::${l.quantidade}::${l.unitPrice}`).join("|");
+    const nextKey = next.map((l) => `${l.id}::${l.stockId ?? ''}::${l.quantidade}::${l.unitPrice}`).join("|");
+    const curKey = linhas.map((l) => `${l.id}::${l.stockId ?? ''}::${l.quantidade}::${l.unitPrice}`).join("|");
     if (nextKey !== curKey || next.length !== linhas.length) {
       setInspectionData({
         orcamento: {
@@ -338,13 +340,13 @@ export default function Step7_Orcamento() {
           ...linhas,
           {
             id: `stock-${artigo.id}-${++linhaSeq.current}`,
-            stockId: artigo.id,
+             stockId: isServiceResourceReference(artigo.referencia) ? null : artigo.id,
             referencia: artigo.referencia,
             descricao: artigo.descricao,
             quantidade: 1,
             unitPrice: artigo.precoVenda,
             total: artigo.precoVenda,
-            source: "stock",
+             source: isServiceResourceReference(artigo.referencia) ? "service" : "stock",
           },
         ],
       },
@@ -352,7 +354,7 @@ export default function Step7_Orcamento() {
   };
 
   const artigosServicos = useMemo(() => {
-    return globalStock.filter((s) => /^L-/i.test(s.referencia || ""));
+    return globalStock.filter((s) => isServiceResourceReference(s.referencia));
   }, [globalStock]);
 
   const artigosFiltrados = useMemo(() => {
@@ -390,9 +392,10 @@ export default function Step7_Orcamento() {
   }, [globalStock]);
 
   const semStock = (l: OrcamentoLinha) => {
+    if (isServiceResourceReference(l.referencia)) return false;
     if (l.source === "service" || l.source === "manual") return false;
     const st = l.stockId != null ? stockById.get(Number(l.stockId)) : undefined;
-    if (st) return Number(st.quantidade) <= 0;
+    if (l.stockId != null && l.stockId !== '') return !st || Number(st.quantidade) <= 0;
     const byRef = l.referencia ? stockRefMap.get(l.referencia.toLowerCase()) : undefined;
     if (byRef) return Number(byRef.quantidade) <= 0;
     return false;
@@ -447,7 +450,7 @@ export default function Step7_Orcamento() {
         'Por favor, responda SIM para indicar que concorda com o orçamento ou NÃO para solicitar alterações. A equipa confirma a decisão no orçamento.',
         '',
         'Com os melhores cumprimentos,',
-        'Orey Azores',
+        'Orey Tecnica- Serviços Navais, Lda',
       ].join('\n');
     }
     return [
@@ -466,7 +469,7 @@ export default function Step7_Orcamento() {
       'Por favor, responda SIM para indicar que concorda com o orçamento ou NÃO para solicitar alterações. A equipa confirma a decisão no orçamento.',
       '',
       'Com os melhores cumprimentos,',
-      'Orey Azores',
+      'Orey Tecnica- Serviços Navais, Lda',
     ].join('\n');
   };
 
@@ -712,6 +715,7 @@ export default function Step7_Orcamento() {
                           }}
                           className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-indigo-50"
                         >
+                          <StockArticleThumbnail foto={artigo.foto} label={artigo.referencia || artigo.descricao || 'artigo'} />
                           <span className="text-xs">
                             <span className="font-bold text-slate-800">{artigo.referencia}</span>
                             <span className="block text-slate-500">{artigo.descricao}</span>
@@ -779,6 +783,7 @@ export default function Step7_Orcamento() {
                   {linhas.map((linha) => (
                     <tr key={linha.id}>
                       <td className="px-3 py-2">
+                        {linha.source !== 'service' && <StockArticleThumbnail foto={(inspectionData.globalStock || []).find(item => linha.stockId ? String(item.id) === String(linha.stockId) : Boolean(linha.referencia) && item.referencia === linha.referencia)?.foto} label={linha.referencia || linha.descricao} className="h-10 w-10 float-left mr-2 mb-1" />}
                         <div className="font-bold text-slate-800">{linha.referencia || "—"}</div>
                         <div className="text-slate-500">{linha.descricao}</div>
                         <div className="text-[9px] uppercase tracking-wider text-slate-400 mt-0.5">

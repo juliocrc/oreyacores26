@@ -7,37 +7,33 @@ async function run() {
   });
 
   console.log(`Total de registos de stock na BD: ${allStock.length}`);
+  console.log(`Lotes legados desconhecidos preservados (NULL): ${allStock.filter(item => item.lote == null).length}`);
 
-  // Deduplicar por referência (se houver duplicadas, manter a mais completa ou somar quantidades)
+  // Read-only: references can legitimately have multiple lots/stations.
   const mapRef = new Map();
   const duplicates = [];
 
   for (const item of allStock) {
-    const ref = String(item.referencia || "").trim().toUpperCase();
-    if (!ref) continue;
+    if (item.lote == null) continue;
+    const ref = JSON.stringify([item.referencia, item.serviceStationId, item.lote]);
     if (mapRef.has(ref)) {
       duplicates.push({ ref, id1: mapRef.get(ref).id, id2: item.id });
-      // fundir quantidade se necessário
-      const existing = mapRef.get(ref);
-      existing.quantidade += item.quantidade;
-      // remover o duplicado da BD
-      await prisma.stock.delete({ where: { id: item.id } }).catch(() => {});
     } else {
       mapRef.set(ref, item);
     }
   }
 
   if (duplicates.length > 0) {
-    console.log(`Foram encontradas e limpas ${duplicates.length} referências duplicadas.`);
+    console.log(`Colisoes de identidade: ${duplicates.length}. Nenhuma alteracao efetuada.`);
   } else {
-    console.log("Sem referências duplicadas detetadas.");
+    console.log("Sem colisoes de identidade detetadas.");
   }
 
   const finalStock = await prisma.stock.findMany({
     orderBy: [{ categoria: 'asc' }, { referencia: 'asc' }]
   });
 
-  console.log(`\nTotal final de artigos únicos em stock: ${finalStock.length}\n`);
+  console.log(`\nTotal de registos/lotes em stock: ${finalStock.length}\n`);
 
   const byCategory = {};
   for (const item of finalStock) {

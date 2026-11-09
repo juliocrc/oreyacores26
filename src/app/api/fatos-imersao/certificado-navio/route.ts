@@ -4,6 +4,7 @@ import { getAccessContext } from "@/lib/access-control";
 import { resolveActiveServiceStationId } from "@/lib/station-selection";
 import { generateNavioFatosImersaoCertificateDocx } from "@/lib/fato-imersao-certificate-template";
 import { normalizeMonthInput } from "@/lib/fato-date-utils";
+import { inspectionStatus } from "@/lib/fatos-imersao-certificate-status";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,20 +16,6 @@ function formatPtDate(value?: string | Date | null): string {
   const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (match) return `${match[3]}/${match[2]}/${match[1]}`;
   return String(value);
-}
-
-function inspectionStatus(input: {
-  certificadoResultado?: string | null;
-  verificacaoResultado?: string | null;
-  estado?: string | null;
-}): string {
-  const result = input.certificadoResultado || input.verificacaoResultado;
-  if (result) {
-    return result.trim().toLowerCase().startsWith("aprov") ? "OK" : "NOT OK";
-  }
-  const estado = (input.estado || "").trim().toLowerCase();
-  if (!estado) return "";
-  return estado === "ativo" ? "OK" : "NOT OK";
 }
 
 export async function GET(req: NextRequest) {
@@ -76,7 +63,7 @@ export async function GET(req: NextRequest) {
       orderBy: { serial: "asc" },
       include: {
         certificado: true,
-        verificacoes: { orderBy: { dataVerificacao: "desc" }, take: 1 },
+        verificacoes: { orderBy: [{ dataVerificacao: "desc" }, { id: "desc" }], take: 1 },
       },
     });
     if (fatos.length === 0) {
@@ -97,7 +84,8 @@ export async function GET(req: NextRequest) {
       status: inspectionStatus({
         certificadoResultado: fato.certificado?.resultado,
         verificacaoResultado: fato.verificacoes[0]?.resultadoGeral,
-        estado: fato.estado,
+        certificadoData: fato.certificado?.dataCertificado,
+        verificacaoData: fato.verificacoes[0]?.dataVerificacao,
       }),
     }));
 

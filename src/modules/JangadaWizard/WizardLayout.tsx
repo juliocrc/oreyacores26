@@ -2,22 +2,21 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useJangadaWizardStore } from './store/useJangadaWizardStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Save, Cloud, FileCheck, CheckCircle, Clock, LifeBuoy, ShieldCheck, Keyboard, X, AlertTriangle } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { ChevronLeft, ChevronRight, Save, Cloud, FileCheck, CheckCircle, Clock, LifeBuoy, ShieldCheck, Keyboard, X, AlertTriangle, History } from 'lucide-react';
 import { useAutoSave } from './useAutoSave';
 import { getStepProgress } from './progress';
 import { getWizardSteps } from './steps';
-import { runWizardFinisher } from './wizardFinisher';
-import { appToast } from '@/lib/app-toast';
+import { finalizeInspectionStandalone } from './finalizeInspection';
+import Step10_Historico from './Step10_Historico';
 
 export default function WizardLayout({ children }: { children: React.ReactNode }) {
-  const { currentStep, nextStep, prevStep, setStep, setStepByKey, validationErrors, clearValidationErrors, inspectionData, isDirty, lastSaved, hideOrcamento, jangadaId } = useJangadaWizardStore();
-  const router = useRouter();
+  const { currentStep, nextStep, prevStep, setStep, setStepByKey, validationErrors, clearValidationErrors, inspectionData, isDirty, lastSaved, hideOrcamento, isSaving, hasServerChanges, pendingServerChanges } = useJangadaWizardStore();
   useAutoSave();
 
   const [now, setNow] = useState(() => new Date());
   const [workshopMode, setWorkshopMode] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
@@ -31,7 +30,7 @@ export default function WizardLayout({ children }: { children: React.ReactNode }
   const overallPct = Math.round(progress.reduce((s, p) => s + p.percent, 0) / progress.length);
   const pendingSteps = progress.filter((p) => (p.percent ?? 0) < 100).length;
   const healthTone = overallPct >= 90 ? 'text-emerald-700 bg-emerald-100 border-emerald-300' : overallPct >= 60 ? 'text-amber-700 bg-amber-100 border-amber-300' : 'text-red-700 bg-red-100 border-red-300';
-  const healthLabel = overallPct === 100 ? 'Conforme' : `${pendingSteps} passo${pendingSteps === 1 ? '' : 's'} por concluir`;
+  const healthLabel = overallPct === 100 ? 'Preenchido' : `${pendingSteps} passo${pendingSteps === 1 ? '' : 's'} por concluir`;
 
   const steps = useMemo(() => getWizardSteps(inspectionData, { hideOrcamento }), [inspectionData, hideOrcamento]);
   const totalSteps = steps.length;
@@ -49,14 +48,11 @@ export default function WizardLayout({ children }: { children: React.ReactNode }
     }
   }, [currentStep, totalSteps, setStep]);
 
-  // Finalizar a inspeção a partir de qualquer passo. O handler real é registado
-  // pelo Step8 (Resumo). Se não estiver montado (ex: último passo "Histórico"),
-  // navega para o Resumo para o utilizador fechar ali (evita botão "morto").
+  // One explicit final action, only while the last step is visible.
   const finalizeInspection = useCallback(() => {
-    if (runWizardFinisher()) return;
-    setStepByKey('resumo');
-    appToast.info('Revisa o passo Resumo e clica em "Fechar Inspeção e Gravar" para finalizar.');
-  }, [setStepByKey]);
+    if (historyOpen || currentStep !== totalSteps || isSaving) return;
+    finalizeInspectionStandalone();
+  }, [historyOpen, currentStep, totalSteps, isSaving]);
 
   // Keyboard shortcuts: Left/Right arrows for navigation, Ctrl+Enter to finish
   useEffect(() => {
@@ -65,8 +61,10 @@ export default function WizardLayout({ children }: { children: React.ReactNode }
       const inInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable);
       if (e.key === 'Escape') {
         setShortcutsOpen(false);
+        setHistoryOpen(false);
         return;
       }
+      if (historyOpen) return;
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault();
         finalizeInspection();
@@ -90,7 +88,7 @@ export default function WizardLayout({ children }: { children: React.ReactNode }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [nextStep, prevStep, finalizeInspection, shortcutsOpen]);
+  }, [nextStep, prevStep, finalizeInspection, shortcutsOpen, historyOpen]);
 
   const lastSavedLabel = lastSaved
     ? lastSaved.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
@@ -128,7 +126,7 @@ export default function WizardLayout({ children }: { children: React.ReactNode }
             useJangadaWizardStore.getState().setInspectionData(parsed.inspectionData);
             alert("Rascunho importado com sucesso via Box Negra!");
           }
-        } catch (err) {
+        } catch {
           alert("Erro ao ler ficheiro JSON de backup.");
         }
       };
@@ -138,7 +136,7 @@ export default function WizardLayout({ children }: { children: React.ReactNode }
   return (
     <div className="flex flex-col lg:flex-row min-h-[calc(100vh-4rem)] bg-slate-50">
       {/* Sidebar Navigation with integrated progress bar at top */}
-      <aside className="w-full lg:w-80 bg-white border-r border-slate-200 flex flex-col shadow-sm z-10 relative lg:flex-shrink-0 lg:sticky lg:top-0 lg:h-[calc(100vh-4rem)] lg:overflow-y-auto">
+      <aside className="w-full lg:w-72 xl:w-80 bg-white border-r border-slate-200 flex flex-col shadow-sm z-10 relative lg:flex-shrink-0 lg:sticky lg:top-0 lg:h-[calc(100vh-4rem)] lg:overflow-y-auto">
         {/* Progress bar integrated at top of sidebar */}
         <div className="px-5 pt-5 pb-4 border-b border-slate-100">
           <div className="flex items-center justify-between mb-1.5">
@@ -174,7 +172,7 @@ export default function WizardLayout({ children }: { children: React.ReactNode }
             {lastSaved ? (
               <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
                 <Cloud size={13} />
-                Autoguardado às {lastSavedLabel}
+                Rascunho local às {lastSavedLabel}
               </span>
             ) : isDirty ? (
               <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-200">
@@ -191,8 +189,12 @@ export default function WizardLayout({ children }: { children: React.ReactNode }
           </div>
         </div>
 
-        <nav className="flex-1 overflow-y-auto p-3">
-          <ul className="flex flex-col gap-1.5">
+        <nav className="p-3 lg:flex-1 lg:overflow-y-auto">
+          <button type="button" onClick={() => setHistoryOpen(!historyOpen)} aria-pressed={historyOpen}
+            className="flex items-center gap-3 w-full px-3 py-2.5 mb-3 rounded-xl text-sm font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100">
+            <History size={18} />{historyOpen ? 'Voltar à inspeção' : 'Consultar Histórico'}
+          </button>
+          <ul className="flex flex-row gap-1.5 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0">
             {steps.map((step, i) => {
               const stepNum = i + 1;
               const isActive = currentStep === stepNum;
@@ -203,11 +205,11 @@ export default function WizardLayout({ children }: { children: React.ReactNode }
               const hasIssue = (p?.missing?.length ?? 0) > 0;
 
               return (
-                <li key={step.key}>
+                <li key={step.key} className="shrink-0 lg:shrink">
                   <button
-                    onClick={() => { if (isReachable) { setStep(stepNum); clearValidationErrors(); } }}
+                    onClick={() => { if (isReachable) { setHistoryOpen(false); setStepByKey(step.key); clearValidationErrors(); } }}
                     disabled={!isReachable}
-                    className={`relative flex items-center gap-3 w-full px-3 py-2.5 rounded-xl transition-all duration-200 text-left ${
+                    className={`relative flex min-w-[190px] shrink-0 items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 text-left lg:min-w-0 lg:w-full lg:shrink ${
                       isActive ? 'bg-indigo-50 border border-indigo-100 shadow-sm' : isReachable ? 'hover:bg-slate-50 border border-transparent' : 'border border-transparent cursor-not-allowed opacity-45'
                     }`}
                   >
@@ -310,30 +312,33 @@ export default function WizardLayout({ children }: { children: React.ReactNode }
                 Atalhos
               </button>
             </div>
-            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${healthTone}`} title={`Conformidade atual: ${overallPct}%`}>
+            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${healthTone}`} title={`Preenchimento atual: ${overallPct}%`}>
               <span className={`w-1.5 h-1.5 rounded-full ${overallPct >= 90 ? 'bg-emerald-500' : overallPct >= 60 ? 'bg-amber-500' : 'bg-red-500'}`} />
               {overallPct}% · {healthLabel}
             </div>
             <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${
-              isDirty ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+              hasServerChanges ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
             }`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${isDirty ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
-              {isDirty ? 'Por guardar' : lastSaved ? 'Síncrono' : 'Pronto'}
+              <span className={`w-1.5 h-1.5 rounded-full ${hasServerChanges ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
+              {hasServerChanges ? 'Nao guardado no servidor' : 'Sem alteracoes pendentes no servidor'}
             </div>
           </div>
         </header>
 
         <div className={`flex-1 p-4 lg:p-6 overflow-y-auto ${workshopMode ? 'text-base bg-slate-900 text-slate-100' : ''}`}>
+          {hasServerChanges && <p role="status" className="mb-3 text-xs font-semibold text-amber-700">
+            Por gravar no servidor: {['data', 'review', 'signatures'].filter(key => pendingServerChanges?.[key as 'data' | 'review' | 'signatures']).map(key => ({ data: 'dados da inspecao', review: 'revisao', signatures: 'assinaturas' })[key]).join(', ')}. O autosave e apenas local.
+          </p>}
           <AnimatePresence mode="wait">
             <motion.div
-              key={currentStep}
+              key={historyOpen ? 'historico' : steps[currentStep - 1]?.key}
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.3 }}
                className={`rounded-2xl shadow-sm border p-5 lg:p-6 min-h-full ${workshopMode ? 'bg-slate-800 border-slate-700 text-slate-100' : 'bg-white border-slate-200'}`}
              >
-               {(() => {
+                 {!historyOpen && (() => {
                  const currentStepObj = steps[currentStep - 1];
                  const stepProg = currentStepObj ? progress.find(p => p.step === currentStepObj.key) : null;
                  if (stepProg && stepProg.missing && stepProg.missing.length > 0) {
@@ -353,7 +358,15 @@ export default function WizardLayout({ children }: { children: React.ReactNode }
                  }
                  return null;
                })()}
-               {children}
+                {historyOpen ? <Step10_Historico onClose={() => setHistoryOpen(false)} /> : children}
+               {!historyOpen && steps[currentStep - 1]?.key === 'testes' && !inspectionData.reparacoes?.length && inspectionData.repairRequested !== true && (
+                 <button type="button" onClick={() => {
+                   useJangadaWizardStore.getState().setInspectionData({ repairRequested: true });
+                   setStepByKey('reparacoes');
+                 }} className="mt-5 px-4 py-2.5 rounded-xl font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-sm">
+                   Registar intervenção preventiva
+                 </button>
+               )}
              </motion.div>
           </AnimatePresence>
         </div>
@@ -371,19 +384,19 @@ export default function WizardLayout({ children }: { children: React.ReactNode }
           )}
           <div className="flex items-center justify-between">
             <button
-              onClick={prevStep}
-              disabled={currentStep === 1}
+              onClick={() => historyOpen ? setHistoryOpen(false) : prevStep()}
+              disabled={!historyOpen && currentStep === 1}
               className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <ChevronLeft size={20} />
-              Anterior
+              {historyOpen ? 'Voltar à inspeção' : 'Anterior'}
             </button>
 
             <div className="flex items-center gap-3">
               <span className="text-sm font-medium text-slate-500 hidden sm:inline-block">
                 Passo {currentStep} de {totalSteps} · {overallPct}%
               </span>
-              {currentStep < totalSteps ? (
+              {historyOpen ? null : currentStep < totalSteps ? (
                 <button
                   onClick={handleNext}
                   className="flex items-center gap-2 px-8 py-2.5 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-md hover:shadow-lg transition-all"
@@ -393,11 +406,13 @@ export default function WizardLayout({ children }: { children: React.ReactNode }
                 </button>
               ) : (
                 <button
+                  type="button"
                   onClick={finalizeInspection}
-                  className="flex items-center gap-2 px-8 py-2.5 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md hover:shadow-lg transition-all"
+                  disabled={isSaving}
+                  className="flex items-center gap-2 px-8 py-2.5 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-wait"
                 >
                   <FileCheck size={20} />
-                  Finalizar Inspeção
+                  {isSaving ? 'A guardar…' : 'Guardar e finalizar inspeção'}
                 </button>
               )}
             </div>
@@ -440,7 +455,7 @@ export default function WizardLayout({ children }: { children: React.ReactNode }
                 {[
                   { keys: ['→'], label: 'Seguinte passo' },
                   { keys: ['←'], label: 'Passo anterior' },
-                  { keys: ['Ctrl', 'Enter'], label: 'Finalizar inspeção' },
+                  { keys: ['Ctrl', 'Enter'], label: 'Guardar e finalizar (apenas no último passo)' },
                   { keys: ['?'], label: 'Abrir/fechar este painel' },
                   { keys: ['Esc'], label: 'Fechar painel' },
                 ].map((s) => (

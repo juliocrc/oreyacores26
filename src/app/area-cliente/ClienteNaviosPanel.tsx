@@ -1,8 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { CheckCircle2, Lightbulb, Loader2, Plus, Sparkles, X } from "lucide-react";
 import { PIROTECNIA_OPCOES, getPirotecniaSugestoes, pirotecnicoStatus } from "@/lib/pirotecnia-sugestoes";
+import { formatDate, getLocalDateKey } from "@/lib/date-utils";
+import { isPortalEquipmentDate } from "@/lib/portal-equipment-date";
+import { PORTAL_EQUIPMENT_FIELDS, parsePortalNewEquipment, type PortalAssociationItem, type PortalEquipmentType } from "@/lib/portal-equipment-proposal";
 
 type Ship = {
   id: number;
@@ -58,34 +61,47 @@ function shipLocation(ship: { ilha?: string | null; portoRegisto?: string | null
   return null;
 }
 
-export default function ClienteNaviosPanel({ navios }: { navios: Ship[] }) {
+export default function ClienteNaviosPanel({ navios, coletes = [] }: { navios: Ship[]; coletes?: Array<Equipment & { shipId: number | null }> }) {
+  const shipRequest = useRef(0);
   const [selected, setSelected] = useState<number | null>(null);
   const [data, setData] = useState<ShipData | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  const [assocTipo, setAssocTipo] = useState<string>("jangada");
+  const [assocTipo, setAssocTipo] = useState<PortalEquipmentType>("jangada");
   const [assocSerial, setAssocSerial] = useState("");
-  const [assocItens, setAssocItens] = useState<Array<{ tipoEquipamento: string; serial: string }>>([]);
+  const [assocDate, setAssocDate] = useState("");
+  const [assocItens, setAssocItens] = useState<PortalAssociationItem[]>([]);
+  const [assocNew, setAssocNew] = useState(false);
+  const [assocDetails, setAssocDetails] = useState<Record<string, string>>({});
+  const [assocChecking, setAssocChecking] = useState(false);
   const [assocSaving, setAssocSaving] = useState(false);
   const [assocMessage, setAssocMessage] = useState<string | null>(null);
   const [assocError, setAssocError] = useState(false);
 
   const openShip = async (id: number) => {
+    const requestId = ++shipRequest.current;
     setSelected(id);
+    setData(null);
     setMessage(null);
+    setAssocSerial("");
+    setAssocDate("");
+    setAssocNew(false);
+    setAssocDetails({});
+    setAssocChecking(false);
     setAssocItens([]);
     setAssocMessage(null);
     setLoading(true);
     try {
       const response = await fetch(`/api/portal/navios/${id}`, { cache: "no-store" });
       if (!response.ok) throw new Error("Não foi possível carregar o navio.");
-      setData(await response.json());
+      const result = await response.json();
+      if (requestId === shipRequest.current) setData(result);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Erro ao carregar o navio.");
+      if (requestId === shipRequest.current) setMessage(error instanceof Error ? error.message : "Erro ao carregar o navio.");
     } finally {
-      setLoading(false);
+      if (requestId === shipRequest.current) setLoading(false);
     }
   };
 
@@ -145,12 +161,59 @@ export default function ClienteNaviosPanel({ navios }: { navios: Ship[] }) {
     }
   };
 
-  const addAssocItem = () => {
+  const addAssocItem = async () => {
     const serial = assocSerial.trim();
-    if (!serial) return;
-    setAssocItens((cur) => [...cur, { tipoEquipamento: assocTipo, serial }]);
-    setAssocSerial("");
+    if (!serial || !selected || assocChecking) return;
+    if (!isPortalEquipmentDate(assocDate)) {
+      setAssocError(true);
+      setAssocMessage("Indique uma data real para a proxima inspecao (AAAA-MM-DD).");
+      return;
+    }
+    if (assocItens.some(item => item.tipoEquipamento === assocTipo && item.serial === serial)) {
+      setAssocError(true);
+      setAssocMessage("Equipamento repetido na proposta.");
+      return;
+    }
+    const requestId = shipRequest.current;
+    setAssocChecking(true);
     setAssocMessage(null);
+    try {
+      const item: PortalAssociationItem = { tipoEquipamento: assocTipo, serial, dataProxInspecao: assocDate };
+      const response = await fetch('/api/portal/propostas', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tipo: 'verificar-associacao', navioId: selected, itens: [item] }),
+      });
+      const result = await response.json();
+      if (requestId !== shipRequest.current) return;
+      if (!response.ok) throw new Error(result.error || 'Nao foi possivel verificar o equipamento.');
+      if (!Array.isArray(result.itens) || result.itens.length !== 1 || typeof result.itens[0].novo !== 'boolean') throw new Error('Resposta de verificacao invalida.');
+      if (result.itens[0].novo) {
+        if (!assocNew) {
+          setAssocNew(true);
+          setAssocDetails({});
+          setAssocError(false);
+          setAssocMessage('Serial nao registado. Preencha a ficha abaixo para propor a criacao. Nada sera criado antes da aprovacao.');
+          return;
+        }
+        item.novoEquipamento = parsePortalNewEquipment(assocTipo, assocDetails);
+      } else if (assocNew) {
+        setAssocNew(false);
+        setAssocDetails({});
+        throw new Error('O serial ja foi registado. Reveja e adicione apenas a associacao; a ficha nova nao sera aplicada.');
+      }
+      setAssocItens(cur => [...cur, item]);
+      setAssocSerial('');
+      setAssocDate('');
+      setAssocNew(false);
+      setAssocDetails({});
+    } catch (error) {
+      if (requestId === shipRequest.current) {
+        setAssocError(true);
+        setAssocMessage(error instanceof Error ? error.message : 'Erro ao verificar equipamento.');
+      }
+    } finally {
+      if (requestId === shipRequest.current) setAssocChecking(false);
+    }
   };
 
   const submitAssociations = async () => {
@@ -223,11 +286,11 @@ export default function ClienteNaviosPanel({ navios }: { navios: Ship[] }) {
         {navios.map((navio) => {
           const loc = shipLocation(navio);
           return (
+            <div key={navio.id} className="min-w-0 rounded-2xl border border-slate-200 p-3">
             <button
-              key={navio.id}
               type="button"
               onClick={() => void openShip(navio.id)}
-              className={`rounded-2xl border p-4 text-left transition ${selected === navio.id ? "border-indigo-500 bg-indigo-50" : "border-slate-200 hover:border-indigo-300 hover:bg-slate-50"}`}
+              className={`w-full rounded-2xl border p-4 text-left transition ${selected === navio.id ? "border-indigo-500 bg-indigo-50" : "border-slate-200 hover:border-indigo-300 hover:bg-slate-50"}`}
             >
               <p className="font-extrabold text-slate-800">{navio.nome}</p>
               <p className="mt-1 text-xs text-slate-500">
@@ -235,6 +298,17 @@ export default function ClienteNaviosPanel({ navios }: { navios: Ship[] }) {
                 {loc ? ` · ${loc}` : ""}
               </p>
             </button>
+            <ul aria-label={`Coletes de ${navio.nome}`} className="mt-3 space-y-2">
+              {coletes.filter(item => item.shipId === navio.id).map(item => (
+                <li key={item.id} className="break-words rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
+                  <p className="font-bold">Colete: {item.marca} {item.modelo} · {item.serial}</p>
+                  <p>Proxima inspecao: {item.dataProxInspecao ? formatDate(item.dataProxInspecao) : "Sem data registada"}</p>
+                  {isPortalEquipmentDate(item.dataProxInspecao) && item.dataProxInspecao < getLocalDateKey() && <p className="font-semibold text-rose-700">Inspecao vencida</p>}
+                </li>
+              ))}
+              {!coletes.some(item => item.shipId === navio.id) && <li className="text-xs text-slate-500">Sem coletes associados.</li>}
+            </ul>
+            </div>
           );
         })}
       </div>
@@ -244,6 +318,7 @@ export default function ClienteNaviosPanel({ navios }: { navios: Ship[] }) {
           <Loader2 size={14} className="animate-spin" /> A carregar ficha...
         </p>
       )}
+      {message && !data && !loading && <p role="alert" className="mt-4 text-sm font-semibold text-rose-700">{message}</p>}
 
       {data && !loading && (
         <div className="mt-6 space-y-6">
@@ -260,11 +335,11 @@ export default function ClienteNaviosPanel({ navios }: { navios: Ship[] }) {
 
           <div className="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4">
             <h3 className="font-extrabold text-slate-800">Associar equipamento por nº de série</h3>
-            <p className="mt-1 text-xs text-slate-500">Indique o tipo e o número de série. Se existir no sistema, será associado a este navio após aprovação.</p>
+            <p className="mt-1 text-xs text-slate-500">Indique o tipo, o número de série e a data real da próxima inspeção (recarga para extintores). Pode indicar uma data vencida. Se o serial for novo, preencha a ficha de criação. Tudo fica pendente de aprovação.</p>
             <div className="mt-3 flex flex-wrap items-end gap-2">
               <div>
-                <label className="text-xs font-bold text-slate-500">Tipo</label>
-                <select value={assocTipo} onChange={(e) => setAssocTipo(e.target.value)} className="mt-1 rounded-lg border border-slate-200 px-3 py-2 text-sm bg-white">
+                <label htmlFor="assoc-tipo" className="text-xs font-bold text-slate-500">Tipo</label>
+                <select id="assoc-tipo" disabled={assocChecking} value={assocTipo} onChange={(e) => { setAssocTipo(e.target.value as PortalEquipmentType); setAssocNew(false); setAssocDetails({}); }} className="mt-1 rounded-lg border border-slate-200 px-3 py-2 text-sm bg-white">
                   {ASSOC_TIPOS.map((t) => (
                     <option key={t.key} value={t.key}>
                       {t.label}
@@ -273,24 +348,46 @@ export default function ClienteNaviosPanel({ navios }: { navios: Ship[] }) {
                 </select>
               </div>
               <div className="flex-1 min-w-[180px]">
-                <label className="text-xs font-bold text-slate-500">Nº de série</label>
+                <label htmlFor="assoc-serial" className="text-xs font-bold text-slate-500">Nº de série</label>
                 <input
+                  id="assoc-serial"
+                  disabled={assocChecking}
                   value={assocSerial}
-                  onChange={(e) => setAssocSerial(e.target.value)}
+                  onChange={(e) => { setAssocSerial(e.target.value); setAssocNew(false); setAssocDetails({}); }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
-                      addAssocItem();
+                       void addAssocItem();
                     }
                   }}
                   placeholder="Ex.: 54404"
                   className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                 />
               </div>
-              <button type="button" onClick={addAssocItem} className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm font-bold text-indigo-700 hover:bg-indigo-50">
-                <Plus size={14} /> Adicionar
+              <label className="text-xs font-bold text-slate-500">
+                Proxima inspecao / recarga
+                <input aria-label="Proxima inspecao / recarga" type="date" required disabled={assocChecking} value={assocDate} onChange={event => setAssocDate(event.target.value)} className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+              </label>
+              <button type="button" disabled={assocChecking} onClick={() => void addAssocItem()} className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm font-bold text-indigo-700 hover:bg-indigo-50 disabled:opacity-50">
+                <Plus size={14} /> {assocChecking ? 'A verificar...' : 'Adicionar'}
               </button>
             </div>
+
+            {assocNew && <fieldset className="mt-4 rounded-xl border border-indigo-200 bg-white p-4">
+              <legend className="px-1 text-sm font-bold text-indigo-800">Ficha de novo equipamento: {ASSOC_TIPOS.find(tipo => tipo.key === assocTipo)?.label} · {assocSerial}</legend>
+              <p className="mb-3 text-xs text-slate-500">O navio e o proprietario sao definidos pela sua conta. O estado inicial sera Ativo, sem certificado emitido. Campos com * sao obrigatorios.</p>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {PORTAL_EQUIPMENT_FIELDS[assocTipo].map(field => <label key={field.key} className="text-xs font-bold text-slate-500">
+                  {field.label}{field.required ? ' *' : ''}
+                  <input aria-label={`Novo: ${field.label}`} type={field.type || 'text'} required={field.required} disabled={assocChecking}
+                    min={field.type === 'number' ? 1 : undefined} step={field.type === 'number' ? 1 : undefined}
+                    value={assocDetails[field.key] || ''} onChange={event => setAssocDetails(current => ({ ...current, [field.key]: event.target.value }))}
+                    placeholder={field.key === 'packType' ? 'SOLAS A / SOLAS B / Sem pack' : undefined}
+                    className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                </label>)}
+              </div>
+              <button type="button" disabled={assocChecking} onClick={() => void addAssocItem()} className="mt-3 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-bold text-white disabled:opacity-50">Adicionar ficha a proposta</button>
+            </fieldset>}
 
             {assocItens.length > 0 && (
               <ul className="mt-3 space-y-2">
@@ -298,6 +395,8 @@ export default function ClienteNaviosPanel({ navios }: { navios: Ship[] }) {
                   <li key={idx} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
                     <span className="font-semibold text-slate-700">
                       {ASSOC_TIPOS.find((t) => t.key === it.tipoEquipamento)?.label || it.tipoEquipamento} · <span className="font-mono">{it.serial}</span>
+                      <span className="block text-xs">Proxima inspecao / recarga: {formatDate(it.dataProxInspecao)}{it.dataProxInspecao < getLocalDateKey() ? " (vencida)" : ""} · Pendente de aprovacao</span>
+                      {it.novoEquipamento && <span className="block text-xs text-indigo-700">Criar novo: {PORTAL_EQUIPMENT_FIELDS[it.tipoEquipamento].filter(field => it.novoEquipamento![field.key] !== undefined).map(field => `${field.label}: ${it.novoEquipamento![field.key]}`).join(' | ') || 'Ficha base (serial e proxima inspecao)'}</span>}
                     </span>
                     <button type="button" onClick={() => setAssocItens((cur) => cur.filter((_, i) => i !== idx))} className="text-slate-400 hover:text-rose-600">
                       <X size={14} />

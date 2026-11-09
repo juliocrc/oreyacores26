@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { resolveLotStock } from '@/lib/ordens-servico';
 import { normalizeArtigoValidade } from '@/lib/date-utils';
 import type { Prisma } from '@prisma/client';
+import { equipmentAccess } from '@/lib/jangada-equipment-access';
+import { articleSnapshot, auditEquipment } from '@/lib/jangada-equipment-audit';
 
 type StockWhereInput = {
   descricao?: { contains: string };
@@ -15,6 +18,8 @@ export async function GET(request: NextRequest) {
     const referenciaAtual = searchParams.get('referencia');
     const artigoIdRaw = searchParams.get('artigoId');
     const artigoId = Number(artigoIdRaw);
+    const guard = await equipmentAccess(Number(jangadaId));
+    if (guard.error) return guard.error;
 
     if (!jangadaId) {
       return NextResponse.json(
@@ -26,7 +31,7 @@ export async function GET(request: NextRequest) {
     // Obter jangada e seus artigos
     const jangada = await prisma.jangada.findUnique({
       where: { id: parseInt(jangadaId) },
-      include: { artigos: true },
+      include: { artigos: { where: { inspecaoId: null } } },
     });
 
     if (!jangada) {
@@ -105,13 +110,14 @@ export async function GET(request: NextRequest) {
     }
 
     let stockDisponivel = await prisma.stock.findMany({
-      where: orConditions.length > 0 ? { OR: orConditions } : undefined,
+      where: { serviceStationId: jangada.serviceStationId, ...(orConditions.length > 0 ? { OR: orConditions } : {}) },
       orderBy: { descricao: 'asc' },
     });
 
     // Se o filtro por relevância não encontrar nada, devolver o stock completo
     if (orConditions.length > 0 && stockDisponivel.length === 0) {
       stockDisponivel = await prisma.stock.findMany({
+        where: { serviceStationId: jangada.serviceStationId },
         orderBy: { descricao: 'asc' },
       });
     }
@@ -133,7 +139,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { jangadaId, artigoId, referenciaAtual, novaReferencia, quantidade } = body;
+    const { jangadaId, artigoId, referenciaAtual, novaReferencia, quantidade, stockId } = body;
+    const guard = await equipmentAccess(Number(jangadaId), true);
+    if (guard.error) return guard.error;
 
     if (!jangadaId || !novaReferencia || (!artigoId && !referenciaAtual)) {
       return NextResponse.json(
@@ -145,7 +153,7 @@ export async function POST(request: NextRequest) {
     // Esconder a transação Prisma
     const resultado = await prisma.$transaction(async (tx) => {
       // 1. Obter artigo atual (que está na jangada, ou seja, inspecaoId: null)
-      const artigoAtual = await tx.artigoJangada.findFirst({
+      const currentArticles = await tx.artigoJangada.findMany({
         where: {
           jangadaId: parseInt(jangadaId),
           inspecaoId: null,
@@ -154,15 +162,17 @@ export async function POST(request: NextRequest) {
             : { referencia: String(referenciaAtual) }),
         },
       });
+      if (currentArticles.length > 1) throw new Error('Selecione o artigoId concreto para substituicao.');
+      const artigoAtual = currentArticles[0];
 
       if (!artigoAtual) {
         throw new Error('Artigo atual não encontrado');
       }
 
       // 2. Obter informações do novo stock
-      const novoStock = await tx.stock.findFirst({
-        where: { referencia: novaReferencia },
-      });
+      const raft = await tx.jangada.findUnique({ where: { id: Number(jangadaId) }, select: { serviceStationId: true } });
+      if (!raft) throw new Error('Jangada nao encontrada');
+      const novoStock = await resolveLotStock(tx, { stockId, referencia: novaReferencia }, raft.serviceStationId);
 
       if (!novoStock) {
         throw new Error('Novo artigo do stock não encontrado');
@@ -193,16 +203,17 @@ export async function POST(request: NextRequest) {
           referencia: novaReferencia,
           name: novoStock.descricao,
           quantidade: requestedQuantity,
-          codigoFabricante: novoStock.codigoFabricante || undefined,
+          codigoFabricante: novoStock.codigoFabricante || null,
           stockId: novoStock.id,
-          validade: normalizeArtigoValidade(novoStock.validade) || undefined,
+          validade: normalizeArtigoValidade(novoStock.validade),
         },
       });
 
-      await tx.stock.update({
-        where: { id: novoStock.id },
+      const stockUpdated = await tx.stock.updateMany({
+        where: { id: novoStock.id, quantidade: stockAntes, quantidadeReservada: novoStock.quantidadeReservada },
         data: { quantidade: stockDepois },
       });
+      if (stockUpdated.count !== 1) throw new Error('Lote alterado; tente novamente.');
 
       await tx.movimentacaoStock.create({
         data: {
@@ -212,7 +223,7 @@ export async function POST(request: NextRequest) {
           quantidadeAntes: stockAntes,
           quantidadeDepois: stockDepois,
           motivo: `Substituição de artigo na jangada serial ${artigoAtual.jangadaId}`,
-          usuario: 'sistema',
+          usuario: guard.access.email,
         },
       });
 
@@ -226,10 +237,7 @@ export async function POST(request: NextRequest) {
         const artigoExistenteInspecao = await tx.artigoJangada.findFirst({
           where: {
             inspecaoId: lastInspecao.id,
-            OR: [
-              { referencia: novaReferencia },
-              { name: novoStock.descricao }
-            ]
+            stockId: novoStock.id,
           }
         });
 
@@ -261,6 +269,18 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      if (lastInspecao) {
+        const snapshot = (lastInspecao.checklistSnapshot || {}) as Record<string, unknown>;
+        const expiry = (snapshot._articleExpiry || {}) as Record<string, unknown>;
+        const replacements = Array.isArray(expiry.replacements) ? expiry.replacements : [];
+        await tx.inspecao.update({ where: { id: lastInspecao.id }, data: {
+          checklistSnapshot: { ...snapshot, _articleExpiry: { ...expiry, replacements: [...replacements, {
+            artigoId: artigoAtual.id, stockId: novoStock.id, lote: novoStock.lote,
+            referencia: novoStock.referencia, quantidade: requestedQuantity, validade: novoStock.validade,
+          }] } } as Prisma.InputJsonValue,
+        } });
+      }
+
       // 3c. Atualizar orçamento da inspeção com a linha do artigo substituído
       if (lastInspecao && novoStock.precoVenda) {
         const orcamento = lastInspecao.orcamento && typeof lastInspecao.orcamento === "object"
@@ -271,7 +291,7 @@ export async function POST(request: NextRequest) {
         const total = Math.round(unitPrice * requestedQuantity * 100) / 100;
 
         const existenteIdx = linhas.findIndex(
-          (l) => String(l.referencia) === novaReferencia || String(l.stockId) === String(novoStock.id),
+          (l) => String(l.stockId) === String(novoStock.id),
         );
 
         if (existenteIdx >= 0) {
@@ -282,11 +302,13 @@ export async function POST(request: NextRequest) {
             total,
             descricao: novoStock.descricao || String(linhas[existenteIdx].descricao || ""),
             stockId: novoStock.id,
+            lote: novoStock.lote,
           };
         } else {
           linhas.push({
             id: `sub-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
             stockId: novoStock.id,
+            lote: novoStock.lote,
             referencia: novaReferencia,
             descricao: novoStock.descricao || "",
             quantidade: requestedQuantity,
@@ -311,56 +333,24 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // 4. Registar a mudança na auditoria (se o client gerado expuser o model)
-      const auditoriaClient = (tx as unknown as {
-        auditoria?: {
-          create: (args: {
-            data: {
-              tabela: string;
-              tipoOperacao: string;
-              idRegisto: number;
-              descricao?: string;
-              usuario?: string;
-              dadosAntes?: string;
-              dadosDepois?: string;
-            };
-          }) => Promise<unknown>;
-        };
-      }).auditoria;
-
-      if (auditoriaClient) {
-        await auditoriaClient.create({
-          data: {
-            tabela: 'ArtigoJangada',
-            tipoOperacao: 'UPDATE',
-            idRegisto: artigoAtual.id,
-            descricao: `Substituição de artigo: ${artigoAtual.name} (${referenciaAtual}) → ${novoStock.descricao} (${novaReferencia})`,
-            usuario: 'sistema',
-            dadosAntes: JSON.stringify({
-              referencia: referenciaAtual,
-              name: artigoAtual.name,
-              quantidade: artigoAtual.quantidade,
-            }),
-            dadosDepois: JSON.stringify({
-              referencia: novaReferencia,
-              name: novoStock.descricao,
-              quantidade: requestedQuantity,
-            }),
-          },
-        });
-      }
+      await auditEquipment(tx, { jangadaId: Number(jangadaId), usuario: guard.access.email,
+        origem: `Substituição de artigo #${artigoAtual.id}`,
+        antes: { artigo: articleSnapshot(artigoAtual) }, depois: { artigo: articleSnapshot(artigoAtualizado) },
+      });
 
       return {
         artigoAtualizado,
         originalArticle: artigoAtual,
         stockChange: {
+          stockId: novoStock.id,
+          lote: novoStock.lote,
           referencia: novaReferencia,
           quantidadeAntes: stockAntes,
           quantidadeDepois: stockDepois,
           quantidadeConsumida: requestedQuantity,
         },
       };
-    });
+    }, { isolationLevel: 'Serializable' });
 
     return NextResponse.json({
       success: true,
@@ -380,7 +370,7 @@ export async function POST(request: NextRequest) {
     const message = error instanceof Error ? error.message : 'Erro ao substituir artigo';
     return NextResponse.json(
       { error: message },
-      { status: 500 }
+      { status: /stockId|lote|Lote|Quantidade|quantidade|artigoId/.test(message) ? 400 : 500 }
     );
   }
 }

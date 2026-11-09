@@ -79,7 +79,7 @@ export default function OpenWatersModulePage() {
               <Waves size={30} />
             </div>
             <div>
-              <p className="text-xs font-extrabold uppercase tracking-widest text-sky-600">Orey Açores · Ecossistema Marítimo</p>
+              <p className="text-xs font-extrabold uppercase tracking-widest text-sky-600">Orey Tecnica- Serviços Navais, Lda · Ecossistema Marítimo</p>
               <h1 className="text-2xl sm:text-3xl font-black text-slate-800">Módulo OpenWaters</h1>
               <p className="text-sm text-slate-500 mt-1">
                 Integração centralizada com as 9 ferramentas open-source do ecossistema OpenWaters para AIS, batimetria, cartas náuticas, marés, coordenadas, seascape e almanaque astronómico.

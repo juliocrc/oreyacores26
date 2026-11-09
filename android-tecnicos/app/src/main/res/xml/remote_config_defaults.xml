@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<remoteConfigDefaults>
+    <entry>
+        <key>min_version_code</key>
+        <value>5</value>
+    </entry>
+    <entry>
+        <key>pre_test_duration_ms</key>
+        <value>1800000</value>
+    </entry>
+    <entry>
+        <key>test_duration_ms</key>
+        <value>3600000</value>
+    </entry>
+    <entry>
+        <key>webhook_url</key>
+        <value></value>
+    </entry>
+    <entry>
+        <key>enable_nfc</key>
+        <value>true</value>
+    </entry>
+    <entry>
+        <key>enable_qr</key>
+        <value>true</value>
+    </entry>
+</remoteConfigDefaults>

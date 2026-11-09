@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.OreyCliente" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:windowBackground">@color/orey_client_background</item>
+        <item name="android:statusBarColor">@color/orey_client_primary_dark</item>
+        <item name="android:navigationBarColor">@color/orey_client_primary_dark</item>
+        <item name="android:colorAccent">@color/orey_client_accent</item>
+        <item name="android:textColorPrimary">@color/orey_white</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+
+    <style name="Theme.OreyCliente.Pdf" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:windowBackground">@color/orey_client_surface</item>
+        <item name="android:statusBarColor">@color/orey_client_primary_dark</item>
+        <item name="android:navigationBarColor">@color/orey_client_primary_dark</item>
+        <item name="android:colorAccent">@color/orey_client_accent</item>
+        <item name="android:textColorPrimary">@color/orey_white</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+
+    <style name="Theme.OreyCliente.HighContrast" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/orey_black</item>
+        <item name="android:statusBarColor">@color/orey_black</item>
+        <item name="android:navigationBarColor">@color/orey_black</item>
+        <item name="android:colorAccent">@color/orey_white</item>
+        <item name="android:textColorPrimary">@color/orey_white</item>
+    </style>
+</resources>

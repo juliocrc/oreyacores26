@@ -1,79 +1,48 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
 import { getAccessContext } from "@/lib/access-control";
+import { canEditStock, stockStationWhere, stockTransaction, StockWriteError, stockWriteStatus } from "@/lib/stock-utils";
+import { resolveActiveServiceStationId } from "@/lib/station-selection";
 
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   try {
     const access = await getAccessContext();
-    if (!access) return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
-
-    const body = await req.json().catch(() => null);
-    const rawText = String(body?.text || "").trim();
-    const mode = String(body?.mode || "increment").toLowerCase(); // "increment" or "absolute"
-
-    if (!rawText) {
-      return NextResponse.json({ error: "Nenhum dado fornecido para importação." }, { status: 400 });
-    }
-
-    const lines = rawText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-    const results: Array<{ referenciaOrBarcode: string; quantidade: number; status: string; stockId?: number; descricao?: string }> = [];
-
-    for (const line of lines) {
-      const parts = line.split(/[;,\t]+/).map(p => p.trim().replace(/^["']|["']$/g, ""));
-      if (parts.length < 2) continue;
-
-      const code = parts[0];
-      const qty = Number(parts[1].replace(",", ".")) || 0;
-      if (!code) continue;
-
-      const stockItem = await prisma.stock.findFirst({
-        where: {
-          OR: [
-            { referencia: { equals: code } },
-            { codigoBarras: { equals: code } },
-          ],
-        },
-      });
-
-      if (!stockItem) {
-        results.push({ referenciaOrBarcode: code, quantidade: qty, status: "Não encontrado no stock" });
-        continue;
+    if (!access) return NextResponse.json({ error: "Sessao obrigatoria." }, { status: 401 });
+    if (!canEditStock(access)) return NextResponse.json({ error: "Sem permissao." }, { status: 403 });
+    const body = await req.json();
+    const mode = String(body.mode || "increment");
+    if (!["increment", "absolute"].includes(mode)) throw new StockWriteError("Modo invalido.", 400);
+    const lines = String(body.text || "").trim().split(/\r?\n/).filter(Boolean).map(line => {
+      const [code, raw] = line.split(/[;\t,]/).map(value => value.trim().replace(/^["']|["']$/g, ""));
+      const quantidade = Number(raw);
+      if (!code || !raw || !Number.isSafeInteger(quantidade) || quantidade < 0) throw new StockWriteError("Linha/quantidade invalida.", 400);
+      return { code, quantidade };
+    });
+    if (!lines.length) throw new StockWriteError("Nenhum dado fornecido.", 400);
+    const scope = stockStationWhere(access, resolveActiveServiceStationId(req, access));
+    const results = await stockTransaction(async tx => {
+      const results = [];
+      const seen = new Set<number>();
+      for (const { code, quantidade } of lines) {
+        const matches = await tx.stock.findMany({ where: { AND: [scope, { estadoArtigo: { not: "INATIVO" } }, { OR: [{ codigoBarras: code }, { referencia: code }] }] } });
+        if (matches.length !== 1) throw new StockWriteError(`Codigo ${code}: ${matches.length ? "ambiguo, use codigo do lote" : "nao encontrado"}.`);
+        const row = matches[0];
+        if (seen.has(row.id)) throw new StockWriteError(`Lote repetido no ficheiro: ${code}.`);
+        seen.add(row.id);
+        const after = mode === "absolute" ? quantidade : row.quantidade + quantidade;
+        if (after < row.quantidadeReservada) throw new StockWriteError("Quantidade inferior a reserva.");
+        await tx.stock.update({ where: { id: row.id }, data: { quantidade: after } });
+        await tx.movimentacaoStock.create({ data: {
+          stockId: row.id, tipo: "ajuste", quantidade: Math.abs(after - row.quantidade),
+          quantidadeAntes: row.quantidade, quantidadeDepois: after, motivo: `Importacao de leitor (${mode})`,
+        } });
+        results.push({ referenciaOrBarcode: code, quantidade, stockId: row.id, descricao: row.descricao, status: "Atualizado com sucesso" });
       }
-
-      const antes = stockItem.quantidade;
-      const newQty = mode === "absolute" ? qty : antes + qty;
-      const finalQty = Math.max(0, newQty);
-
-      await prisma.stock.update({
-        where: { id: stockItem.id },
-        data: { quantidade: finalQty },
-      });
-
-      await prisma.movimentacaoStock.create({
-        data: {
-          stockId: stockItem.id,
-          tipo: mode === "absolute" ? "INVENTARIO_AJUSTE" : "ENTRADA_LOTE",
-          quantidade: qty,
-          quantidadeAntes: antes,
-          quantidadeDepois: finalQty,
-          motivo: `Importação em lote de leitor portátil (Modo: ${mode})`,
-        },
-      }).catch(() => {});
-
-      results.push({
-        referenciaOrBarcode: code,
-        quantidade: qty,
-        status: "Atualizado com sucesso",
-        stockId: stockItem.id,
-        descricao: stockItem.descricao,
-      });
-    }
-
+      return results;
+    });
     return NextResponse.json({ success: true, processed: results.length, results });
   } catch (error) {
-    console.error("Erro na importação em lote de stock:", error);
-    return NextResponse.json({ error: "Erro ao processar importação em lote." }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Erro ao importar." }, { status: stockWriteStatus(error) || 500 });
   }
 }

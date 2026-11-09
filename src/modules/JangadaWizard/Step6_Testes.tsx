@@ -5,6 +5,9 @@ import { getTestRecommendations, getGiDateContext, type TestRecommendation } fro
 import { getDlLoadReference } from '@/modules/rafts/dlLoadReference';
 import { getStepNumberByKey } from './steps';
 import { parseFlexibleDateValue } from '@/lib/date-display';
+import { missingTestEvidence } from './testEvidence';
+import { calibrationEvidence } from './calibrationEvidence';
+import ManualReferenceNotice from './ManualReferenceNotice';
 import { Activity, Gauge, ArrowDownToLine, Droplet, Clock, Timer, Play, Pause, RotateCcw, AlertTriangle, Info, CheckCircle2, XCircle, HelpCircle, ShieldAlert, CalendarClock } from 'lucide-react';
 
 const TEST_ICONS: Record<string, React.ElementType> = {
@@ -57,6 +60,7 @@ export default function Step6_Testes() {
   const { inspectionData, setInspectionData, hideOrcamento } = useJangadaWizardStore();
   const stepNo = getStepNumberByKey(inspectionData, 'testes', { hideOrcamento });
   const testes = inspectionData.testes || {};
+  const evidenceWarnings = missingTestEvidence(testes);
   const [equipments, setEquipments] = useState<any[]>([]);
 
   const [timerSec, setTimerSec] = useState(0);
@@ -156,14 +160,7 @@ export default function Step6_Testes() {
   const checkCalibrationWarning = (sensorId: string) => {
     if (!sensorId) return null;
     const sensor = equipments.find(e => String(e.id) === String(sensorId));
-    if (!sensor) return null;
-    const expDate = new Date(sensor.dataProxCalibracao);
-    const insDate = inspectionData.date ? new Date(inspectionData.date) : new Date();
-    if (isNaN(expDate.getTime())) return null;
-    if (insDate > expDate) {
-      return `O equipamento "${sensor.nome}" [Ref: ${sensor.referencia}] está com calibração expirada desde ${expDate.toLocaleDateString('pt-PT')}.`;
-    }
-    return null;
+    return calibrationEvidence(sensor, inspectionData.dataInspecao);
   };
 
   const handleTestChange = (testId: string, result: string) => {
@@ -171,11 +168,6 @@ export default function Step6_Testes() {
       ...testes,
       [testId]: result,
     };
-
-    if (testId === 'testeNAP' && result === 'PASSOU') {
-      if (!nextTestes.napHoraInicio) nextTestes.napHoraInicio = nowHHMM();
-      if (!nextTestes.napHoraFim) nextTestes.napHoraFim = nowHHMM();
-    }
 
     setInspectionData({
       testes: nextTestes as typeof testes,
@@ -200,12 +192,6 @@ export default function Step6_Testes() {
     [inspectionData.dataFabrico, inspectionData.dataInspecao, dataUltimoGi],
   );
 
-  const handleAutoFillGiDate = () => {
-    if (giDateContext.ultimaGiDate) {
-      setDataUltimoGi(giDateContext.ultimaGiDate);
-    }
-  };
-
   // Se o utilizador escreveu uma data manualmente, o proximo GI e sempre essa
   // data + 5 anos; caso contrario usa a data sugerida pela regra.
   const formatGiDate = (suggested: string | null, registada: string) => {
@@ -225,7 +211,11 @@ export default function Step6_Testes() {
       <div>
         <h2 className="text-2xl font-bold text-slate-800">{stepNo > 0 ? `${stepNo}. ` : ''}Testes Operacionais e de Pressão</h2>
         <p className="text-slate-600 mt-1">Registe os resultados dos testes estruturais realizados na jangada.</p>
+        <p role="status" className="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">As recomendações automáticas são indicativas e não confirmam o manual, a aprovação nem o histórico de ensaios. Confirme a aplicabilidade e registe apenas medições e horas efetivamente observadas.</p>
+        {evidenceWarnings.length > 0 && <div role="status" className="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><p className="font-semibold">Registos de ensaio por completar</p><ul className="mt-1 list-disc pl-5">{evidenceWarnings.map(warning => <li key={warning.test}>{warning.test}: {warning.missing.join(', ')}.</li>)}</ul><p className="mt-1">Aviso informativo: confirme os campos exigidos para esta jangada e o procedimento aplicável.</p></div>}
       </div>
+
+      <ManualReferenceNotice brand={inspectionData.brand} model={inspectionData.model} topic="testes" />
 
       {/* State summary strip */}
       <div className="bg-sky-50 rounded-2xl p-4 text-slate-900 border border-sky-200 shadow-sm flex flex-col sm:flex-row sm:items-center gap-4">
@@ -404,11 +394,6 @@ export default function Step6_Testes() {
                           Registada
                         </span>
                       )}
-                      {giDateContext.origem === 'fabrico' && (
-                        <span className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
-                          Sugerida (5 em 5 anos desde o fabrico)
-                        </span>
-                      )}
                     </div>
 
                     <div className="flex flex-wrap items-end gap-3">
@@ -421,14 +406,6 @@ export default function Step6_Testes() {
                           className="mt-1 block w-full px-3 py-2 border border-indigo-300 rounded-md text-sm bg-white"
                         />
                       </label>
-                      <button
-                        type="button"
-                        onClick={handleAutoFillGiDate}
-                        disabled={!giDateContext.ultimaGiDate || dataUltimoGi === giDateContext.ultimaGiDate}
-                        className="px-3 py-2 rounded-md text-xs font-semibold bg-white border border-indigo-300 text-indigo-800 hover:bg-indigo-100 disabled:opacity-50"
-                      >
-                        Introduzir automaticamente
-                      </button>
                       {dataUltimoGi && (
                         <button
                           type="button"
@@ -442,20 +419,19 @@ export default function Step6_Testes() {
 
                     <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs text-indigo-900">
                       <span>
-                        Próximo GI:{' '}
+                        Próximo GI {giDateContext.origem === 'registada' ? '(estimado a partir do registo)' : '(sem histórico confirmado)'}:{' '}
                         <strong className="font-bold">
-                          {formatGiDate(giDateContext.proximaGiDate, dataUltimoGi)}
+                          {giDateContext.origem === 'registada' ? formatGiDate(giDateContext.proximaGiDate, dataUltimoGi) : 'Por confirmar'}
                         </strong>
                       </span>
-                      {giDateContext.anosDesdeUltimaGi !== null && (
+                      {giDateContext.origem === 'registada' && giDateContext.anosDesdeUltimaGi !== null && (
                         <span>
                           {giDateContext.anosDesdeUltimaGi} ano(s) desde o último ensaio
                         </span>
                       )}
                     </div>
                     <p className="mt-2 text-[11px] text-indigo-700">
-                      O GI (insuflação por gás inerte) é devido de 5 em 5 anos. Confirme sempre a data com o
-                      certificado do fabricante.
+                      Confirme o último ensaio documentado, a periodicidade aplicável e a data com o manual e a aprovação da jangada.
                     </p>
                   </div>
                 )}

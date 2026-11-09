@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     const clienteNome = ordem?.cliente?.nome || ordem?.jangada?.owner || "Cliente";
     const ordemNum = ordem?.numeroOrdem || orderId;
     const message =
-      `Orey Açores: Código de confirmação ${otpCode} para a sua Ordem de Serviço #${ordemNum}. ` +
+      `Orey Tecnica- Serviços Navais, Lda: Código de confirmação ${otpCode} para a sua Ordem de Serviço #${ordemNum}. ` +
       `Válido por 10 minutos. Não partilhe este código com ninguém.`;
 
     const result = await sendSms(phone, message);

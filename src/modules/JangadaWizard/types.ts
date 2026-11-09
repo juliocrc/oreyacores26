@@ -105,14 +105,17 @@ export type TestesData = {
 export type ChecklistItem = {
   status?: string;
   notes?: string;
+  justificacaoNaoSubstituicao?: string;
   fotos?: string[];
   validade?: string;
   voltagem?: string;
   stockId?: number | string | null;
   referencia?: string;
+  lote?: string;
 };
 
 export type ComponenteItem = {
+  justificacaoNaoSubstituicao?: string;
   id: string;
   type: string;
   reference: string;
@@ -126,6 +129,7 @@ export type ComponenteItem = {
 };
 
 export type PackItem = {
+  justificacaoNaoSubstituicao?: string;
   checklistName: string;
   name: string;
   descricao?: string;
@@ -142,6 +146,7 @@ export type PackItem = {
 
 export type GlobalStockItem = {
   id: number;
+  foto?: string | null;
   referencia: string;
   descricao: string;
   categoria: string | null;
@@ -149,6 +154,9 @@ export type GlobalStockItem = {
   lote: string | null;
   validade: string | null;
   quantidade: number;
+  quantidadeReservada?: number;
+  codigoBarras?: string | null;
+  stationId?: number | null;
   precoVenda: number | null;
 };
 

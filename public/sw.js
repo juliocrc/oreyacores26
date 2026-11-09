@@ -1,4 +1,4 @@
-const CACHE_NAME = 'orey-acores-v3';
+const CACHE_NAME = 'orey-acores-v4';
 const OFFLINE_URL = '/offline.html';
 
 // App shell: cachear na instalacao
@@ -14,9 +14,11 @@ const APP_SHELL = [
 // ============================================================
 // INSTALACAO — cachear app shell
 // ============================================================
-self.addEventListener('install', (event) => {
+self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))
+    caches
+      .open(CACHE_NAME)
+      .then(cache => cache.addAll(APP_SHELL))
       .then(() => self.skipWaiting())
   );
 });
@@ -24,22 +26,33 @@ self.addEventListener('install', (event) => {
 // ============================================================
 // ATIVACAO — limpar caches antigos
 // ============================================================
-self.addEventListener('activate', (event) => {
+self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then((names) =>
-      Promise.all(names.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n)))
-    ).then(() => self.clients.claim())
+    caches
+      .keys()
+      .then(names => Promise.all(names.filter(n => n !== CACHE_NAME).map(n => caches.delete(n))))
+      .then(() => self.clients.claim())
   );
 });
 
 // ============================================================
 // FETCH — estrategia offline-first para app local
 // ============================================================
-self.addEventListener('fetch', (event) => {
+self.addEventListener('fetch', event => {
   const { request } = event;
 
   // Apenas interceptar GET
   if (request.method !== 'GET') return;
+
+  // Session/station data and router payloads must never use cache-first.
+  const url = new URL(request.url);
+  if (
+    url.pathname.startsWith('/api/') ||
+    url.pathname.startsWith('/marinha') ||
+    request.headers.get('RSC') === '1' ||
+    url.searchParams.has('_rsc')
+  )
+    return;
 
   // --- NAVEGACAO (HTML pages) ---
   if (request.mode === 'navigate') {
@@ -76,7 +89,9 @@ async function navigationStrategy(request) {
   if (cached) return cached;
 
   const offline = await cache.match(OFFLINE_URL);
-  return offline || new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain' } });
+  return (
+    offline || new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain' } })
+  );
 }
 
 // ============================================================
@@ -89,11 +104,13 @@ async function staticStrategy(request) {
 
   if (cached) {
     // Atualizar em background (stale-while-revalidate)
-    fetch(request).then((response) => {
-      if (response && response.ok) {
-        cache.put(request, response);
-      }
-    }).catch(() => {});
+    fetch(request)
+      .then(response => {
+        if (response && response.ok) {
+          cache.put(request, response);
+        }
+      })
+      .catch(() => {});
     return cached;
   }
 
@@ -112,7 +129,7 @@ async function staticStrategy(request) {
 // ============================================================
 // MENSAGENS — permite ao app forcar atualizacao do cache
 // ============================================================
-self.addEventListener('message', (event) => {
+self.addEventListener('message', event => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }

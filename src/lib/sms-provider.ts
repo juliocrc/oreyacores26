@@ -1,19 +1,44 @@
 import { isInfinireachConfigured, sendInfinireachSms } from "./infinireach-sms";
 
+export type SmsProviderName = "infinireach";
+
+export type SmsSendResult = {
+  ok: boolean;
+  error?: string;
+  /** Provider que tratou o envio (quando ok). */
+  provider?: SmsProviderName;
+  /** Provider identifier, when the delivery API supplies one. */
+  providerId?: string;
+  uncertain?: boolean;
+};
+
 /**
- * Por enquanto, o envio de SMS é feito exclusivamente através do InfiniReach
- * (api.infinireach.io). Os fornecedores alternativos (TextBee, Zapier) ficam
- * disponíveis no repositório mas desligados até serem novamente ativados.
+ * SMS usa exclusivamente InfiniReach.
+ * Uma falha de envio nao provoca reenvio automatico por outro fornecedor.
  */
 export async function sendSms(
   phoneRaw: string,
   message: string,
-): Promise<{ ok: boolean; error?: string }> {
-  if (!isInfinireachConfigured()) {
+): Promise<SmsSendResult> {
+  if (isInfinireachConfigured()) {
+    const result = await sendInfinireachSms(phoneRaw, message);
     return {
-      ok: false,
-      error: "SMS não configurado. Defina INFINIREACH_API_KEY e INFINIREACH_FROM.",
+      ok: result.ok,
+      error: result.error,
+      uncertain: result.uncertain,
+      providerId: result.providerId,
+      provider: result.ok ? "infinireach" : undefined,
     };
   }
-  return sendInfinireachSms(phoneRaw, message);
+
+  return {
+    ok: false,
+    error:
+      "SMS nao configurado. Defina INFINIREACH_API_KEY/INFINIREACH_FROM.",
+  };
+}
+
+export function smsProviderName(): "InfiniReach" | null {
+  if (isInfinireachConfigured()) return "InfiniReach";
+  return null;
 }

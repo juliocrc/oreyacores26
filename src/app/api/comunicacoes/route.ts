@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getAccessContext } from "@/lib/access-control";
 import { enviarComunicacao } from "@/lib/communications";
+import { isEmailConfigured } from "@/lib/email-sender";
+import { canUseEmailSenderProfiles } from "@/lib/email-sender-access";
 
 export const runtime = "nodejs";
 
@@ -18,7 +20,15 @@ export async function GET(req: NextRequest) {
     const jangadaId = Number(searchParams.get("jangadaId"));
     const ordemServicoId = Number(searchParams.get("ordemServicoId"));
     const q = String(searchParams.get("q") || "").trim();
-    const limite = Math.min(Number(searchParams.get("limite") || 200), 500);
+    const limite = Number(searchParams.get("limite") || 200);
+    if (!Number.isInteger(limite) || limite < 1 || limite > 500) {
+      return NextResponse.json({ error: "O limite deve ser um inteiro entre 1 e 500." }, { status: 400 });
+    }
+    const cursorParam = searchParams.get("cursor");
+    const cursor = cursorParam === null ? null : Number(cursorParam);
+    if (cursor !== null && (!Number.isSafeInteger(cursor) || cursor < 1)) {
+      return NextResponse.json({ error: "O cursor deve ser um inteiro positivo." }, { status: 400 });
+    }
 
     const where: Record<string, unknown> = {};
     if (tipo) where.tipo = tipo;
@@ -41,7 +51,8 @@ export async function GET(req: NextRequest) {
       prisma.comunicacao.findMany({
         where,
         orderBy: [{ enviadoEm: "desc" }, { id: "desc" }],
-        take: limite,
+        ...(cursor !== null ? { cursor: { id: cursor }, skip: 1 } : {}),
+        take: limite + 1,
       }),
       prisma.comunicacao.count({ where }),
       prisma.comunicacao.groupBy({ by: ["tipo"], _count: true }),
@@ -50,11 +61,13 @@ export async function GET(req: NextRequest) {
     ]);
 
     return NextResponse.json({
-      items,
+      items: items.slice(0, limite),
+      nextCursor: items.length > limite ? items[limite - 1].id : null,
       total,
       porTipo,
       porStatus,
       recebidasNaoRespondidas,
+      permissions: { canDelete: access.isAdmin },
     });
   } catch (error) {
     console.error("[GET /api/comunicacoes]", error);
@@ -68,6 +81,13 @@ export async function POST(req: NextRequest) {
     if (!access) return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));
+    const senderAccount = body?.senderAccount;
+    if (senderAccount !== undefined && !canUseEmailSenderProfiles(access.email)) {
+      return NextResponse.json({ error: "Sem permissao para usar contas de envio." }, { status: 403 });
+    }
+    if (senderAccount !== undefined && senderAccount !== "julio" && senderAccount !== "tecnica") {
+      return NextResponse.json({ error: "Conta de envio invalida." }, { status: 400 });
+    }
     const tipo = String(body?.tipo || "").toUpperCase();
     const mensagem = String(body?.mensagem || "").trim();
     const destinatario = String(body?.destinatario || "").trim() || undefined;
@@ -78,6 +98,9 @@ export async function POST(req: NextRequest) {
     }
     if (!mensagem) {
       return NextResponse.json({ error: "A mensagem não pode estar vazia." }, { status: 400 });
+    }
+    if (tipo === "EMAIL" && senderAccount !== undefined && !isEmailConfigured(senderAccount)) {
+      return NextResponse.json({ error: "Conta de email nao configurada. Contacte a administracao.", code: "EMAIL_NOT_CONFIGURED" }, { status: 503 });
     }
 
     const ref = {
@@ -98,15 +121,17 @@ export async function POST(req: NextRequest) {
       mensagem,
       assunto,
       destinatario,
+      ...(tipo === "EMAIL" && senderAccount !== undefined ? { senderAccount } : {}),
       ref,
       enviadoPor: operador?.name || operador?.email || String(access.userId),
-    });
+    }, { authenticatedEmail: access.email });
 
-    if (result.ok && body?.responderA != null) {
+    // A manual WhatsApp link is not evidence that a reply was sent.
+    if (result.ok && result.status !== "pendente" && !result.whatsappUrl && destinatario && body?.responderA != null) {
       const recebidaId = Number(body.responderA);
       if (Number.isFinite(recebidaId) && recebidaId > 0) {
-        await prisma.comunicacao.update({
-          where: { id: recebidaId },
+        await prisma.comunicacao.updateMany({
+          where: { id: recebidaId, status: "recebido", tipo, destinatario },
           data: { respondidoEm: new Date() },
         }).catch(() => {});
       }
@@ -114,12 +139,12 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(
       result.ok
-        ? { ok: true, comunicacaoId: result.comunicacaoId, whatsappUrl: result.whatsappUrl }
-        : { error: result.erro || "Falha ao enviar comunicação." },
-      { status: result.ok ? 200 : 400 },
+        ? { ok: true, comunicacaoId: result.comunicacaoId, whatsappUrl: result.whatsappUrl, status: result.status, providerId: result.providerId }
+        : { error: result.erro || "Falha ao enviar comunicação.", comunicacaoId: result.comunicacaoId, status: result.closed ? "closed" : result.status, closed: result.closed, uncertain: result.uncertain },
+      { status: result.ok ? 200 : result.closed || result.uncertain ? 409 : 400 },
     );
   } catch (error) {
-    console.error("[POST /api/comunicacoes]", error);
+    console.error("[POST /api/comunicacoes] Falha ao processar envio.");
     return NextResponse.json({ error: "Erro ao enviar comunicação." }, { status: 500 });
   }
 }

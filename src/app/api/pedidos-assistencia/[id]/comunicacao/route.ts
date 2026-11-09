@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
       `Referente ao seu pedido de assistência #${pedido.id}${buildPedidoContextLabel(pedido) ? ` (${buildPedidoContextLabel(pedido)})` : ""}`,
       "Estamos à sua disposição para agendar a intervenção.",
       "",
-      "Orey Azores",
+      "Orey Tecnica- Serviços Navais, Lda",
     ].join("\n");
 
     const destinatario =

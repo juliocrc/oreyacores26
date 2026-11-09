@@ -91,4 +91,18 @@ describe('resolveNominalCharge — cargas nominais dos manuais (DSB LR97/LR97L, 
     expect(resolveNominalCharge({ brand: 'DSB', model: 'LR97', capacity: 0 })).toBeNull();
     expect(resolveNominalCharge({})).toBeNull();
   });
+
+  test('não escolhe a primeira carga quando falta ou não coincide a configuração', () => {
+    expect(resolveNominalCharge({ brand: 'DSB', model: 'LR97', capacity: 25 })).toBeNull();
+    expect(resolveNominalCharge({ brand: 'DSB', model: 'LR97', capacity: 25, launchType: 'desconhecido' })).toBeNull();
+    expect(resolveNominalCharge({ brand: 'DSB', model: 'LR97 extra', capacity: 25, launchType: 'TO' })).toBeNull();
+  });
+
+  test('Eurovinil exige geração e pack compatível', () => {
+    const base = { brand: 'Eurovinil', model: 'M14 ISO9650-1 >24H', capacity: 4 };
+    expect(resolveNominalCharge(base)).toBeNull();
+    expect(resolveNominalCharge({ ...base, packType: 'SOLAS B' })).toBeNull();
+    expect(resolveNominalCharge({ ...base, packType: 'OFFSHORE' })?.co2).toBe(2.01);
+    expect(resolveNominalCharge({ ...base, model: 'ISO 9650-1 >24H', packType: 'OFFSHORE' })).toBeNull();
+  });
 });

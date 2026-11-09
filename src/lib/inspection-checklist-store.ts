@@ -1,5 +1,7 @@
 import { logAuditoria } from "@/lib/auditoria";
 import { readAuditoriaJson, writeAuditoriaJson } from "@/lib/auditorias-storage";
+import prisma from "@/lib/prisma";
+import { auditEquipment, equipmentChanges } from "@/lib/jangada-equipment-audit";
 
 export type InspectionChecklistValues = Record<string, string | number | boolean>;
 type InspectionChecklistStore = Record<string, InspectionChecklistValues>;
@@ -40,11 +42,12 @@ export async function readInspectionChecklistValues(jangadaId: number) {
   return normalizeInspectionChecklistValues(store[String(jangadaId)]);
 }
 
-export async function writeInspectionChecklistValues(jangadaId: number, value: unknown) {
+export async function writeInspectionChecklistValues(jangadaId: number, value: unknown, usuario?: string) {
   const currentStore = await readInspectionChecklistStore();
   const normalized = normalizeInspectionChecklistValues(value);
   const key = String(jangadaId);
   const previous = normalizeInspectionChecklistValues(currentStore[key]);
+  if (!equipmentChanges(previous, normalized).length) return normalized;
 
   const nextStore: InspectionChecklistStore = {
     ...currentStore,
@@ -53,7 +56,12 @@ export async function writeInspectionChecklistValues(jangadaId: number, value: u
 
   await writeAuditoriaJson(INSPECTION_CHECKLIST_STORE_FILE, nextStore);
 
-  await logAuditoria({
+  if (usuario) await auditEquipment(prisma, {
+    jangadaId, usuario, origem: "Checklist de equipamentos",
+    antes: Object.fromEntries(Object.entries(previous).map(([key, item]) => [`checklist.${key}`, item])),
+    depois: Object.fromEntries(Object.entries(normalized).map(([key, item]) => [`checklist.${key}`, item])),
+  });
+  else await logAuditoria({
     tabela: "JangadaInspectionChecklist",
     tipoOperacao: "UPDATE",
     idRegisto: jangadaId,

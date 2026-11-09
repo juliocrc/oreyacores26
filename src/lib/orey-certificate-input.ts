@@ -1,5 +1,6 @@
 import type { OreyCertificateTemplateInput } from "./orey-certificate-template";
 import type { InspectionCertificateInput } from "./inspection-certificate";
+import { applyDocumentPackApplicability } from './quadro-payload';
 
 export type JangadaForOreyCertificate = {
   brand?: string | null;
@@ -71,12 +72,12 @@ export function buildOreyCertificateTemplateInput(params: {
     cylinderHydroTestDate: raft.cylinderDataTeste ?? "",
     packType: raft.packType ?? "",
     hruReference: raft.hruReferencia ?? "",
-    hruSerial: raft.hruSerial || raft.hruReferencia || "",
+    hruSerial: raft.hruSerial ?? "",
     hruExpiry: raft.hruValidade ?? "",
     radarReflector: raft.radarReflector ?? "",
     radarReflectorExpiry: raft.radarReflectorValidade ?? "",
     technician: inspection.technician ?? "",
     status: inspection.status ?? "",
-    checklist: inspection.checklist ?? {},
+    checklist: applyDocumentPackApplicability(inspection.checklist ?? {}, { ...raft, capacity: Number(raft.capacity) || 1 }),
   };
 }

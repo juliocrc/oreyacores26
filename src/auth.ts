@@ -1,4 +1,4 @@
-import NextAuth, { type NextAuthConfig } from "next-auth";
+import NextAuth, { CredentialsSignin, type NextAuthConfig } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { randomUUID } from "crypto";
@@ -7,6 +7,8 @@ import { getAuthSecret, normalizeEmail } from "@/lib/auth";
 import { resolveEffectivePermissions } from "@/lib/user-permissions";
 import { getCachedPermissions, setCachedPermissions } from "@/lib/permissions-cache";
 import { encontrarClientePorContacto } from "@/lib/communications";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { isLocalAuthBypassEnabled } from "@/lib/local-auth";
 
 const authUserSelect = {
   id: true,
@@ -17,22 +19,45 @@ const authUserSelect = {
   passwordHash: true,
 } as const;
 
+class ClientRateLimitError extends CredentialsSignin {
+  constructor(status: number) {
+    super();
+    this.code = status === 503 ? "rate_limit_unavailable" : "rate_limit_exceeded";
+  }
+}
+
+const CLIENT_SESSION_MS = 365 * 24 * 60 * 60 * 1000;
+const STAFF_SESSION_MS = 30 * 24 * 60 * 60 * 1000;
+
+function normalizeDeviceId(value: string | undefined): string | undefined {
+  const clean = String(value ?? "").replace(/[^0-9A-Za-z_-]/g, "").slice(0, 80);
+  return clean || undefined;
+}
+
+function clientSessionIsExpired(token: Record<string, unknown>): boolean {
+  const expires = Number(token.clientExpiresAt);
+  return !Number.isFinite(expires) || Date.now() >= expires;
+}
+
 export function getIsSecureUrl() {
   const raw = String(process.env.NEXTAUTH_URL ?? process.env.AUTH_URL ?? "").trim();
-  if (raw.startsWith("https")) return true;
+  if (raw) return raw.startsWith("https://");
   return Boolean(process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL);
 }
 
 export const authConfig: NextAuthConfig = {
   trustHost: true,
   secret: getAuthSecret(),
+  useSecureCookies: getIsSecureUrl(),
   session: {
     strategy: "jwt",
+    // O cookie pode ser longo; a validade efetiva é controlada no callback JWT:
+    // clientes até 365 dias (sessão de dispositivo), equipa até 30 dias.
+    maxAge: 365 * 24 * 60 * 60,
+    updateAge: 24 * 60 * 60,
   },
   pages: {
-    // Sem palavra-passe: quem entra é o técnico que clica no próprio nome.
-    // O mesmo ecrã é usado pelo proxy, por isso qualquer redireccionamento de
-    // erro de autenticação cai aqui em vez de num formulário de password.
+    // Technician selection authenticates with the staff account's password.
     signIn: "/selecionar-tecnico",
   },
   providers: [
@@ -46,6 +71,11 @@ export const authConfig: NextAuthConfig = {
         userId: { type: "text" },
         phone: { type: "text" },
         nif: { type: "text" },
+        deviceId: { type: "text" },
+        deviceModel: { type: "text" },
+        deviceOs: { type: "text" },
+        appVersion: { type: "text" },
+        deviceStationId: { type: "text" },
       },
       async authorize(credentials) {
         const str = (value: unknown): string | undefined =>
@@ -53,7 +83,11 @@ export const authConfig: NextAuthConfig = {
 
         const loginType = str(credentials?.loginType);
          const code = str(credentials?.code);
-        const userId = str(credentials?.userId);
+        const deviceId = normalizeDeviceId(str(credentials?.deviceId));
+        const deviceModel = str(credentials?.deviceModel)?.slice(0, 120);
+        const deviceOs = str(credentials?.deviceOs)?.slice(0, 60);
+        const deviceAppVersion = str(credentials?.appVersion)?.slice(0, 40);
+        const deviceStationId = Number(str(credentials?.deviceStationId));
         const emailRaw = str(credentials?.email);
         const password = str(credentials?.password);
         const phone = str(credentials?.phone);
@@ -62,7 +96,16 @@ export const authConfig: NextAuthConfig = {
         if (loginType === "client") {
           const email = normalizeEmail(emailRaw);
           const cleanCode = String(code ?? "").trim();
-          if (!cleanCode) return null;
+          if (!/^\d{5}$/.test(cleanCode)) return null;
+
+          const identity = nif
+            ? `nif:${nif.replace(/[^0-9A-Za-z]/g, "").toUpperCase()}`
+            : phone ? `phone:${phone.replace(/\D/g, "")}` : `email:${email}`;
+          const globalLimit = await checkRateLimit("client-login:global", 100, 10 * 60 * 1000);
+          const identityLimit = globalLimit.allowed ? await checkRateLimit(`client-login:${identity}`, 5, 10 * 60 * 1000) : globalLimit;
+          if (!identityLimit.allowed) {
+            throw new ClientRateLimitError(identityLimit.status);
+          }
 
           const normalizeNif = (value: unknown) =>
             String(value ?? "").replace(/[^0-9A-Za-z]/g, "").toUpperCase();
@@ -71,12 +114,15 @@ export const authConfig: NextAuthConfig = {
             id: number;
             nome: string;
             email: string | null;
+            nif: string | null;
             verificationCode: string | null;
             verificationCodeExpires: Date | null;
+            portalAtivo: boolean;
+            serviceStationId: number | null;
           } | null = null;
 
           if (nif) {
-            // Login do cliente por NIF + código de acesso gerado pelo administrador.
+            // NIF identifies the client; only a temporary code authenticates them.
             const cleanNif = normalizeNif(nif);
             if (cleanNif) {
               const candidates = await prisma.cliente.findMany({
@@ -88,6 +134,8 @@ export const authConfig: NextAuthConfig = {
                   nif: true,
                   verificationCode: true,
                   verificationCodeExpires: true,
+                  portalAtivo: true,
+                  serviceStationId: true,
                 },
               });
               cliente =
@@ -106,8 +154,11 @@ export const authConfig: NextAuthConfig = {
                   id: true,
                   nome: true,
                   email: true,
+                  nif: true,
                   verificationCode: true,
                   verificationCodeExpires: true,
+                  portalAtivo: true,
+                  serviceStationId: true,
                 },
               });
             }
@@ -121,35 +172,42 @@ export const authConfig: NextAuthConfig = {
                 id: true,
                 nome: true,
                 email: true,
+                nif: true,
                 verificationCode: true,
                 verificationCodeExpires: true,
+                portalAtivo: true,
+                serviceStationId: true,
               },
             });
           }
 
-          if (!cliente || !cliente.verificationCode) return null;
+          if (!cliente || !cliente.portalAtivo || !cliente.verificationCode) return null;
+          const clientLimit = await checkRateLimit(`client-login:id:${cliente.id}`, 5, 10 * 60 * 1000);
+          if (!clientLimit.allowed) {
+            throw new ClientRateLimitError(clientLimit.status);
+          }
 
           if (String(cliente.verificationCode).trim() !== cleanCode) return null;
+          if (normalizeNif(cliente.nif) === normalizeNif(cleanCode)) return null;
 
-          if (cliente.verificationCodeExpires) {
-            const expiresTime = new Date(cliente.verificationCodeExpires).getTime();
-            if (Date.now() > expiresTime) return null;
+          if (!cliente.verificationCodeExpires) return null;
+          const expiresTime = new Date(cliente.verificationCodeExpires).getTime();
+          if (!Number.isFinite(expiresTime) || Date.now() >= expiresTime) return null;
 
-            // Código temporário (email/WhatsApp, 10 min): consome após uso.
-            // O código de acesso permanente do administrador (sem validade)
-            // mantém-se disponível para logins futuros.
-            await prisma.cliente.update({
-              where: { id: cliente.id },
-              data: {
-                verificationCode: null,
-                verificationCodeExpires: null,
-              },
-            });
-          }
+          // Compare-and-clear ensures only one concurrent login can consume the code.
+          const consumed = await prisma.cliente.updateMany({
+            where: { id: cliente.id, verificationCode: cliente.verificationCode,
+              verificationCodeExpires: { gt: new Date() } },
+            data: {
+              verificationCode: null,
+              verificationCodeExpires: null,
+            },
+          });
+          if (consumed.count !== 1) return null;
 
           // Find or create User account on-the-fly
           let user = await prisma.user.findFirst({
-            where: { clienteId: cliente.id }
+            where: { clienteId: cliente.id, role: "CLIENTE" }
           });
 
           if (!user) {
@@ -167,13 +225,8 @@ export const authConfig: NextAuthConfig = {
                 }
               });
             } else {
-              user = await prisma.user.update({
-                where: { id: existingUser.id },
-                data: {
-                  clienteId: cliente.id,
-                  role: "CLIENTE"
-                }
-              });
+              // Never reassign a staff account or another client's identity by email.
+              return null;
             }
           }
 
@@ -183,28 +236,43 @@ export const authConfig: NextAuthConfig = {
             select: { id: true },
           });
 
-          return { id: String(user.id), email: user.email, name: user.name, image: user.image };
+          // Registar o dispositivo: o admin vê as sessões ativas e pode revogar
+          // só este dispositivo sem suspender o cliente.
+          if (deviceId) {
+            await prisma.portalDevice.upsert({
+              where: { clienteId_deviceId: { clienteId: cliente.id, deviceId } },
+              update: {
+                revogado: false,
+                revogadoEm: null,
+                ultimoAcesso: new Date(),
+                app: "cliente",
+                modelo: deviceModel ?? undefined,
+                osVersion: deviceOs ?? undefined,
+                appVersion: deviceAppVersion ?? undefined,
+                serviceStationId: Number.isFinite(deviceStationId) && deviceStationId > 0
+                  ? deviceStationId
+                  : cliente.serviceStationId ?? undefined,
+              },
+              create: {
+                clienteId: cliente.id,
+                deviceId,
+                app: "cliente",
+                modelo: deviceModel ?? undefined,
+                osVersion: deviceOs ?? undefined,
+                appVersion: deviceAppVersion ?? undefined,
+                serviceStationId: Number.isFinite(deviceStationId) && deviceStationId > 0
+                  ? deviceStationId
+                  : cliente.serviceStationId ?? undefined,
+              },
+            }).catch(() => {});
+          }
+
+          return { id: String(user.id), email: user.email, name: user.name, image: user.image, deviceId };
         }
 
-        // Passwordless collaborator login
+        // A staff ID is an identifier, never proof of authentication.
         if (loginType === "passwordless") {
-          const parsedUserId = Number(userId);
-          if (!parsedUserId) return null;
-
-          const user = await prisma.user.findUnique({
-            where: { id: parsedUserId },
-            select: authUserSelect,
-          });
-
-          if (!user || user.role === "CLIENTE") return null;
-
-          await prisma.user.update({
-            where: { id: user.id },
-            data: { lastLoginAt: new Date() },
-            select: { id: true },
-          });
-
-          return { id: String(user.id), email: user.email, name: user.name, image: user.image };
+          return null;
         }
 
         // Standard credentials login
@@ -215,12 +283,13 @@ export const authConfig: NextAuthConfig = {
           where: { email },
           select: authUserSelect,
         });
-        if (!user) return null;
+        // Client accounts must use the verified code flow, never password bootstrap.
+        if (!user || user.role === "CLIENTE") return null;
 
         let valid = false;
         if (user.passwordHash) {
           valid = await bcrypt.compare(password, user.passwordHash);
-        } else if (password.length >= 3) {
+        } else if (isLocalAuthBypassEnabled() && password.length >= 3) {
           valid = true;
           const newHash = await bcrypt.hash(password, 10);
           await prisma.user.update({
@@ -257,7 +326,72 @@ export const authConfig: NextAuthConfig = {
         // desta sessão contra o registado no utilizador. Se outra sessão iniciou
         // entretanto, devolver null termina esta e limpa o cookie.
         if (!shouldRefreshProfile) {
-          if (token.role !== "CLIENTE" && token.sub) {
+          // Sessão de cliente: validada contra a conta e o acesso ao portal em
+          // cada pedido. Suspender o cliente (ou mudar a versão da sessão)
+          // invalida imediatamente todos os dispositivos.
+          if (token.role === "CLIENTE") {
+            const userId = Number(token.sub);
+            const clientUser = Number.isFinite(userId)
+              ? await prisma.user.findUnique({
+                  where: { id: userId },
+                  select: {
+                    role: true,
+                    clienteId: true,
+                    cliente: {
+                      select: { portalAtivo: true, portalSessionVersion: true },
+                    },
+                  },
+                })
+              : null;
+
+            const client = clientUser?.cliente;
+            const clientId = Number(token.clienteId);
+            const clientVersion = Number(token.clientSessionVersion);
+            if (
+              !clientUser ||
+              clientUser.role !== "CLIENTE" ||
+              clientUser.clienteId == null ||
+              clientUser.clienteId !== clientId ||
+              !client ||
+              !client.portalAtivo ||
+              !Number.isFinite(clientVersion) ||
+              clientVersion !== client.portalSessionVersion ||
+              clientSessionIsExpired(token)
+            ) {
+              return null;
+            }
+
+            // Revogação individual de dispositivo: se este deviceId foi revogado
+            // pelo administrador, esta sessão termina sem suspender os outros.
+            const deviceId = typeof token.deviceId === "string" ? token.deviceId : "";
+            if (deviceId) {
+              const device = await prisma.portalDevice.findUnique({
+                where: { clienteId_deviceId: { clienteId: clientId, deviceId } },
+                select: { revogado: true, sessionVersion: true },
+              });
+              if (!device || device.revogado) return null;
+              const deviceVersion = Number(token.deviceSessionVersion);
+              if (Number.isFinite(deviceVersion) && deviceVersion !== device.sessionVersion) return null;
+              // Touch assíncrono do último acesso (sem bloquear o pedido).
+              prisma.portalDevice
+                .update({
+                  where: { clienteId_deviceId: { clienteId: clientId, deviceId } },
+                  data: { ultimoAcesso: new Date() },
+                })
+                .catch(() => {});
+            }
+
+            return token;
+          }
+
+          const staffExpires = Number(token.staffExpiresAt);
+          if (!Number.isFinite(staffExpires)) {
+            token.staffExpiresAt = Date.now() + STAFF_SESSION_MS;
+          } else if (Date.now() >= staffExpires) {
+            return null;
+          }
+
+          if (token.sub) {
             const current = await prisma.user.findUnique({
               where: { id: Number(token.sub) },
               select: { activeSessionId: true },
@@ -284,7 +418,10 @@ export const authConfig: NextAuthConfig = {
         }
 
         const email = normalizeEmail((user?.email as string | undefined) || (token.email as string | undefined));
-        if (!email) return token;
+        if (!email) {
+          if (user) throw new Error("Missing login identity");
+          return token;
+        }
 
         const dbUser = await prisma.user.findUnique({
           where: { email },
@@ -298,18 +435,20 @@ export const authConfig: NextAuthConfig = {
             activeSessionId: true,
           },
         });
-        if (!dbUser) return token;
+        if (!dbUser) {
+          if (user) throw new Error("Login user not found");
+          return token;
+        }
 
-        // Login novo (ou update): esta passa a ser a única sessão ativa.
+        // Only a new login may replace an existing active session.
         if (dbUser.role !== "CLIENTE") {
-          if (Boolean(user) || trigger === "update") {
+          if (user) {
             if (dbUser.activeSessionId !== token.sessionId) {
               await prisma.user
                 .update({
                   where: { id: dbUser.id },
                   data: { activeSessionId: token.sessionId },
-                })
-                .catch(() => {});
+                });
             }
           } else if (!dbUser.activeSessionId) {
             await prisma.user
@@ -329,11 +468,43 @@ export const authConfig: NextAuthConfig = {
         token.picture = dbUser.image;
         token.role = dbUser.role;
         token.clienteId = dbUser.clienteId ?? undefined;
+
+        if (dbUser.role === "CLIENTE") {
+          if (dbUser.clienteId == null) return null;
+          const client = await prisma.cliente.findUnique({
+            where: { id: dbUser.clienteId },
+            select: { portalAtivo: true, portalSessionVersion: true },
+          });
+          if (!client || !client.portalAtivo) return null;
+
+          // Sessão longa do dispositivo cliente (1 ano). O administrador pode
+          // revogar imediatamente suspendendo o acesso, incrementando a versão
+          // da sessão ou revogando só este dispositivo.
+          token.clientExpiresAt = Date.now() + CLIENT_SESSION_MS;
+          token.clientSessionVersion = client.portalSessionVersion;
+          const authDeviceId = (user as { deviceId?: string }).deviceId;
+          if (typeof authDeviceId === "string") {
+            token.deviceId = authDeviceId;
+            const device = await prisma.portalDevice.findUnique({
+              where: { clienteId_deviceId: { clienteId: dbUser.clienteId, deviceId: authDeviceId } },
+              select: { revogado: true, sessionVersion: true },
+            });
+            if (!device || device.revogado) return null;
+            token.deviceSessionVersion = device.sessionVersion;
+          }
+          delete token.staffExpiresAt;
+        } else {
+          token.staffExpiresAt = Date.now() + STAFF_SESSION_MS;
+          delete token.clientExpiresAt;
+          delete token.clientSessionVersion;
+        }
+
         if ("permissions" in token) delete token.permissions;
 
         return token;
       } catch (jwtErr) {
         console.error("JWT callback error:", jwtErr);
+        if (user) throw jwtErr;
         return token;
       }
     },
@@ -379,11 +550,11 @@ export const authConfig: NextAuthConfig = {
 
 export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);
 
-export function getAuthSession() {
+export async function getAuthSession() {
   try {
-    return auth();
+    return await auth();
   } catch (error) {
     console.error("Auth session could not be initialized. Falling back to an anonymous session.", error);
-    return Promise.resolve(null);
+    return null;
   }
 }

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Cores do modo escuro para o cliente -->
+    <color name="orey_client_primary">#38BDF8</color>
+    <color name="orey_client_primary_dark">#0284C7</color>
+    <color name="orey_client_accent">#2DD4BF</color>
+    <color name="orey_client_background">#0F172A</color>
+    <color name="orey_client_surface">#1E293B</color>
+    <color name="orey_white">#FFFFFF</color>
+    <color name="orey_black">#000000</color>
+</resources>

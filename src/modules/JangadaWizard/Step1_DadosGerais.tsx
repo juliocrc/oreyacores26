@@ -2,18 +2,11 @@
 import React, { useEffect, useMemo } from 'react';
 import { useJangadaWizardStore } from './store/useJangadaWizardStore';
 import { PACK_TEMPLATES } from '@/config/packTemplates';
-import { getInspectionIntervalYears } from '../rafts/inspectionInterval';
 import { LIFERAFT_REFERENCE_CATALOG } from '@/data/liferaftReference';
 import { normalizeModelMatchKey } from '@/lib/jangadas-page-helpers';
 import { toMonthYearString, toMonthInput } from '@/lib/date-utils';
 import { getStepNumberByKey } from './steps';
-
-const SOS_BRANDS = ['SOS', 'SURVITEC', 'VIKING', 'LALIZAS', 'ZODIAC', 'PLASTIMO', 'EUROVINIL'];
-const isSosBrand = (brand: string, model?: string) => {
-  const normalizedBrand = brand.toUpperCase().trim();
-  const normalizedModel = (model || '').toUpperCase().trim();
-  return SOS_BRANDS.some(sos => normalizedBrand.includes(sos) || normalizedModel.includes(sos));
-};
+import { isSosRaft } from '@/lib/raft-model-rules';
 
 const PACK_OPTIONS = [
   { value: '', label: 'Selecionar Pack...' },
@@ -24,23 +17,6 @@ const PACK_OPTIONS = [
 export default function Step1_DadosGerais() {
   const { inspectionData, setInspectionData, inspecoes, hideOrcamento } = useJangadaWizardStore();
   const stepNo = getStepNumberByKey(inspectionData, 'dados', { hideOrcamento });
-
-  const [localSerial, setLocalSerial] = React.useState(inspectionData.serial || '');
-
-  React.useEffect(() => {
-    if (inspectionData.serial !== localSerial && inspectionData.serial !== undefined) {
-      setLocalSerial(inspectionData.serial || '');
-    }
-  }, [inspectionData.serial]);
-
-  React.useEffect(() => {
-    const timer = setTimeout(() => {
-      if (localSerial !== (inspectionData.serial || '')) {
-        setInspectionData({ serial: localSerial });
-      }
-    }, 150);
-    return () => clearTimeout(timer);
-  }, [localSerial, inspectionData.serial, setInspectionData]);
 
   const lastConcluded = useMemo(() => {
     return (inspecoes || [])
@@ -71,10 +47,10 @@ export default function Step1_DadosGerais() {
   
   // Auto-select "Sem pack" for SOS brand/model jangadas
   useEffect(() => {
-    if (isSosBrand(inspectionData.brand || '', inspectionData.model || '') && !inspectionData.packType) {
+    if (isSosRaft(inspectionData) && !inspectionData.packType) {
       setInspectionData({ packType: 'Sem pack' });
     }
-  }, [inspectionData.brand, inspectionData.model, inspectionData.packType, setInspectionData]);
+  }, [inspectionData.brand, inspectionData.model, inspectionData.serial, inspectionData.packType, setInspectionData]);
 
   const catalogMatch = useMemo(() => {
     const bKey = normalizeModelMatchKey(inspectionData.brand);
@@ -100,22 +76,7 @@ export default function Step1_DadosGerais() {
       setInspectionData({ hruValidade: value, hruExpiry: value });
       return;
     }
-    const nextData = { ...inspectionData, [field]: value };
-    if ((field === 'dataInspecao' || field === 'brand' || field === 'model') && nextData.dataInspecao) {
-      const years = getInspectionIntervalYears(
-        nextData.brand,
-        nextData.model,
-        nextData.shipDetails
-      ) || 1;
-      const parts = nextData.dataInspecao.split('-');
-      if (parts[0] && parts[0].length === 4) {
-        const year = parseInt(parts[0]) + years;
-        const month = parts[1] || '01';
-        const day = parts[2] || '01';
-        nextData.dataProxInspecao = `${year}-${month}-${day}`;
-      }
-    }
-    setInspectionData(nextData);
+    setInspectionData({ [field]: value });
   };
 
   return (
@@ -123,11 +84,13 @@ export default function Step1_DadosGerais() {
       <datalist id="brands-list">
         <option value="SURVITEC" />
         <option value="EUROVINIL" />
+        <option value="CREWSAVER" />
         <option value="LALIZAS" />
         <option value="PLASTIMO" />
         <option value="ZODIAC" />
         <option value="VIKING" />
         <option value="ARIMAR" />
+        <option value="DUARRY" />
         <option value="DSB" />
         <option value="RFD" />
       </datalist>
@@ -184,8 +147,8 @@ export default function Step1_DadosGerais() {
             type="text" 
             className="w-full border-slate-200 rounded-xl px-4 py-3 bg-slate-50 focus:bg-white transition-colors"
             placeholder="Ex: XDC1234"
-            value={localSerial}
-            onChange={(e) => setLocalSerial(e.target.value)}
+            value={inspectionData.serial || ''}
+            onChange={(e) => setInspectionData({ serial: e.target.value })}
           />
         </div>
 

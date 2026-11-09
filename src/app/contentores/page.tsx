@@ -119,7 +119,7 @@ export default function ContentoresPage() {
               <Route size={28} />
             </div>
             <div>
-              <p className="text-xs font-extrabold uppercase tracking-widest text-indigo-600">Orey Açores · Logística Marítima</p>
+              <p className="text-xs font-extrabold uppercase tracking-widest text-indigo-600">Orey Tecnica- Serviços Navais, Lda · Logística Marítima</p>
               <h1 className="text-2xl sm:text-3xl font-black text-slate-800">Navios de Contentores</h1>
               <p className="text-sm text-slate-500 mt-0.5">Itinerários, rotas, frequência e capacidade dos navios porta-contentores (Transinsular, GS Lines, Mutualista Açoreana).</p>
             </div>

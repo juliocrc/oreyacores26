@@ -1,7 +1,9 @@
 import ExcelJS from 'exceljs';
-import { toDateKey } from '@/lib/date-utils';
+import { isSosDocumentRaft, SOS_DOCUMENT_NOTICE } from './raft-document-rules';
+import { resolveFiringHeadDesignation } from '@/lib/firing-head';
+import { toDateKey, parseMonthYearValue } from '@/lib/date-utils';
 import { loadTemplateBuffer } from '@/lib/template-loader';
-import { applyQuadroSubstituicoesToChecklist } from '@/lib/quadro-payload';
+import { applyQuadroSubstituicoesToChecklist, applyDocumentPackApplicability, documentAllowsFoodRations, isDocumentFoodRationArticle } from '@/lib/quadro-payload';
 
 type XlsxLoadArg = Parameters<ExcelJS.Xlsx['load']>[0];
 
@@ -54,6 +56,8 @@ export type QuadroTemplateInput = {
   dlTestDone?: unknown;
   napTestDate?: string;
   technician?: string;
+  serviceStationCode?: string;
+  serviceStationName?: string;
   fsTestDate?: string;
   giTestDate?: string;
   loadTestDate?: string;
@@ -71,7 +75,12 @@ export type QuadroTemplateInput = {
   }>;
 };
 
-const SERVICE_STATION_NAME = 'OREY TÉCNICA – 50937';
+function serviceStationLabel(input: QuadroTemplateInput) {
+  const station = `${input.serviceStationCode || ''} ${input.serviceStationName || ''}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+  if (/50374|LISBOA|LISBON|\bLIS\b/.test(station)) return 'OREY TÉCNICA – 50374';
+  if (/50937|ACORES|AZORES|\bAZ\b/.test(station)) return 'OREY TÉCNICA – 50937';
+  return input.serviceStationName || input.serviceStationCode || '';
+}
 const QUADRO_PRINT_AREA_MAX_ROW = 84;
 const QUADRO_PRINT_AREA_MAX_COLUMN = 10;
 
@@ -106,7 +115,7 @@ const SUBSTITUTION_DEFINITIONS: SubstitutionDefinition[] = [
 ];
 
 export function collectSubstitutedArticles(input: QuadroTemplateInput): QuadroSubstitutedArticle[] {
-  const checklist = input.checklist || {};
+  const checklist = applyQuadroSubstituicoesToChecklist({ ...(input.checklist || {}) }, undefined);
   const seen = new Set<string>();
   const result: QuadroSubstitutedArticle[] = [];
 
@@ -140,8 +149,9 @@ export function collectSubstitutedArticles(input: QuadroTemplateInput): QuadroSu
   if (Array.isArray(input.substituicoes)) {
     input.substituicoes.forEach((item) => {
       if (!item || typeof item !== 'object') return;
-      const quantity = Math.max(1, Number(item.quantidade || 1));
-      if (!Number.isFinite(quantity)) return;
+      if (!documentAllowsFoodRations(documentPackContext(input)) && isDocumentFoodRationArticle(item)) return;
+      const quantity = Number(item.quantidade ?? 1);
+      if (!Number.isFinite(quantity) || quantity <= 0) return;
       const label = String(item.descricao || item.name || item.referencia || 'Artigo').trim() || 'Artigo';
       const reference = String(item.referencia || '').trim();
       if (!reference) return;
@@ -264,8 +274,9 @@ function buildPressureUnitText(unit: unknown) {
   const normalized = asString(unit).toLowerCase();
   const inH2O = normalized === 'inh2o' ? 'X' : ' ';
   const inHg = normalized === 'inhg' ? 'X' : ' ';
-  const mbar = normalized === 'mbar' ? 'X' : ' ';
-  return `inH2O [ ${inH2O} ] inHg [ ${inHg} ] mbar [ ${mbar} ]`;
+  const metric = normalized === 'mbar' || normalized === 'mb' || normalized === 'hpa' ? 'X' : ' ';
+  const metricLabel = normalized === 'hpa' ? 'hPa' : 'mbar';
+  return `inH2O [ ${inH2O} ] inHg [ ${inHg} ] ${metricLabel} [ ${metric} ]`;
 }
 
 function setCell(cell: ExcelJS.Cell, value: unknown) {
@@ -288,13 +299,14 @@ function setCenteredCell(cell: ExcelJS.Cell, value: unknown) {
   };
 }
 
-function setFittedTextCell(cell: ExcelJS.Cell, value: unknown) {
+function setFittedTextCell(cell: ExcelJS.Cell, value: unknown, wrapText = true) {
   setCell(cell, value);
+  cell.style = { ...cell.style };
   cell.alignment = {
     ...(cell.alignment || {}),
     horizontal: 'center',
     vertical: 'middle',
-    wrapText: true,
+    wrapText,
     shrinkToFit: true,
   };
 }
@@ -428,6 +440,7 @@ function formatReferenceWithQuantity(
 
   const qtyRaw = asString(checklist[qtyKey]);
   const parsedQty = Number(qtyRaw);
+  if (qtyRaw && Number.isFinite(parsedQty) && parsedQty <= 0) return '';
   const quantity = Number.isFinite(parsedQty) && parsedQty > 0 ? Math.round(parsedQty) : fallbackQty;
 
   return `(${quantity}) ${reference}`;
@@ -446,7 +459,11 @@ function setChecklistCell(
     setCenteredCell(cell, value);
     return;
   }
-  if (!value) return;
+  if (!value) {
+    // I66 was already filled from the cylinder, not from a ration expiry.
+    if (key !== 'cyl_test_val') setCell(cell, '');
+    return;
+  }
   if (cellAddress.startsWith('H')) {
     setCenteredCell(cell, value);
     return;
@@ -462,22 +479,38 @@ function clearWorksheetFills(ws: ExcelJS.Worksheet) {
   }
 }
 
+function documentPackContext(input: QuadroTemplateInput) {
+  return { packType: input.packType, brand: input.brand, model: input.raftModel, capacity: Number(input.raftCapacity) || 1 };
+}
+
 function fillTemplate(ws: ExcelJS.Worksheet, input: QuadroTemplateInput) {
   clearWorksheetFills(ws);
+  for (let row = 9; row <= 66; row++) {
+    for (const column of ['B', 'D', 'G']) {
+      const cell = ws.getCell(`${column}${row}`);
+      if (typeof cell.value !== 'string' || (cell.isMerged && cell.master !== cell)) continue;
+      cell.style = { ...cell.style, alignment: { ...cell.alignment, shrinkToFit: true } };
+    }
+  }
 
   setCell(ws.getCell('I3'), input.numeroObra);
   setCell(ws.getCell('I5'), input.certNumber);
 
-  setCell(ws.getCell('C7'), input.raftSerial);
-  setCell(ws.getCell('E7'), input.shipName);
+  // Keep the serial intact on one line; shrink it to the available width.
+  setFittedTextCell(ws.getCell('C7'), input.raftSerial, false);
+  setFittedTextCell(ws.getCell('E7'), input.shipName);
   setCell(ws.getCell('H7'), input.brand);
-  setFittedTextCell(ws.getCell('I7'), input.raftModel);
+  setFittedTextCell(ws.getCell('I7'), asString(input.raftModel).replace(/\s+/g, ' '), false);
   setCell(ws.getCell('J7'), input.raftCapacity);
 
   setCell(ws.getCell('G79'), formatDateDDMMYYYY(input.manufactureDate));
   setCell(ws.getCell('F81'), formatDateDDMMYYYY(input.inspectionDate));
-  setCell(ws.getCell('C81'), SERVICE_STATION_NAME);
-  setCell(ws.getCell('H81'), input.technician);
+  setFittedTextCell(ws.getCell('C81'), serviceStationLabel(input));
+  ws.unMergeCells('H81:J82');
+  ws.mergeCells('H81:J82');
+  const technicianCell = ws.getCell('H81');
+  technicianCell.style = JSON.parse(JSON.stringify(technicianCell.style));
+  setFittedTextCell(technicianCell, input.technician);
 
   setCell(ws.getCell('E47'), input.packType);
   setCell(ws.getCell('F47'), input.packType);
@@ -492,11 +525,9 @@ function fillTemplate(ws: ExcelJS.Worksheet, input: QuadroTemplateInput) {
 
   // Preserve the template's formulas and labels in the pressure block.
   const pressureUnit = asString(input.pressureUnit);
-  if (pressureUnit) {
-    const pressureUnitLabel = pressureUnit.toUpperCase();
-    setCenteredCell(ws.getCell('D69'), `${buildPressureUnitText(pressureUnit)} [Unidade: ${pressureUnitLabel}]`);
-    setCenteredCell(ws.getCell('D70'), `Unidade WP: ${pressureUnitLabel}`);
-  }
+  // D69:E70 is one merged cell. Writing D70 overwrites D69 and destroys
+  // the template's three-option layout. Never leave the template's sample X.
+  setCenteredCell(ws.getCell('D69'), buildPressureUnitText(pressureUnit));
   setCell(ws.getCell('H69'), formatValueWithUnit(input.tempInitial, '°C'));
   setCell(ws.getCell('J69'), formatValueWithUnit(input.tempFinal, '°C'));
   setCell(ws.getCell('H71'), formatValueWithUnit(input.baroInitial, 'hPa'));
@@ -525,10 +556,14 @@ function fillTemplate(ws: ExcelJS.Worksheet, input: QuadroTemplateInput) {
   setCell(ws.getCell('J51'), getTestDateCellValue(giDone, formatMonthYearSlash(input.giTestDate || defaultTestDate)));
   setCell(ws.getCell('J53'), getTestDateCellValue(loadDone, formatMonthYearSlash(input.loadTestDate || defaultTestDate)));
 
-  const checklist = applyQuadroSubstituicoesToChecklist(
+  const checklist = applyDocumentPackApplicability(applyQuadroSubstituicoesToChecklist(
     { ...(input.checklist || {}) },
     input.substituicoes,
-  );
+  ), documentPackContext(input));
+  const headDesignation = resolveFiringHeadDesignation({}, checklist.cabeca_disparo);
+  // A bare unknown stock number is not a head designation; leave it blank
+  // rather than inventing a model or displaying the reference in C49.
+  checklist.cabeca_disparo = /^\d+$/.test(headDesignation) ? '' : headDesignation;
   const batteryModel = inferBatteryModel(checklist.modelo_bateria || checklist.ref_bateria);
 
   const statusMappings: Array<[string, string]> = [
@@ -601,6 +636,7 @@ function fillTemplate(ws: ExcelJS.Worksheet, input: QuadroTemplateInput) {
 
   const dateMappings: Array<[string, string]> = [
     ['validade_luzes_exteriores', 'C29'],
+    ['validade_luz_interior', 'F23'],
     ['validade_agua', 'F63'],
     ['validade_racoes', 'F67'],
     ['validade_farmacia', 'J13'],
@@ -644,9 +680,9 @@ function fillTemplate(ws: ExcelJS.Worksheet, input: QuadroTemplateInput) {
   daysMappings.forEach(([key, cellAddress]) => setChecklistCell(ws, checklist, key, cellAddress, 'days'));
   referenceWithQuantityMappings.forEach(([refKey, qtyKey, cellAddress, fallbackQty]) => {
     const value = formatReferenceWithQuantity(checklist, refKey, qtyKey, fallbackQty);
-    if (!value) return;
     setCell(ws.getCell(cellAddress), value);
   });
+  setCell(ws.getCell('F66'), formatReferenceWithQuantity(checklist, 'ref_racoes', 'qtd_racoes', 1));
 
   // Bateria de lítio: a CELULA F25 leva a VALIDADE (MM-AAAA), não a referência.
   // A validade da lanterna fica em J23 e a das pilhas em J25 — linhas distintas.
@@ -654,10 +690,9 @@ function fillTemplate(ws: ExcelJS.Worksheet, input: QuadroTemplateInput) {
   const bateriaLitioPresente = checklist.ref_bateria_litio
     ? formatReferenceWithQuantity(checklist, 'ref_bateria_litio', 'qtd_bateria_litio', 1)
     : '';
-  if (bateriaLitioPresente) setCell(ws.getCell('F26'), bateriaLitioPresente);
+  if (bateriaLitioPresente) setCell(ws.getCell('F24'), bateriaLitioPresente);
 
-  // F23 não leva código de bateria rígido fixo (retirado 20903168)
-  setCell(ws.getCell('F23'), '');
+  // Interior light and lithium battery have independent expiry dates.
   setCell(ws.getCell('F37'), input.contentorClosureText);
   // F40: comprimento da retenida
   setCell(ws.getCell('F40'), input.contentorPainterLength || checklist.comprimento_retenida);
@@ -676,7 +711,7 @@ function configureQuadroPrintLayout(ws: ExcelJS.Worksheet) {
     fitToHeight: 1,
     horizontalCentered: true,
     verticalCentered: false,
-    printArea: 'A1:J84',
+    printArea: 'B2:J84',
     margins: {
       left: 0.25,
       right: 0.25,
@@ -689,6 +724,7 @@ function configureQuadroPrintLayout(ws: ExcelJS.Worksheet) {
 }
 
 export async function buildQuadroInspectionArtifacts(input: QuadroTemplateInput) {
+  if (isSosDocumentRaft(input)) throw new Error(SOS_DOCUMENT_NOTICE);
   const { workbook, worksheet } = await loadFilledQuadroWorkbook(input);
 
   // Add "Artigos a Expirar" sheet
@@ -726,7 +762,7 @@ export async function loadFilledQuadroWorkbook(input: QuadroTemplateInput) {
 }
 
 function addExpiringArticlesSheet(ws: ExcelJS.Worksheet, input: QuadroTemplateInput) {
-  const checklist = input.checklist || {};
+  const checklist = applyDocumentPackApplicability(applyQuadroSubstituicoesToChecklist({ ...(input.checklist || {}) }, input.substituicoes), documentPackContext(input));
   const insDate = input.inspectionDate ? new Date(input.inspectionDate) : new Date();
   const nextInsDate = input.nextInspectionDate ? new Date(input.nextInspectionDate) : null;
   
@@ -734,14 +770,15 @@ function addExpiringArticlesSheet(ws: ExcelJS.Worksheet, input: QuadroTemplateIn
   const refDate = nextInsDate || new Date(insDate.getFullYear() + 1, insDate.getMonth(), insDate.getDate());
 
   // Collect all article validities from checklist
-  const validityKeys = [
+  const validityKeys: Array<{ key: string; label: string; refKey?: string; qtyKey?: string }> = [
     { key: 'validade_farmacia', label: 'Farmácia / First Aid Kit' },
     { key: 'validade_comprimidos', label: 'Comprimidos Enjoo' },
     { key: 'validade_paraquedas', label: 'Foguetes Paraquedas' },
     { key: 'validade_fachos_mao', label: 'Fachos de Mão' },
     { key: 'validade_potes_fumo', label: 'Potes de Fumo' },
-    { key: 'validade_luzes_exteriores', label: 'Luz Exterior / Bateria' },
-    { key: 'validade_bateria', label: 'Luz Interior / Bateria' },
+    { key: 'validade_luzes_exteriores', label: 'Luz Exterior / Bateria', refKey: 'ref_luz_exterior', qtyKey: 'qtd_luz_exterior' },
+    { key: 'validade_luz_interior', label: 'Luz Interior / Bateria', refKey: 'ref_luz_interior', qtyKey: 'qtd_luz_interior' },
+    { key: 'validade_bateria', label: 'Bateria de Lítio', refKey: 'ref_bateria_litio', qtyKey: 'qtd_bateria_litio' },
     { key: 'validade_lanterna', label: 'Lanterna' },
     { key: 'validade_pilhas_lanterna', label: 'Pilhas Lanterna' },
     { key: 'validade_agua', label: 'Saco de Água' },
@@ -759,20 +796,21 @@ function addExpiringArticlesSheet(ws: ExcelJS.Worksheet, input: QuadroTemplateIn
     status: 'EXPIRADO' | 'CRITICO' | 'ATENCAO' | 'OK';
   }> = [];
 
-  validityKeys.forEach(({ key, label }) => {
-    const val = checklist[key];
+  validityKeys.forEach(({ key, label, refKey: explicitRefKey, qtyKey: explicitQtyKey }) => {
+    const val = checklist[key] || (key === 'cyl_test_val' ? input.cylinderHydroTestDate : '');
     if (!val) return;
     
-    const refKey = key.replace('validade_', 'ref_').replace('hru_val', 'hruReferencia').replace('cyl_test_val', 'cylinderSerial');
-    const qtyKey = key.replace('validade_', 'qtd_').replace('hru_val', '').replace('cyl_test_val', '');
+    const refKey = explicitRefKey || key.replace('validade_', 'ref_').replace('hru_val', 'hruReferencia').replace('cyl_test_val', 'cylinderSerial');
+    const qtyKey = explicitQtyKey || key.replace('validade_', 'qtd_').replace('hru_val', '').replace('cyl_test_val', '');
     const reference = asString(checklist[refKey]) || '—';
     const quantity = Number(checklist[qtyKey]) || 1;
     
-    const valStr = String(val);
-    const [vYear, vMonth] = valStr.split('-').map(Number);
-    if (!vYear || !vMonth) return;
-    
-    const expDate = new Date(vYear, (vMonth || 1) - 1, 1);
+    const parsed = parseMonthYearValue(String(val));
+    if (!parsed) return;
+    // The hydraulic field records the last test, not its expiry date.
+    const expiryYear = parsed.year + (key === 'cyl_test_val' ? 5 : 0);
+    const valStr = `${String(parsed.month).padStart(2, '0')}-${expiryYear}`;
+    const expDate = new Date(expiryYear, parsed.month, 0);
     const diffTime = expDate.getTime() - refDate.getTime();
     const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     
@@ -793,7 +831,8 @@ function addExpiringArticlesSheet(ws: ExcelJS.Worksheet, input: QuadroTemplateIn
   headerRow.font = { bold: true, size: 11 };
   headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F46E5' } };
   headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
-  headerRow.alignment = { horizontal: 'center', vertical: 'middle' };
+  headerRow.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+  headerRow.height = 28;
 
   // Data rows
   expiringItems.forEach(item => {
@@ -835,13 +874,16 @@ function addExpiringArticlesSheet(ws: ExcelJS.Worksheet, input: QuadroTemplateIn
   
   const statsRow = ws.addRow([
     'RESUMO',
+    `Total: ${total} | Expirados: ${expirados} | Críticos (<=30d): ${criticos} | Atenção (<=90d): ${atencao} | OK: ${ok}`,
     '',
     '',
     '',
-    `Total: ${total} | Expirados: ${expirados} | Críticos (≤30d): ${criticos} | Atenção (≤90d): ${atencao} | OK: ${ok}`,
     '',
   ]);
+  ws.mergeCells(statsRow.number, 2, statsRow.number, 6);
   statsRow.font = { bold: true, size: 10 };
+  statsRow.alignment = { wrapText: true, vertical: 'middle' };
+  statsRow.height = 28;
 
   // Column widths
   ws.columns = [

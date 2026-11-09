@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { requireApiAccess } from "@/lib/api-access";
 
 export async function GET() {
   try {
+    // Legacy writes do not assign a station: keep this ledger admin-only until scoped.
+    const { error } = await requireApiAccess("/rentabilidade", { adminOnly: true });
+    if (error) return error;
     const custos = await prisma.custo.findMany({
       orderBy: { data: "desc" },
     });
@@ -15,6 +19,8 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const { error } = await requireApiAccess("/rentabilidade", { adminOnly: true });
+    if (error) return error;
     const body = await req.json();
     const custo = await prisma.custo.create({
       data: {
@@ -34,6 +40,8 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
+    const { error } = await requireApiAccess("/rentabilidade", { adminOnly: true });
+    if (error) return error;
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
     if (!id) {

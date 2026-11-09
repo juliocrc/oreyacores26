@@ -10,6 +10,7 @@ import {
 } from "@/lib/selecao-tecnicos";
 import { getAuthSession } from "@/auth";
 import { SelecionarTecnicoForm } from "./SelecionarTecnicoForm";
+import { resolveLoginCallback } from "@/lib/login-callback";
 
 export const metadata: Metadata = {
   title: "Escolher técnico",
@@ -23,10 +24,7 @@ export default async function SelecionarTecnicoPage({
   searchParams: Promise<{ callbackUrl?: string }>;
 }) {
   const { callbackUrl } = await searchParams;
-  const destino =
-    callbackUrl && callbackUrl.startsWith("/") && !callbackUrl.startsWith("//")
-      ? callbackUrl
-      : "/";
+  const destino = resolveLoginCallback(callbackUrl);
 
   // Já existe sessão? Não volta a perguntar.
   let session = null;
@@ -50,8 +48,7 @@ export default async function SelecionarTecnicoPage({
     databaseError = "A base de dados não está disponível neste momento.";
   }
 
-  // Todos os técnicos activos entram na lista, mesmo os que ainda não têm
-  // utilizador criado — o utilizador é criado no momento em que clica no nome.
+  // Active technicians need a provisioned staff account to authenticate.
   let disponiveis: Awaited<ReturnType<typeof listarTecnicosSelecionaveis>> = [];
 
   try {
@@ -95,7 +92,7 @@ export default async function SelecionarTecnicoPage({
             Quem está a inspecionar?
           </h1>
           <p className="mx-auto mt-3 max-w-sm text-[0.9375rem] text-ink-muted">
-            Toca no teu nome para começar. Sem palavra-passe — a aplicação lembra-te
+            Escolhe o teu nome e introduz a palavra-passe. A aplicação lembra-te
             enquanto estiver aberta.
           </p>
         </header>

@@ -1,6 +1,9 @@
 import { buildWhatsAppUrl } from "./communications";
+import { normalizeE164 } from "./textbee-sms";
 import { sendZapierWhatsApp, isZapierWhatsAppConfigured } from "./zapier-webhook";
 import { isInfinireachConfigured, sendInfinireachWhatsApp } from "./infinireach-sms";
+import { isOpenwaSelected, isOpenwaConfigured, sendOpenwa } from "./openwa";
+import prisma from "./prisma";
 import { getAuthSession } from "@/auth";
 import { isWhatsAppAllowedEmail, WHATSAPP_ALLOWED_USER_EMAIL } from "./whatsapp-allowed";
 
@@ -19,10 +22,15 @@ export async function isWhatsAppAllowed(): Promise<boolean> {
 export type WhatsAppProviderResult = {
   ok: boolean;
   erro?: string;
-  /** Identificador devolvido pela API (ex.: wamidMessageID). */
+  /** Identifier returned by the delivery API. */
   providerId?: string;
-  /** True quando a mensagem foi realmente entregue pela API. False quando só há link wa.me. */
+  /** True when the API accepted the message, not evidence of delivery. False for manual links. */
   enviadoDeFacto?: boolean;
+  /** Provider que tratou o envio. */
+  provider?: "openwa" | "infinireach" | "zapier" | "waba";
+  uncertain?: boolean;
+  closed?: boolean;
+  accepted?: boolean;
   /** URL wa.me de fallback. */
   link?: string;
   /** True quando não há API configurada (só link wa.me disponível). */
@@ -37,8 +45,13 @@ function getConfig() {
 }
 
 export function whatsappApiConfigurado(): boolean {
+  if (isOpenwaSelected()) return isOpenwaConfigured();
   const { accessToken, phoneNumberId } = getConfig();
-  return Boolean((accessToken && phoneNumberId) || isZapierWhatsAppConfigured() || isInfinireachConfigured());
+  return Boolean(
+    (accessToken && phoneNumberId) ||
+      isZapierWhatsAppConfigured() ||
+      isInfinireachConfigured(),
+  );
 }
 
 export function apiUrlBase(): string {
@@ -50,20 +63,43 @@ function decapitalizeFirst(s: string): string {
   return s ? s[0].toLowerCase() + s.slice(1) : s;
 }
 
-function normalizePhoneForApi(raw: string): string {
-  return raw.replace(/[^0-9]/g, "").replace(/^0+/, "");
+function normalizePhoneForApi(raw: string): string | null {
+  return normalizeE164(raw)?.slice(1) ?? null;
 }
 
 async function enviarWhatsAppCore(
   phoneRaw: string,
   mensagem: string,
+  communicationId?: number,
+  system = false,
 ): Promise<WhatsAppProviderResult> {
   const link = buildWhatsAppUrl(phoneRaw, mensagem);
+
+  if (isOpenwaSelected()) {
+    let id = communicationId;
+    try {
+      if (!id) {
+        const row = await prisma.comunicacao.create({ data: {
+          tipo: "WHATSAPP", canal: "openwa", destinatario: phoneRaw,
+          mensagem: system ? "Mensagem automatica WhatsApp (conteudo omitido)." : mensagem, status: "pendente",
+        } });
+        id = row.id;
+      }
+    } catch { return { ok: false, erro: "Nao foi possivel guardar o envio antes de contactar OpenWA." }; }
+    const result = await sendOpenwa(phoneRaw, { text: mensagem }, id);
+    if (!communicationId) {
+      await prisma.comunicacao.update({ where: { id }, data: {
+        status: result.ok || result.uncertain ? "pendente" : "falhou", erro: result.error ?? null, providerId: result.providerId ?? null,
+      } }).catch(() => {});
+    }
+    return { ok: result.ok, erro: result.error, provider: "openwa", providerId: result.providerId,
+      enviadoDeFacto: result.ok, accepted: result.ok, uncertain: result.uncertain, closed: result.closed };
+  }
 
   if (isInfinireachConfigured()) {
     const waRes = await sendInfinireachWhatsApp(phoneRaw, mensagem);
     if (waRes.ok) {
-      return { ok: true, enviadoDeFacto: true, link };
+      return { ok: true, enviadoDeFacto: true, provider: "infinireach", link };
     }
     return { ok: false, erro: waRes.error || "Erro no envio WhatsApp via InfiniReach.", link };
   }
@@ -71,7 +107,7 @@ async function enviarWhatsAppCore(
   if (isZapierWhatsAppConfigured()) {
     const zapRes = await sendZapierWhatsApp(phoneRaw, mensagem);
     if (zapRes.ok) {
-      return { ok: true, enviadoDeFacto: true, link };
+      return { ok: true, enviadoDeFacto: true, provider: "zapier", link };
     }
     return { ok: false, erro: zapRes.error || "Error no envio WhatsApp via Zapier.", link };
   }
@@ -118,6 +154,7 @@ async function enviarWhatsAppCore(
     return {
       ok: true,
       enviadoDeFacto: true,
+      provider: "waba",
       providerId: data.messages?.[0]?.id,
       link,
     };
@@ -137,6 +174,7 @@ async function enviarWhatsAppCore(
 export async function sendWhatsAppApi(
   phoneRaw: string,
   mensagem: string,
+  communicationId?: number,
 ): Promise<WhatsAppProviderResult> {
   if (!(await isWhatsAppAllowed())) {
     return {
@@ -145,7 +183,7 @@ export async function sendWhatsAppApi(
     };
   }
 
-  const core = await enviarWhatsAppCore(phoneRaw, mensagem);
+  const core = await enviarWhatsAppCore(phoneRaw, mensagem, communicationId);
   if (core.naoConfigurado) {
     return { ok: true, enviadoDeFacto: false, link: core.link };
   }
@@ -179,6 +217,7 @@ export async function sendWhatsAppDocument(
   }
 
   const link = buildWhatsAppUrl(phoneRaw, doc.caption || doc.filename);
+  if (isOpenwaSelected()) return { ok: false, provider: "openwa", erro: "Envio de documentos OpenWA indisponivel. Nenhum documento ou texto alternativo foi enviado." };
   const { accessToken, phoneNumberId, version } = getConfig();
 
   if (!accessToken || !phoneNumberId) {
@@ -269,7 +308,7 @@ export async function sendWhatsAppSystem(
   phoneRaw: string,
   mensagem: string,
 ): Promise<WhatsAppProviderResult> {
-  const core = await enviarWhatsAppCore(phoneRaw, mensagem);
+  const core = await enviarWhatsAppCore(phoneRaw, mensagem, undefined, true);
   if (core.naoConfigurado) {
     return {
       ok: false,

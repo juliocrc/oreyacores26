@@ -5,7 +5,7 @@ import { buildDatabaseErrorResponse } from "@/lib/database-errors";
 import { normalizeStockCategory } from "@/lib/stock-categories";
 import { getAccessContext } from "@/lib/access-control";
 import { canEditPath, canViewPath } from "@/lib/user-permissions";
-import { normalizeStockPayload, findDuplicateCylinderStock, findConflictingValidityStock, canEditStock } from "@/lib/stock-utils";
+import { createStockRows, canEditStock, stockWriteStatus, stockStationWhere } from "@/lib/stock-utils";
 import { resolveActiveServiceStationId } from "@/lib/station-selection";
 import { beginApiRequest, captureApiError, finishApiRequest, withRequestId } from '@/lib/observability';
 import { parsePageParams, paginatedResponse } from "@/lib/pagination";
@@ -229,6 +229,7 @@ export async function GET(req: NextRequest) {
           { descricao: { contains: busca } },
           { codigoFabricante: { contains: busca } },
           { codigoBarras: { contains: busca } },
+          { lote: { contains: busca } },
         ],
       });
     }
@@ -289,6 +290,7 @@ export async function GET(req: NextRequest) {
       estadoCargaCilindro: true,
       precoVenda: true,
       quantidade: true,
+      quantidadeReservada: true,
       quantidadeMinima: true,
       localizacao: true,
       observacoes: true,
@@ -348,28 +350,7 @@ export async function GET(req: NextRequest) {
       select,
     });
 
-    const map = new Map<string, any>();
-    for (const rawItem of stock) {
-      const item = mapRow(rawItem);
-      const baseKey = String(item.referencia || item.descricao || item.id).trim().toLowerCase();
-      if (!baseKey) {
-        map.set(`id-${item.id}`, item);
-        continue;
-      }
-      // A chave inclui a estação de serviço para não somar quantidades entre
-      // estações diferentes (o mesmo artigo pode existir em várias estações).
-      const stationKey = rawItem.serviceStationId == null ? "geral" : String(rawItem.serviceStationId);
-      const key = `${baseKey}|${stationKey}`;
-      if (map.has(key)) {
-        const existing = map.get(key)!;
-        existing.quantidade = Number(existing.quantidade || 0) + Number(item.quantidade || 0);
-      } else {
-        map.set(key, { ...item });
-      }
-    }
-    const dedupedStock = Array.from(map.values());
-
-    return respond(dedupedStock, undefined, { count: dedupedStock.length });
+    return respond(stock.map(mapRow), undefined, { count: stock.length });
   } catch (error) {
     console.error("[API /stock] Erro ao buscar stock:", error);
     captureApiError(context, error);
@@ -399,73 +380,11 @@ export async function POST(req: NextRequest) {
 
     const activeStationId = resolveActiveServiceStationId(req, access);
     const body = await req.json();
-    if (Array.isArray(body)) {
-      // Criação em massa
-      const data = body.map(normalizeStockPayload).map((item) => ({
-        ...item,
-        serviceStationId: activeStationId,
-      }));
-
-      for (const item of data) {
-        const duplicate = await findDuplicateCylinderStock(item);
-        if (duplicate) {
-          return respond(
-            {
-              error: `Já existe um cilindro com essa referência/número de série no stock (ID ${duplicate.id}).`,
-              duplicateId: duplicate.id,
-            },
-            { status: 409 },
-          );
-        }
-
-        const conflito = await findConflictingValidityStock(item);
-        if (conflito) {
-          return respond(
-            {
-              error: `Conflito de validades para a referência ${item.referencia}: já existe no stock (ID ${conflito.id}) com validade ${conflito.validade}. Junte a quantidade ao registo existente ou corrija a validade.`,
-              duplicateId: conflito.id,
-              existingValidade: conflito.validade,
-            },
-            { status: 409 },
-          );
-        }
-      }
-
-      const created = await prisma.stock.createMany({ data });
-      return respond({ count: created.count }, undefined, { batch: true });
-    } else {
-      // Criação individual
-      const payload = {
-        ...normalizeStockPayload(body),
-        serviceStationId: activeStationId,
-      };
-      const duplicate = await findDuplicateCylinderStock(payload);
-      if (duplicate) {
-        return respond(
-          {
-            error: `Já existe um cilindro com essa referência/número de série no stock (ID ${duplicate.id}).`,
-            duplicateId: duplicate.id,
-          },
-          { status: 409 },
-        );
-      }
-
-      const conflito = await findConflictingValidityStock(payload);
-      if (conflito) {
-        return respond(
-          {
-            error: `Conflito de validades para a referência ${payload.referencia}: já existe no stock (ID ${conflito.id}) com validade ${conflito.validade}. Junte a quantidade ao registo existente ou corrija a validade.`,
-            duplicateId: conflito.id,
-            existingValidade: conflito.validade,
-          },
-          { status: 409 },
-        );
-      }
-
-      const created = await prisma.stock.create({ data: payload });
-      return respond(created, undefined, { batch: false, stockId: created.id });
-    }
+    const created = await createStockRows(Array.isArray(body) ? body : [body], activeStationId);
+    return respond(Array.isArray(body) ? { count: created.length } : created[0]);
   } catch (error) {
+    const status = stockWriteStatus(error);
+    if (status) return respond({ error: error instanceof Error ? error.message : "Lote duplicado." }, { status });
     captureApiError(context, error);
     const response = buildDatabaseErrorResponse(error, 'Erro ao criar stock');
     finishApiRequest(context, response.status);
@@ -503,6 +422,7 @@ export async function DELETE(req: NextRequest) {
     const result = await prisma.stock.updateMany({
       where: {
         id: { in: ids },
+        ...stockStationWhere(access, resolveActiveServiceStationId(req, access)),
       },
       data: {
         estadoArtigo: "INATIVO",

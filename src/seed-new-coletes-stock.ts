@@ -198,9 +198,13 @@ async function main() {
   for (const station of stations) {
     console.log(`Seeding for station ${station.codigo}...`);
     for (const item of stockItems) {
+      const legacy = await prisma.stock.findMany({ where: { referencia: item.referencia, serviceStationId: station.id, lote: null } });
+      if (legacy.length > 1) throw new Error("Ambiguous legacy stock; seed requires an explicit Stock ID.");
+      if (legacy.length) { console.log(`Preserved unknown legacy stock ID ${legacy[0].id}`); continue; }
       const created = await prisma.stock.upsert({
         where: {
-          referencia_serviceStationId: {
+          referencia_serviceStationId_lote: {
+            lote: item.lote || "",
             referencia: item.referencia,
             serviceStationId: station.id
           }

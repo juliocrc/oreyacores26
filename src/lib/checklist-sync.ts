@@ -5,6 +5,7 @@ import { resolveMandatoryPackItemsForRaftAsync } from "@/lib/custom-pack-types";
 import { isRationArticle } from "@/config/packTemplates";
 import type { Prisma } from "@prisma/client";
 import type { MandatoryPackItem } from "@/modules/rafts/mandatoryPack";
+import { stockItemSupportsValidity } from "@/lib/stock-validity";
 
 type RichChecklist = Record<string, unknown>;
 
@@ -85,9 +86,13 @@ async function findBestStockMatch(
     aplicavelMarcaJangada: string | null;
     aplicavelModeloJangada: string | null;
     validade?: string | null;
+    lote?: string | null;
   }>,
   raftBrand?: string | null,
 ): Promise<number | null> {
+  allStock = allStock.filter(stock => !stock.validade && !stock.lote?.trim() &&
+    !stockItemSupportsValidity({ nome: stock.descricao, referencia: stock.referencia }) &&
+    allStock.filter(other => normalizeRef(other.referencia) === normalizeRef(stock.referencia)).length === 1);
   const itemRefs = new Set(
     item.stockReferences.map((r) => normalizeRef(r)).filter(Boolean)
   );
@@ -141,10 +146,11 @@ async function findBestStockMatch(
 export async function syncRaftArticlesWithPackType(
   jangadaId: number,
   options?: SyncOptions,
+  db: Prisma.TransactionClient = prisma,
 ) {
   const linkStock = options?.linkStock !== false;
 
-  const raft = await prisma.jangada.findUnique({
+  const raft = await db.jangada.findUnique({
     where: { id: jangadaId },
     include: { artigos: true },
   });
@@ -170,7 +176,7 @@ export async function syncRaftArticlesWithPackType(
 
   let allStock: Awaited<ReturnType<typeof fetchStock>> = [];
   if (linkStock) {
-    allStock = await fetchStock();
+    allStock = await fetchStock(raft.serviceStationId);
   }
 
   const summary = {
@@ -187,6 +193,7 @@ export async function syncRaftArticlesWithPackType(
   for (const item of expectedItems) {
     let existing = raft.artigos.find((a) => {
       if (matchedIds.has(a.id)) return false;
+      if (a.inspecaoId != null) return false;
       const dbRef = normalizeRef(a.referencia);
       const dbName = normalizeText(a.name);
       const itemRef = normalizeRef(item.reference);
@@ -197,6 +204,7 @@ export async function syncRaftArticlesWithPackType(
     if (!existing) {
       existing = raft.artigos.find((a) => {
         if (matchedIds.has(a.id)) return false;
+        if (a.inspecaoId != null) return false;
         const dbRef = normalizeRef(a.referencia);
         const dbName = normalizeText(a.name);
         const matchByReference = item.stockReferences.some(
@@ -230,7 +238,7 @@ export async function syncRaftArticlesWithPackType(
           ? allStock.find((s) => s.id === existing.stockId) ?? null
           : null;
 
-        if (!matchedStock) {
+        if (!matchedStock && !existing.stockId) {
           matchedId = await findBestStockMatch(
             item,
             allStock,
@@ -242,6 +250,7 @@ export async function syncRaftArticlesWithPackType(
         if (matchedId && matchedStock) {
           if (existing.stockId !== matchedId) {
             updateData.stockId = matchedId;
+            updateData.referencia = matchedStock.referencia;
           }
           summary.stockLinked++;
           if (matchedStock.validade) {
@@ -258,13 +267,13 @@ export async function syncRaftArticlesWithPackType(
         }
       }
 
-      if (existing.referencia !== item.reference && item.reference) {
+      if (!existing.stockId && !updateData.stockId && existing.referencia !== item.reference && item.reference) {
         updateData.referencia = item.reference;
       }
 
       if (Object.keys(updateData).length > 0) {
         updateData.updatedAt = new Date();
-        await prisma.artigoJangada.update({
+        await db.artigoJangada.update({
           where: { id: existing.id },
           data: updateData,
         });
@@ -273,10 +282,11 @@ export async function syncRaftArticlesWithPackType(
     } else {
       const exactDuplicate = raft.artigos.find(
         (a) =>
+          a.inspecaoId == null && (
           normalizeText(a.name) === normalizeText(item.label) ||
           (item.reference &&
             a.referencia &&
-            normalizeRef(a.referencia) === normalizeRef(item.reference))
+            normalizeRef(a.referencia) === normalizeRef(item.reference)))
       );
 
       if (exactDuplicate) {
@@ -309,7 +319,7 @@ export async function syncRaftArticlesWithPackType(
           }
         }
 
-        await prisma.artigoJangada.create({ data: createData });
+        await db.artigoJangada.create({ data: createData });
         summary.added++;
       }
     }
@@ -322,13 +332,13 @@ export async function syncRaftArticlesWithPackType(
   });
 
   if (forbiddenToRemove.length > 0) {
-    await prisma.artigoJangada.deleteMany({
+    await db.artigoJangada.deleteMany({
       where: { id: { in: forbiddenToRemove.map((a) => a.id) } },
     });
     summary.removed = forbiddenToRemove.length;
   }
 
-  const checklistArtigos = await syncRaftChecklistDrivenArtigos(jangadaId);
+  const checklistArtigos = await syncRaftChecklistDrivenArtigos(jangadaId, undefined, db);
 
   return {
     success: true,
@@ -374,8 +384,9 @@ const CHECKLIST_DRIVEN_ARTICLES: ChecklistArticleDef[] = [
 export async function syncRaftChecklistDrivenArtigos(
   jangadaId: number,
   source?: { checklistSnapshot?: RichChecklist | null },
+  db: Prisma.TransactionClient = prisma,
 ) {
-  const raft = await prisma.jangada.findUnique({
+  const raft = await db.jangada.findUnique({
     where: { id: jangadaId },
     include: { artigos: true },
   });
@@ -386,7 +397,7 @@ export async function syncRaftChecklistDrivenArtigos(
   if (source?.checklistSnapshot) {
     checklist = source.checklistSnapshot;
   } else {
-    const lastInspection = await prisma.inspecao.findFirst({
+    const lastInspection = await db.inspecao.findFirst({
       where: { jangadaId },
       orderBy: [{ dataInspecao: "desc" }, { id: "desc" }],
       select: { checklistSnapshot: true },
@@ -415,6 +426,10 @@ export async function syncRaftChecklistDrivenArtigos(
     const validadeDate = parseFlexibleDate(String(valRaw || ""));
     const validade = validadeDate ? normalizeArtigoValidade(validadeDate) : null;
 
+    const candidates = raft.artigos.filter(a => a.inspecaoId == null &&
+      ((referencia && normalizeRef(a.referencia) === normalizeRef(referencia)) || normalizeText(a.name).includes(normalizeText(def.label))));
+    if (candidates.length > 1) continue;
+
     let existing = raft.artigos.find(
       (a) =>
         a.inspecaoId == null &&
@@ -440,10 +455,10 @@ export async function syncRaftChecklistDrivenArtigos(
       };
       if (referencia) data.referencia = referencia;
       if (validade) data.validade = validade;
-      await prisma.artigoJangada.update({ where: { id: existing.id }, data });
+      await db.artigoJangada.update({ where: { id: existing.id }, data });
       summary.updated++;
     } else {
-      await prisma.artigoJangada.create({
+      await db.artigoJangada.create({
         data: {
           jangadaId: raft.id,
           inspecaoId: null,
@@ -473,9 +488,10 @@ export async function syncRaftChecklistDrivenArtigos(
   return { success: true, summary };
 }
 
-async function fetchStock() {
+async function fetchStock(serviceStationId: number | null) {
   try {
     return await prisma.stock.findMany({
+      where: { serviceStationId },
       select: {
         id: true,
         referencia: true,
@@ -485,6 +501,7 @@ async function fetchStock() {
         aplicavelMarcaJangada: true,
         aplicavelModeloJangada: true,
         validade: true,
+        lote: true,
       },
     });
   } catch {
@@ -498,11 +515,12 @@ async function fetchStock() {
  */
 export async function syncRichChecklistToRaft(
   jangadaId: number,
-  richChecklist: RichChecklist
+  richChecklist: RichChecklist,
+  db: Prisma.TransactionClient = prisma,
 ) {
   if (!richChecklist) return;
 
-  const raft = await prisma.jangada.findUnique({
+  const raft = await db.jangada.findUnique({
     where: { id: jangadaId },
     include: { artigos: true },
   });
@@ -534,7 +552,7 @@ export async function syncRichChecklistToRaft(
   }
 
   if (Object.keys(updateData).length > 0) {
-    await prisma.jangada.update({
+    await db.jangada.update({
       where: { id: jangadaId },
       data: updateData as Prisma.JangadaUncheckedUpdateInput,
     });
@@ -574,12 +592,13 @@ export async function syncRichChecklistToRaft(
       const parsedValidade = parseFlexibleDate(String(newValidade ?? ""));
       if (!parsedValidade) continue;
 
-      const matchedArtigo = raft.artigos.find((a) =>
+      const matchingArticles = raft.artigos.filter((a) => a.inspecaoId == null &&
         keywords.some((k) => normalizeText(a.name).includes(normalizeText(k)))
       );
+      const matchedArtigo = matchingArticles.length === 1 ? matchingArticles[0] : null;
 
       if (matchedArtigo) {
-        await prisma.artigoJangada.update({
+        await db.artigoJangada.update({
           where: { id: matchedArtigo.id },
           data: {
             validade: normalizeArtigoValidade(parsedValidade),

@@ -8,6 +8,17 @@ import {
 
 export { BER_CODES, computeNextServiceDate, evaluateOverallResult };
 
+export type InspectionTrace = { manualReferencia: string; manualRevisao: string; equipamentoEnsaio: string; reparacoes: string };
+const TRACE_KEY = "__inspectionTraceV1";
+
+export function parseInspectionTrace(raw?: string | null): InspectionTrace | null {
+  try {
+    const value = JSON.parse(JSON.parse(raw || "{}")[TRACE_KEY] || "null");
+    if (!value || typeof value !== "object") return null;
+    return { manualReferencia: String(value.manualReferencia || ""), manualRevisao: String(value.manualRevisao || ""), equipamentoEnsaio: String(value.equipamentoEnsaio || ""), reparacoes: String(value.reparacoes || "") };
+  } catch { return null; }
+}
+
 export function mapChecklistToLegacyFields(checklist: Record<string, string>) {
   const out: Record<string, string | null> = {};
   for (const item of FATO_CHECKLIST_ITEMS) {
@@ -33,18 +44,21 @@ export function buildVerificacaoPayload(input: {
   dataVerificacao?: string;
   inspectorNome?: string;
   observacoes?: string;
+  trace?: InspectionTrace;
 }) {
   const legacy = mapChecklistToLegacyFields(input.checklist);
   const resultadoGeral = evaluateOverallResult(
     input.checklist,
     input.leakResultado,
-    input.codigoBER
+    input.codigoBER,
+    input.leakReTest,
+    input.leakMetodo
   );
 
   return {
     ...legacy,
     impermeabilidade: input.leakResultado || legacy.impermeabilidade || null,
-    checklistJson: JSON.stringify(input.checklist || {}),
+    checklistJson: JSON.stringify({ ...(input.checklist || {}), ...(input.trace ? { [TRACE_KEY]: JSON.stringify(input.trace) } : {}) }),
     leakMetodo: input.leakMetodo || null,
     leakPressaoInicial: input.leakPressaoInicial || null,
     leakPressaoFinal: input.leakPressaoFinal || null,
@@ -67,7 +81,7 @@ export function parseChecklistJson(raw?: string | null): Record<string, Checklis
   if (!raw) return {};
   try {
     const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === "object") return parsed;
+    if (parsed && typeof parsed === "object") return Object.fromEntries(FATO_CHECKLIST_ITEMS.filter(item => typeof parsed[item.key] === "string").map(item => [item.key, parsed[item.key]]));
   } catch {
     /* ignore */
   }

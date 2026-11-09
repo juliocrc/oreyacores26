@@ -30,6 +30,9 @@ ENV DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy
 ENV NEXTAUTH_SECRET=build-placeholder-secret
 ENV AUTH_SECRET=build-placeholder-secret
 
+# Gerar os assets locais do OCR (o npm ci usa --ignore-scripts).
+RUN node scripts/copy-ocr-assets.cjs
+
 RUN npm run build
 
 # ── Stage 3: Production ──────────────────────────────────────
@@ -60,6 +63,7 @@ COPY --from=deps --chown=nextjs:nodejs /app/node_modules/prisma ./node_modules/p
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/bcryptjs ./node_modules/bcryptjs
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/.package-lock.json ./node_modules/.package-lock.json
 COPY --from=builder --chown=nextjs:nodejs /app/docker-entrypoint.sh ./entrypoint.sh
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/check-runtime-database.cjs ./scripts/check-runtime-database.cjs
 RUN chmod +x ./entrypoint.sh
 
 # Ensure data directories exist and are writable

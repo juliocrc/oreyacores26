@@ -1,6 +1,8 @@
-import { buildQuadroChecklistPayload, buildWpDerivedValues } from "./quadro-payload";
+import { applyDocumentPackApplicability, buildQuadroChecklistPayload, buildWpDerivedValues } from "./quadro-payload";
 import type { InspectionCertificateInput } from "./inspection-certificate";
 import { getStampDataUrl } from "./certificate-stamp";
+import type { FiringHeadSource } from "./firing-head";
+import { JANGADA_LIGHT_EQUIPMENT, readJangadaLightEquipment } from './jangada-form';
 
 export type CertificateArtigoLike = {
   name?: string | null;
@@ -11,7 +13,7 @@ export type CertificateArtigoLike = {
   codigoFabricante?: string | null;
 };
 
-export type JangadaForCertificate = {
+export type JangadaForCertificate = FiringHeadSource & {
   serial?: string | null;
   brand?: string | null;
   model?: string | null;
@@ -47,10 +49,12 @@ export type JangadaForCertificate = {
 };
 
 export type InspecaoForCertificate = {
+  checklistSnapshot?: unknown;
   certificadoNumero?: string | null;
   dataInspecao?: string | Date | null;
   dataProxInspecao?: string | Date | null;
   responsavel?: string | null;
+  tecnico?: { nome?: string | null } | null;
   status?: string | null;
   signatureBase64?: string | null;
   testeWP?: string | null;
@@ -74,6 +78,15 @@ export type InspecaoForCertificate = {
 function pick<T>(inspectionValue: T | null | undefined, raftValue: T | null | undefined): T | null | undefined {
   if (inspectionValue !== null && inspectionValue !== undefined && inspectionValue !== "") return inspectionValue;
   return raftValue;
+}
+
+export function resolveInspectionTechnician(inspection?: InspecaoForCertificate | null): string {
+  const snapshot = inspection?.checklistSnapshot;
+  const saved = snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot)
+    ? snapshot as Record<string, unknown> : {};
+  return inspection?.responsavel?.trim()
+    || (typeof saved.responsavel === 'string' ? saved.responsavel.trim() : '')
+    || inspection?.tecnico?.nome?.trim() || '';
 }
 
 function toDateInput(value: unknown): string {
@@ -107,6 +120,8 @@ export function buildInspectionCertificateInput(params: {
   stampStationCode?: string | null;
   /** Aplicar o carimbo na área de assinatura do certificado. Default: true. */
   stamp?: boolean;
+  /** Archived checklist values take precedence over derived values. */
+  preserveSavedChecklist?: boolean;
 }): InspectionCertificateInput {
   const { jangada, lastInspecao } = params;
 
@@ -129,6 +144,13 @@ export function buildInspectionCertificateInput(params: {
   };
 
   const checklist = buildQuadroChecklistPayload({
+    packType: jangada.packType,
+    brand: jangada.brand,
+    model: jangada.model,
+    capacity: jangada.capacity,
+    cylinderCabecaDisparoRef: jangada.cylinderCabecaDisparoRef,
+    cylinderCabecaDisparoDescricao: jangada.cylinderCabecaDisparoDescricao,
+    cylinderSistema: jangada.cylinderSistema,
     inspectionChecklistValues: jangada.inspectionChecklistValues || null,
     artigos: (jangada.artigos || []) as never,
     prevArtigos: (lastInspecao?.artigos || []) as never,
@@ -162,6 +184,20 @@ export function buildInspectionCertificateInput(params: {
     lowerEnd: wp.lowerEnd,
   });
 
+  for (const equipment of JANGADA_LIGHT_EQUIPMENT) {
+    Object.assign(checklist, readJangadaLightEquipment({
+      inspectionChecklistValues: jangada.inspectionChecklistValues || {},
+      artigos: (jangada.artigos || []).map(article => ({
+        name: article.name || article.descricao || '', referencia: article.referencia,
+        quantidade: article.quantidade ?? undefined, validade: article.validade ? toDateInput(article.validade) : null,
+      })),
+      inspecoes: lastInspecao ? [{ dataInspecao: toDateInput(lastInspecao.dataInspecao),
+        checklistSnapshot: lastInspecao.checklistSnapshot && typeof lastInspecao.checklistSnapshot === 'object' && !Array.isArray(lastInspecao.checklistSnapshot)
+          ? lastInspecao.checklistSnapshot as Record<string, unknown> : null,
+      }] : [],
+    }, equipment));
+  }
+
   checklist.p1_corrigida_superior = derived.upper.correctedEndDisplay || "";
   checklist.p1_corrigida_inferior = derived.lower.correctedEndDisplay || "";
   checklist.queda_real_superior = derived.upper.dropPercentDisplay || "";
@@ -177,6 +213,10 @@ export function buildInspectionCertificateInput(params: {
             : "";
   }
 
+  if (params.preserveSavedChecklist) {
+    Object.assign(checklist, jangada.inspectionChecklistValues);
+  }
+
   const stampDataUrl = params.stamp === false ? null : getStampDataUrl(params.stampStationCode);
   const technicianSignature = isImageDataUrl(lastInspecao?.signatureBase64) ? lastInspecao.signatureBase64 : undefined;
 
@@ -187,9 +227,9 @@ export function buildInspectionCertificateInput(params: {
     raftModel: jangada.model || "",
     raftSerial: jangada.serial || "",
     status: lastInspecao?.status || "Concluída",
-    technician: lastInspecao?.responsavel || "Técnico Autorizado",
-    checklist,
-    technicianName: lastInspecao?.responsavel || "",
+    technician: resolveInspectionTechnician(lastInspecao) || "Técnico Autorizado",
+    checklist: applyDocumentPackApplicability(checklist, jangada),
+    technicianName: resolveInspectionTechnician(lastInspecao),
     technicianSignature,
     stampImage: stampDataUrl || undefined,
     clientName: params.ownerName || jangada.owner || "",

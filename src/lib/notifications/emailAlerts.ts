@@ -31,7 +31,7 @@ export async function sendInspectionExpiryAlert(options: AlertEmailOptions): Pro
 
   try {
     await transporter.sendMail({
-      from: process.env.SMTP_FROM || '"Orey Açores - Estação de Serviço" <noreply@orey.pt>',
+      from: process.env.SMTP_FROM || '"Orey Tecnica- Serviços Navais, Lda - Estação de Serviço" <noreply@orey.pt>',
       to: options.to,
       subject: options.subject || `Aviso de Inspeção: Jangada ${options.raftSerial} (${options.shipName})`,
       html: `
@@ -41,7 +41,7 @@ export async function sendInspectionExpiryAlert(options: AlertEmailOptions): Pro
           <p>Informamos que a jangada salva-vidas com o número de série <strong>${options.raftSerial}</strong> tem inspeção prevista/expira em <strong>${options.expiryDate}</strong>.</p>
           <p>Por favor contacte a nossa estação de serviço para agendar a revisão obrigatória.</p>
           <hr style="border: none; border-top: 1px solid #ccc; margin: 20px 0;" />
-          <p style="font-size: 12px; color: #666;">Orey Açores - Serviços Marítimos</p>
+          <p style="font-size: 12px; color: #666;">Orey Tecnica- Serviços Navais, Lda</p>
         </div>
       `,
     });

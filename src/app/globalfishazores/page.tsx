@@ -2,8 +2,8 @@ import React from "react";
 import GlobalFishAzoresClient from "@/modules/globalfishazores/GlobalFishAzoresClient";
 
 export const metadata = {
-  title: "GlobalFishAzores · Monitorização GFW & Frotas dos Açores",
-  description: "Módulo de integração de dados oceanográficos e rastreio de frotas de pesca dos Açores com Global Fishing Watch.",
+  title: "GlobalFishAzores · Historico AIS de 48 horas",
+  description: "Consulta de posicoes AIS historicas da frota, com fonte e limites de cobertura explicitos. Posicoes AIS nao comprovam pesca.",
 };
 
 export default function GlobalFishAzoresPage() {

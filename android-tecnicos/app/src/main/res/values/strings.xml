@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="file_chooser_title">Adicionar documento</string>
+    <string name="camera_option">Tirar fotografia</string>
+    <string name="gallery_option">Escolher da galeria</string>
+    <string name="files_option">Escolher ficheiro</string>
+    <string name="offline_title">Sem ligação</string>
+    <string name="offline_message">Não foi possível contactar o servidor. Verifique a ligação à internet e tente novamente.</string>
+    <string name="retry">Tentar novamente</string>
+    <string name="camera_permission_denied">É necessário permitir o acesso à câmara para fotografar documentos.</string>
+    <string name="camera_unavailable">Não foi encontrada uma aplicação de câmara neste dispositivo.</string>
+    <string name="document_saved">Documento guardado</string>
+    <string name="open">Abrir</string>
+    <string name="share">Partilhar</string>
+    <string name="close">Fechar</string>
+    <string name="pdf_title">Documento</string>
+
+    <!-- Novas funcionalidades -->
+    <string name="shortcut_new_inspection">Nova inspeção</string>
+    <string name="shortcut_new_inspection_long">Iniciar uma nova inspeção</string>
+    <string name="shortcut_invoices">Faturas</string>
+    <string name="shortcut_invoices_long">Ver faturas em PDF</string>
+    <string name="shortcut_dark_mode">Tema escuro</string>
+    <string name="shortcut_dark_mode_long">Alternar tema claro/escuro</string>
+
+    <string name="settings_title">Configurações</string>
+    <string name="settings_dark_mode">Modo escuro</string>
+    <string name="settings_low_power">Modo economia de energia</string>
+    <string name="settings_high_contrast">Alto contraste</string>
+    <string name="settings_station">Estação ativa</string>
+    <string name="settings_export">Exportar relatório</string>
+    <string name="settings_sign">Assinar documento</string>
+    <string name="settings_scan_qr">Ler QR Code</string>
+
+    <string name="signature_title">Assinatura do cliente</string>
+    <string name="signature_clear">Limpar</string>
+    <string name="signature_save">Guardar assinatura</string>
+    <string name="signature_hint">Assine no espaço abaixo</string>
+
+    <string name="qr_scan_title">Ler QR Code</string>
+    <string name="qr_scan_hint">Aponte a câmara para o código QR do equipamento</string>
+    <string name="qr_invalid">QR Code inválido</string>
+
+    <string name="timer_pre_test_finished">Tempo de pré-teste (30 min) esgotado</string>
+    <string name="timer_test_finished">Tempo de teste (60 min) esgotado</string>
+
+    <string name="notification_channel_inspection">Inspeções</string>
+    <string name="notification_channel_alerts">Alertas</string>
+    <string name="handover_title">Entregar turno</string>
+    <string name="handover_pin">Gerar PIN de 6 dígitos</string>
+    <string name="handover_enter_pin">Inserir PIN do colega</string>
+
+    <string name="device_compromised">Dispositivo comprometido detectado. Contacte o administrador.</string>
+    <string name="update_required">É necessário atualizar a aplicação para continuar.</string>
+    <string name="update_now">Atualizar agora</string>
+</resources>

@@ -18,6 +18,7 @@ import {
 } from "@/lib/text-normalization";
 import { isKnownPackTypeName } from "@/lib/custom-pack-types";
 import { parsePageParams, paginatedResponse } from "@/lib/pagination";
+import { PUT as updateJangada } from "./[id]/route";
 
 // Debug bypass removed — restore normal authentication behaviour.
 const HRU_REFERENCE_ARTIGO = "20701002";
@@ -90,7 +91,7 @@ function applyHruBusinessRulesForCreate(rawInput: Record<string, unknown>) {
 
   const hruReferencia = String(rawInput?.hruReferencia ?? "").trim();
   const hruDataInstalacaoRaw = String(rawInput?.hruDataInstalacao ?? "").trim();
-  let hruDataInstalacao = normalizeIsoDate(hruDataInstalacaoRaw);
+  const hruDataInstalacao = normalizeIsoDate(hruDataInstalacaoRaw);
 
   const hasAnyHruInput = Boolean(
     explicitApplicability !== null ||
@@ -126,66 +127,12 @@ function applyHruBusinessRulesForCreate(rawInput: Record<string, unknown>) {
 
   const hruReferenciaFinal = hruReferencia || HRU_REFERENCE_ARTIGO;
 
-  if (!hruDataInstalacao) {
-    hruDataInstalacao = new Date().toISOString().slice(0, 10);
-  }
-
   return {
     error: null as string | null,
     hruReferencia: hruReferenciaFinal,
-    hruDataInstalacao,
-    hruValidade: addYearsToIsoDate(hruDataInstalacao, 2),
+    hruDataInstalacao: hruDataInstalacao || null,
+    hruValidade: hruDataInstalacao && hruReferenciaFinal === '20701002' ? addYearsToIsoDate(hruDataInstalacao, 2) : normalizeIsoDate(rawInput?.hruValidade) || null,
   };
-}
-
-function applyHruBusinessRulesForUpdate(args: {
-  rawInput: Record<string, unknown>;
-  updateData: Record<string, unknown>;
-  current?: { hruReferencia?: string | null; hruDataInstalacao?: string | null; hruValidade?: string | null } | null;
-}) {
-  const { rawInput, updateData, current } = args;
-
-  const hasAnyHruInput = ["hruAplicavel", "hruReferencia", "hruDataInstalacao", "hruValidade"].some((field) =>
-    Object.prototype.hasOwnProperty.call(rawInput || {}, field)
-  );
-
-  if (!hasAnyHruInput) return { error: null as string | null };
-
-  const explicitApplicability = Object.prototype.hasOwnProperty.call(rawInput || {}, "hruAplicavel")
-    ? parseHruApplicability(rawInput.hruAplicavel)
-    : null;
-
-  const resolveField = (field: "hruReferencia" | "hruDataInstalacao" | "hruValidade") => {
-    if (Object.prototype.hasOwnProperty.call(updateData, field)) {
-      return String(updateData[field] ?? "").trim();
-    }
-    return String(current?.[field] ?? "").trim();
-  };
-
-  const hruReferencia = resolveField("hruReferencia");
-  const hruDataInstalacaoRaw = resolveField("hruDataInstalacao");
-  const hruDataInstalacao = normalizeIsoDate(hruDataInstalacaoRaw);
-
-  const isApplicable = explicitApplicability ?? Boolean(hruReferencia || hruDataInstalacaoRaw);
-
-  if (!isApplicable) {
-    updateData.hruReferencia = "";
-    updateData.hruDataInstalacao = "";
-    updateData.hruValidade = "";
-    return { error: null as string | null };
-  }
-
-  const hruReferenciaFinal = hruReferencia || HRU_REFERENCE_ARTIGO;
-
-  if (!hruDataInstalacao) {
-    return { error: "HRU aplicável: informe uma data de instalação válida." };
-  }
-
-  updateData.hruReferencia = hruReferenciaFinal;
-  updateData.hruDataInstalacao = hruDataInstalacao;
-  updateData.hruValidade = addYearsToIsoDate(hruDataInstalacao, 2);
-
-  return { error: null as string | null };
 }
 
 function normalizeMonthYear(value: unknown): string | null {
@@ -371,6 +318,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Violação de unicidade na base de dados (${targetStr}).` }, { status: 400 });
     }
     console.error("Erro desconhecido ao criar jangada:", error);
+    return buildDatabaseErrorResponse(error, "Erro ao criar jangada.");
   }
 }
 
@@ -665,119 +613,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  try {
-    const access = await getAccessContext();
-    if (!access) return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
-    const canManageJangadas = access.isAdmin || canEditPath(access.permissions, "/jangadas");
-    if (!canManageJangadas) return NextResponse.json({ error: "Sem permissão para editar jangadas." }, { status: 403 });
-
-    const urlObj = new URL(req.url, process.env.NEXT_PUBLIC_BASE_URL || "http://localhost");
-    const id = urlObj.searchParams.get("id") || urlObj.pathname.split('/').pop();
-    if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
-
-    const data = canonicalizeDateFields(await req.json(), [
-      "dataFabrico",
-      "dataInspecao",
-      "dataProxInspecao",
-      "cylinderDataTeste",
-      "cylinderDataProxTeste",
-      "hruDataInstalacao",
-      "hruValidade",
-      "radarReflectorValidade",
-    ]);
-    delete data.id;
-    delete data.navio;
-    delete data.certificadoAtivo;
-    delete data.certificadosExtraidos;
-    delete data.tsvector;
-    const updateData = data;
-
-    const existing = await prisma.jangada.findUnique({
-      where: { id: Number(id) },
-      select: { id: true, brand: true, model: true, packType: true, hruReferencia: true, hruDataInstalacao: true, hruValidade: true, serviceStationId: true },
-    });
-    if (!existing) return NextResponse.json({ error: "Jangada não encontrada." }, { status: 404 });
-
-    if (!access.isAdmin && !access.allowedStationIds.includes(Number(existing.serviceStationId || 0))) {
-      return NextResponse.json({ error: "Sem permissão para editar esta jangada." }, { status: 403 });
-    }
-
-    if (Object.prototype.hasOwnProperty.call(updateData, "dataFabrico")) {
-      updateData.dataFabrico = normalizeMonthYear(updateData.dataFabrico) || "";
-    }
-
-    if (Object.prototype.hasOwnProperty.call(updateData, "brand")) {
-      updateData.brand = normalizeBrandName(updateData.brand, updateData.model);
-    }
-
-    const shouldRecomputeModel = ["brand", "model", "packType"].some((field) =>
-      Object.prototype.hasOwnProperty.call(updateData, field)
-    );
-
-    if (shouldRecomputeModel) {
-      const effectiveBrand = Object.prototype.hasOwnProperty.call(updateData, "brand") ? updateData.brand : existing.brand;
-      const effectiveModel = Object.prototype.hasOwnProperty.call(updateData, "model") ? data.model : existing.model;
-      const effectivePackType = Object.prototype.hasOwnProperty.call(updateData, "packType") ? updateData.packType : existing.packType;
-
-      updateData.model = normalizeRaftModel(effectiveModel, effectiveBrand, effectivePackType);
-      if (Object.prototype.hasOwnProperty.call(updateData, "model") && isLegacyAlmarModel(data.model)) {
-        updateData.brand = "ALMAR";
-      }
-    }
-
-    if (Object.prototype.hasOwnProperty.call(updateData, "packType")) {
-      const nextPackType = String(updateData.packType || "");
-      const isValidPackType = await isKnownPackTypeName(nextPackType, {
-        includeInactiveCustom: nextPackType.trim().toUpperCase() === String(existing.packType || "").trim().toUpperCase(),
-      });
-      if (!isValidPackType) {
-        return NextResponse.json({ error: "Tipo de pack inválido." }, { status: 400 });
-      }
-    }
-
-    if (Object.prototype.hasOwnProperty.call(updateData, "cylinderSistema")) {
-      updateData.cylinderSistema = canonicalizeCylinderSistema(updateData.cylinderSistema);
-    }
-
-    if (Object.prototype.hasOwnProperty.call(updateData, "serviceStationId")) {
-      const parsedServiceStationId = parseNullableId(updateData.serviceStationId);
-      if (parsedServiceStationId === undefined) {
-        delete updateData.serviceStationId;
-      } else if (!access.isAdmin) {
-        updateData.serviceStationId = access.stationId || access.allowedStationIds[0] || existing.serviceStationId;
-      } else {
-        updateData.serviceStationId = parsedServiceStationId;
-      }
-    }
-
-    if (updateData?.cylinderDataTeste) {
-      updateData.cylinderDataProxTeste = addFiveYears(String(updateData.cylinderDataTeste));
-    }
-
-    const hruRules = applyHruBusinessRulesForUpdate({
-      rawInput: data || {},
-      updateData,
-      current: existing,
-    });
-    if (hruRules.error) {
-      return NextResponse.json({ error: hruRules.error }, { status: 400 });
-    }
-
-    const jangada = await prisma.jangada.update({
-      where: { id: Number(id) },
-      data: {
-        ...updateData,
-        capacity: Number(updateData.capacity)
-      },
-    });
-
-    return NextResponse.json({
-      ...jangada,
-      brand: normalizeBrandName(jangada.brand, jangada.model),
-      model: normalizeRaftModel(jangada.model, jangada.brand, jangada.packType),
-      cylinderSistema: canonicalizeCylinderSistema(jangada.cylinderSistema),
-    });
-  } catch (error: unknown) {
-    return buildDatabaseErrorResponse(error, error instanceof Error ? error.message : "Erro ao atualizar jangada");
-  }
+  const id = req.nextUrl.searchParams.get("id");
+  if (!id) return NextResponse.json({ error: "ID obrigatório." }, { status: 400 });
+  return updateJangada(req, { params: Promise.resolve({ id }) });
 }

@@ -1,6 +1,7 @@
 'use client';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import MarinhaSyncButton from './MarinhaSyncButton';
 import DataTable, { type ColumnDef } from '@/components/shared/DataTable';
 import { extrairPortoDeMatricula } from '@/utils/portosRegisto';
 import {
@@ -9,6 +10,7 @@ import {
   normalizeNavioTipoCategoria,
 } from '@/lib/navio-legal-types';
 import { sortNaviosAlphabetically } from '@/lib/navios-sort';
+import { loadNavioClientOptions, loadNavioEquipmentOptions, updateNavioAssociation } from '@/lib/navio-form-options';
 import type {
   Navio,
   JangadaItem,
@@ -40,6 +42,7 @@ export default function NaviosWizard() {
   const [portoOptions, setPortoOptions] = useState<string[]>([]);
   const [clienteOptions, setClienteOptions] = useState<string[]>([]);
   const naviosFetchSeq = useRef(0);
+  const naviosAbort = useRef<AbortController | null>(null);
   const [fleetStats, setFleetStats] = useState<{
     total: number;
     comCliente: number;
@@ -107,6 +110,15 @@ export default function NaviosWizard() {
   const [selectedColeteIds, setSelectedColeteIds] = useState<number[]>([]);
   const [selectedEpirbIds, setSelectedEpirbIds] = useState<number[]>([]);
   const [selectedClienteId, setSelectedClienteId] = useState<string>('');
+  const [equipmentExpanded, setEquipmentExpanded] = useState(false);
+  const [equipmentLoading, setEquipmentLoading] = useState(false);
+  const [equipmentError, setEquipmentError] = useState('');
+  const [clientsLoading, setClientsLoading] = useState(false);
+  const [clientsError, setClientsError] = useState('');
+  const [optionsRetry, setOptionsRetry] = useState(0);
+  const [equipmentRetry, setEquipmentRetry] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const saveInFlight = useRef(false);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- marcação de montagem no cliente.
@@ -171,73 +183,49 @@ export default function NaviosWizard() {
   ]);
 
   useEffect(() => {
-    let active = true;
-
-    async function loadAssociacoes() {
-      try {
-        const [jangadasRes, coletesRes, epirbsRes, clientesRes] = await Promise.all([
-          fetch('/api/jangadas?scope=all'),
-          fetch('/api/coletes'),
-          fetch('/api/epirbs'),
-          fetch('/api/clientes'),
-        ]);
-
-        const jangadasData = await jangadasRes.json().catch(() => []);
-        const coletesData = await coletesRes.json().catch(() => []);
-        const epirbsData = await epirbsRes.json().catch(() => []);
-        const clientesData = await clientesRes.json().catch(() => []);
-
-        if (!active) return;
-
-        const allJangadas: JangadaItem[] = Array.isArray(jangadasData) ? jangadasData : [];
-        const allColetes: ColeteItem[] = Array.isArray(coletesData) ? coletesData : [];
-        const allEpirbs: EpirbItem[] = Array.isArray(epirbsData) ? epirbsData : [];
-        const allClientes: ClienteItem[] = Array.isArray(clientesData) ? clientesData : [];
-        const navioAtualId = editId;
-
-        setJangadasDisponiveis(
-          allJangadas.filter(
-            j => !j.shipId || (navioAtualId !== null && j.shipId === navioAtualId),
-          ),
-        );
-        setColetesDisponiveis(
-          allColetes.filter(c => !c.shipId || (navioAtualId !== null && c.shipId === navioAtualId)),
-        );
-        setEpirbsDisponiveis(
-          allEpirbs.filter(e => !e.shipId || (navioAtualId !== null && e.shipId === navioAtualId)),
-        );
-        setClientesDisponiveis(allClientes);
-
-        if (navioAtualId !== null) {
-          setSelectedJangadaIds(allJangadas.filter(j => j.shipId === navioAtualId).map(j => j.id));
-          setSelectedColeteIds(allColetes.filter(c => c.shipId === navioAtualId).map(c => c.id));
-          setSelectedEpirbIds(allEpirbs.filter(e => e.shipId === navioAtualId).map(e => e.id));
-          const navioAtual = navios.find(n => n.id === navioAtualId);
-          setSelectedClienteId(navioAtual?.cliente?.id ? String(navioAtual.cliente.id) : '');
-        } else {
-          setSelectedJangadaIds([]);
-          setSelectedColeteIds([]);
-          setSelectedEpirbIds([]);
-          setSelectedClienteId('');
-        }
-      } catch {
-        if (!active) return;
-        setJangadasDisponiveis([]);
-        setColetesDisponiveis([]);
-        setEpirbsDisponiveis([]);
-        setClientesDisponiveis([]);
-      }
-    }
-
-    loadAssociacoes();
-
-    return () => {
-      active = false;
-    };
-  }, [editId, navios]);
+    if (!isFormExpanded) return;
+    const controller = new AbortController();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- loading state for the lazy selector.
+    setClientsLoading(true);
+    setClientsError('');
+    loadNavioClientOptions(controller.signal).then(clients => {
+      if (!controller.signal.aborted) setClientesDisponiveis(clients);
+    }).catch(() => {
+      if (!controller.signal.aborted) setClientsError('Erro ao carregar clientes.');
+    }).finally(() => {
+      if (!controller.signal.aborted) setClientsLoading(false);
+    });
+    return () => controller.abort();
+  }, [isFormExpanded, optionsRetry]);
 
   useEffect(() => {
-    fetchNavios();
+    if (!isFormExpanded || !equipmentExpanded) return;
+    const controller = new AbortController();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- loading state for optional equipment fields.
+    setEquipmentLoading(true);
+    setEquipmentError('');
+    loadNavioEquipmentOptions(editId, controller.signal).then(data => {
+      if (controller.signal.aborted) return;
+      setJangadasDisponiveis(data.jangadas);
+      setColetesDisponiveis(data.coletes);
+      setEpirbsDisponiveis(data.epirbs);
+      setSelectedJangadaIds(data.jangadas.filter(j => j.shipId === editId).map(j => j.id));
+      setSelectedColeteIds(data.coletes.filter(c => c.shipId === editId).map(c => c.id));
+      setSelectedEpirbIds(data.epirbs.filter(e => e.shipId === editId).map(e => e.id));
+    }).catch(() => {
+      if (!controller.signal.aborted) setEquipmentError('Erro ao carregar equipamentos.');
+    }).finally(() => {
+      if (!controller.signal.aborted) setEquipmentLoading(false);
+    });
+    return () => controller.abort();
+  }, [isFormExpanded, equipmentExpanded, editId, equipmentRetry]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void fetchNavios(); }, 300);
+    return () => {
+      window.clearTimeout(timer);
+      naviosAbort.current?.abort();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- recarga server-side quando filtros/paginação mudam.
   }, [
     tipoFilter,
@@ -301,16 +289,16 @@ export default function NaviosWizard() {
   );
 
   async function handleMergeDuplicates() {
-    if (!window.confirm("Pretende fundir/unir automaticamente todos os navios com o mesmo nome (como 'Nossa Senhora da Boa Viagem'), mantendo o registo principal com mais jangadas e associando todas as vistorias e equipamentos?")) return;
+    if (!window.confirm("Analisar possíveis navios duplicados? Esta operação não altera registos. A fusão automática está suspensa por segurança.")) return;
     try {
       const res = await fetch("/api/navios/merge-duplicates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dryRun: false }),
+        body: JSON.stringify({ dryRun: true }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erro ao unir navios duplicados.");
-      alert(`Fusão concluída! ${data.merged || 0} grupo(s) de navios duplicados unidos com sucesso.`);
+      alert(`Análise concluída: ${data.merged || 0} grupo(s) com nomes semelhantes. Nenhum registo foi alterado. A identidade deve ser revista por um administrador.`);
       await fetchNavios();
     } catch (err: any) {
       alert(err.message || "Erro ao unir navios.");
@@ -319,6 +307,9 @@ export default function NaviosWizard() {
 
   async function fetchNavios() {
     const seq = ++naviosFetchSeq.current;
+    naviosAbort.current?.abort();
+    const controller = new AbortController();
+    naviosAbort.current = controller;
     setLoading(true);
     try {
       const params = new URLSearchParams({ scope: 'all' });
@@ -331,10 +322,11 @@ export default function NaviosWizard() {
       if (estadoFilter) params.set('estado', estadoFilter);
       if (territorioFilter) params.set('territorio', territorioFilter);
       params.set('limite', '10000');
-      const res = await fetch(`/api/navios?${params.toString()}`);
+      const res = await fetch(`/api/navios?${params.toString()}`, { signal: controller.signal });
+      if (!res.ok) throw new Error('Erro ao carregar navios.');
       const response = await res.json();
       const data = response.data ?? response;
-      if (seq !== naviosFetchSeq.current) return;
+      if (controller.signal.aborted || seq !== naviosFetchSeq.current) return;
 
       if (Array.isArray(data)) {
         setNavios(sortNaviosAlphabetically(data));
@@ -350,6 +342,7 @@ export default function NaviosWizard() {
         setTotalNavios(0);
       }
     } catch (err) {
+      if (controller.signal.aborted) return;
       console.error('Error fetching navios:', err);
       if (seq !== naviosFetchSeq.current) return;
       setNavios([]);
@@ -475,146 +468,85 @@ export default function NaviosWizard() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.nome) return;
-    setLoading(true);
-    const payload = {
-      nome: form.nome,
-      matricula: form.matricula || '',
-      ilha: form.ilha || '',
-      tipoPesca: form.tipoPesca || '',
-      tipoNavio: form.tipoNavio || '',
-      comprimentoMetros: String(form.comprimentoMetros ?? '').trim(),
-      lotacao: String(form.lotacao ?? '').trim(),
-      proprietario: form.proprietario || '',
-      bandeira: form.bandeira || 'Portugal',
-      mmsi: form.mmsi || '',
-      imo: form.imo || '',
-      callSignal: form.callSignal || '',
-      portoRegisto: form.portoRegisto || '',
-      cfr: form.cfr || '',
-      clienteId: selectedClienteId ? Number(selectedClienteId) : null,
-    };
-
-    const navioEmEdicaoId = editId;
-    let response: Response;
-    if (navioEmEdicaoId) {
-      response = await fetch(`/api/navios/${navioEmEdicaoId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-    } else {
-      response = await fetch('/api/navios', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-    }
-
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      alert(data?.error || 'Não foi possível salvar o navio.');
-      setLoading(false);
-      return;
-    }
-
-    const savedNavio = await response.json().catch(() => ({}));
-    const savedNavioId = Number(savedNavio?.id ?? navioEmEdicaoId);
-
+    if (!form.nome || saveInFlight.current || clientsLoading || clientsError ||
+      (equipmentExpanded && (equipmentLoading || equipmentError))) return;
+    saveInFlight.current = true;
+    setSaving(true);
     try {
-      if (Number.isFinite(savedNavioId) && savedNavioId > 0) {
-        const currentJangadasDoNavio = jangadasDisponiveis
-          .filter(j => j.shipId === savedNavioId)
-          .map(j => j.id);
+      const payload = {
+        nome: form.nome,
+        matricula: form.matricula || '',
+        ilha: form.ilha || '',
+        tipoPesca: form.tipoPesca || '',
+        tipoNavio: form.tipoNavio || '',
+        comprimentoMetros: String(form.comprimentoMetros ?? '').trim(),
+        lotacao: String(form.lotacao ?? '').trim(),
+        proprietario: form.proprietario || '',
+        bandeira: form.bandeira || 'Portugal',
+        mmsi: form.mmsi || '',
+        imo: form.imo || '',
+        callSignal: form.callSignal || '',
+        portoRegisto: form.portoRegisto || '',
+        cfr: form.cfr || '',
+        clienteId: selectedClienteId ? Number(selectedClienteId) : null,
+      };
 
-        const nextJangadaIds = selectedJangadaIds.filter(jangadaId => Number.isFinite(jangadaId));
+      const navioEmEdicaoId = editId;
+      const response = await fetch(navioEmEdicaoId ? `/api/navios/${navioEmEdicaoId}` : '/api/navios', {
+        method: navioEmEdicaoId ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
 
-        const desassociarJangadas = currentJangadasDoNavio.filter(
-          id => !nextJangadaIds.includes(id),
-        );
-        await Promise.all(
-          desassociarJangadas.map(id =>
-            fetch(`/api/jangadas/${id}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ shipId: null }),
-            }),
-          ),
-        );
-
-        const jangadasToLink = nextJangadaIds.filter(
-          jangadaId => !currentJangadasDoNavio.includes(jangadaId),
-        );
-        await Promise.all(
-          jangadasToLink.map(jangadaId =>
-            fetch(`/api/jangadas/${jangadaId}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ shipId: savedNavioId }),
-            }),
-          ),
-        );
-
-        const currentColeteIds = coletesDisponiveis
-          .filter(c => c.shipId === savedNavioId)
-          .map(c => c.id);
-
-        const toUnlink = currentColeteIds.filter(id => !selectedColeteIds.includes(id));
-        const toLink = selectedColeteIds.filter(id => !currentColeteIds.includes(id));
-
-        await Promise.all([
-          ...toUnlink.map(id =>
-            fetch(`/api/coletes/${id}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ shipId: null }),
-            }),
-          ),
-          ...toLink.map(id =>
-            fetch(`/api/coletes/${id}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ shipId: savedNavioId }),
-            }),
-          ),
-        ]);
-
-        const currentEpirbIds = epirbsDisponiveis
-          .filter(e => e.shipId === savedNavioId)
-          .map(e => e.id);
-
-        const epirbsToUnlink = currentEpirbIds.filter(id => !selectedEpirbIds.includes(id));
-        const epirbsToLink = selectedEpirbIds.filter(id => !currentEpirbIds.includes(id));
-
-        await Promise.all([
-          ...epirbsToUnlink.map(id =>
-            fetch(`/api/epirbs/${id}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ shipId: null }),
-            }),
-          ),
-          ...epirbsToLink.map(id =>
-            fetch(`/api/epirbs/${id}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ shipId: savedNavioId }),
-            }),
-          ),
-        ]);
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        alert(data?.error || 'Não foi possível salvar o navio.');
+        return;
       }
-    } catch {
-      alert('Navio salvo, mas ocorreu um erro ao associar jangadas/coletes/EPIRBs.');
-    }
 
-    setEditId(null);
-    setForm(INITIAL_NAVIO_FORM);
-    setIsFormExpanded(false);
-    await fetchNavios();
-    setLoading(false);
+      const savedNavio = await response.json();
+      const savedNavioId = Number(savedNavio?.id ?? navioEmEdicaoId);
+
+      try {
+        if (equipmentExpanded && Number.isFinite(savedNavioId) && savedNavioId > 0) {
+          const associations = [
+            { resource: 'jangadas', items: jangadasDisponiveis, selected: selectedJangadaIds },
+            { resource: 'coletes', items: coletesDisponiveis, selected: selectedColeteIds },
+            { resource: 'epirbs', items: epirbsDisponiveis, selected: selectedEpirbIds },
+          ];
+          await Promise.all(associations.flatMap(({ resource, items, selected }) => {
+            const currentIds = items.filter(item => item.shipId === savedNavioId).map(item => item.id);
+            const updates = [
+              ...currentIds.filter(id => !selected.includes(id)).map(id => ({ id, shipId: null })),
+              ...selected.filter(id => Number.isFinite(id) && !currentIds.includes(id))
+                .map(id => ({ id, shipId: savedNavioId })),
+            ];
+            return updates.map(({ id, shipId }) => updateNavioAssociation(`/api/${resource}/${id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ shipId }),
+            }));
+          }));
+        }
+      } catch {
+        alert('Navio salvo, mas ocorreu um erro ao associar jangadas/coletes/EPIRBs.');
+      }
+
+      setEditId(null);
+      setForm(INITIAL_NAVIO_FORM);
+      setIsFormExpanded(false);
+      await fetchNavios();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Nao foi possivel salvar o navio.');
+    } finally {
+      saveInFlight.current = false;
+      setSaving(false);
+    }
   }
 
   async function handleEdit(navio: Navio) {
+    if (saveInFlight.current) return;
+    setEquipmentExpanded(false);
     setForm({ ...navio, bandeira: navio.bandeira || 'Portugal' });
     setEditId(navio.id);
     setIsFormExpanded(true);
@@ -667,6 +599,8 @@ export default function NaviosWizard() {
   }
 
   function openCreateWizard() {
+    if (saveInFlight.current) return;
+    setEquipmentExpanded(false);
     setForm(INITIAL_NAVIO_FORM);
     setSelectedJangadaIds([]);
     setSelectedColeteIds([]);
@@ -745,7 +679,9 @@ export default function NaviosWizard() {
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
+              <MarinhaSyncButton onSync={fetchNavios} />
               <button
+                disabled={saving}
                 className="rounded-lg bg-white/15 px-3 py-2 text-xs font-semibold text-white ring-1 ring-white/25 transition hover:bg-white/20 sm:px-4 sm:text-sm"
                 onClick={() => {
                   if (isFormExpanded) {
@@ -826,6 +762,7 @@ export default function NaviosWizard() {
               </span>
               <button
                 type="button"
+                disabled={saving}
                 onClick={() => setIsFormExpanded(prev => !prev)}
                 className="inline-flex items-center rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
               >
@@ -836,6 +773,7 @@ export default function NaviosWizard() {
 
           {isFormExpanded ? (
             <form onSubmit={handleSubmit} className="space-y-3">
+              <fieldset disabled={saving} className="min-w-0 space-y-3">
               <div>
                 <label className="block text-xs mb-1 text-gray-600">Nome do navio</label>
                 <input
@@ -991,25 +929,29 @@ export default function NaviosWizard() {
               <div>
                 <label className="block text-xs mb-1 text-gray-600">Cliente / Armador</label>
                 <select
+                  disabled={clientsLoading || !!clientsError || saving}
                   value={selectedClienteId}
                   onChange={e => setSelectedClienteId(e.target.value)}
                   className="border rounded-lg px-3 py-2 w-full"
                 >
                   <option value="">Sem cliente associado</option>
-                  {clientesDisponiveis
-                    .slice()
-                    .sort((a, b) =>
-                      (a.nome || '').localeCompare(b.nome || '', 'pt', { sensitivity: 'base' }),
-                    )
-                    .map(cliente => (
+                  {clientesDisponiveis.map(cliente => (
                       <option key={cliente.id} value={cliente.id}>
                         {cliente.nome} {cliente.ilha ? `(${cliente.ilha})` : ''}{' '}
                         {cliente.numeroCliente ? `[${cliente.numeroCliente}]` : ''}
                       </option>
                     ))}
                 </select>
+                {clientsLoading && <p role="status">A carregar clientes...</p>}
+                {clientsError && <p role="alert">{clientsError} <button type="button" onClick={() => setOptionsRetry(n => n + 1)}>Tentar novamente</button></p>}
               </div>
 
+              <button type="button" disabled={saving} className="rounded-lg border border-slate-200 px-3 py-2 text-sm" aria-expanded={equipmentExpanded} onClick={() => setEquipmentExpanded(true)}>
+                Associar equipamentos (opcional)
+              </button>
+              {equipmentExpanded && <fieldset className="min-w-0 space-y-3" disabled={equipmentLoading || !!equipmentError || saving}>
+              {equipmentLoading && <p role="status">A carregar equipamentos...</p>}
+              {equipmentError && <p role="alert">{equipmentError}</p>}
               <div>
                 <label className="block text-xs mb-1 text-gray-600">Associar jangadas</label>
                 <select
@@ -1024,10 +966,7 @@ export default function NaviosWizard() {
                   className="border rounded-lg px-3 py-2 w-full"
                   size={Math.min(6, Math.max(3, jangadasDisponiveis.length || 3))}
                 >
-                  {jangadasDisponiveis
-                    .slice()
-                    .sort((a, b) => (a.serial || '').localeCompare(b.serial || ''))
-                    .map(jangada => (
+                  {jangadasDisponiveis.map(jangada => (
                       <option key={jangada.id} value={jangada.id}>
                         {jangada.serial}{' '}
                         {jangada.brand || jangada.model
@@ -1055,10 +994,7 @@ export default function NaviosWizard() {
                   className="border rounded-lg px-3 py-2 w-full"
                   size={Math.min(6, Math.max(3, coletesDisponiveis.length || 3))}
                 >
-                  {coletesDisponiveis
-                    .slice()
-                    .sort((a, b) => (a.serial || '').localeCompare(b.serial || ''))
-                    .map(colete => (
+                  {coletesDisponiveis.map(colete => (
                       <option key={colete.id} value={colete.id}>
                         {colete.serial}{' '}
                         {colete.marca || colete.modelo
@@ -1087,10 +1023,7 @@ export default function NaviosWizard() {
                   className="border rounded-lg px-3 py-2 w-full"
                   size={Math.min(6, Math.max(3, epirbsDisponiveis.length || 3))}
                 >
-                  {epirbsDisponiveis
-                    .slice()
-                    .sort((a, b) => (a.serial || '').localeCompare(b.serial || ''))
-                    .map(epirb => (
+                  {epirbsDisponiveis.map(epirb => (
                       <option key={epirb.id} value={epirb.id}>
                         {epirb.serial}{' '}
                         {epirb.marca || epirb.modelo
@@ -1104,6 +1037,8 @@ export default function NaviosWizard() {
                   Dica: mantenha Ctrl pressionado para selecionar vários EPIRBs.
                 </p>
               </div>
+              </fieldset>}
+              {equipmentExpanded && equipmentError && <button type="button" onClick={() => setEquipmentRetry(n => n + 1)}>Tentar novamente</button>}
               <div className="flex gap-2 justify-end">
                 <button
                   type="button"
@@ -1122,11 +1057,13 @@ export default function NaviosWizard() {
                 </button>
                 <button
                   type="submit"
+                  disabled={saving || clientsLoading || !!clientsError || (equipmentExpanded && (equipmentLoading || !!equipmentError))}
                   className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
                 >
-                  Salvar
+                  {saving ? 'A salvar...' : 'Salvar'}
                 </button>
               </div>
+              </fieldset>
             </form>
           ) : (
             <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-600">
@@ -1179,7 +1116,7 @@ export default function NaviosWizard() {
                 onClick={handleMergeDuplicates}
                 className="px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500 text-white hover:bg-amber-600 shadow-sm ml-auto"
               >
-                ⚡ Unir Navios Duplicados (ex: Nossa Senhora da Boa Viagem)
+                Analisar possíveis duplicados (sem alterações)
               </button>
             </div>
             <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
@@ -1316,6 +1253,7 @@ export default function NaviosWizard() {
                 </div>
               </div>
             </div>
+            <DeferredNavioDirectory>
             {loading ? (
               <div className="text-center py-8 text-gray-600">Carregando...</div>
             ) : viewMode === 'lista' ? (
@@ -1494,6 +1432,7 @@ export default function NaviosWizard() {
               </div>
             )}
 
+            </DeferredNavioDirectory>
             <div className="mt-4">
               <p className="text-xs text-gray-500">Navios carregados: {totalNavios}</p>
             </div>
@@ -1502,4 +1441,9 @@ export default function NaviosWizard() {
       </div>
     </div>
   );
+}
+
+function DeferredNavioDirectory({ children }: { children: React.ReactNode }) {
+  // Reuse the previous tree during urgent form edits; reconcile the fleet in the background.
+  return useDeferredValue(children);
 }

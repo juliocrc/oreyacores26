@@ -5,27 +5,30 @@ import prisma from "@/lib/prisma";
 
 export const runtime = "nodejs";
 
-const APP_SECRET = process.env.WHATSAPP_APP_SECRET || "";
-const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || "oreyazores26";
-
 export async function GET(req: NextRequest) {
+  const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN || "";
+  if (!verifyToken.trim()) {
+    return NextResponse.json({ error: "Webhook não configurado." }, { status: 503 });
+  }
   const { searchParams } = new URL(req.url);
   const mode = searchParams.get("hub.mode");
   const token = searchParams.get("hub.verify_token");
   const challenge = searchParams.get("hub.challenge");
 
-  if (mode === "subscribe" && token === VERIFY_TOKEN) {
+  if (mode === "subscribe" && token === verifyToken) {
     return new NextResponse(challenge, { status: 200 });
   }
   return NextResponse.json({ error: "Verification failed" }, { status: 403 });
 }
 
-async function verificarAssinatura(req: NextRequest, raw: string): Promise<boolean> {
-  if (!APP_SECRET) return true;
+async function verificarAssinatura(req: NextRequest, raw: string, secret: string): Promise<boolean> {
   const signature = req.headers.get("x-hub-signature-256") || "";
   if (!signature) return false;
-  const expected = `sha256=${crypto.createHmac("sha256", APP_SECRET).update(raw).digest("hex")}`;
-  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+  const expected = `sha256=${crypto.createHmac("sha256", secret).update(raw).digest("hex")}`;
+  const receivedBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expected);
+  return receivedBuffer.length === expectedBuffer.length &&
+    crypto.timingSafeEqual(receivedBuffer, expectedBuffer);
 }
 
 function extrairTextoDaMensagem(msg: Record<string, any>): string {
@@ -87,8 +90,12 @@ async function tratarStatuses(value: Record<string, any>): Promise<void> {
 
 export async function POST(req: NextRequest) {
   try {
+    const secret = process.env.WHATSAPP_APP_SECRET || "";
+    if (!secret.trim()) {
+      return NextResponse.json({ error: "Webhook não configurado." }, { status: 503 });
+    }
     const raw = await req.text();
-    const okSig = await verificarAssinatura(req, raw);
+    const okSig = await verificarAssinatura(req, raw, secret);
     if (!okSig) {
       return NextResponse.json({ error: "Assinatura inválida." }, { status: 403 });
     }

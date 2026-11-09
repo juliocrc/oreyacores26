@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="OreyAcoresDeluxe - GlobalFish System" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata>
+    <name>Pontos de Pesca - Costa Norte de São Miguel (GlobalFish)</name>
+    <desc>Pontos de pesca detetados no sistema GlobalFish na costa norte da ilha de São Miguel, Açores, com profundidade para importação na app Fishing Points.</desc>
+    <time>2026-10-23T10:14:08.205Z</time>
+  </metadata>
+  <wpt lat="37.8183" lon="-25.5761">
+    <ele>0</ele>
+    <depth>8</depth>
+    <name>Porto de Rabo de Peixe</name>
+    <desc>Profundidade: 8m. Porto de pesca principal da costa norte de São Miguel, elevado movimento de frotas locais e costeiras (GlobalFish ID: PT-SMI-RP-01).</desc>
+    <cmt>Profundidade: 8m</cmt>
+    <sym>Fishing Area</sym>
+    <type>Fishing Spot</type>
+  </wpt>
+  <wpt lat="37.8247" lon="-25.4528">
+    <ele>0</ele>
+    <depth>6</depth>
+    <name>Porto Formoso</name>
+    <desc>Profundidade: 6m. Porto piscatório tradicional na costa norte, abrigado e monitorizado para operações de pesca local (GlobalFish ID: PT-SMI-PF-02).</desc>
+    <cmt>Profundidade: 6m</cmt>
+    <sym>Fishing Area</sym>
+    <type>Fishing Spot</type>
+  </wpt>
+  <wpt lat="37.8315" lon="-25.3852">
+    <ele>0</ele>
+    <depth>5</depth>
+    <name>Porto da Maia</name>
+    <desc>Profundidade: 5m. Zona piscatória e porto abrigado na costa norte oriental de São Miguel (GlobalFish ID: PT-SMI-MA-03).</desc>
+    <cmt>Profundidade: 5m</cmt>
+    <sym>Fishing Area</sym>
+    <type>Fishing Spot</type>
+  </wpt>
+  <wpt lat="37.8342" lon="-25.6811">
+    <ele>0</ele>
+    <depth>10</depth>
+    <name>Porto das Capelas</name>
+    <desc>Profundidade: 10m. Porto de abrigo e pesca costeira na costa norte ocidental (GlobalFish ID: PT-SMI-CP-04).</desc>
+    <cmt>Profundidade: 10m</cmt>
+    <sym>Fishing Area</sym>
+    <type>Fishing Spot</type>
+  </wpt>
+  <wpt lat="37.85" lon="-25.53">
+    <ele>0</ele>
+    <depth>35</depth>
+    <name>Baixio de Santa Bárbara</name>
+    <desc>Profundidade: 35m. Banco de pesca de alto rendimento ao largo da praia de Santa Bárbara / Ribeira Grande (GlobalFish ID: PT-SMI-BBSB-05).</desc>
+    <cmt>Profundidade: 35m</cmt>
+    <sym>Fishing Area</sym>
+    <type>Fishing Spot</type>
+  </wpt>
+  <wpt lat="37.86" lon="-25.51">
+    <ele>0</ele>
+    <depth>55</depth>
+    <name>Baixio da Ribeira Grande</name>
+    <desc>Profundidade: 55m. Pesqueiro profundo detetado por frotas de pesca costeira (GlobalFish ID: PT-SMI-BRG-06).</desc>
+    <cmt>Profundidade: 55m</cmt>
+    <sym>Fishing Area</sym>
+    <type>Fishing Spot</type>
+  </wpt>
+  <wpt lat="37.855" lon="-25.43">
+    <ele>0</ele>
+    <depth>45</depth>
+    <name>Baixio do Porto Formoso (Leste)</name>
+    <desc>Profundidade: 45m. Zona rochosa de cardumes e pesca demersal ao largo de Porto Formoso (GlobalFish ID: PT-SMI-BPF-07).</desc>
+    <cmt>Profundidade: 45m</cmt>
+    <sym>Fishing Area</sym>
+    <type>Fishing Spot</type>
+  </wpt>
+  <wpt lat="37.87" lon="-25.62">
+    <ele>0</ele>
+    <depth>60</depth>
+    <name>Baixio dos Fenais</name>
+    <desc>Profundidade: 60m. Banco de pesca submarina e embarcada na costa norte (GlobalFish ID: PT-SMI-BFN-08).</desc>
+    <cmt>Profundidade: 60m</cmt>
+    <sym>Fishing Area</sym>
+    <type>Fishing Spot</type>
+  </wpt>
+  <wpt lat="37.822" lon="-25.61">
+    <ele>0</ele>
+    <depth>18</depth>
+    <name>Zona Piscatória de Calhetas</name>
+    <desc>Profundidade: 18m. Área de operações de pesca artesanal e costeira (GlobalFish ID: PT-SMI-CLH-09).</desc>
+    <cmt>Profundidade: 18m</cmt>
+    <sym>Fishing Area</sym>
+    <type>Fishing Spot</type>
+  </wpt>
+  <wpt lat="37.865" lon="-25.56">
+    <ele>0</ele>
+    <depth>85</depth>
+    <name>Baixio de Rabo de Peixe (Fora)</name>
+    <desc>Profundidade: 85m. Pesqueiro offshore de largo registado no sistema GlobalFish (GlobalFish ID: PT-SMI-BRPF-10).</desc>
+    <cmt>Profundidade: 85m</cmt>
+    <sym>Fishing Area</sym>
+    <type>Fishing Spot</type>
+  </wpt>
+  <wpt lat="37.848" lon="-25.472">
+    <ele>0</ele>
+    <depth>28</depth>
+    <name>Pesqueiro Ponta do Cintrão</name>
+    <desc>Profundidade: 28m. Ponto de referência para pesca litorânea e costeira na costa norte (GlobalFish ID: PT-SMI-PCT-11).</desc>
+    <cmt>Profundidade: 28m</cmt>
+    <sym>Fishing Area</sym>
+    <type>Fishing Spot</type>
+  </wpt>
+  <wpt lat="37.88" lon="-25.31">
+    <ele>0</ele>
+    <depth>110</depth>
+    <name>Baixio do Nordeste (Costa Norte)</name>
+    <desc>Profundidade: 110m. Banco de pesca exterior na zona norte do concelho do Nordeste (GlobalFish ID: PT-SMI-BNE-12).</desc>
+    <cmt>Profundidade: 110m</cmt>
+    <sym>Fishing Area</sym>
+    <type>Fishing Spot</type>
+  </wpt>
+  <wpt lat="37.835" lon="-25.52">
+    <ele>0</ele>
+    <depth>22</depth>
+    <name>Pesqueiro da Ribeira Seca</name>
+    <desc>Profundidade: 22m. Ponto tradicional de pesca costeira (GlobalFish ID: PT-SMI-PRS-13).</desc>
+    <cmt>Profundidade: 22m</cmt>
+    <sym>Fishing Area</sym>
+    <type>Fishing Spot</type>
+  </wpt>
+  <wpt lat="37.84" lon="-25.35">
+    <ele>0</ele>
+    <depth>40</depth>
+    <name>Baixio dos Moinhos</name>
+    <desc>Profundidade: 40m. Banco rochoso submerso com atividade piscatória frequente (GlobalFish ID: PT-SMI-BMN-14).</desc>
+    <cmt>Profundidade: 40m</cmt>
+    <sym>Fishing Area</sym>
+    <type>Fishing Spot</type>
+  </wpt>
+  <wpt lat="37.838" lon="-25.65">
+    <ele>0</ele>
+    <depth>25</depth>
+    <name>Pesqueiro de São Vicente Ferreira</name>
+    <desc>Profundidade: 25m. Área de pesca costeira e fundeadouros tradicionais (GlobalFish ID: PT-SMI-SVF-15).</desc>
+    <cmt>Profundidade: 25m</cmt>
+    <sym>Fishing Area</sym>
+    <type>Fishing Spot</type>
+  </wpt>
+</gpx>

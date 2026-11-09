@@ -34,7 +34,7 @@ describe("selecionarTecnico", () => {
     jest.clearAllMocks();
   });
 
-  test("autentica com palavra-passe quando signIn devolve undefined em sucesso", async () => {
+  test("autentica com palavra-passe quando signIn devolve o destino de sucesso", async () => {
     const cookieStore = { set: jest.fn() };
     const { cookies } = await import("next/headers");
     (cookies as jest.Mock).mockResolvedValue(cookieStore);
@@ -48,7 +48,7 @@ describe("selecionarTecnico", () => {
 
     (prisma.user.findFirst as jest.Mock).mockResolvedValue({ id: 99 });
     (prisma.user.update as jest.Mock).mockResolvedValue({ id: 99 });
-    (signIn as jest.Mock).mockResolvedValue(undefined);
+    (signIn as jest.Mock).mockResolvedValue("http://localhost/");
 
     const formData = new FormData();
     formData.set("tecnicoId", "7");
@@ -78,7 +78,7 @@ describe("selecionarTecnico", () => {
     (prisma.serviceStation.findFirst as jest.Mock).mockResolvedValue({ id: 55 });
     (prisma.user.findFirst as jest.Mock).mockResolvedValue({ id: 99 });
     (prisma.user.update as jest.Mock).mockResolvedValue({ id: 99 });
-    (signIn as jest.Mock).mockResolvedValue(undefined);
+    (signIn as jest.Mock).mockResolvedValue("http://localhost/");
 
     const formData = new FormData();
     formData.set("tecnicoId", "7");
@@ -106,7 +106,7 @@ describe("selecionarTecnico", () => {
     (prisma.serviceStation.findFirst as jest.Mock).mockResolvedValue(null);
     (prisma.user.findFirst as jest.Mock).mockResolvedValue({ id: 99 });
     (prisma.user.update as jest.Mock).mockResolvedValue({ id: 99 });
-    (signIn as jest.Mock).mockResolvedValue(undefined);
+    (signIn as jest.Mock).mockResolvedValue("http://localhost/");
 
     const formData = new FormData();
     formData.set("tecnicoId", "7");
@@ -126,5 +126,51 @@ describe("selecionarTecnico", () => {
 
     await expect(selecionarTecnico({}, formData)).resolves.toEqual({ erro: "Introduza a palavra-passe." });
     expect(signIn).not.toHaveBeenCalled();
+  });
+
+  afterEach(() => jest.restoreAllMocks());
+
+  test("a public production request cannot create an administrator", async () => {
+    jest.replaceProperty(process, "env", { NODE_ENV: "production", AUTH_BYPASS: "true", AUTH_URL: "http://localhost:3000" });
+    (prisma.tecnico.findFirst as jest.Mock).mockResolvedValue({ id: 7, nome: "Staff", email: "staff@example.com" });
+    (prisma.user.findFirst as jest.Mock).mockResolvedValue(null);
+    const data = new FormData();
+    data.set("tecnicoId", "7");
+    data.set("password", "attacker-password");
+    expect(await selecionarTecnico({}, data)).toEqual({ erro: expect.any(String) });
+    expect(prisma.user.create).not.toHaveBeenCalled();
+    expect(prisma.user.update).not.toHaveBeenCalled();
+    expect(signIn).not.toHaveBeenCalled();
+  });
+
+  test("retains legacy provisioning only with explicit local dev bypass", async () => {
+    jest.replaceProperty(process, "env", { NODE_ENV: "development", AUTH_BYPASS: "true", AUTH_URL: "http://localhost:3000" });
+    (prisma.tecnico.findFirst as jest.Mock).mockResolvedValue({ id: 7, nome: "Staff", email: "staff@example.com" });
+    (prisma.user.findFirst as jest.Mock).mockResolvedValue(null);
+    (prisma.user.create as jest.Mock).mockResolvedValue({ id: 99 });
+    (signIn as jest.Mock).mockResolvedValue("http://localhost/");
+    const data = new FormData();
+    data.set("tecnicoId", "7");
+    data.set("password", "local-password");
+    expect(await selecionarTecnico({}, data)).toEqual({ ok: true });
+    expect(prisma.user.create).toHaveBeenCalledTimes(1);
+  });
+
+  test.each([undefined, { ok: false }, { error: "CredentialsSignin" }, "http://localhost/selecionar-tecnico?error=CredentialsSignin"])("nao aceita resultado de login invalido: %j", async (result) => {
+    const cookieStore = { set: jest.fn() };
+    const { cookies } = await import("next/headers");
+    (cookies as jest.Mock).mockResolvedValue(cookieStore);
+    (prisma.tecnico.findFirst as jest.Mock).mockResolvedValue({ id: 7, nome: "Staff", email: "staff@example.com" });
+    (prisma.user.findFirst as jest.Mock).mockResolvedValue({ id: 99 });
+    (prisma.user.update as jest.Mock).mockResolvedValue({ id: 99 });
+    (signIn as jest.Mock).mockResolvedValue(result);
+    const data = new FormData();
+    data.set("tecnicoId", "7");
+    data.set("password", "secret");
+    expect(await selecionarTecnico({}, data)).toEqual({ erro: expect.any(String) });
+    expect(cookieStore.set).toHaveBeenCalledWith("orey_app_open", "", expect.objectContaining({ maxAge: 0 }));
+    expect(cookieStore.set).not.toHaveBeenCalledWith("orey_app_open", "1", expect.anything());
+    expect(prisma.user.update).not.toHaveBeenCalled();
+    expect(prisma.user.create).not.toHaveBeenCalled();
   });
 });

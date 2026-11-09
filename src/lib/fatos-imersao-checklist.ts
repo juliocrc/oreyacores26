@@ -13,13 +13,13 @@ export type ChecklistItemDef = {
 export const FATO_CHECKLIST_ITEMS: ChecklistItemDef[] = [
   { key: "tecidoExterior", label: "Material exterior", desc: "Cortes, rasgos, furos, decomposição", group: "visual", mapField: "tecidoExterior" },
   { key: "costuras", label: "Costuras e colagens", desc: "Ombros, axilas, virilha, tornozelos", group: "visual", mapField: "costuras" },
-  { key: "fecho", label: "Fecho / zip dry metal", desc: "Corrosão, dentes, cursor — zip danificado = BER", group: "visual", mapField: "fecho" },
+  { key: "fecho", label: "Fecho / zip", desc: "Corrosão, dentes e cursor; avaliar reparabilidade pelo manual aplicável", group: "visual", mapField: "fecho" },
   { key: "fitasReflectoras", label: "Fitas retro-refletoras", desc: "Aderência + reflexão (SOLAS)", group: "visual", mapField: "fitasReflectoras" },
   { key: "capuz", label: "Capuz / face seal / collar", desc: "Fissuras, cola, montagem", group: "visual", mapField: "capuz" },
   { key: "wristSeals", label: "Wrist seals (punhos)", desc: "Fissuras, cola, fitas de montagem", group: "visual" },
   { key: "luvas", label: "Luvas / over-gloves", desc: "Estado, cola e montagem", group: "acessorios", mapField: "luvas" },
   { key: "botas", label: "Botas / sola / socks", desc: "Defeitos, rasgos, furos", group: "acessorios", mapField: "botas" },
-  { key: "luz", label: "Luz de emergência", desc: "Função + validade bateria (SOLAS ≥5 meses)", group: "acessorios", mapField: "luz" },
+  { key: "luz", label: "Luz de emergência", desc: "Função e validade da bateria; confirmar requisitos do modelo e manual", group: "acessorios", mapField: "luz" },
   { key: "apito", label: "Apito", desc: "Presente e fixo", group: "acessorios", mapField: "apito" },
   { key: "buddyLine", label: "Buddy line / bodyline", desc: "Linha + toggle", group: "acessorios" },
   { key: "liftingStrop", label: "Lifting / rescue strop", desc: "Costuras e pontos de fixação", group: "acessorios" },
@@ -50,7 +50,7 @@ export const FATO_HOTSPOTS = [
 ] as const;
 
 export const BER_CODES: Array<{ code: string; label: string }> = [
-  { code: "1", label: "Reparo economicamente inviável (>50%)" },
+  { code: "1", label: "Reparação economicamente inviável — decisão técnica" },
   { code: "2", label: "Geralmente gasto / worn out" },
   { code: "4", label: "Zip frontal defeituoso" },
   { code: "5", label: "Zips defeituosos" },
@@ -72,10 +72,10 @@ export const BER_CODES: Array<{ code: string; label: string }> = [
 ];
 
 export const LEAK_METHODS = [
-  { value: "soap_air", label: "Ar + água sabão (Lalizas/Viking)" },
+  { value: "soap_air", label: "Ar + água com sabão" },
   { value: "water_tank", label: "Tanque de água" },
-  { value: "pressure_hold", label: "Retenção pressão ΔP (Crewsaver 3h)" },
-  { value: "water_bench", label: "Bancada pressão água (Gore-Tex)" },
+  { value: "pressure_hold", label: "Retenção de pressão / ΔP" },
+  { value: "water_bench", label: "Bancada de pressão de água" },
 ] as const;
 
 export const LEAK_PRESSURE_PRESETS = [
@@ -86,7 +86,7 @@ export const LEAK_PRESSURE_PRESETS = [
 ] as const;
 
 export function defaultChecklist(): Record<string, ChecklistResult> {
-  return Object.fromEntries(FATO_CHECKLIST_ITEMS.map((i) => [i.key, "OK" as ChecklistResult]));
+  return {};
 }
 
 /** Próxima inspeção: <10 anos → 36 meses; ≥10 anos ou uso regular → 12 meses */
@@ -122,16 +122,24 @@ export function computeNextServiceDate(
 export function evaluateOverallResult(
   checklist: Record<string, string>,
   leakResultado?: string | null,
-  codigoBER?: string | null
+  codigoBER?: string | null,
+  leakReTest?: string | null,
+  leakMetodo?: string | null
 ): "OK" | "REPARAR" | "BER" {
   if (codigoBER) return "BER";
-  if (leakResultado === "BER" || leakResultado === "Reprovado") return "BER";
+  if (leakResultado === "BER") return "BER";
+  if (leakResultado === "Reprovado") return "REPARAR";
   const values = Object.values(checklist || {});
   if (values.some((v) => v === "F" || v === "S")) {
     if (leakResultado === "Fuga" || leakResultado === "Reprovado (Fuga)") return "REPARAR";
     return "REPARAR";
   }
   if (leakResultado === "Fuga" || leakResultado === "Reprovado (Fuga)") return "REPARAR";
+  if (leakResultado !== "OK" && leakResultado !== "Aprovado") return "REPARAR";
+  if (!LEAK_METHODS.some((method) => method.value === leakMetodo)) return "REPARAR";
+  if (FATO_CHECKLIST_ITEMS.some((item) => !["OK", "R", "N/A"].includes(checklist?.[item.key]))) return "REPARAR";
+  if (checklist.impermeabilidade !== "OK") return "REPARAR";
+  if ((values.includes("R") || leakReTest === "Pendente" || leakReTest === "Falha") && leakReTest !== "OK") return "REPARAR";
   return "OK";
 }
 

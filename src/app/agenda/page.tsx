@@ -6,8 +6,11 @@ import AgendaHeader from "@/modules/Agenda/AgendaHeader";
 import AgendaSidebar from "@/modules/Agenda/AgendaSidebar";
 import AgendaModals from "@/modules/Agenda/AgendaModals";
 import AgendaBoard from "@/modules/Agenda/AgendaBoard";
+import AgendaAvailability from "@/modules/Agenda/AgendaAvailability";
+import { agendaWallDate, agendaDateTime, wallDateTime, parseAgendaDateTime, agendaOperationalEnd as computeOperationalEnd, agendaOperationalDuration as computeOperationalDuration } from '@/modules/Agenda/agenda-ui-dates';
 import {
   getInspectionDefaults,
+  resolveAgendaDuration,
   normalizeInspectionType,
   normalizeEventStatus,
   EVENT_STATUS_LABELS,
@@ -20,8 +23,6 @@ import {
   MAX_ACTIVE_RAFTS_PER_TECHNICIAN,
   normalizeTechnicianName,
 } from "@/lib/agenda-technicians";
-import { useTecnicos } from "@/hooks/useTecnicos";
-import { buildStationTechnicianRoster } from "@/lib/station-technicians";
 import { subscribeServiceStationSync } from "@/lib/service-station-sync";
 import type {
   InspectionEvent,
@@ -33,6 +34,7 @@ import type {
   PanelRaft,
   NavioItem,
   StaffTechnician,
+  AgendaAvailability as Availability,
 } from "@/types/agenda-page";
 import {
   normalizeText,
@@ -44,7 +46,6 @@ import {
   getMinutesOfDay,
   setMinutesOfDay,
   isDuringLunchBreak,
-  computeOperationalEnd,
   LUNCH_START_MINUTES,
   LUNCH_END_MINUTES,
 } from "@/lib/agenda-page-helpers";
@@ -78,7 +79,8 @@ function AgendaPage() {
   const [conflictCount, setConflictCount] = useState(0);
   const [conflicts, setConflicts] = useState<any[]>([]);
   const [showTimeline, setShowTimeline] = useState(false);
-  const [timelineStartDate, setTimelineStartDate] = useState<Date>(new Date());
+  const [timelineStartDate, setTimelineStartDate] = useState<Date>(() => agendaWallDate(new Date()));
+  const [calendarView, setCalendarView] = useState<'month' | 'week' | 'day'>('day');
   const { 
     viewMode, setViewMode, 
     showAdvancedPanels, setShowAdvancedPanels, 
@@ -90,14 +92,25 @@ function AgendaPage() {
   } = useAgendaStore();
 
   const [activeStationName, setActiveStationName] = useState<string>("");
+  const [activeStationId, setActiveStationId] = useState<number | null>(null);
+  const [loadError, setLoadError] = useState('');
+  const [capacity, setCapacity] = useState<Availability | null>(null);
+  const [availabilityVersion, setAvailabilityVersion] = useState(0);
+  useEffect(() => {
+    setCapacity(null);
+    setEditingEvent(null);
+    setExternalDragEvent(null);
+    setQuickScheduleTarget(null);
+    setQuickScheduleDateTime('');
+    setQuickScheduleResponsavel('');
+  }, [activeStationId, setQuickScheduleTarget, setQuickScheduleDateTime, setQuickScheduleResponsavel]);
   const reloadAgendaDataRef = useRef<(() => Promise<void>) | null>(null);
   const MAX_SIMULTANEOUS_INSPECTIONS = 6;
   const MAX_PAUSED_INSPECTIONS = 3;
 
-  const { data: tecnicosPayload } = useTecnicos("", false);
   const stationTechnicians: StaffTechnician[] = useMemo(
-    () => buildStationTechnicianRoster(tecnicosPayload),
-    [tecnicosPayload],
+    () => capacity?.technicians.map(tech => ({ id: tech.id, nome: tech.nome, role: 'Técnico' })) ?? [],
+    [capacity],
   );
   const maxDailyScheduledEvents = stationTechnicians.length * MAX_ACTIVE_RAFTS_PER_TECHNICIAN;
 
@@ -108,7 +121,7 @@ function AgendaPage() {
       if (!persisted) return false;
       if (!(st === "scheduled" || st === "confirmed")) return false;
       if (excludeId !== undefined && String(ev.id) === String(excludeId)) return false;
-      return isSameCalendarDay(new Date(ev.start), targetDate);
+      return agendaDateTime(ev.start).slice(0, 10) === agendaDateTime(targetDate).slice(0, 10);
     }).length;
   };
 
@@ -123,7 +136,7 @@ function AgendaPage() {
       if (!(st === "scheduled" || st === "confirmed" || st === "in_progress" || st === "testing")) return false;
       if (excludeId !== undefined && String(ev.id) === String(excludeId)) return false;
       if (normalizeTechnicianName(ev.responsavel).trim().toLowerCase() !== responsavel) return false;
-      return isSameCalendarDay(new Date(ev.start), targetDate);
+      return agendaDateTime(ev.start).slice(0, 10) === agendaDateTime(targetDate).slice(0, 10);
     }).length;
   };
 
@@ -134,7 +147,7 @@ function AgendaPage() {
       if (!persisted) return false;
       if (st !== "paused") return false;
       if (excludeId !== undefined && String(ev.id) === String(excludeId)) return false;
-      return isSameCalendarDay(new Date(ev.start), targetDate);
+      return agendaDateTime(ev.start).slice(0, 10) === agendaDateTime(targetDate).slice(0, 10);
     }).length;
   };
 
@@ -156,7 +169,7 @@ function AgendaPage() {
     const defaults = getInspectionDefaults(inspectionType);
     return {
       inspectionType,
-      durationMinutes: Number(event.durationMinutes ?? defaults.durationMinutes),
+      durationMinutes: resolveAgendaDuration(event),
       bufferBeforeMinutes: Number(event.bufferBeforeMinutes ?? defaults.bufferBeforeMinutes),
       bufferAfterMinutes: Number(event.bufferAfterMinutes ?? defaults.bufferAfterMinutes),
     };
@@ -179,7 +192,7 @@ function AgendaPage() {
   };
 
   const triggerAgendaReload = () => {
-    void reloadAgendaDataRef.current?.();
+    void reloadAgendaDataRef.current?.().catch(error => { if (error?.name !== 'AbortError') setLoadError(error instanceof Error ? error.message : 'Erro ao atualizar agenda.'); });
     refreshOperationalPanels();
   };
 
@@ -387,9 +400,10 @@ const formatDate = (value?: string | null) => {
                 ? String(ev.id)
                 : `agenda-${raftSerial || "sem-serial"}-${parsedDate.toISOString()}`;
 
-            let dur = Number(ev.durationMinutes);
-            if (Number.isNaN(dur) || dur <= 0) dur = 210;
-            const endDate = new Date(parsedDate.getTime() + (dur * 60 * 1000));
+            const dur = resolveAgendaDuration(ev);
+            const endDate = ev.type === "ausencia" || ev.type === "expiracao"
+              ? new Date(parsedDate.getTime() + dur * 60000)
+              : computeOperationalEnd(parsedDate, dur);
             if (Number.isNaN(endDate.getTime())) return null;
 
             return {
@@ -405,35 +419,30 @@ const formatDate = (value?: string | null) => {
               inspectionType: normalizeInspectionType(ev.inspectionType),
               type: ev.type || "",
               durationMinutes: dur,
-              bufferBeforeMinutes: Number(ev.bufferBeforeMinutes || 15),
-              bufferAfterMinutes: Number(ev.bufferAfterMinutes || 15),
+              bufferBeforeMinutes: Number(ev.bufferBeforeMinutes ?? 15),
+              bufferAfterMinutes: Number(ev.bufferAfterMinutes ?? 15),
             } as InspectionEvent;
           })
           .filter((ev): ev is InspectionEvent => Boolean(ev));
       };
 
-      const syncCalendarEvents = async (fallbackAgendaUpdates?: AgendaApiEvent[]) => {
-        let agendaSource = normalizeList<AgendaApiEvent>(fallbackAgendaUpdates);
-        try {
-          const agendaRes = await fetch("/api/agenda");
-          if (agendaRes.ok) {
-            const agendaData = await safeReadJson(agendaRes);
-            agendaSource = normalizeList<AgendaApiEvent>(agendaData);
-          }
-        } catch {
-          // Mantém fallback recebido por socket.
-        }
-
-        const scheduledEvents = buildScheduledEvents(agendaSource);
-        setEvents(scheduledEvents);
-      };
-
+      let reloadController: AbortController | undefined;
       const reloadAgendaData = async () => {
+        reloadController?.abort();
+        const controller = new AbortController();
+        reloadController = controller;
+        const signal = controller.signal;
+        const activeStationRes = await fetch('/api/active-service-station', { cache: 'no-store', signal });
+        if (!activeStationRes.ok) throw new Error('Não foi possível determinar a estação ativa.');
+        const activeStationData = await activeStationRes.json();
+        if (signal.aborted) return;
+        setActiveStationId(activeStationData.activeStation?.id ?? null);
+        setActiveStationName(activeStationData.activeStation?.nome ?? '');
         const [raftsRes, naviosRes, agendaRes, stationRes] = await Promise.all([
-          fetch("/api/jangadas?scope=all"),
-          fetch("/api/navios?lite=1"),
-          fetch("/api/agenda"),
-          fetch("/api/service-station?received=true"),
+          fetch("/api/jangadas?scope=all", { signal }),
+          fetch("/api/navios?lite=1", { signal }),
+          fetch("/api/agenda", { signal }),
+          fetch("/api/service-station?received=true", { signal }),
         ]);
 
         if (!raftsRes.ok) {
@@ -452,24 +461,16 @@ const formatDate = (value?: string | null) => {
           const text = await stationRes.text().catch(() => "");
           console.error(`[Agenda] /api/service-station failed: ${stationRes.status} ${text}`);
         }
+        if (![raftsRes, naviosRes, agendaRes, stationRes].every(response => response.ok)) {
+          throw new Error('Não foi possível carregar todos os dados da agenda. Tente novamente.');
+        }
 
         const raftsData = raftsRes.ok ? await safeReadJson(raftsRes) : [];
         const naviosData = naviosRes.ok ? await safeReadJson(naviosRes) : [];
         const agendaData = agendaRes.ok ? await safeReadJson(agendaRes) : [];
         const stationData = stationRes.ok ? await safeReadJson(stationRes) : [];
 
-        // Fetch active station name for panel header
-        try {
-          const activeStationRes = await fetch("/api/active-service-station", { cache: "no-store" });
-          if (activeStationRes.ok) {
-            const activeStationData = await activeStationRes.json();
-            if (activeStationData?.activeStation?.nome) {
-              setActiveStationName(activeStationData.activeStation.nome);
-            }
-          }
-        } catch {
-          // Ignore errors fetching active station name
-        }
+        if (signal.aborted) return;
 
         const dbRafts = normalizeList<AgendaRaft>(raftsData);
         const dbNavios = normalizeList<NavioItem>(naviosData);
@@ -495,20 +496,22 @@ const formatDate = (value?: string | null) => {
             }))
             .sort((a: PanelRaft, b: PanelRaft) => new Date(b.receivedAt || 0).getTime() - new Date(a.receivedAt || 0).getTime())
         );
-        await syncCalendarEvents(normalizeList<AgendaApiEvent>(agendaData));
+        setEvents(buildScheduledEvents(normalizeList<AgendaApiEvent>(agendaData)));
+        setAvailabilityVersion(value => value + 1);
+        setLoadError('');
       };
 
       reloadAgendaDataRef.current = reloadAgendaData;
 
         reloadAgendaData()
         .catch((e) => {
-          console.error("[Agenda] reloadAgendaData error:", e);
+          if (e?.name !== 'AbortError') setLoadError(e instanceof Error ? e.message : 'Erro ao carregar agenda.');
         });
 
       refreshOperationalPanels();
 
         const handleAgendaRefresh = () => {
-          void reloadAgendaData();
+          void reloadAgendaData().catch(error => { if (error?.name !== 'AbortError') setLoadError(error instanceof Error ? error.message : 'Erro ao atualizar agenda.'); });
           refreshOperationalPanels();
         };
 
@@ -533,6 +536,7 @@ const formatDate = (value?: string | null) => {
         document.addEventListener("visibilitychange", handleVisibilityRefresh);
 
       return () => {
+          reloadController?.abort();
           window.clearInterval(refreshInterval);
           unsubscribeStationSync();
           window.removeEventListener(AGENDA_REFRESH_EVENT, handleAgendaRefresh as EventListener);
@@ -549,7 +553,7 @@ const formatDate = (value?: string | null) => {
     return () => clearTimeout(timer);
   }, [events]);
 
-  function handleSchedule(event: InspectionEvent) {
+  async function handleSchedule(event: InspectionEvent): Promise<boolean> {
     const raft = raftsRef.current.find((item) => item.serial === event.raftSerial);
     const raftLabel = getRaftLabel(raft, event.raftSerial);
     const shipLabel = raft?.shipNameManual?.trim()
@@ -579,7 +583,7 @@ const formatDate = (value?: string | null) => {
     const scheduledCountForDay = countScheduledEventsForDay(event.start, isUpdate ? event.id : undefined);
     if (scheduledCountForDay >= maxDailyScheduledEvents) {
       alert(`Este dia já tem o máximo de ${maxDailyScheduledEvents} agendamentos (${stationTechnicians.length} técnicos × ${MAX_ACTIVE_RAFTS_PER_TECHNICIAN}). Escolha outro dia.`);
-      return;
+      return false;
     }
 
     // 1. Permitir só um agendamento ativo por jangada
@@ -593,7 +597,7 @@ const formatDate = (value?: string | null) => {
     });
     if (sameJangada) {
       alert('Já existe um agendamento ativo para esta jangada. Cancele o agendamento anterior antes de criar outro.');
-      return;
+      return false;
     }
 
     // 2. Limitar capacidade operacional simultânea
@@ -619,14 +623,14 @@ const formatDate = (value?: string | null) => {
     });
     if (overlapping.length >= MAX_SIMULTANEOUS_INSPECTIONS) {
       alert(`A agenda operacional já está no limite de ${MAX_SIMULTANEOUS_INSPECTIONS} jangadas em simultâneo.`);
-      return;
+      return false;
     }
 
     if (normalizeEventStatus(event.status) === 'paused') {
       const pausedCount = countPausedEventsForDay(event.start, isUpdate ? event.id : undefined);
       if (pausedCount >= MAX_PAUSED_INSPECTIONS) {
         alert(`A agenda operacional já tem ${MAX_PAUSED_INSPECTIONS} jangadas em pausa.`);
-        return;
+        return false;
       }
     }
 
@@ -635,13 +639,13 @@ const formatDate = (value?: string | null) => {
       const overlappingByResponsavel = overlapping.filter((ev) => normalizeTechnicianName(ev.responsavel).trim().toLowerCase() === responsavel);
       if (overlappingByResponsavel.length >= MAX_ACTIVE_RAFTS_PER_TECHNICIAN) {
         alert(`Este responsável já está no limite de ${MAX_ACTIVE_RAFTS_PER_TECHNICIAN} inspeções sobrepostas nesta janela operacional.`);
-        return;
+        return false;
       }
 
       const technicianActiveCount = countTechnicianActiveForDay(event.start, responsavel, isUpdate ? event.id : undefined);
       if (technicianActiveCount >= MAX_ACTIVE_RAFTS_PER_TECHNICIAN) {
         alert(`Este responsável já tem ${MAX_ACTIVE_RAFTS_PER_TECHNICIAN} jangadas ativas neste dia. Se uma estiver a secar/aguardar, muda o estado e agenda outra.`);
-        return;
+        return false;
       }
     }
 
@@ -658,15 +662,15 @@ const formatDate = (value?: string | null) => {
     event.title = buildAgendaTitle("Inspeção", raftLabel, shipLabel, event.raftSerial);
     // Se for novo, POST. Se for edição, PUT.
     const method = isUpdate ? 'PUT' : 'POST';
-    fetch('/api/agenda', {
+    return fetch('/api/agenda', {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     })
       .then(async (res) => {
         if (!res.ok) {
-          const text = await res.text();
-          throw new Error(text || "Falha ao guardar agendamento");
+          const body = await res.json().catch(() => null);
+          throw new Error(body?.error || 'Falha ao guardar agendamento');
         }
         return safeReadJson(res);
       })
@@ -685,8 +689,8 @@ const formatDate = (value?: string | null) => {
         };
         const persistedId = normalizedSaved?.id ? String(normalizedSaved.id) : String(event.id);
         const persistedStart = normalizedSaved?.date ? new Date(normalizedSaved.date) : event.start;
-        const persistedDuration = Number(normalizedSaved?.durationMinutes || timing.durationMinutes || 210);
-        const persistedEnd = new Date(persistedStart.getTime() + persistedDuration * 60 * 1000);
+        const persistedDuration = Number(normalizedSaved?.durationMinutes || timing.durationMinutes);
+        const persistedEnd = computeOperationalEnd(persistedStart, persistedDuration);
         setEvents(evts => [
           ...evts.filter(e => !(e.id === event.id || e.id === persistedId)),
           {
@@ -698,20 +702,22 @@ const formatDate = (value?: string | null) => {
             title: buildAgendaTitle("Inspeção", raftLabel, shipLabel, event.raftSerial),
             inspectionType: normalizeInspectionType(normalizedSaved?.inspectionType),
             durationMinutes: persistedDuration,
-            bufferBeforeMinutes: Number(normalizedSaved?.bufferBeforeMinutes || timing.bufferBeforeMinutes || 15),
-            bufferAfterMinutes: Number(normalizedSaved?.bufferAfterMinutes || timing.bufferAfterMinutes || 15),
+            bufferBeforeMinutes: Number(normalizedSaved?.bufferBeforeMinutes ?? timing.bufferBeforeMinutes),
+            bufferAfterMinutes: Number(normalizedSaved?.bufferAfterMinutes ?? timing.bufferAfterMinutes),
           }
         ]);
         triggerAgendaReload();
+        return true;
       })
       .catch((error) => {
         console.error("Erro ao guardar agendamento:", error);
         const message = error instanceof Error ? error.message : "Não foi possível guardar o agendamento.";
         alert(message);
+        return false;
       });
   }
 
-  function handleEventDropOrResize(payload: CalendarMutationPayload) {
+  function handleEventDropOrResize(payload: CalendarMutationPayload, resize = false) {
     const moved = payload?.event;
     if (!moved) return;
 
@@ -731,7 +737,8 @@ const formatDate = (value?: string | null) => {
 
     const nextStart = payload?.start ? new Date(payload.start) : new Date(moved.start);
     const timing = getEventTiming(moved);
-    const nextEnd = payload?.end ? new Date(payload.end) : computeOperationalEnd(nextStart, timing.durationMinutes);
+    if (resize && payload?.end) timing.durationMinutes = computeOperationalDuration(nextStart, new Date(payload.end));
+    const nextEnd = computeOperationalEnd(nextStart, timing.durationMinutes);
 
     const raft = raftsRef.current.find((item) => item.serial === moved.raftSerial);
     const raftLabel = getRaftLabel(raft, moved.raftSerial);
@@ -742,23 +749,19 @@ const formatDate = (value?: string | null) => {
         : "—";
 
     let nextResponsavel = moved.responsavel || "";
-    if ((payload as any).resourceId !== undefined) {
-      nextResponsavel = (payload as any).resourceId === 'Sem Responsável' ? '' : (payload as any).resourceId;
+    if (payload.resourceId !== undefined) {
+      nextResponsavel = payload.resourceId === 'Sem Responsável' ? '' : payload.resourceId;
     }
 
     const updatedEvent: InspectionEvent = {
       ...moved,
       start: nextStart,
       end: nextEnd,
+      durationMinutes: timing.durationMinutes,
       status: movedStatus,
       responsavel: nextResponsavel,
       title: buildAgendaTitle("Inspeção", raftLabel, shipLabel, moved.raftSerial),
     };
-
-    setEvents(evts => [
-      ...evts.filter(e => String(e.id) !== String(updatedEvent.id)),
-      updatedEvent
-    ]);
 
     const scheduledCountForDay = countScheduledEventsForDay(nextStart, updatedEvent.id);
     if (scheduledCountForDay >= maxDailyScheduledEvents) {
@@ -781,7 +784,7 @@ const formatDate = (value?: string | null) => {
       responsavel: normalizeTechnicianName(updatedEvent.responsavel) || "",
       status: updatedEvent.status || 'scheduled',
       inspectionType: timing.inspectionType,
-      durationMinutes: Math.max(60, Math.round((nextEnd.getTime() - nextStart.getTime()) / 60000)),
+      durationMinutes: timing.durationMinutes,
       bufferBeforeMinutes: timing.bufferBeforeMinutes,
       bufferAfterMinutes: timing.bufferAfterMinutes,
     };
@@ -814,8 +817,8 @@ const formatDate = (value?: string | null) => {
 
         const persistedId = normalizedSaved?.id ? String(normalizedSaved.id) : String(updatedEvent.id);
         const persistedStart = normalizedSaved?.date ? new Date(normalizedSaved.date) : updatedEvent.start;
-        const persistedDuration = Number(normalizedSaved?.durationMinutes || requestPayload.durationMinutes || 210);
-        const persistedEnd = new Date(persistedStart.getTime() + persistedDuration * 60 * 1000);
+        const persistedDuration = Number(normalizedSaved?.durationMinutes || requestPayload.durationMinutes);
+        const persistedEnd = computeOperationalEnd(persistedStart, persistedDuration);
 
         setEvents((prev) => [
           ...prev.filter((ev) => !(ev.id === updatedEvent.id || ev.id === persistedId)),
@@ -827,8 +830,8 @@ const formatDate = (value?: string | null) => {
             status: normalizeEventStatus(String(normalizedSaved?.status || requestPayload.status || updatedEvent.status || 'scheduled')),
             inspectionType: normalizeInspectionType(normalizedSaved?.inspectionType),
             durationMinutes: persistedDuration,
-            bufferBeforeMinutes: Number(normalizedSaved?.bufferBeforeMinutes || requestPayload.bufferBeforeMinutes || 15),
-            bufferAfterMinutes: Number(normalizedSaved?.bufferAfterMinutes || requestPayload.bufferAfterMinutes || 15),
+            bufferBeforeMinutes: Number(normalizedSaved?.bufferBeforeMinutes ?? requestPayload.bufferBeforeMinutes),
+            bufferAfterMinutes: Number(normalizedSaved?.bufferAfterMinutes ?? requestPayload.bufferAfterMinutes),
           },
         ]);
         triggerAgendaReload();
@@ -933,7 +936,7 @@ const formatDate = (value?: string | null) => {
 
   function toDatetimeLocal(date: Date | null | undefined): string {
     const now = new Date();
-    const d = date && !Number.isNaN(new Date(date).getTime()) ? new Date(date) : new Date(now);
+    const d = agendaWallDate(date && !Number.isNaN(new Date(date).getTime()) ? new Date(date) : now);
     if (d <= now) { d.setFullYear(now.getFullYear(), now.getMonth(), now.getDate() + 1); }
     d.setHours(9, 0, 0, 0);
     const pad = (n: number) => String(n).padStart(2, '0');
@@ -1112,10 +1115,10 @@ const formatDate = (value?: string | null) => {
     }
   }
 
-  function handleQuickSchedule() {
-    if (!quickScheduleTarget || !quickScheduleDateTime) return;
-    const start = new Date(quickScheduleDateTime);
-    if (Number.isNaN(start.getTime())) return;
+  async function handleQuickSchedule(): Promise<boolean> {
+    if (!quickScheduleTarget || !quickScheduleDateTime) return false;
+    const start = parseAgendaDateTime(quickScheduleDateTime);
+    if (Number.isNaN(start.getTime())) return false;
     const suggestedResponsavel = suggestBestTechnician(start);
     const resolvedResponsavel = normalizeTechnicianName(quickScheduleResponsavel) || suggestedResponsavel;
     const inspectionType: InspectionType =
@@ -1136,10 +1139,11 @@ const formatDate = (value?: string | null) => {
       bufferBeforeMinutes: defaults.bufferBeforeMinutes,
       bufferAfterMinutes: defaults.bufferAfterMinutes,
     };
-    handleSchedule(event);
+    if (!await handleSchedule(event)) return false;
     setQuickScheduleTarget(null);
     setQuickScheduleDateTime('');
     setQuickScheduleResponsavel('');
+    return true;
   }
 
   async function handleDesmarcarTodos() {
@@ -1164,6 +1168,7 @@ const formatDate = (value?: string | null) => {
 
   return (
     <div className="ds-page">
+      {loadError && <p role="alert" className="mb-3 rounded-lg border border-red-200 p-3 text-sm text-red-700">{loadError} <button type="button" className="underline" onClick={triggerAgendaReload}>Tentar novamente</button></p>}
       <AgendaHeader 
         handleExportCSV={handleExportCSV}
         handleExportExcel={handleExportExcel}
@@ -1207,7 +1212,7 @@ const formatDate = (value?: string | null) => {
             <p className="text-2xl font-bold text-ok">{metrics.completionRate}%</p>
           </div>
           <div className="ds-card-interactive flex flex-col gap-1 border-brand-line p-3">
-            <p className="text-xs font-medium text-brand">Duração média</p>
+            <p className="text-xs font-medium text-brand">Duração média estimada</p>
             <p className="text-2xl font-bold text-brand">{metrics.averageDuration}&thinsp;min</p>
           </div>
           <div
@@ -1255,7 +1260,15 @@ const formatDate = (value?: string | null) => {
       )}
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-        <div className="xl:col-span-8">
+        <div className="min-w-0 xl:col-span-8">
+          <div className="ds-card mb-3 flex flex-wrap items-center gap-3 p-3">
+            <label className="text-sm font-medium">Data partilhada
+              <input aria-label="Data da agenda" type="date" value={wallDateTime(timelineStartDate).slice(0, 10)} onChange={event => { if (event.target.value) setTimelineStartDate(new Date(`${event.target.value}T12:00`)); }} className="ml-2 rounded-lg border border-line p-2" />
+            </label>
+            <button type="button" className="ds-btn ds-btn-sm ds-btn-secondary" onClick={() => { setViewMode('calendar'); setShowTimeline(false); setCalendarView('day'); }}>Dia por técnico</button>
+            <span className="text-xs text-ink-muted">Horário dos Açores</span>
+          </div>
+          <AgendaAvailability stationId={activeStationId} refreshKey={availabilityVersion} date={wallDateTime(timelineStartDate).slice(0, 10)} onLoad={setCapacity} />
           {viewMode === 'calendar' ? (
             <div className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface p-3 shadow-card">
@@ -1293,7 +1306,7 @@ const formatDate = (value?: string | null) => {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setTimelineStartDate(new Date())}
+                         onClick={() => setTimelineStartDate(agendaWallDate(new Date()))}
                         className="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
                       >
                         Hoje
@@ -1321,10 +1334,10 @@ const formatDate = (value?: string | null) => {
                       for (let i = 0; i < 7; i++) {
                         const checkDay = new Date(timelineStartDate);
                         checkDay.setDate(checkDay.getDate() + i);
-                        const checkDayStr = checkDay.toISOString().slice(0, 10);
+                         const checkDayStr = wallDateTime(checkDay).slice(0, 10);
                         totalVisibleEvents += techEvents.filter(e => {
                           const evDate = e.start instanceof Date ? e.start : new Date(e.start);
-                          return evDate.toISOString().slice(0, 10) === checkDayStr;
+                           return agendaDateTime(evDate).slice(0, 10) === checkDayStr;
                         }).length;
                       }
 
@@ -1358,11 +1371,11 @@ const formatDate = (value?: string | null) => {
                             {Array.from({ length: 7 }).map((_, i) => {
                               const day = new Date(timelineStartDate);
                               day.setDate(day.getDate() + i);
-                              const dayStr = day.toISOString().slice(0, 10);
+                               const dayStr = wallDateTime(day).slice(0, 10);
                               
                               const dayEvents = techEvents.filter(e => {
                                 const evDate = e.start instanceof Date ? e.start : new Date(e.start);
-                                return evDate.toISOString().slice(0, 10) === dayStr;
+                                 return agendaDateTime(evDate).slice(0, 10) === dayStr;
                               });
                               const hasAbsence = conflicts.some(c => c.type === 'technician_absence' && c.date === dayStr && c.description.includes(tech.nome));
                               const hasIslandConflict = conflicts.some(c => c.type === 'island_travel' && c.date === dayStr && c.description.includes(tech.nome));
@@ -1388,8 +1401,8 @@ const formatDate = (value?: string | null) => {
                                     ) : dayEvents.length > 0 ? (
                                       dayEvents.slice(0, 3).map((de, idx) => {
                                         const eventTime = de.start instanceof Date 
-                                          ? de.start.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })
-                                          : new Date(de.start).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
+                                           ? agendaDateTime(de.start).slice(11)
+                                           : agendaDateTime(new Date(de.start)).slice(11);
                                         
                                         const parts = de.title.split(' • ');
                                         const ship = parts[0]?.replace('Navio:', '').trim() || 'Sem Navio';
@@ -1437,10 +1450,14 @@ const formatDate = (value?: string | null) => {
                 </div>
               ) : (
                 <InspectionCalendar
+                  date={timelineStartDate}
+                  view={calendarView}
+                  onDateChange={setTimelineStartDate}
+                  onViewChange={setCalendarView}
                   events={events}
                   onSchedule={handleSchedule}
                   onEventDrop={handleEventDropOrResize}
-                  onEventResize={handleEventDropOrResize}
+                  onEventResize={(payload) => handleEventDropOrResize(payload, true)}
                   externalDragEvent={externalDragEvent}
                   onExternalEventConsumed={() => setExternalDragEvent(null)}
                   expiringByDay={agendaPanels.expiringByDay}
@@ -1476,7 +1493,7 @@ const formatDate = (value?: string | null) => {
                       <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Navio</th>
                       <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Tipo</th>
                       <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Responsável</th>
-                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Dur.</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Estimada</th>
                       <th className="px-3 py-2 text-right text-xs font-semibold text-gray-500">Ações</th>
                     </tr>
                   </thead>
@@ -1782,6 +1799,9 @@ const formatDate = (value?: string | null) => {
       </div>
 
       <AgendaModals
+        key={activeStationId ?? 'all'}
+        stationId={activeStationId}
+        onWorkTimeChange={() => { setEditingEvent(null); triggerAgendaReload(); }}
         handleQuickSchedule={handleQuickSchedule}
         editingEvent={editingEvent}
         onSaveEdit={handleSchedule}

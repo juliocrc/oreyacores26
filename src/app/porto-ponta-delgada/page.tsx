@@ -553,7 +553,7 @@ export default function PortoPontaDelgadaPage() {
               <Anchor size={28} />
             </div>
             <div>
-              <p className="text-xs font-extrabold uppercase tracking-widest text-sky-600">Orey Açores · Portuário</p>
+              <p className="text-xs font-extrabold uppercase tracking-widest text-sky-600">Orey Tecnica- Serviços Navais, Lda · Portuário</p>
               <h1 className="text-2xl sm:text-3xl font-black text-slate-800">Porto de Ponta Delgada</h1>
               <p className="text-sm text-slate-500 mt-0.5">Gestão de entradas, partidas e navios em porto na Ilha de São Miguel.</p>
             </div>

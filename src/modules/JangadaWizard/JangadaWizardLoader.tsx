@@ -2,32 +2,34 @@
 import React, { useEffect, useState } from 'react';
 import { useJangadaWizardStore } from './store/useJangadaWizardStore';
 import { Loader2, AlertTriangle, RefreshCw, Trash2 } from 'lucide-react';
+import { getSavedStepKey } from './steps';
+import { classifyLocalDraft, draftTime } from './localDraftStatus';
 
 export default function JangadaWizardLoader({ 
   jangadaId, 
   children,
-  inspectionToOpen 
+  inspectionToOpen,
+  onOpenSavedInspection,
 }: { 
   jangadaId: number;
   children: React.ReactNode;
   inspectionToOpen?: any;
+  onOpenSavedInspection?: (inspection: any) => void;
 }) {
   const [loading, setLoading] = useState(true);
   const [draftToRestore, setDraftToRestore] = useState<any>(null);
   const [serverData, setServerData] = useState<{ raftData: any; latestInsp: any; draftData: any } | null>(null);
+  const [draftStatus, setDraftStatus] = useState<'redundant' | 'pending' | 'unknown'>('unknown');
   const { initializeWizard, setStep, setStepByKey, setInspectionData, setGlobalStock } = useJangadaWizardStore();
 
   function restoreStep(draft: any) {
-    if (draft && draft.currentStepKey) {
-      setStepByKey(draft.currentStepKey);
-    } else {
-      setStep(draft?.currentStep || 1);
-    }
+    const state = useJangadaWizardStore.getState();
+    setStepByKey(getSavedStepKey(state.inspectionData, draft || {}, state.hideOrcamento));
   }
 
   async function loadStock() {
     try {
-      const res = await fetch("/api/stock");
+      const res = await fetch("/api/stock?includeFoto=true");
       if (!res.ok) return;
       const d = await res.json();
       const items = Array.isArray(d)
@@ -44,6 +46,12 @@ export default function JangadaWizardLoader({
         referencia: s.referencia || s.ref || "",
         descricao: s.descricao || s.nome || "",
         quantidade: Number(s.quantidade ?? s.qty ?? 0),
+        quantidadeReservada: Number(s.quantidadeReservada ?? 0),
+        foto: s.foto || null,
+        localizacao: s.localizacao || null,
+        codigoBarras: s.codigoBarras || null,
+        codigoFabricante: s.codigoFabricante || null,
+        stationId: s.serviceStationId ?? s.stationId ?? null,
         categoria: s.categoria || null,
         validade: s.validade || null,
         lote: s.lote || null,
@@ -103,6 +111,7 @@ export default function JangadaWizardLoader({
 
         // Fetch Inspection Draft
         const inspRes = await fetch(`/api/inspecoes?jangadaId=${jangadaId}`);
+        if (!inspRes.ok) throw new Error('Não foi possível confirmar as inspeções guardadas');
         const inspList = await inspRes.json();
         const latestInsp = Array.isArray(inspList) && inspList.length > 0 ? inspList[0] : null;
 
@@ -139,6 +148,7 @@ export default function JangadaWizardLoader({
           const draft = JSON.parse(localDraftRaw);
           // Only offer restoration if draft has actual data and is valid
           if (draft && draft.inspectionData && Object.keys(draft.inspectionData).length > 0) {
+            setDraftStatus(classifyLocalDraft(draft, inspList));
             setDraftToRestore(draft);
             return; // Wait for user decision
           }
@@ -163,8 +173,9 @@ export default function JangadaWizardLoader({
             console.log("Offline mode: Restoring from local draft...");
             // Initialize with draft data
             initializeWizard(draft.inspectionData, null);
-            restoreStep(draft);
             setInspectionData(draft.inspectionData);
+            useJangadaWizardStore.setState({ jangadaId, inspecaoId: draft.inspecaoId || null, editVersions: draft.editVersions || { expectedUpdatedAt: null, expectedRaftUpdatedAt: null } });
+            restoreStep(draft);
             setLoading(false);
             return;
           }
@@ -182,6 +193,7 @@ export default function JangadaWizardLoader({
       // Initialize with base config, then override with draft
       initializeWizard(serverData.raftData, serverData.draftData);
       setInspectionData(draftToRestore.inspectionData);
+      useJangadaWizardStore.setState({ inspecaoId: draftToRestore.inspecaoId || null, editVersions: draftToRestore.editVersions || { expectedUpdatedAt: null, expectedRaftUpdatedAt: null } });
       restoreStep(draftToRestore);
       setDraftToRestore(null);
       setLoading(false);
@@ -191,6 +203,7 @@ export default function JangadaWizardLoader({
 
   const handleDiscard = () => {
     if (serverData) {
+      if (!window.confirm(draftStatus === 'redundant' ? 'Eliminar esta cópia local já guardada? A inspeção registada não será alterada.' : 'Não foi possível comprovar que este rascunho está guardado. Eliminar pode perder alterações locais. Deseja continuar?')) return;
       localStorage.removeItem(`jangada-wizard-draft-${jangadaId}`);
       initializeWizard(serverData.raftData, serverData.draftData);
       autoGenerateNumbers(serverData.raftData, serverData.draftData);
@@ -216,17 +229,31 @@ export default function JangadaWizardLoader({
             </div>
             
             <p className="text-sm text-slate-600 leading-relaxed">
-              Foi encontrado um progresso de inspeção gravado localmente neste dispositivo para esta jangada. Deseja recuperar este rascunho ou recomeçar com os dados do servidor?
+              {draftStatus === 'redundant' ? 'Esta cópia local corresponde à versão concluída guardada no servidor.' : draftStatus === 'pending' ? 'Este rascunho pode conter alterações ainda não guardadas no servidor.' : 'Não foi possível confirmar se este rascunho contém alterações não guardadas. Preserve-o até verificar.'}
+              {' '}Inspeção registada: {serverData?.latestInsp ? `${serverData.latestInsp.status || 'estado desconhecido'} · ${draftTime(serverData.latestInsp.updatedAt || serverData.latestInsp.dataInspecao)}` : 'não confirmada'}.
             </p>
+            <div className="rounded-lg bg-slate-50 p-3 text-xs text-slate-700 space-y-1">
+              <p className="font-bold">Comparação dos campos identificáveis</p>
+              <p>Inspeção associada: local {draftToRestore.inspecaoId || 'não indicada'} · servidor {serverData?.latestInsp?.id || 'não confirmada'}</p>
+              <p>Data: local {String(draftToRestore.inspectionData?.dataInspecao || 'não indicada').slice(0, 10)} · servidor {String(serverData?.latestInsp?.dataInspecao || 'não confirmada').slice(0, 10)}</p>
+              <p>Certificado: local {draftToRestore.inspectionData?.certificadoNumero || 'não indicado'} · servidor {serverData?.latestInsp?.certificadoNumero || 'não confirmado'}</p>
+              <p>Esta comparação não mostra todos os campos. Se existirem dúvidas, preserve ou exporte o rascunho antes de o eliminar.</p>
+              <button type="button" className="underline font-bold" onClick={() => { const blob = new Blob([JSON.stringify(draftToRestore, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `rascunho-jangada-${jangadaId}.json`; link.click(); URL.revokeObjectURL(url); }}>Exportar cópia local</button>
+            </div>
             
             <div className="flex gap-3 justify-end pt-2">
+              {onOpenSavedInspection && serverData?.latestInsp && ['concluída', 'concluida', 'condenada'].includes(String(serverData.latestInsp.status || '').trim().toLowerCase()) && (
+                <button type="button" onClick={() => { setDraftToRestore(null); setLoading(true); onOpenSavedInspection(serverData.latestInsp); }} className="px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl font-semibold text-sm">
+                  Ver vistoria registada (preservar rascunho)
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleDiscard}
                 className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold transition-colors text-sm"
               >
                 <Trash2 className="w-4 h-4 text-slate-500" />
-                Descartar
+                Eliminar cópia local
               </button>
               <button
                 type="button"

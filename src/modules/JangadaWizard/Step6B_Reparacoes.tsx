@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { useJangadaWizardStore } from './store/useJangadaWizardStore';
 import { Hammer, Plus, Trash2, TriangleAlert, CheckCircle2, Wrench } from 'lucide-react';
 import { appToast } from '@/lib/app-toast';
+import ManualReferenceNotice from './ManualReferenceNotice';
 
 type Reparacao = {
   id: string;
@@ -27,7 +28,7 @@ const TIPOS = [
 export default function Step6B_Reparacoes() {
   const { inspectionData, setInspectionData } = useJangadaWizardStore();
   const repairList: Reparacao[] = (inspectionData.reparacoes || []) as Reparacao[];
-  const nuncaReparada = String(inspectionData.testes?.testeWP || '').toUpperCase() === 'REPROVOU';
+  const wpReprovado = String(inspectionData.testes?.testeWP || '').toUpperCase() === 'REPROVOU';
 
   const [draft, setDraft] = useState({
     tipo: TIPOS[0],
@@ -77,12 +78,16 @@ export default function Step6B_Reparacoes() {
         <div>
           <h2 className="text-2xl font-extrabold text-slate-800">Reparações / Colagem</h2>
           <p className="text-sm text-slate-500 mt-1">
-            O teste WP reprovou, pelo que as reparações indicadas abaixo devem ser registadas antes da nova certificação.
+            {wpReprovado
+              ? 'O teste WP reprovou, pelo que as reparações indicadas abaixo devem ser registadas antes da nova certificação.'
+              : 'Registe as intervenções preventivas ou consulte as reparações já registadas nesta inspeção.'}
           </p>
         </div>
       </div>
 
-      {!nuncaReparada ? (
+      <ManualReferenceNotice brand={inspectionData.brand} model={inspectionData.model} topic="reparacoes" />
+
+      {!wpReprovado ? (
         <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 flex items-start gap-3">
           <CheckCircle2 size={20} className="text-blue-500 mt-0.5 shrink-0" />
           <p className="text-sm text-blue-800">

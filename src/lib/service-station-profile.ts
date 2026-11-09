@@ -42,9 +42,26 @@ export const DEFAULT_SERVICE_STATION_PROFILE: ServiceStationProfile = {
 
 export function getServiceStationProfile(code: unknown): ServiceStationProfile {
   const normalized = normalizeServiceStationCode(code);
+  const isAzores = normalized === "acores";
 
   return {
     ...DEFAULT_SERVICE_STATION_PROFILE,
     code: normalized || null,
+    // O módulo "Porto de Ponta Delgada" é específico dos Açores: para as
+    // restantes estações deixamos de o sugerir/expor.
+    hiddenModuleKeys: isAzores ? [] : ["porto-ponta-delgada"],
+    navios: isAzores
+      ? DEFAULT_SERVICE_STATION_PROFILE.navios
+      : {
+          preferPortGrouping: true,
+          showIslandFilter: false,
+          showLocationColumn: false,
+          distributionLabel: "Portos ativos",
+          topDistributionLabel: "Porto com mais navios",
+          missingDistributionLabel: "Sem porto/região válido",
+          uniqueSummaryLabel: "porto(s)",
+          locationInputLabel: "Porto",
+          locationInputPlaceholder: "Porto / região",
+        },
   };
 }

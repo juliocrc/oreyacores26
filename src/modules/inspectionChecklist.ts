@@ -1,6 +1,8 @@
 // Estrutura do checklist digital baseado no quadro de inspeção
 // Cada seção representa uma etapa do wizard
 
+import { resolveFiringHeadDesignation } from '@/lib/firing-head';
+import { isSosRaft } from '@/lib/raft-model-rules';
 import {
   findMatchingArticleForPackItem,
   getMandatoryPackItemsForRaft,
@@ -35,9 +37,12 @@ export type ChecklistRaftInput = {
   packType?: string;
   containerModel?: string;
   cylinderCabecaDisparoRef?: string;
+  cylinderCabecaDisparoDescricao?: string;
+  cylinderSistema?: string;
   tuboIdentificacao?: string;
   dataInspecao?: string;
   dataProxInspecao?: string;
+  shipDetails?: unknown;
   shipNameManual?: string;
   cylinder?: {
     serial?: string;
@@ -134,12 +139,6 @@ function normalizeChecklistComparable(value?: string | null) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
-}
-
-function isSosChecklistRaft(raft?: ChecklistRaftInput) {
-  const model = normalizeChecklistComparable(raft?.model);
-  const packType = normalizeChecklistComparable(raft?.packType);
-  return model.includes('sos') || packType.includes('sos');
 }
 
 function isPlastimoChecklistRaft(raft?: ChecklistRaftInput) {
@@ -947,7 +946,7 @@ function buildMkiiiChecklistSections(raft?: ChecklistRaftInput, brandModel?: str
 
 export function buildInspectionChecklistFromQuadro(raft?: ChecklistRaftInput): ChecklistSection[] {
   const brandModel = [raft?.brand, raft?.model].filter(Boolean).join(' ').trim();
-  const plastimoWorksheetSections: ChecklistSection[] = isPlastimoChecklistRaft(raft)
+  const plastimoWorksheetSections: ChecklistSection[] = !isSosRaft(raft || {}) && isPlastimoChecklistRaft(raft)
     ? [{
       title: 'Formulário Plastimo (Worksheet)',
       englishTitle: 'Plastimo Servicing Worksheet',
@@ -1049,6 +1048,19 @@ export function buildInspectionChecklistFromQuadro(raft?: ChecklistRaftInput): C
   return sections.filter((section) => section.fields.length > 0);
 }
 
+export function getBooleanChecklistCompletionErrors(sections: ChecklistSection[], values: Record<string, unknown>): string[] {
+  return sections.flatMap(section => section.fields)
+    .filter(field => field.type === 'checkbox' && values[field.name] !== true &&
+      !(values[field.name] === false && String(values[`${field.name}_justificacaoNaoSubstituicao`] || '').trim()))
+    .map(field => `${field.label}: ${values[field.name] === false ? 'falha por resolver: falta justificação de não substituição' : 'por verificar'}`);
+}
+
+export function resolveChecklistArticleValidity(values: Record<string, unknown>, field: string | undefined, replacement?: { validade?: string | null } | null, article?: { validade?: string | null } | null): string {
+  // An explicit blank is a correction too; never resurrect the installed date.
+  if (field && Object.prototype.hasOwnProperty.call(values, field)) return String(values[field] ?? '');
+  return String((replacement ? replacement.validade : article?.validade) || '');
+}
+
 export function buildChecklistInitialValues(
   checklist: ChecklistSection[],
   raft?: ChecklistRaftInput,
@@ -1058,9 +1070,10 @@ export function buildChecklistInitialValues(
   checklist.forEach((section) => {
     section.fields.forEach((field) => {
       if (field.type === 'checkbox') {
-        initialValues[field.name] = field.bulletinId
-          ? raft?.serviceBulletinsApplied?.[field.bulletinId] === 'APLICADO'
-          : false;
+        // Empty string is unassessed; false remains an explicitly recorded failure.
+        initialValues[field.name] = field.bulletinId && raft?.serviceBulletinsApplied?.[field.bulletinId] === 'APLICADO'
+          ? true
+          : '';
         return;
       }
 
@@ -1069,12 +1082,14 @@ export function buildChecklistInitialValues(
         return;
       }
 
-      if ((field.name === 'packType' || field.name === 'equip_pack_type') && isSosChecklistRaft(raft)) {
+      if ((field.name === 'packType' || field.name === 'equip_pack_type') && isSosRaft(raft)) {
         initialValues[field.name] = '';
         return;
       }
 
-      const resolved = resolvePath(raft as unknown as Record<string, unknown>, field.autoFillFromRaft);
+      const resolved = field.name === 'cabeca_disparo'
+        ? resolveFiringHeadDesignation({ ...raft, cylinderSistema: raft.cylinder?.sistema || raft.cylinderSistema })
+        : resolvePath(raft as unknown as Record<string, unknown>, field.autoFillFromRaft);
       if (resolved === undefined || resolved === null) {
         initialValues[field.name] = '';
       } else if (field.type === 'date' && typeof resolved === 'string') {
@@ -1118,10 +1133,6 @@ export function buildChecklistInitialValues(
       const matched = findMatchingArticleForPackItem(packItem, raft.artigos || []);
       if (!matched) continue;
 
-      if (field.type === 'checkbox' && !Boolean(initialValues[field.name])) {
-        initialValues[field.name] = true;
-      }
-
       if (field.type === 'date' && (!initialValues[field.name] || initialValues[field.name] === '') && matched.validade) {
         const iso = mmYyyyToIso(String(matched.validade))
           ?? (String(matched.validade).match(/^\d{4}-\d{2}-\d{2}$/) ? String(matched.validade) : null);
@@ -1136,6 +1147,7 @@ export function buildChecklistInitialValues(
     }
   }
 
+  if (isSosRaft(raft || {})) return initialValues;
   const dataFabricoIso = raft?.dataFabrico ? (mmYyyyToIso(raft.dataFabrico) ?? raft.dataFabrico) : undefined;
   const inspectionPlan = buildInspectionPlanFromFabricationDate(dataFabricoIso);
   initialValues.wp_rule = inspectionPlan.wpRule;

@@ -1,4 +1,5 @@
 import { findRaftTechnicalModel } from '@/modules/rafts/raftModelData';
+import { isSosRaft } from '@/lib/raft-model-rules';
 
 type TestResult = 'YES' | 'NO' | 'N/A';
 
@@ -168,6 +169,7 @@ function resolveManufacturerRule(context: ManufacturerRuleContext) {
 }
 
 export function getAutomaticRaftTests(args: {
+  serial?: string | null;
   brand?: string | null;
   model?: string | null;
   launchType?: string | null;
@@ -179,6 +181,10 @@ export function getAutomaticRaftTests(args: {
   const manufactureDate = parseFlexibleDate(args.dataFabrico);
   const referenceDate = parseFlexibleDate(args.inspectionDate) || new Date();
   const ageYears = calculateFullYears(manufactureDate, referenceDate);
+  if (isSosRaft(args)) return {
+    testeWP: 'N/A', testeNAP: 'N/A', testeFS: 'N/A', testeGI: 'N/A', testeDL: 'N/A',
+    isDlOverloadDue: false, ageYears, source: 'manufacturer', technicalModelName,
+  };
 
   const fallback = getFallbackTests(ageYears, args.launchType);
   const manufacturerOverride = resolveManufacturerRule({
@@ -212,12 +218,14 @@ function getNextGiYear(ageYears: number | null): number | null {
 }
 
 export function getTestRecommendations(args: {
+  serial?: string | null;
   brand?: string | null;
   model?: string | null;
   launchType?: string | null;
   dataFabrico?: string | null;
   inspectionDate?: string | null;
 }): TestRecommendation[] {
+  if (isSosRaft(args)) return [];
   const automatic = getAutomaticRaftTests(args);
   const age = automatic.ageYears;
   const normalizedLaunchType = normalizeLaunchType(args.launchType);
@@ -243,8 +251,9 @@ export function getTestRecommendations(args: {
       status = requiredByDefault ? 'required' : 'optional';
     }
 
+    // Age alone cannot establish whether an intervening GI was performed.
     if (age !== null && age >= 5 && testId === 'testeGI' && age % 5 !== 0) {
-      status = 'overdue';
+      status = 'unknown';
     }
 
     return {

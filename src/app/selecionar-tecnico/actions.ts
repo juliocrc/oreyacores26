@@ -5,6 +5,7 @@ import { signIn } from "@/auth";
 import prisma from "@/lib/prisma";
 import { normalizeEmail } from "@/lib/auth";
 import { ACTIVE_SERVICE_STATION_COOKIE } from "@/lib/station-selection";
+import { isLocalAuthBypassEnabled } from "@/lib/local-auth";
 
 // Tem de coincidir com APP_SESSION_COOKIE em src/app/session-idle-timeout.tsx.
 // Sem este cookie o SessionIdleTimeout desloga a sessão no acto seguinte e
@@ -59,22 +60,18 @@ export async function selecionarTecnico(
 
     const email = normalizeEmail(tecnico.email);
 
-    // O Tecnico e o User são modelos diferentes: liga-se sempre pelo email,
-    // nunca por id (os ids não têm qualquer relação entre si). Se o técnico
-    // ainda não tiver utilizador, criamos agora — assim ninguém fica bloqueado
-    // por causa de um script de manutenção que ninguém se lembra de correr.
+    // Link by email, not by unrelated Tecnico/User IDs. Public login must not
+    // provision administrators or mutate an account before authentication.
     const existente = await prisma.user.findFirst({
       where: { email, NOT: { role: "CLIENTE" } },
       select: { id: true },
     });
 
-    const user = existente
-      ? await prisma.user.update({
-          where: { id: existente.id },
-          data: { name: tecnico.nome, lastLoginAt: new Date() },
-          select: { id: true },
-        })
-      : await prisma.user.create({
+    if (!existente) {
+      if (!isLocalAuthBypassEnabled()) {
+        return { erro: "A conta de acesso deve ser configurada pelo administrador." };
+      }
+      await prisma.user.create({
           data: {
             email,
             name: tecnico.nome,
@@ -84,6 +81,22 @@ export async function selecionarTecnico(
           },
           select: { id: true },
         });
+    }
+
+    // Authenticate before writing application/station cookies.
+    const resultado = await signIn("credentials", {
+      loginType: "credentials",
+      email, password,
+      redirect: false,
+      redirectTo: "/",
+    });
+    const success = typeof resultado === "string"
+      ? new URL(resultado, "http://localhost").pathname === "/" && !new URL(resultado, "http://localhost").searchParams.has("error")
+      : resultado?.ok === true && !resultado.error;
+    if (!success) {
+      clearAppSessionCookie(await cookies());
+      return { erro: "Não foi possível iniciar a sessão. Tenta novamente." };
+    }
 
     // Marca a aplicação como aberta. O SessionIdleTimeout usa este cookie para
     // distinguir "a aplicação ficou aberta" de "o browser foi fechado"; sem ele
@@ -116,20 +129,6 @@ export async function selecionarTecnico(
       });
     }
 
-    // Sessão com palavra-passe (loginType "credentials").
-    // `redirect: false` para não lançarmos um redirect de dentro da acção: quem
-    // navega é o componente, que depois de `ok` faz replace + refresh. Assim o
-    // clique leva sempre para o ecrã pedido, mesmo com o router já hidratado.
-    const resultado = await signIn("credentials", {
-      loginType: "credentials",
-      email, password,
-      redirect: false,
-    });
-
-    if (resultado && typeof resultado === "object" && "error" in resultado && resultado.error) {
-      clearAppSessionCookie(cookieStore);
-      return { erro: "Não foi possível iniciar a sessão. Tenta novamente." };
-    }
   } catch (err) {
     console.error("[selecionar-tecnico] Falha ao iniciar sessão:", err);
     return { erro: "Não foi possível iniciar a sessão. Tenta novamente." };

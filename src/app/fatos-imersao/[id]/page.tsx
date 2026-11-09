@@ -8,7 +8,7 @@ import { ArrowLeft, Save, ClipboardCheck, Award, Shirt, Wand2, ImagePlus, Trash2
 import { FATO_IMERSAO_CHECKLIST_OPTIONS } from "@/types/fatos-imersao-page";
 import { FATO_IMERSAO_STATUS } from "@/lib/status-constants";
 import ImmersionSuitDiagram from "@/components/fatos-imersao/ImmersionSuitDiagram";
-import { berLabel, parseChecklistJson } from "@/lib/fatos-imersao-service";
+import { berLabel, parseChecklistJson, parseInspectionTrace } from "@/lib/fatos-imersao-service";
 import { toDisplayDate, toDisplayValidade, normalizeDateInput, toStorageValidade, toMonthInput, normalizeMonthInput } from "@/lib/fato-date-utils";
 
 const CHECK_FIELDS: Array<{ key: string; label: string }> = [
@@ -196,11 +196,14 @@ export default function FatoImersaoDetailPage() {
 
   async function handleEmitCertificado() {
     try {
+      if (cert.resultado === "Aprovado" && !window.confirm("Confirma a revisão técnica da última verificação, do manual aplicável e da validade do certificado?")) return;
       const res = await fetch(`/api/fatos-imersao/${id}/certificado`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...cert,
+          confirmarRevisao: cert.resultado === "Aprovado",
+          verificacaoId: item?.verificacoes?.[0]?.id,
           dataCertificado: cert.dataCertificado || undefined,
           dataValidade: cert.dataValidade || undefined,
         }),
@@ -331,6 +334,10 @@ export default function FatoImersaoDetailPage() {
 
       <section className="bg-white border border-slate-200 rounded-xl p-4">
         <h2 className="font-semibold text-slate-800 mb-3">Diagrama do fato</h2>
+        {(() => {
+          const trace = parseInspectionTrace(item.verificacoes?.[0]?.checklistJson);
+          return trace ? <div className="mb-3 text-sm text-slate-700"><p>Manual: {trace.manualReferencia || "—"} · Revisão: {trace.manualRevisao || "—"}</p><p>Equipamento: {trace.equipamentoEnsaio || "—"}</p><p>Reparações: {trace.reparacoes || "—"}</p></div> : null;
+        })()}
         <ImmersionSuitDiagram
           interactive={false}
           statuses={

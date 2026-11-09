@@ -10,6 +10,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
     }
 
+    if (!access.isAdmin) return NextResponse.json({ error: "Acesso reservado a administradores." }, { status: 403 });
     const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
     const rawIds = body?.ordemServicoIds;
     if (!Array.isArray(rawIds) || rawIds.length === 0) {
@@ -30,11 +31,7 @@ export async function POST(req: NextRequest) {
       emitidaPor: access.email || "sistema",
     });
 
-    if (resultado.alreadyEmitted) {
-      return NextResponse.json({ fatura: resultado.fatura, numeroFatura: resultado.numeroFatura, alreadyEmitted: true });
-    }
-
-    return NextResponse.json({ fatura: resultado.fatura, numeroFatura: resultado.numeroFatura, alreadyEmitted: false });
+    return NextResponse.json(resultado);
   } catch (error) {
     if (error instanceof FaturamentoError) {
       return NextResponse.json({ error: error.message }, { status: error.status });

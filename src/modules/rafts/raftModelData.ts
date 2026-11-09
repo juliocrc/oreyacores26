@@ -181,7 +181,7 @@ const lalizasSpareParts: RaftTechnicalItem[] = [
 const oceanSafetyIsoPackEquipment: RaftPackEquipment[] = [
   {
     pack: 'OFFSHORE',
-    summary: 'Ocean Safety ISO / ISO Ultralite para operação offshore (>24h), alinhada com a nomenclatura ISO 9650-1 usada no projeto.',
+    summary: 'Sugestão genérica offshore para Ocean ISO standard; confirmar a configuração e o manual. A tabela UltraLite Pack 2 de 2020 não permite conversão para Pack 1.',
     items: [
       { name: 'Inside Light and Battery', category: 'ILUMINAÇÃO' },
       { name: 'Top Light and Battery', category: 'ILUMINAÇÃO' },
@@ -305,7 +305,8 @@ const oceanSafetySolasPackEquipment: RaftPackEquipment[] = [
 ];
 
 const oceanSafetyIsoServiceItems: RaftTechnicalItem[] = [
-  { name: 'Ocean ISO Service Kit', category: 'SERVIÇO', reference: 'OSL8010S', notes: 'PDF de spares lista variante small 4/6/8P e large 10/12P sob a mesma referência importada.' },
+  { name: 'Ocean ISO Service Kit Small', category: 'SERVIÇO', reference: 'OSL8010S', notes: 'Manual Ocean ISO 02/2020, secção 9.2.1: 4/6/8 pessoas; confirmar configuração e revisão.' },
+  { name: 'Ocean ISO Service Kit Large', category: 'SERVIÇO', reference: 'OSL8010L', notes: 'Manual Ocean ISO 02/2020, secção 9.2.1: 10/12 pessoas; confirmar configuração e revisão.' },
   { name: 'OS ISO Painter Line Assembly', category: 'SERVIÇO', reference: 'OSL0400' },
   { name: 'OS ISO Airflow Transfer Valve', category: 'SERVIÇO', reference: 'OSL0190' },
   { name: 'OS ISO Airflow Top Up Valve', category: 'SERVIÇO', reference: 'OSL0195' },
@@ -319,9 +320,9 @@ const oceanSafetyIsoServiceItems: RaftTechnicalItem[] = [
 ];
 
 const oceanSafetyIsoUltraliteServiceItems: RaftTechnicalItem[] = [
-  { name: 'Ocean ISO Ultralite Service Kit', category: 'SERVIÇO', reference: 'OSL8015S', notes: 'A listagem do PDF distingue small 6/8P e large 10/12P; o stock importado manteve small/large em OSL8015S e OSL8015L.' },
+  { name: 'Ocean ISO Ultralite Service Kit', category: 'SERVIÇO', reference: 'OSL8015S', notes: 'Manual 02/2020, secção 9.2.1: indica 4/6/8 pessoas; as tabelas Ultralite detalham 6/8/10/12 pessoas, confirmar 4P com fabricante.' },
   { name: 'Ocean ISO Ultralite Service Kit Large', category: 'SERVIÇO', reference: 'OSL8015L' },
-  ...oceanSafetyIsoServiceItems,
+  ...oceanSafetyIsoServiceItems.filter(item => !['OSL8010S', 'OSL8010L'].includes(item.reference || '')),
 ];
 
 const oceanSafetyIsoSpareParts: RaftTechnicalItem[] = [
@@ -1254,6 +1255,16 @@ const zodiac50ToSrTorques: string[] = [
   'Leafield CO² inlet valve — aperto da porca da válvula no tecido: 30 Nm (SI01-09).',
 ];
 
+function manualModel(name: string, manual: string, packagingTypes: string[], grabBag = false): RaftModelEntry {
+  return {
+    name,
+    configuration: grabBag ? ['Container', 'Valise', 'Grab-Bag'] : ['Container', 'Valise'],
+    packagingTypes,
+    notes: [`${manual}, tabela 1.1. Identificação consultiva: confirmar geração, configuração, aprovação, revisão e boletins. Cargas, lotações, pack e peças por confirmar.`],
+    specifications: [],
+  };
+}
+
 export const raftModelData: RaftModelData = {
   ZODIAC: [
     { name: 'COASTAL', specifications: [
@@ -2081,6 +2092,21 @@ export const raftModelData: RaftModelData = {
     },
   ],
   EUROVINIL: [
+    ...[
+      ['SYNTESY 9650-1 >24H', true, false],
+      ['SYNTESY 9650-1 >24H GRAB-BAG', true, true],
+      ['SYNTESY 9650-1 <24H', true, false],
+      ['SYNTESY 9650-2', true, false],
+      ['SYNTESY 9650-1 SOLAS-B', false, false],
+      ['SYNTESY 9650-1 >24H USA', false, false],
+      ['SYNTESY 9650-1 <24H USA', false, false],
+      ['SYNTESY 9650-IT', true, false],
+      ['SYNTESY 9650-1 IT G/B', true, true],
+      ['SYNTESY-INTL', false, false],
+      ['SYNTESY-USA', true, false],
+      ['SYNTESY-E USA', true, false],
+      ['SYNTESY GREEK', true, false],
+    ].map(([name, abs, grabBag]) => manualModel(name as string, 'Leisure Syntesy Ver.1 Apr/21', abs ? ['ABS', 'VTR', 'Valise'] : ['VTR', 'Valise'], grabBag as boolean)),
     {
       name: 'SYNTESY ISO 9650-1 MK2',
       aliases: ['EV ISO 9650-1', 'ISO 9650-1', 'EV ISO 9650-1 MK2'],
@@ -2408,6 +2434,42 @@ export const raftModelData: RaftModelData = {
       ],
     },
     {
+      name: 'M14 ISO 9650-1 >24H USA',
+      aliases: ['M14 ISO9650-1 >24H USA'],
+      material: 'Eurovinil Leisure M14, ISO9650-1 >24H USA.',
+      configuration: ['Container', 'Valise'],
+      packagingTypes: ['VTR', 'Valise EV'],
+      notes: ['Manual Leisure M14 Ver.1 Jun/17, tabela 1.1. Confirmar geração, aprovação, pack e revisão antes do serviço; cargas e peças por confirmar.'],
+      specifications: [],
+    },
+    {
+      name: 'M14 ISO 9650-1 <24H USA',
+      aliases: ['M14 ISO9650-1 <24H USA'],
+      material: 'Eurovinil Leisure M14, ISO9650-1 <24H USA.',
+      configuration: ['Container', 'Valise'],
+      packagingTypes: ['VTR', 'Valise EV'],
+      notes: ['Manual Leisure M14 Ver.1 Jun/17, tabela 1.1. Confirmar geração, aprovação, pack e revisão antes do serviço; cargas e peças por confirmar.'],
+      specifications: [],
+    },
+    {
+      name: 'M14 ISO 9650-1 ITA G/B',
+      aliases: ['ZATTERA ISO9650-1 ITA M14 G/B'],
+      material: 'Eurovinil Leisure M14, ISO9650-1 ITA com grab-bag.',
+      configuration: ['Container', 'Valise', 'Grab-Bag'],
+      packagingTypes: ['ABS', 'VTR', 'Valise EV'],
+      notes: ['Manual Leisure M14 Ver.1 Jun/17, tabela 1.1. Confirmar aprovação, pack e revisão antes do serviço; cargas e peças por confirmar.'],
+      specifications: [],
+    },
+    {
+      name: 'M14 BALSA CRUCERO 9650',
+      aliases: ['BALSA CRUCERO 9650 M14'],
+      material: 'Eurovinil Leisure M14, Balsa Crucero 9650.',
+      configuration: ['Container', 'Valise'],
+      packagingTypes: ['ABS', 'VTR', 'Valise EV'],
+      notes: ['Manual Leisure M14 Ver.1 Jun/17, tabela 1.1. Confirmar aprovação, pack e revisão antes do serviço; cargas e peças por confirmar.'],
+      specifications: [],
+    },
+    {
       name: 'ST-INTL',
       aliases: ['ST-INTL', 'STL-INTL', 'LIFERAFT ST-INTL', 'EUROVINIL MODELO STD', 'EURIVINIL MODELO STD', 'EUROVINIL STD', 'EURIVINIL STD', 'STD INT', 'STD. INT', 'STD INTERNACIONAL', 'STANDARD INTERNATIONAL'],
       material: 'Eurovinil Leisure M14 NON-ISO STANDARD INTERNATIONAL.',
@@ -2477,6 +2539,27 @@ export const raftModelData: RaftModelData = {
         { codRef: 'EV-SOS-008', capacity: 8 },
       ],
     },
+  ],
+  CREWSAVER: [
+    ...[
+      ['ISO TYPE1 MK2 (SYNTESY) >24H', true, false],
+      ['ISO TYPE1 MK2 (SYNTESY) >24H G/B', true, true],
+      ['ISO TYPE1 MK2 (SYNTESY) <24H', true, false],
+      ['ISO TYPE2 MK2 (SYNTESY)', true, false],
+      ['MARINER MK2', true, false],
+      ['MARINER MK2 USC', true, false],
+    ].map(([name, abs, grabBag]) => manualModel(name as string, 'Leisure Syntesy / Crewsaver MK2 Ver.1 Apr/21', abs ? ['ABS', 'VTR', 'Valise'] : ['VTR', 'Valise'], grabBag as boolean)),
+    ...[
+      ['ISO TYPE1 (EV 2017) >24H', true, false],
+      ['ISO TYPE1 (EV 2017) >24H GRAB-BAG', true, true],
+      ['ISO TYPE1 (EV 2017) <24H', true, false],
+      ['ISO TYPE2 (EV 2017)', true, false],
+      ['ISO TYPE1 (EV 2017) SOLAS-B', false, false],
+      ['ISO TYPE1 (EV 2017) >24H USA', false, false],
+      ['ISO TYPE1 (EV 2017) <24H USA', false, false],
+      ['MARINER (EV 2017)', false, false],
+      ['MARINER USA (EV 2017)', false, false],
+    ].map(([name, abs, grabBag]) => manualModel(name as string, 'ISO TYPE1/TYPE2 MARINER (EV) Ver.1 Jun/17', abs ? ['ABS', 'VTR', 'Valise'] : ['VTR', 'Valise'], grabBag as boolean)),
   ],
   OSCULATI: [
     {
@@ -2850,6 +2933,17 @@ export const raftModelData: RaftModelData = {
     },
   ],
   VIKING: [],
+  DUARRY: [
+    { name: 'DUARRY SOLAS Throw Overboard Liferaft', aliases: ['SOLAS Throw Overboard Liferaft', 'SOLAS Throw-Over'], packTypes: ['SOLAS A', 'SOLAS B'], notes: ['Modelo DUARRY observado na listagem de produtos Ausmar. Sem especificações técnicas detalhadas no repositório.'], specifications: [] },
+    { name: 'DUARRY SOLAS Compact', aliases: ['SOLAS Compact'], packTypes: ['SOLAS A', 'SOLAS B'], notes: ['Modelo compacto SOLAS; consulte o manual/parse para lotações reais.'], specifications: [] },
+    { name: 'DUARRY SOLAS HSC Open Reversible Liferaft', aliases: ['SOLAS HSC Open Reversible Liferaft'], packTypes: ['SOLAS A', 'SOLAS B'], notes: ['Modelo HSC open reversible; verify modelo a bordo.'], specifications: [] },
+    { name: 'DUARRY SOLAS Self-righting', aliases: ['SOLAS Self-righting'], packTypes: ['SOLAS A', 'SOLAS B'], notes: ['Modelo autoadrável SOLAS.'], specifications: [] },
+    { name: 'DUARRY SOLAS Davit-Launchable', aliases: ['SOLAS Davit-Launchable'], packTypes: ['SOLAS A', 'SOLAS B'], notes: ['Modelo içável.'], specifications: [] },
+    { name: 'DUARRY SOLAS Davit-Launchable / Self-Righting', aliases: ['SOLAS Davit-Launchable Self-Righting'], packTypes: ['SOLAS A', 'SOLAS B'], notes: ['Modelo içável e autoadrável.'], specifications: [] },
+    { name: 'DUARRY Coast', aliases: ['Coast'], packTypes: ['COASTAL'], notes: ['Modelo coastal ISO/50 horas? Consulte catálogo real.'], specifications: [] },
+    { name: 'DUARRY Dynamic ISO 9650', aliases: ['Dynamic ISO 9650'], packTypes: ['ISO 9650-1', 'ISO 9650-2'], specifications: [] },
+    { name: 'DUARRY Single Person Liferaft (SafetyRaft)', aliases: ['SafetyRaft', 'Single Person Liferaft'], packTypes: ['Single Person'], specifications: [] },
+  ],
   SURVITEC: [],
   FORWATER: [],
   'OCEAN SAFETY': [
@@ -2866,18 +2960,16 @@ export const raftModelData: RaftModelData = {
       inflationTechnology: 'Sistema Ocean Safety ISO com componentes GIS/GIST e kits de serviço por lotação.',
       notes: [
         'Fonte principal: documentacao/ocean safety spares.pdf e o snapshot scripts/backups/stock_cleanup_out_of_scope_20260315_181948.json.',
-        'O catálogo preservado indica kits de serviço, kits de conversão, válvulas e conjuntos de inflação, mas não expõe claramente a tabela de cargas CO₂/N₂ no material disponível.',
+        'Manual Ocean ISO edição 02/2020 abrange ISO e UltraLite com contentores Mk1/Mk2; confirmar modelo, série, embalagem e revisão vigente.',
+        'Cargas de cilindro diferem antes/depois de 2013; não inferir a carga a partir apenas da lotação.',
+        'O manual 02/2020 contém tabelas de cargas, que dependem da geração e devem ser confirmadas na identificação do cilindro antes do serviço.',
         'As referências OSL8010S, OSL0400, OSL0190, OSL0195, OSL0104, OSL0105, OSL0110, OSL0115, OSL0130, OSL0140 e OSL0142 foram confirmadas no backup de stock importado.',
       ],
       packEquipment: oceanSafetyIsoPackEquipment,
       serviceItems: oceanSafetyIsoServiceItems,
       spareParts: oceanSafetyIsoSpareParts,
       specifications: [
-        { codRef: 'OS-ISO-004', capacity: 4, pack: 'COASTAL', source: { doc: 'Ocean Safety spares PDF', note: 'Capacidade inferida a partir dos service/conversion kits 4P.' } },
-        { codRef: 'OS-ISO-006', capacity: 6, pack: 'COASTAL', source: { doc: 'Ocean Safety spares PDF', note: 'Capacidade inferida a partir dos service/conversion kits 6P.' } },
-        { codRef: 'OS-ISO-008', capacity: 8, pack: 'COASTAL', source: { doc: 'Ocean Safety spares PDF', note: 'Capacidade inferida a partir dos service/conversion kits 8P.' } },
-        { codRef: 'OS-ISO-010', capacity: 10, pack: 'OFFSHORE', source: { doc: 'Ocean Safety spares PDF', note: 'Capacidade inferida a partir dos service/conversion kits 10P.' } },
-        { codRef: 'OS-ISO-012', capacity: 12, pack: 'OFFSHORE', source: { doc: 'Ocean Safety spares PDF', note: 'Capacidade inferida a partir dos service/conversion kits 12P.' } },
+        ...[4, 6, 8, 10, 12].map(capacity => ({ capacity, source: { doc: 'Ocean ISO Service Manual', revision: '02/2020', note: 'Secção 2.2: o pack depende da configuração individual, não apenas da lotação.' } })),
       ],
     },
     {
@@ -2886,22 +2978,20 @@ export const raftModelData: RaftModelData = {
       material: 'Variante Ocean Safety ISO Ultralite mapeada a partir dos kits de serviço OSL8015S/OSL8015L.',
       configuration: ['Container', 'Valise'],
       packagingTypes: ['Container', 'Valise'],
-      packTypes: ['COASTAL', 'OFFSHORE'],
+      packTypes: ['COASTAL'],
       inflationSystem: ['GIS / GIST'],
       head: 'GIS Operating Head Assembly',
       valves: ['OS ISO Airflow Transfer Valve', 'OS ISO Airflow Top Up Valve', 'B10 Pressure Relief Valve'],
       notes: [
         'OSL8015S e OSL8015L aparecem no snapshot de stock como kits de serviço small/large para a linha Ocean ISO Ultralite.',
+        'Manual Ocean ISO edição 02/2020, tabela 5: descreve UltraLite Pack 2 <24h e diz que não pode ser convertido para Pack 1; confirmar modelo e revisão vigente.',
         'O restante conjunto técnico reaproveita a família de componentes GIS/GIST da linha Ocean ISO standard.',
       ],
-      packEquipment: oceanSafetyIsoPackEquipment,
+      packEquipment: oceanSafetyIsoPackEquipment.filter(entry => entry.pack === 'COASTAL'),
       serviceItems: oceanSafetyIsoUltraliteServiceItems,
       spareParts: oceanSafetyIsoSpareParts,
       specifications: [
-        { codRef: 'OS-ISOU-006', capacity: 6, pack: 'COASTAL', source: { doc: 'Ocean Safety spares PDF', note: 'Capacidade inferida do kit OSL8015S.' } },
-        { codRef: 'OS-ISOU-008', capacity: 8, pack: 'COASTAL', source: { doc: 'Ocean Safety spares PDF', note: 'Capacidade inferida do kit OSL8015S.' } },
-        { codRef: 'OS-ISOU-010', capacity: 10, pack: 'OFFSHORE', source: { doc: 'Ocean Safety spares PDF', note: 'Capacidade inferida do kit OSL8015L.' } },
-        { codRef: 'OS-ISOU-012', capacity: 12, pack: 'OFFSHORE', source: { doc: 'Ocean Safety spares PDF', note: 'Capacidade inferida do kit OSL8015L.' } },
+        ...[6, 8, 10, 12].map(capacity => ({ capacity, source: { doc: 'Ocean ISO Service Manual', revision: '02/2020', note: 'Tabela 5: UltraLite pack 2; confirmar configuração individual.' } })),
       ],
     },
     {
@@ -3275,26 +3365,27 @@ function augmentOperationalTechnicalModel(
 
 export function findRaftTechnicalModel(brand?: string | null, model?: string | null) {
   const normalizedBrand = normalizeRaftLookupValue(brand);
-  const normalizedModel = normalizeRaftLookupValue(model);
+  const normalizeModel = (value?: string | null) => normalizeRaftLookupValue((value || '').replace(/>/g, ' MAIORQUE ').replace(/</g, ' MENORQUE '));
+  const normalizedModel = normalizeModel(model);
   if (!normalizedBrand || !normalizedModel) return null;
 
   const brandEntry = Object.entries(raftModelData).find(([key]) => normalizeRaftLookupValue(key) === normalizedBrand);
   if (!brandEntry) return null;
 
   const [, models] = brandEntry;
-  const exact = models.find((entry) => normalizeRaftLookupValue(entry.name) === normalizedModel);
+  const exact = models.find((entry) => normalizeModel(entry.name) === normalizedModel);
   if (exact) return augmentOperationalTechnicalModel(exact, brand, model);
 
   const aliasMatch = models.find((entry) =>
-    (entry.aliases || []).some((alias) => normalizeRaftLookupValue(alias) === normalizedModel)
+    (entry.aliases || []).some((alias) => normalizeModel(alias) === normalizedModel)
   );
   if (aliasMatch) return augmentOperationalTechnicalModel(aliasMatch, brand, model);
 
   const partialMatch = models.find((entry) => {
-    const current = normalizeRaftLookupValue(entry.name);
+    const current = normalizeModel(entry.name);
     if (current.includes(normalizedModel) || normalizedModel.includes(current)) return true;
     return (entry.aliases || []).some((alias) => {
-      const normalizedAlias = normalizeRaftLookupValue(alias);
+      const normalizedAlias = normalizeModel(alias);
       return normalizedAlias.includes(normalizedModel) || normalizedModel.includes(normalizedAlias);
     });
   }) || null;

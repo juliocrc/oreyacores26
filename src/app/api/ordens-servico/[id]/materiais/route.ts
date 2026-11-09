@@ -5,6 +5,7 @@ import {
   parseOrdemServicoMeta,
   toOrdemServicoMetaJson,
   type OrdemServicoMeta,
+  resolveLotStock,
 } from "@/lib/ordens-servico";
 import { buildDatabaseErrorResponse } from "@/lib/database-errors";
 
@@ -119,7 +120,7 @@ export async function POST(req: NextRequest) {
 
     const order = await prisma.ordemServico.findUnique({
       where: { id },
-      select: { numeroOrdem: true, metadados: true },
+      select: { numeroOrdem: true, metadados: true, serviceStationId: true },
     });
     if (!order)
       return NextResponse.json(
@@ -132,20 +133,12 @@ export async function POST(req: NextRequest) {
     const lineId = String(body.materialId || "").trim();
 
     if (action === "add" || action === "update") {
-      const stockId = Number(body.stockId || 0);
-      const stock =
-        Number.isFinite(stockId) && stockId > 0
-          ? await prisma.stock.findUnique({
-              where: { id: stockId },
-              select: {
-                id: true,
-                referencia: true,
-                descricao: true,
-                precoVenda: true,
-                quantidade: true,
-              },
-            })
-          : null;
+      const previous = materials.find(item => item.id === lineId);
+      if (previous?.consumido || previous?.reservado) return NextResponse.json({ error: "Material reservado/consumido nao pode ser alterado." }, { status: 400 });
+      const stock = await resolveLotStock(prisma, {
+        stockId: body.stockId ?? previous?.stockId,
+        referencia: String(body.referencia || previous?.referencia || "") || null,
+      }, order.serviceStationId);
 
       const referencia = String(
         body.referencia || stock?.referencia || "",
@@ -178,14 +171,15 @@ export async function POST(req: NextRequest) {
       const nextLine = {
         id: nextId,
         stockId: stock?.id,
+        lote: previous?.stockId === stock?.id ? previous?.lote ?? stock?.lote : stock?.lote,
         referencia,
         descricao,
         quantidadePrevista,
         quantidadeUsada,
         precoUnitario,
         disponibilidade,
-        reservado: Boolean(body.reservado ?? false),
-        consumido: Boolean(body.consumido ?? false),
+        reservado: false,
+        consumido: false,
       };
 
       const nextMaterials =
@@ -220,22 +214,25 @@ export async function POST(req: NextRequest) {
           { error: "Linha de material inválida." },
           { status: 400 },
         );
-      const nextMaterials = materials.map((item) =>
-        item.id === lineId ? { ...item, reservado: true } : item,
-      );
-      const target = nextMaterials.find((item) => item.id === lineId);
-      const nextMeta = appendOrdemServicoLog(
-        { ...meta, materials: nextMaterials },
-        {
-          type: "MATERIAL_RESERVE",
-          message: `Material reservado: ${target?.referencia || lineId}.`,
-          user: "operador",
-        },
-      );
-      await prisma.ordemServico.update({
-        where: { id },
-        data: { metadados: toOrdemServicoMetaJson(nextMeta) },
-      });
+      const nextMaterials = await prisma.$transaction(async tx => {
+        const fresh = await tx.ordemServico.findUnique({ where: { id }, select: { metadados: true, serviceStationId: true } });
+        if (!fresh) throw new Error("Ordem nao encontrada.");
+        const freshMeta = parseOrdemServicoMeta(fresh.metadados);
+        const lines = readMaterials(freshMeta);
+        const target = lines.find(item => item.id === lineId);
+        if (!target) throw new Error("Material nao encontrado.");
+        if (target.reservado || target.consumido) return lines;
+        const stock = await resolveLotStock(tx, target, fresh.serviceStationId);
+        if (!stock) throw new Error("Material sem stockId concreto.");
+        const qty = Number(target.quantidadePrevista ?? 1);
+        if (!Number.isFinite(qty) || qty <= 0) throw new Error("Quantidade invalida.");
+        const updated = await tx.stock.updateMany({ where: { id: stock.id, quantidadeReservada: stock.quantidadeReservada, quantidade: { gte: stock.quantidadeReservada + qty } }, data: { quantidadeReservada: { increment: qty } } });
+        if (updated.count !== 1) throw new Error("Stock insuficiente para reservar o lote.");
+        await tx.movimentacaoStock.create({ data: { stockId: stock.id, tipo: "reserva", quantidade: qty, quantidadeAntes: stock.quantidadeReservada, quantidadeDepois: stock.quantidadeReservada + qty, motivo: `Reserva OT ${order.numeroOrdem}`, usuario: "operador" } });
+        const next = lines.map(item => item.id === lineId ? { ...item, stockId: stock.id, lote: item.lote ?? stock.lote, reservado: true, quantidadeReservada: qty } : item);
+        await tx.ordemServico.update({ where: { id }, data: { metadados: toOrdemServicoMetaJson(appendOrdemServicoLog({ ...freshMeta, materials: next }, { type: "MATERIAL_RESERVE", message: `Material reservado: ${stock.referencia}.`, user: "operador" })) } });
+        return next;
+      }, { isolationLevel: "Serializable" });
       return NextResponse.json({
         materials: nextMaterials,
         totals: computeTotals(nextMaterials),
@@ -269,6 +266,8 @@ export async function POST(req: NextRequest) {
             1,
         ),
       );
+      if (!Number.isFinite(quantityToConsume)) return NextResponse.json({ error: "Quantidade invalida." }, { status: 400 });
+      if (target.consumido && Number(target.quantidadeUsada || 0) !== quantityToConsume) return NextResponse.json({ error: "Material ja consumido; reverta antes de alterar a quantidade." }, { status: 400 });
       const operationKey = String(
         body.operationKey || body.idempotencyKey || "",
       ).trim();
@@ -287,7 +286,7 @@ export async function POST(req: NextRequest) {
       const result = await prisma.$transaction(async (tx) => {
         const freshOrder = await tx.ordemServico.findUnique({
           where: { id },
-          select: { numeroOrdem: true, metadados: true },
+          select: { numeroOrdem: true, metadados: true, serviceStationId: true },
         });
         if (!freshOrder) throw new Error("Ordem de serviço não encontrada.");
 
@@ -316,24 +315,26 @@ export async function POST(req: NextRequest) {
           };
         }
 
-        const stock = await tx.stock.findUnique({
-          where: { id: freshTarget.stockId },
-          select: { id: true, quantidade: true },
-        });
+        if (freshTarget.consumido) throw new Error("Material ja consumido.");
+        const stock = await resolveLotStock(tx, freshTarget, freshOrder.serviceStationId);
         if (!stock) throw new Error("Artigo de stock não encontrado.");
         const isVirtual = action === "consume_virtual";
         let quantidadeDepois = stock.quantidade;
 
         if (!isVirtual) {
-          if (stock.quantidade < quantityToConsume)
+          const ownReservation = Number(freshTarget.quantidadeReservada ?? 0);
+          const release = Math.min(stock.quantidadeReservada, ownReservation);
+          if (stock.quantidade - stock.quantidadeReservada + release < quantityToConsume)
             throw new Error(
               "Stock insuficiente para consumir o material nesta OT.",
             );
           quantidadeDepois = stock.quantidade - quantityToConsume;
-          await tx.stock.update({
-            where: { id: freshTarget.stockId },
-            data: { quantidade: quantidadeDepois },
+          const updated = await tx.stock.updateMany({
+            where: { id: stock.id, quantidade: stock.quantidade, quantidadeReservada: stock.quantidadeReservada },
+            data: { quantidade: quantidadeDepois, quantidadeReservada: { decrement: release } },
           });
+          if (updated.count !== 1) throw new Error("Stock insuficiente: lote alterado; tente novamente.");
+          if (release > 0) await tx.movimentacaoStock.create({ data: { stockId: stock.id, tipo: "libertar_reserva", quantidade: release, quantidadeAntes: stock.quantidadeReservada, quantidadeDepois: stock.quantidadeReservada - release, motivo: `Consumo reserva OT ${freshOrder.numeroOrdem}`, usuario: "operador" } });
           await tx.movimentacaoStock.create({
             data: {
               stockId: freshTarget.stockId,
@@ -353,7 +354,9 @@ export async function POST(req: NextRequest) {
                 ...item,
                 quantidadeUsada: quantityToConsume,
                 disponibilidade: quantidadeDepois,
-                reservado: true,
+                reservado: false,
+                quantidadeReservada: action === "consume_virtual" ? item.quantidadeReservada : 0,
+                lote: item.lote ?? stock.lote,
                 consumido: true,
               }
             : item,
@@ -379,7 +382,7 @@ export async function POST(req: NextRequest) {
           materials: nextMaterials,
           idempotent: false,
         };
-      });
+      }, { isolationLevel: "Serializable" });
 
       return NextResponse.json({
         materials: result.materials,
@@ -421,18 +424,16 @@ export async function POST(req: NextRequest) {
         );
         if (!isAlreadyAdded) {
           // Find stock to get price (if possible by reference)
-          let stockInfo = null;
-          if (artigo.referencia) {
-            stockInfo = await prisma.stock.findFirst({
-              where: { referencia: artigo.referencia },
-            });
-          }
+          const stockInfo = await resolveLotStock(prisma, artigo, fullOrder.serviceStationId, true);
+          const snapshot = fullOrder.inspecao.checklistSnapshot as { _articleExpiry?: { replacements?: Array<{ stockId?: number; lote?: string | null }> } } | null;
+          const savedLot = snapshot?._articleExpiry?.replacements?.find(item => item.stockId === artigo.stockId);
 
           const nextId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
           newMaterials.push({
             id: nextId,
             inspecaoArtigoId: artigo.id,
-            stockId: stockInfo?.id ?? undefined,
+            stockId: artigo.stockId ?? stockInfo?.id ?? undefined,
+            lote: savedLot?.lote ?? null,
             referencia: artigo.referencia || "Desconhecida",
             descricao: artigo.name || "Artigo de Inspeção",
             quantidadePrevista: artigo.quantidade,
@@ -480,7 +481,7 @@ export async function POST(req: NextRequest) {
         : "Erro ao atualizar materiais da OT.";
     if (
       message.includes("insuficiente") ||
-      message.includes("não encontrado")
+      message.includes("não encontrado") || message.includes("stockId") || message.includes("lote") || message.includes("invalida")
     ) {
       return NextResponse.json({ error: message }, { status: 400 });
     }
@@ -520,21 +521,25 @@ export async function DELETE(req: NextRequest) {
 
     const meta = parseOrdemServicoMeta(order.metadados);
     const materials = readMaterials(meta);
-    const target = materials.find((item) => item.id === lineId);
-    const nextMaterials = materials.filter((item) => item.id !== lineId);
-    const nextMeta = appendOrdemServicoLog(
-      { ...meta, materials: nextMaterials },
-      {
-        type: "MATERIAL_REMOVE",
-        message: `Material removido: ${target?.referencia || lineId}.`,
-        user: "operador",
-      },
-    );
-
-    await prisma.ordemServico.update({
-      where: { id },
-      data: { metadados: toOrdemServicoMetaJson(nextMeta) },
-    });
+    const nextMaterials = await prisma.$transaction(async tx => {
+      const fresh = await tx.ordemServico.findUnique({ where: { id }, select: { metadados: true, serviceStationId: true, numeroOrdem: true } });
+      if (!fresh) throw new Error("Ordem nao encontrada.");
+      const freshMeta = parseOrdemServicoMeta(fresh.metadados);
+      const lines = readMaterials(freshMeta);
+      const target = lines.find(item => item.id === lineId);
+      if (target?.consumido) throw new Error("Material consumido: reverta o consumo antes de remover.");
+      if (target?.reservado) {
+        const stock = await resolveLotStock(tx, target, fresh.serviceStationId);
+        if (!stock) throw new Error("Material sem stockId concreto.");
+        const qty = Math.min(stock.quantidadeReservada, Number(target.quantidadeReservada ?? 0));
+        const updated = await tx.stock.updateMany({ where: { id: stock.id, quantidadeReservada: stock.quantidadeReservada }, data: { quantidadeReservada: { decrement: qty } } });
+        if (updated.count !== 1) throw new Error("Lote alterado; tente novamente.");
+        await tx.movimentacaoStock.create({ data: { stockId: stock.id, tipo: "libertar_reserva", quantidade: qty, quantidadeAntes: stock.quantidadeReservada, quantidadeDepois: stock.quantidadeReservada - qty, motivo: `Remover reserva OT ${fresh.numeroOrdem}`, usuario: "operador" } });
+      }
+      const next = lines.filter(item => item.id !== lineId);
+      await tx.ordemServico.update({ where: { id }, data: { metadados: toOrdemServicoMetaJson(appendOrdemServicoLog({ ...freshMeta, materials: next }, { type: "MATERIAL_REMOVE", message: `Material removido: ${target?.referencia || lineId}.`, user: "operador" })) } });
+      return next;
+    }, { isolationLevel: "Serializable" });
     return NextResponse.json({
       materials: nextMaterials,
       totals: computeTotals(nextMaterials),

@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
 
     page.drawRectangle({ x: 0, y: 841.89 - 110, width: PAGE_WIDTH, height: 110, color: rgb(TEAL[0], TEAL[1], TEAL[2]) });
     drawText("ORÇAMENTO", MARGIN, 841.89 - 75, 26, { font: fontBold, color: [1, 1, 1] });
-    drawText("Orey Azores — Serviços de vistoria e certificação", MARGIN, 841.89 - 48, 11, { color: [1, 1, 1] });
+    drawText("Orey Tecnica- Serviços Navais, Lda — Serviços de vistoria e certificação", MARGIN, 841.89 - 48, 11, { color: [1, 1, 1] });
 
     const referenciaOrcamento = body.certificadoNumero
       ? `INS-${body.certificadoNumero}`

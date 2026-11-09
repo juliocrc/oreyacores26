@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="minhas_faturas"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_invoices"
+        android:shortcutLongLabel="@string/shortcut_invoices_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="pt.oreyacores.clientes"
+            android:targetClass="pt.oreyacores.clientes.MainActivity"
+            android:data="orey://faturas" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="propostas"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_proposals"
+        android:shortcutLongLabel="@string/shortcut_proposals_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="pt.oreyacores.clientes"
+            android:targetClass="pt.oreyacores.clientes.MainActivity"
+            android:data="orey://propostas" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="dark_mode"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_dark_mode"
+        android:shortcutLongLabel="@string/shortcut_dark_mode_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="pt.oreyacores.clientes"
+            android:targetClass="pt.oreyacores.clientes.MainActivity"
+            android:data="orey://settings/theme" />
+    </shortcut>
+</shortcuts>

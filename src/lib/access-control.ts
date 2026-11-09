@@ -5,6 +5,7 @@ import { hasElevatedAccess } from "@/lib/permission-access";
 import { normalizeCodeToken } from "@/lib/text-normalization";
 import { buildVisibleServiceStationWhere } from "@/lib/service-station-visibility";
 import { safeFindFirst } from "@/lib/prisma-utils";
+import { isLocalAuthBypassEnabled } from "@/lib/local-auth";
 import {
   resolveEffectivePermissions,
   type EffectiveUserPermissions,
@@ -77,12 +78,14 @@ export async function getAccessContext(): Promise<AccessContext | null> {
   const user = session?.user;
 
   if (!user?.id || !user?.email) {
-    if (process.env.AUTH_BYPASS === "true") {
+    if (isLocalAuthBypassEnabled()) {
       const stationIds = await resolveAllVisibleStationIds();
       return { ...BYPASS_ADMIN, allowedStationIds: stationIds };
     }
     return null;
   }
+
+  if (user.role === "CLIENTE") return null;
 
   const parsedId = Number(user.id);
   if (!Number.isFinite(parsedId) || parsedId <= 0) return null;

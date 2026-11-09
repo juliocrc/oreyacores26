@@ -6,8 +6,6 @@ import { carregarFaturaPorOrdemServico, resumoFatura } from "@/lib/faturamento";
 import { formatIsencaoIva } from "@/lib/iva-isencao-codes";
 import { parseOrdemServicoMeta } from "@/lib/ordens-servico";
 
-const ISSUER_NAME = "Orey Técnica - Serviços Navais";
-
 function formatEuro(value: number) {
   return new Intl.NumberFormat("pt-PT", {
     style: "currency",
@@ -26,10 +24,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   try {
     const access = await getAccessContext();
     if (!access) return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
+    if (!access.isAdmin) return NextResponse.json({ error: "Acesso reservado a administradores." }, { status: 403 });
 
     const { id: rawId } = await params;
     const id = Number(rawId);
-    if (!Number.isFinite(id) || id <= 0) {
+    if (!Number.isSafeInteger(id) || id <= 0) {
       return NextResponse.json({ error: "ID inválido." }, { status: 400 });
     }
 
@@ -60,6 +59,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const link = await carregarFaturaPorOrdemServico(id);
     const fatura = link?.fatura ?? null;
+    if (!fatura) return NextResponse.json({ error: "Nao existe fatura emitida para esta ordem." }, { status: 404 });
+    if (fatura.cancelada) return NextResponse.json({ error: "A fatura associada esta cancelada." }, { status: 400 });
 
     const resumo = resumoFatura(link ?? null);
     const ordens = (fatura ? resumo.ordens : [order]) as Array<typeof order>;
@@ -116,6 +117,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (morada) issuerRows.push(["Morada", morada]);
     if (localidade || ilha) issuerRows.push(["Localidade / Ilha", `${localidade || ""} ${ilha || ""}`.trim()]);
     issuerRows.push(["Fatura Nº", numeroFatura]);
+    for (const reference of resumo.numerosObra) issuerRows.push(["Obra / OS", reference]);
     issuerRows.push(["Data de emissão", formatDate(emissao)]);
     issuerRows.push(["Data de trabalho", formatDate(dataTrabalho)]);
     issuerRows.push(["Embarcação", navio]);
@@ -152,12 +154,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       const referencia = ot.numeroOrdem || `#${ot.id}`;
       if (linhas.length > 0) {
         for (const l of linhas) {
-          const qtd = Number(l.quantidade || 1);
+          const qtd = Number(l.quantidade ?? 1);
           const unit = Number(l.unitPrice || 0);
           const tot = Number(l.total ?? (qtd * unit));
           lineRows.push([l.referencia || referencia, l.descricao || "Artigo", String(qtd), formatEuro(tot)]);
         }
       }
+      if (linhas.length === 0 && Number(ot.valorPecas) > 0) lineRows.push([referencia, "Servicos e materiais registados", "1", formatEuro(Number(ot.valorPecas))]);
+      if (Number(ot.valorMaoObra) > 0) lineRows.push([referencia, "Mao de obra", "1", formatEuro(Number(ot.valorMaoObra))]);
       const otDesconto = Number(ot.valorDesconto || 0);
       if (otDesconto > 0) {
         lineRows.push([referencia, "Desconto Comercial", "1", `-${formatEuro(otDesconto)}`]);

@@ -1,14 +1,18 @@
 "use client";
 import React, { useMemo } from 'react';
 import { useJangadaWizardStore } from './store/useJangadaWizardStore';
-import { Package, ShieldAlert, Zap, Droplets, Flame, Stethoscope, Info, PackageSearch, X } from 'lucide-react';
+import { ShieldAlert, Info, PackageSearch, X } from 'lucide-react';
 import { getMandatoryPackItemsForRaft, findMatchingArticleForPackItem, VALIDITY_REQUIRED_PACK_NAMES } from '../rafts/mandatoryPack';
 import { isRationArticle } from '@/config/packTemplates';
 import { formatValidityDisplay } from '@/lib/date-display';
 import { maskMonthYearDisplay } from '@/lib/date-utils';
 import { getInspectionIntervalYears, getInspectionIntervalLabel, getSubstitutionMaxValidityDays } from '../rafts/inspectionInterval';
-import { normalizeStockReferenceByRule } from '@/lib/stock-reference-rules';
 import { getStepNumberByKey } from './steps';
+import ArticleExpiryResolution from './ArticleExpiryResolution';
+import { getArticleExpiryStatus, getArticleExpiryWarnings } from './articleExpiry';
+import { ReplacementStockPicker } from '@/components/shared/ReplacementStockPicker';
+import { getAvailableStock } from '@/lib/stock-picker';
+import StockArticleThumbnail from '@/components/shared/StockArticleThumbnail';
 
 const toMonthYearFormat = (dateStr?: string | null) => {
   if (!dateStr) return '';
@@ -74,7 +78,6 @@ const getStockCandidatesForLabel = (globalStock: any[], label: string, refs?: st
   const refSet = new Set((refs || []).map((r: any) => String(r).trim().toLowerCase()).filter(Boolean));
   const words = getStockMatchWords(label);
   return (globalStock || [])
-    .filter((s: any) => s.quantidade > 0)
     .filter((s: any) => {
       const refStr = String(s.referencia || '').trim().toLowerCase();
       if (refSet.size > 0 && refSet.has(refStr)) return true;
@@ -85,7 +88,7 @@ const getStockCandidatesForLabel = (globalStock: any[], label: string, refs?: st
 
 const getStockAvailableForLabel = (globalStock: any[], label: string, refs?: string[]) => {
   return getStockCandidatesForLabel(globalStock, label, refs).reduce(
-    (sum, s: any) => sum + (s.quantidade || 0),
+    (sum, s: any) => sum + getAvailableStock(s),
     0
   );
 };
@@ -127,7 +130,7 @@ const getAnteriorValidityStatus = (
   if (isNaN(expDate.getTime()) || isNaN(proxDate.getTime())) return null;
 
   const diffDays = Math.ceil((expDate.getTime() - proxDate.getTime()) / (1000 * 60 * 60 * 24));
-  if (diffDays >= 0) {
+  if (getArticleExpiryStatus(validadeOriginal, proxStr) === 'ok') {
     return { level: 'ok' as const, diffDays, expDate, proxDate };
   }
   const gapDays = -diffDays;
@@ -135,28 +138,6 @@ const getAnteriorValidityStatus = (
     return { level: 'critical' as const, diffDays, gapDays, expDate, proxDate };
   }
   return { level: 'warn' as const, diffDays, gapDays, expDate, proxDate };
-};
-
-const PACK_ICONS: Record<string, any> = {
-  'agua': Droplets,
-  'racoes': Package,
-  'farmacia': Stethoscope,
-  'comprimidos': ShieldAlert,
-  'paraquedas': Flame,
-  'fachos': Flame,
-  'fumo': Flame,
-  'pilhas': Zap,
-};
-
-const PACK_COLORS: Record<string, string> = {
-  'agua': 'text-blue-500 bg-blue-50',
-  'racoes': 'text-amber-600 bg-amber-50',
-  'farmacia': 'text-emerald-600 bg-emerald-50',
-  'comprimidos': 'text-teal-600 bg-teal-50',
-  'paraquedas': 'text-red-500 bg-red-50',
-  'fachos': 'text-orange-500 bg-orange-50',
-  'fumo': 'text-slate-600 bg-slate-100',
-  'pilhas': 'text-yellow-600 bg-yellow-50',
 };
 
 export default function Step4_PackMascara() {
@@ -179,6 +160,7 @@ export default function Step4_PackMascara() {
       capacity: inspectionData.capacity as number,
     });
   }, [inspectionData.brand, inspectionData.model, inspectionData.packType, inspectionData.capacity]);
+  const packExpiryWarnings = getArticleExpiryWarnings(inspectionData).filter(w => w.stepKey === 'pack');
 
   
   React.useEffect(() => {
@@ -206,7 +188,7 @@ export default function Step4_PackMascara() {
         const matched = findMatchingArticleForPackItem(item, (inspectionData.artigos || []) as any[]) as any;
         // Validade vem apenas dos artigos da jangada. Sem validade registada,
         // o campo fica em branco (nunca se herda a validade do stock).
-        const validityFromRaft = matched ? toMonthYearFormat(matched.validade) : '';
+        const validityFromRaft = item.validityFieldName && matched ? toMonthYearFormat(matched.validade) : '';
         initialPackItems[item.checklistName] = {
           checklistName: item.checklistName,
           name: item.label,
@@ -215,11 +197,9 @@ export default function Step4_PackMascara() {
           quantidadeVerificada: matched ? matched.quantidade : 0,
           validade: validityFromRaft,
           validadeOriginal: validityFromRaft,
-          lote: matched ? matched.codigoFabricante || matched.referencia || '' : '',
-          referencia:
-            normalizeStockReferenceByRule(matched?.referencia, item.label, item.englishLabel) ||
-            (matched?.referencia || ''),
-          stockId: matched ? matched.id : undefined,
+          lote: item.validityFieldName ? matched?.lote || '' : '',
+          referencia: matched?.referencia || '',
+          stockId: matched?.stockId ?? undefined,
         };
       });
       setInspectionData({ packItems: initialPackItems });
@@ -237,71 +217,12 @@ export default function Step4_PackMascara() {
   };
 
   const [stockDialogKey, setStockDialogKey] = React.useState<string | null>(null);
-  const [wizardBarcodeSearch, setWizardBarcodeSearch] = React.useState('');
-  const [isWizardScanOpen, setIsWizardScanOpen] = React.useState(false);
-  const wizardScannerRef = React.useRef<any>(null);
-
-  React.useEffect(() => {
-    const startWizardCamera = async () => {
-      try {
-        const { Html5Qrcode } = await import("html5-qrcode");
-        const html5QrCode = new Html5Qrcode("reader-wizard-pack");
-        wizardScannerRef.current = html5QrCode;
-        await html5QrCode.start(
-          { facingMode: "environment" },
-          { fps: 10, qrbox: { width: 250, height: 250 } },
-          (decodedText) => {
-            handleWizardScanCode(decodedText);
-            setIsWizardScanOpen(false);
-          },
-          () => {}
-        );
-      } catch (err) {
-        console.error("Camera error (Wizard Pack):", err);
-        setIsWizardScanOpen(false);
-      }
-    };
-
-    const stopWizardCamera = () => {
-      try {
-        if (wizardScannerRef.current) {
-          wizardScannerRef.current.stop().catch(() => {});
-          wizardScannerRef.current = null;
-        }
-      } catch {}
-    };
-
-    if (isWizardScanOpen) {
-      void startWizardCamera();
-    } else {
-      stopWizardCamera();
-    }
-
-    return () => {
-      stopWizardCamera();
-    };
-  }, [isWizardScanOpen]);
-
-  const handleWizardScanCode = (code: string) => {
-    const cleanCode = code.trim();
-    if (!cleanCode || !stockDialogKey) return;
-    const dialogItem = mandatoryItems.find((i) => i.checklistName === stockDialogKey);
-    const candidates = getStockCandidatesForLabel(inspectionData.globalStock, dialogItem?.label || '', (dialogItem as any)?.stockReferences);
-    
-    const matched = candidates.find((s: any) => s.referencia === cleanCode || s.codigoBarras === cleanCode || s.lote === cleanCode) ||
-      candidates.find((s: any) => String(s.referencia || '').toLowerCase().includes(cleanCode.toLowerCase()) || String(s.codigoBarras || '').toLowerCase().includes(cleanCode.toLowerCase()));
-
-    if (matched) {
-      applyStockItem(stockDialogKey, matched);
-      setStockDialogKey(null);
-      setWizardBarcodeSearch('');
-    } else {
-      setWizardBarcodeSearch(cleanCode);
-    }
-  };
 
   const applyStockItem = (key: string, stockItem: any) => {
-    if (!stockItem) return;
+    const packItem = mandatoryItems.find(item => item.checklistName === key);
+    const expiryControlled = Boolean(packItem?.validityFieldName);
+    if (!stockItem || (expiryControlled && getSubstitutionBlockReason(packItems[key] || {}) !== null)) return;
+    const requiredQuantity = packItem?.quantity || 1;
     setInspectionData({
       packItems: {
         ...packItems,
@@ -309,9 +230,10 @@ export default function Step4_PackMascara() {
           ...(packItems[key] || {}),
           referencia: stockItem.referencia,
           stockId: stockItem.id,
+          quantidade: packItems[key]?.quantidade || requiredQuantity,
           descricao: stockItem.descricao || packItems[key]?.descricao,
-          validade: toMonthYearFormat(stockItem.validade) || packItems[key]?.validade || '',
-          lote: stockItem.lote || '',
+          validade: expiryControlled ? toMonthYearFormat(stockItem.validade) : '',
+          lote: expiryControlled ? stockItem.lote || '' : '',
         },
       },
     });
@@ -329,7 +251,7 @@ export default function Step4_PackMascara() {
   const isDamagedItem = (item: any) => String(item.estado || '').toUpperCase() === 'DANIFICADO';
 
   const getSubstitutionBlockReason = (item: any) => {
-    if (isDamagedItem(item)) return null;
+    if (isDamagedItem(item) || getArticleExpiryStatus(item.validade, inspectionData.dataProxInspecao) === 'replace') return null;
     if (!item?.validadeOriginal) return null;
     const maxDays = getSubstitutionMaxValidityDays(inspectionData.brand, inspectionData.model, inspectionData.shipDetails);
     const days = getDaysRemaining(item.validadeOriginal, refDate);
@@ -342,7 +264,7 @@ export default function Step4_PackMascara() {
 
     if (field === 'quantidade') {
       const newQty = Number(value) || 0;
-      if (newQty > 0 && getSubstitutionBlockReason(current) !== null) return;
+      if (newQty > 0 && mandatoryItems.find(item => item.checklistName === itemId)?.validityFieldName && getSubstitutionBlockReason(current) !== null) return;
       setInspectionData({
         packItems: { ...packItems, [itemId]: { ...current, quantidade: newQty } },
       });
@@ -369,6 +291,7 @@ export default function Step4_PackMascara() {
       <div>
         <h2 className="text-2xl font-bold text-slate-800">{stepNo > 0 ? `${stepNo}. ` : ''}Pack de Emergência</h2>
         <p className="text-slate-600 mt-1">Registe as validades e quantidades dos consumíveis obrigatórios da jangada.</p>
+        {String(inspectionData.brand || '').toUpperCase().replace(/[^A-Z0-9]/g, '') === 'OCEANSAFETY' && /^(?:OCEAN|OS|OCEANSAFETY)?ISO(?:ULTRALITE)?$/.test(String(inspectionData.model || '').toUpperCase().replace(/[^A-Z0-9]/g, '')) && <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Ocean ISO: a lista apresentada é uma sugestão genérica, não substitui as tabelas do manual e a configuração individual. A edição 02/2020 distingue ISO e UltraLite, pack e data de fabrico; a tabela UltraLite Pack 2 indica que não pode ser convertida para Pack 1. Confirme a revisão, a água e a presença da grab bag quando aplicável.</p>}
         <div className="mt-3 flex items-center gap-2 bg-indigo-50 text-indigo-700 px-3 py-2 rounded-lg text-sm font-medium w-fit border border-indigo-100">
           <Info size={16} />
           A mostrar requisitos para: {inspectionData.packType || 'Pack não definido'} / {inspectionData.capacity || '0'} Pax
@@ -409,35 +332,31 @@ export default function Step4_PackMascara() {
         <div className="divide-y divide-slate-100">
           {mandatoryItems.length === 0 ? (
             <div className="p-8 text-center text-slate-500">
-              Configure o &quot;Tipo de Pack&quot; e &quot;Capacidade&quot; no Passo 1 para ver os itens obrigatórios.
+              Não há lista automática para esta configuração. Confirme o pack, a capacidade e a aplicabilidade do manual; não interprete a ausência de lista como ausência de equipamento obrigatório.
             </div>
           ) : (
             mandatoryItems.map((item) => {
-              const simpleKey = item.checklistName.replace('validade_', '').replace('foguetoes_', '').replace('_alimentares', '').replace('_mao', '').replace('_lanterna', '').replace('_enjoo', '');
-              const icon = PACK_ICONS[simpleKey] || Package;
-              const color = PACK_COLORS[simpleKey] || 'text-indigo-600 bg-indigo-50';
-              const IconComponent = icon;
-
               const data = packItems[item.checklistName] || { quantidadeVerificada: 0, quantidade: 0, lote: '', validade: '' };
+              const catalogArticle = (inspectionData.globalStock || []).find(stock => data.stockId
+                ? String(stock.id) === String(data.stockId)
+                : data.referencia ? stock.referencia === data.referencia : (item.stockReferences || []).includes(stock.referencia));
               const isDamaged = isDamagedItem(data);
-              const blockReasonDays = getSubstitutionBlockReason(data);
+              const blockReasonDays = item.validityFieldName ? getSubstitutionBlockReason(data) : null;
               const validityDays = getDaysRemaining(data.validade || '', refDate);
               const isWarning = validityDays !== null && validityDays < 0;
 
-              const anteriorStatus = getAnteriorValidityStatus(
-                data.validadeOriginal,
+              const anteriorStatus = item.validityFieldName ? getAnteriorValidityStatus(
+                data.validade,
                 inspectionData.dataProxInspecao,
                 inspectionData.dataInspecao,
                 inspectionData.brand,
                 inspectionData.shipDetails
-              );
+              ) : null;
 
               return (
                 <div key={item.checklistName} className="grid grid-cols-12 gap-4 px-6 py-5 items-start hover:bg-slate-50/50 transition-colors">
                   <div className="col-span-12 lg:col-span-3 flex items-center gap-3">
-                    <div className={`p-2 rounded-lg ${color}`}>
-                      <IconComponent size={20} />
-                    </div>
+                    <StockArticleThumbnail foto={catalogArticle?.foto} label={item.label} />
                     <div>
                       <p className="font-semibold text-slate-800 flex items-center gap-2">
                         {item.label}
@@ -518,7 +437,7 @@ export default function Step4_PackMascara() {
                       const selectedStock = data.stockId
                         ? (inspectionData.globalStock || []).find((s: any) => s.id === data.stockId)
                         : null;
-                      const selectedStockAvailable = selectedStock?.quantidade || 0;
+                      const selectedStockAvailable = selectedStock ? getAvailableStock(selectedStock) : 0;
                       const totalAvailable = getStockAvailableForLabel(inspectionData.globalStock, item.label, item.stockReferences);
                       const qty = data.quantidade || 0;
                       const insufficientTotal = qty > 0 && qty > totalAvailable;
@@ -542,7 +461,7 @@ export default function Step4_PackMascara() {
                   </div>
 
                   <div className="col-span-12 lg:col-span-4 flex flex-col gap-3">
-                    <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                    {item.validityFieldName && <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
                       {data.quantidade > 0 ? (
                         <span className="px-2 py-1 rounded-lg font-bold bg-emerald-600 text-white border border-emerald-700 flex items-center gap-1.5">
                           <span>✓ Substituído · {data.validade || '—'}</span>
@@ -556,8 +475,8 @@ export default function Step4_PackMascara() {
                                 ? 'bg-amber-50 text-amber-800 border-amber-300'
                                 : 'bg-emerald-50 text-emerald-800 border-emerald-300'
                           }`}>
-                            <span>Jangada: {data.validadeOriginal}</span>
-                            {anteriorStatus.level === 'critical' && <span>{'< 12m p/ próxima'}</span>}
+                             <span>Jangada: {data.validade}</span>
+                             {anteriorStatus.level === 'critical' && <span>{'< 6m após próxima'}</span>}
                             {anteriorStatus.level === 'warn' && <span>(Vencida p/ próxima)</span>}
                           </span>
                         ) : (
@@ -574,7 +493,6 @@ export default function Step4_PackMascara() {
                         <button
                           type="button"
                           onClick={() => {
-                            handleItemChange(item.checklistName, 'quantidade', item.quantity || 1);
                             setStockDialogKey(item.checklistName);
                           }}
                           className="text-[10px] font-extrabold px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md shadow-sm transition"
@@ -582,19 +500,20 @@ export default function Step4_PackMascara() {
                           Substituir Agora
                         </button>
                       )}
-                    </div>
+                    </div>}
                     {anteriorStatus?.level === 'critical' && data.quantidade === 0 && (
                       <p className="text-[10px] text-red-700 font-bold leading-tight">
-                        ⛔ Sugestão de substituição — a validade não cobre a próxima inspeção com margem mínima de 12 meses.
+                         Substituição obrigatória: a validade não cobre até à próxima inspeção.
                       </p>
                     )}
                     {anteriorStatus?.level === 'warn' && data.quantidade === 0 && (
                       <p className="text-[10px] text-amber-700 font-semibold leading-tight">
-                        ⚠️ A validade expira antes da próxima inspeção (sem folga de 12 meses). Considere substituir.
+                         Substituição obrigatória ou justificação de não substituição por artigo.
                       </p>
                     )}
+                    {item.validityFieldName && <ArticleExpiryResolution name={item.label} validade={data.validade} nextInspection={inspectionData.dataProxInspecao} replaced={Number(data.quantidade) > 0} reason={data.justificacaoNaoSubstituicao} onReasonChange={value => handleItemChange(item.checklistName, 'justificacaoNaoSubstituicao', value)} />}
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Lote no Stock (Opcional)</label>
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{item.validityFieldName ? 'Lote no Stock (Opcional)' : 'Artigo de Stock'}</label>
                       <div className="flex gap-2">
                         <button
                           type="button"
@@ -606,7 +525,7 @@ export default function Step4_PackMascara() {
                           }`}
                         >
                           <PackageSearch size={14} />
-                          {data.stockId ? 'Alterar lote' : 'Substituir do Stock'}
+                          {data.stockId ? (item.validityFieldName ? 'Alterar lote' : 'Alterar artigo') : 'Substituir do Stock'}
                         </button>
                         {data.stockId && (
                           <button
@@ -624,25 +543,26 @@ export default function Step4_PackMascara() {
                           ? (inspectionData.globalStock || []).find((s: any) => s.id === data.stockId)
                           : null;
                         if (!selectedStock) return null;
-                        const insufficient = data.quantidade > 0 && data.quantidade > selectedStock.quantidade;
+                        const available = getAvailableStock(selectedStock);
+                        const insufficient = data.quantidade > 0 && data.quantidade > available;
                         return (
                           <div className="mt-1.5 text-[10px] leading-relaxed">
                             <p className="text-slate-500">
                               Ref: <b className="text-slate-700">{selectedStock.referencia}</b>
-                              {selectedStock.lote ? ` · Lote: ${selectedStock.lote}` : ''}
-                              {selectedStock.validade ? ` · Val: ${formatValidityDisplay(selectedStock.validade)}` : ''}
+                              {item.validityFieldName && selectedStock.lote ? ` · Lote: ${selectedStock.lote}` : ''}
+                              {item.validityFieldName && selectedStock.validade ? ` · Val: ${formatValidityDisplay(selectedStock.validade)}` : ''}
                             </p>
                             <p className={insufficient ? 'text-red-700 font-bold' : 'text-emerald-700 font-semibold'}>
                               {insufficient
-                                ? `⚠️ Stock insuficiente — disponível: ${selectedStock.quantidade}`
-                                : `✓ Disponível: ${selectedStock.quantidade}`}
+                                ? `⚠️ Stock insuficiente — disponível: ${available}`
+                                : `✓ Disponível: ${available}`}
                             </p>
                           </div>
                         );
                       })()}
                     </div>
                     
-                    <div className="flex gap-2">
+                    {item.validityFieldName && <div className="flex gap-2">
                       <div className="w-1/2">
                         <label className="text-[10px] uppercase text-slate-400 font-bold mb-1 block">
                           Validade (MM/AAAA) {data.validade && <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 ml-1"></span>}
@@ -687,7 +607,7 @@ export default function Step4_PackMascara() {
                           className="w-full text-sm border-slate-200 rounded-xl px-2 py-2 bg-white focus:ring-2 focus:ring-indigo-100 transition-colors"
                         />
                       </div>
-                    </div>
+                    </div>}
                   </div>
                 </div>
               );
@@ -696,11 +616,11 @@ export default function Step4_PackMascara() {
         </div>
       </div>
       
-      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3 items-start">
-        <ShieldAlert className="text-amber-600 shrink-0 mt-0.5" size={20} />
+      <div className={`${packExpiryWarnings.length ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-200'} border rounded-xl p-4 flex gap-3 items-start`}>
+        <ShieldAlert className={`${packExpiryWarnings.length ? 'text-amber-600' : 'text-slate-500'} shrink-0 mt-0.5`} size={20} />
         <div>
-          <h4 className="text-sm font-bold text-amber-900">Atenção Crítica de Validades</h4>
-          <p className="text-xs text-amber-800 mt-1">A validade global da jangada será ditada pelo artigo de emergência que expirar primeiro. Certifique-se que nenhuma validade inserida expira antes da próxima revisão agendada.</p>
+          <h4 className="text-sm font-bold">{packExpiryWarnings.length ? 'Validades a verificar' : 'Informação sobre validades'}</h4>
+          {packExpiryWarnings.length > 0 ? <ul className="text-xs text-amber-800 mt-1 list-disc pl-4">{packExpiryWarnings.map(w => <li key={w.articleKey}>{w.text}</li>)}</ul> : <p className="text-xs text-slate-600 mt-1">A validade dos artigos controlados deve cobrir até à próxima inspeção, inclusive. Não foram encontrados avisos nos artigos registados.</p>}
         </div>
       </div>
 
@@ -710,109 +630,16 @@ export default function Step4_PackMascara() {
           .sort((a: any, b: any) => (b.quantidade || 0) - (a.quantidade || 0));
 
         return (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm"
-            onClick={() => setStockDialogKey(null)}
-          >
-            <div
-              className="bg-white rounded-2xl shadow-2xl border border-slate-100 w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-                <div>
-                  <h3 className="text-lg font-bold text-slate-800">Substituir do Stock</h3>
-                  <p className="text-xs text-slate-500">{dialogItem?.label} — escolha o lote a aplicar</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setStockDialogKey(null)}
-                  className="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-
-              <div className="p-4 border-b border-slate-100 flex flex-col gap-2">
-                <div className="flex gap-2">
-                  <input
-                    autoFocus
-                    placeholder="Ler código de barras, referência ou lote..."
-                    value={wizardBarcodeSearch}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setWizardBarcodeSearch(val);
-                      if (val.trim().length >= 3) {
-                        handleWizardScanCode(val.trim());
-                      }
-                    }}
-                    className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-200 outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setIsWizardScanOpen(true)}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all"
-                  >
-                    📷 Câmara
-                  </button>
-                </div>
-                {isWizardScanOpen && (
-                  <div className="relative w-full h-48 bg-black rounded-xl overflow-hidden">
-                    <div id="reader-wizard-pack" className="w-full h-full"></div>
-                    <button
-                      type="button"
-                      onClick={() => setIsWizardScanOpen(false)}
-                      className="absolute top-2 right-2 z-10 bg-black/60 text-white px-2 py-1 rounded-lg text-xs"
-                    >
-                      Fechar câmara
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <div className="p-4 max-h-[45vh] overflow-y-auto space-y-2">
-                {candidates.length === 0 ? (
-                  <div className="text-center py-10 text-slate-500 text-sm">
-                    <PackageSearch size={32} className="mx-auto mb-2 text-slate-300" />
-                    Sem artigos de stock disponíveis para este item.
-                  </div>
-                ) : (
-                  candidates.map((s: any) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => applyStockItem(stockDialogKey, s)}
-                      className="w-full text-left p-3 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/40 transition-colors"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="font-bold text-slate-800 text-sm truncate">{s.referencia}</p>
-                          <p className="text-xs text-slate-500 truncate">{s.descricao}</p>
-                          <p className="text-[10px] text-slate-400 mt-0.5">
-                            Lote: {s.lote || 'N/A'}{s.validade ? ` · Validade: ${formatValidityDisplay(s.validade)}` : ''}
-                          </p>
-                        </div>
-                        <span className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-lg ${
-                          s.quantidade > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
-                        }`}>
-                          {s.quantidade} disp.
-                        </span>
-                      </div>
-                    </button>
-                  ))
-                )}
-              </div>
-
-              <div className="px-6 py-3 border-t border-slate-100 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setStockDialogKey(null)}
-                  className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
+          <ReplacementStockPicker
+            allowDeficit
+            items={candidates}
+            articleLabel={dialogItem?.label || ''}
+            showValidade={Boolean(dialogItem?.validityFieldName)}
+            requiredQuantity={Number(packItems[stockDialogKey]?.quantidade) || dialogItem?.quantity || 1}
+            nextInspection={inspectionData.dataProxInspecao}
+            onClose={() => setStockDialogKey(null)}
+            onSelect={stockItem => applyStockItem(stockDialogKey, stockItem)}
+          />
         );
       })()}
     </div>

@@ -4,11 +4,13 @@ import { logAuditoria } from "@/lib/auditoria";
 import { isValidNif, normalizePhone } from "@/lib/validators";
 import { deriveClienteAddressFields } from "@/lib/client-address";
 import { normalizeClienteIslandValue } from "@/lib/azores-islands";
+import { apiStationScope, requireApiAccess } from "@/lib/api-access";
+import { resolveActiveServiceStationId } from "@/lib/station-selection";
 
-async function syncClienteIslandToNavios(clienteId: number, ilha: string | null) {
+async function syncClienteIslandToNavios(clienteId: number, ilha: string | null, scope: ReturnType<typeof apiStationScope>) {
   if (!ilha) return;
   await prisma.navio.updateMany({
-    where: { clienteId },
+    where: { clienteId, ...scope },
     data: { ilha },
   });
 }
@@ -56,13 +58,19 @@ function sanitizeClientePayload(data: unknown) {
 }
 
 export async function GET(req: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const { access, error } = await requireApiAccess("/clientes");
+  if (error) return error;
   const { id: rawId } = await context.params;
   const id = Number(rawId);
-  if (Number.isNaN(id)) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
+  if (!Number.isSafeInteger(id) || id <= 0) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
 
-  const cliente = await prisma.cliente.findUnique({
-    where: { id },
-    include: { navios: true },
+  const scope = apiStationScope(access, resolveActiveServiceStationId(req, access));
+  const cliente = await prisma.cliente.findFirst({
+    where: { id, ...scope },
+    include: {
+      navios: { where: scope },
+    },
+    omit: { verificationCode: true, verificationCodeExpires: true },
   });
 
   if (!cliente) return NextResponse.json({ error: "Cliente não encontrado" }, { status: 404 });
@@ -70,9 +78,12 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
 }
 
 export async function PUT(req: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const { access, error } = await requireApiAccess("/clientes", { write: true });
+  if (error) return error;
+  const scope = apiStationScope(access, resolveActiveServiceStationId(req, access));
   const { id: rawId } = await context.params;
   const id = Number(rawId);
-  if (Number.isNaN(id)) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
+  if (!Number.isSafeInteger(id) || id <= 0) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
 
   let body: unknown;
   try {
@@ -98,14 +109,16 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
   }
 
   try {
-    const antes = await prisma.cliente.findUnique({ where: { id } });
+    const antes = await prisma.cliente.findFirst({ where: { id, ...scope }, omit: { verificationCode: true, verificationCodeExpires: true } });
+    if (!antes) return NextResponse.json({ error: "Cliente não encontrado" }, { status: 404 });
 
     const cliente = await prisma.cliente.update({
-      where: { id },
+      where: { id, ...scope },
       data,
+      omit: { verificationCode: true, verificationCodeExpires: true },
     });
 
-    await syncClienteIslandToNavios(cliente.id, cliente.ilha);
+    await syncClienteIslandToNavios(cliente.id, cliente.ilha, scope);
 
     await logAuditoria({
       tabela: "Cliente",
@@ -123,13 +136,17 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
 }
 
 export async function DELETE(req: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const { access, error } = await requireApiAccess("/clientes", { write: true });
+  if (error) return error;
+  const scope = apiStationScope(access, resolveActiveServiceStationId(req, access));
   const { id: rawId } = await context.params;
   const id = Number(rawId);
-  if (Number.isNaN(id)) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
+  if (!Number.isSafeInteger(id) || id <= 0) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
 
   try {
-    const antes = await prisma.cliente.findUnique({ where: { id } });
-    await prisma.cliente.delete({ where: { id } });
+    const antes = await prisma.cliente.findFirst({ where: { id, ...scope }, omit: { verificationCode: true, verificationCodeExpires: true } });
+    if (!antes) return NextResponse.json({ error: "Cliente não encontrado" }, { status: 404 });
+    await prisma.cliente.delete({ where: { id, ...scope } });
 
     if (antes) {
       await logAuditoria({

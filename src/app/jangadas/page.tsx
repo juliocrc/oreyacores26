@@ -1,10 +1,19 @@
 'use client';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  startTransition,
+} from 'react';
 import { useDebounce } from '@/hooks/useDebounce';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { appToast } from '@/lib/app-toast';
+import { classifyLocalDraft, draftTime } from '@/modules/JangadaWizard/localDraftStatus';
 import { getRecognizedPackTypeOptions } from '@/config/packTemplates';
 import { findRaftTechnicalModel, raftModelData } from '@/modules/rafts/raftModelData';
 import {
@@ -82,6 +91,8 @@ const MONTH_NAMES_PT = [
   'Novembro',
   'Dezembro',
 ];
+const JANGADA_SEARCH_KEYS = ['marca', 'modelo', 'serial', 'navio', 'packType', 'armador', 'ilha', 'estacao', 'numeroObra'];
+const getJangadaKey = (jangada: Jangada) => jangada.id;
 
 function getMonthKey(value?: string | null): string | null {
   if (!value) return null;
@@ -311,6 +322,8 @@ const NovaJangadaModal = React.memo(function NovaJangadaModal({
   handleChange,
   handleBatchFillValidade,
   handleClearValidades,
+  saving,
+  saveError,
 }: {
   form: Jangada;
   setForm: React.Dispatch<React.SetStateAction<Jangada>>;
@@ -332,6 +345,8 @@ const NovaJangadaModal = React.memo(function NovaJangadaModal({
   handleChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
   handleBatchFillValidade: (years: number) => void;
   handleClearValidades: () => void;
+  saving: boolean;
+  saveError: string;
 }) {
   if (!showWizard) return null;
 
@@ -355,6 +370,8 @@ const NovaJangadaModal = React.memo(function NovaJangadaModal({
           </button>
         </div>
         <form onSubmit={onSubmit} className="space-y-3">
+          {saveError && <p role="alert" className="text-sm font-semibold text-red-700">{saveError}</p>}
+          <fieldset disabled={saving} className="space-y-3">
           {!editId && (
             <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
               <button
@@ -620,9 +637,10 @@ const NovaJangadaModal = React.memo(function NovaJangadaModal({
               type="submit"
               className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-bold text-sm shadow-sm"
             >
-              {editId ? 'Salvar alterações' : 'Criar Jangada'}
+              {saving ? 'A guardar...' : editId ? 'Salvar alterações' : 'Criar Jangada'}
             </button>
           </div>
+          </fieldset>
         </form>
       </div>
     </div>
@@ -639,18 +657,9 @@ const PackItemRow = React.memo(function PackItemRow({
   onChange: (label: string, val: string) => void;
 }) {
   const expirable = Boolean(item.validityFieldName);
-  const [localVal, setLocalVal] = useState(value || '');
-
-  useEffect(() => {
-    if (value !== localVal) {
-      setLocalVal(value || '');
-    }
-  }, [value, localVal]);
-
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const v = e.target.value;
-      setLocalVal(v);
       onChange(item.label, v);
     },
     [item.label, onChange],
@@ -669,11 +678,11 @@ const PackItemRow = React.memo(function PackItemRow({
         <div className="flex shrink-0 items-center gap-2">
           <input
             type="month"
-            value={localVal}
+            value={value || ''}
             onChange={handleInputChange}
             className="border rounded-lg px-2 py-1.5 text-sm w-[9.5rem] bg-white"
           />
-          {localVal ? (
+          {value ? (
             <span className="text-[10px] font-bold uppercase tracking-wide text-emerald-600">
               validade
             </span>
@@ -731,6 +740,9 @@ export default function JangadasPage() {
   const [pendingScanSerial, setPendingScanSerial] = useState<string | null>(null);
   const [wizardTab, setWizardTab] = useState<'dados' | 'artigos'>('dados');
   const [artigoValidades, setArtigoValidades] = useState<Record<string, string>>({});
+  const [formSaving, setFormSaving] = useState(false);
+  const [formSaveError, setFormSaveError] = useState('');
+  const formSaveInFlight = useRef(false);
 
   const handleBatchFillValidade = (years: number) => {
     const baseDate = form.dataFabrico ? new Date(`${form.dataFabrico}-01`) : new Date();
@@ -831,6 +843,14 @@ export default function JangadasPage() {
   const [loading, setLoading] = useState(false);
   // Seleção em lote
   const [selectedJangadas, setSelectedJangadas] = useState<number[]>([]);
+  const handleSelectionChange = useCallback((rows: Jangada[]) => {
+    setSelectedJangadas(current => {
+      const ids = rows.map(row => row.id);
+      // DataTable reports selection after parent renders too.
+      return current.length === ids.length && current.every((id, index) => id === ids[index])
+        ? current : ids;
+    });
+  }, []);
   const [deletingBatch, setDeletingBatch] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<Record<JangadaListColumnKey, boolean>>(
     buildDefaultJangadaColumns(),
@@ -843,7 +863,7 @@ export default function JangadasPage() {
     Record<number, PausedInspectionDraftMeta>
   >({});
   const [draftsFound, setDraftsFound] = useState<
-    Array<{ id: string; serial: string; savedAt: string }>
+    Array<{ id: string; serial: string; savedAt: string; status: 'redundant' | 'pending' | 'unknown'; inspection: string }>
   >([]);
 
   useEffect(() => {
@@ -856,24 +876,28 @@ export default function JangadasPage() {
           try {
             const val = JSON.parse(localStorage.getItem(key) || '{}');
             const id = key.replace('jangada-wizard-draft-', '');
-            const res = await fetch(`/api/inspecoes?jangadaId=${id}`);
-            const inspList = await res.json().catch(() => []);
-            const latest = Array.isArray(inspList) && inspList.length > 0 ? inspList[0] : null;
-            if (latest && (latest.status === 'Concluída' || latest.status === 'Condenada')) {
-              localStorage.removeItem(key);
-              continue;
-            }
+            let inspections: any = null;
+            try {
+              const res = await fetch(`/api/inspecoes?jangadaId=${encodeURIComponent(id)}`, { cache: 'no-store' });
+              if (res.ok) inspections = await res.json();
+            } catch { /* Keep the draft when offline. */ }
+            const latest = Array.isArray(inspections) ? inspections[0] : null;
             found.push({
               id,
               serial: val.inspectionData?.serial || `ID ${id}`,
-              savedAt: val.savedAt || new Date().toISOString(),
+              savedAt: val.savedAt || '',
+              status: classifyLocalDraft(val, inspections),
+              inspection: latest ? `${latest.status || 'estado desconhecido'} · ${draftTime(latest.updatedAt || latest.dataInspecao)}` : 'não confirmada',
             });
           } catch {}
         }
       }
       setDraftsFound(found);
     }
-    checkDrafts();
+    void checkDrafts();
+    window.addEventListener('focus', checkDrafts);
+    window.addEventListener('storage', checkDrafts);
+    return () => { window.removeEventListener('focus', checkDrafts); window.removeEventListener('storage', checkDrafts); };
   }, []);
 
   // Sync filters to URL
@@ -1088,7 +1112,7 @@ export default function JangadasPage() {
     [],
   );
 
-  async function fetchJangadas() {
+  const fetchJangadas = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch('/api/jangadas?scope=all&page=1&paginated=1&limit=5000');
@@ -1111,7 +1135,7 @@ export default function JangadasPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   async function fetchJangadaCatalogOptions() {
     try {
@@ -1174,6 +1198,7 @@ export default function JangadasPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (formSaveInFlight.current) return;
     if (!form.brand || !form.model) {
       appToast.error('Preencha a marca e o modelo.');
       return;
@@ -1187,80 +1212,85 @@ export default function JangadasPage() {
       appToast.error('Indique uma lotação válida.');
       return;
     }
-    setLoading(true);
-    const isEditing = Boolean(editId);
-    const payload: Record<string, unknown> = {
-      ...form,
-      serial: String(form.serial || '').trim() || `SN-${Date.now().toString().slice(-6)}`,
-      capacity: Number(form.capacity),
-    };
-    if (!isEditing) {
-      const artigos = wizardPackItems
-        .filter(item => artigoValidades[item.label])
-        .map(item => ({
-          name: item.label,
-          quantidade: item.quantity,
-          validade: artigoValidades[item.label]
-            ? `${artigoValidades[item.label]}-01T00:00:00.000Z`
-            : null,
-          referencia: item.reference || null,
-          codigoFabricante: item.reference || null,
-        }));
-      if (artigos.length > 0) {
-        payload.artigos = { create: artigos };
-      }
-    }
-    let response: Response;
+    formSaveInFlight.current = true;
+    setFormSaving(true);
+    setFormSaveError('');
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 30_000);
     try {
-      if (editId) {
-        response = await fetch(`/api/jangadas?id=${editId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        setEditId(null);
-      } else {
-        response = await fetch('/api/jangadas', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
+      const isEditing = Boolean(editId);
+      const payload: Record<string, unknown> = {
+        brand: form.brand,
+        model: form.model,
+        launchType: form.launchType,
+        packType: form.packType,
+        dataFabrico: form.dataFabrico,
+        serial: String(form.serial || '').trim() || `SN-${Date.now().toString().slice(-6)}`,
+        capacity: Number(form.capacity),
+      };
+      if (!isEditing) {
+        // Deferred suggestions can lag behind the current form at submit time.
+        const artigos = getMandatoryPackItemsForRaft(form)
+          .filter(item => artigoValidades[item.label])
+          .map(item => ({
+            name: item.label,
+            quantidade: item.quantity,
+            validade: `${artigoValidades[item.label]}-01T00:00:00.000Z`,
+            referencia: item.reference || null,
+            codigoFabricante: item.reference || null,
+          }));
+        if (artigos.length > 0) payload.artigos = { create: artigos };
       }
+
+      const response = await fetch(editId ? `/api/jangadas/${editId}` : '/api/jangadas', {
+        method: editId ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      const savedJangada = await response.json().catch(() => null);
+      if (controller.signal.aborted) throw new Error('Save timed out');
+      if (!response.ok) {
+        throw new Error(savedJangada?.error || savedJangada?.details || 'Erro ao salvar jangada.');
+      }
+      if (!savedJangada?.id) {
+        throw new Error('Resposta de gravacao invalida. Confirme na lista antes de repetir a criacao.');
+      }
+
+      setEditId(null);
+      setForm(INITIAL_FORM);
+      setShowWizard(false);
+      setWizardTab('dados');
+      setArtigoValidades({});
+      setJangadas(current => isEditing
+        ? current.map(item => item.id === savedJangada.id ? { ...item, ...savedJangada } : item)
+        : [savedJangada, ...current]);
+      appToast.success(isEditing ? 'Jangada atualizada com sucesso.' : 'Jangada criada com sucesso.');
+      if (!isEditing) router.push(`/jangadas/${savedJangada.id}`);
     } catch (err) {
       console.error('Erro ao salvar jangada:', err);
-      appToast.error('Não foi possível contactar o servidor. Tente novamente.');
-      setLoading(false);
-      return;
-    }
-    if (!response.ok) {
-      const payload = await response.json().catch(() => ({}));
-      appToast.error(payload?.error || payload?.details || 'Erro ao salvar jangada.');
-      setLoading(false);
-      return;
-    }
-    const savedJangada = await response.json().catch(() => null);
-    setForm(INITIAL_FORM);
-    setShowWizard(false);
-    setWizardTab('dados');
-    setArtigoValidades({});
-    await fetchJangadas();
-    appToast.success(isEditing ? 'Jangada atualizada com sucesso.' : 'Jangada criada com sucesso.');
-    setLoading(false);
-
-    if (!isEditing && savedJangada?.id) {
-      router.push(`/jangadas/${savedJangada.id}`);
+      const message = controller.signal.aborted
+        ? 'O servidor demorou demasiado a responder. Os dados foram preservados. Confirme na lista antes de repetir a gravacao.'
+        : err instanceof Error ? err.message : 'Nao foi possivel guardar. Os dados foram preservados.';
+      appToast.error(message);
+      setFormSaveError(message);
+    } finally {
+      window.clearTimeout(timeout);
+      formSaveInFlight.current = false;
+      setFormSaving(false);
     }
   }
 
-  async function handleEdit(j: Jangada) {
+  const handleEdit = useCallback(async (j: Jangada) => {
+    setFormSaveError('');
     setForm(j);
     setEditId(j.id);
     setShowWizard(true);
     setWizardTab('dados');
     setArtigoValidades({});
-  }
+  }, []);
 
-  async function handleDelete(id: number) {
+  const handleDelete = useCallback(async (id: number) => {
     if (!window.confirm('Tem certeza que deseja excluir esta jangada?')) return;
     setLoading(true);
     try {
@@ -1276,9 +1306,10 @@ export default function JangadasPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [fetchJangadas]);
 
   function openCreateWizard() {
+    setFormSaveError('');
     setForm(INITIAL_FORM);
     setEditId(null);
     setShowWizard(true);
@@ -1287,13 +1318,16 @@ export default function JangadasPage() {
   }
 
   function startAddWithSerial(serial: string) {
+    setFormSaveError('');
     setForm({ ...INITIAL_FORM, serial });
     setEditId(null);
-    setShowWizard(true);
-    setWizardTab('dados');
     setArtigoValidades({});
     setPendingScanSerial(null);
     setSearch(serial);
+    startTransition(() => {
+      setShowWizard(true);
+      setWizardTab('dados');
+    });
   }
 
   function startAddColeteWithSerial(serial: string) {
@@ -1301,7 +1335,7 @@ export default function JangadasPage() {
     router.push(`/equipamentos?novoSerial=${encodeURIComponent(serial)}`);
   }
 
-  const filteredJangadas = jangadas.filter(j => {
+  const filteredJangadas = useMemo(() => jangadas.filter(j => {
     // Pesquisa tolerante: acentos, separadores e erros de dedo.
     const matchesTermo = matchesSearchTermo(
       search,
@@ -1366,9 +1400,11 @@ export default function JangadasPage() {
       matchesExpiring &&
       matchesHruCritical
     );
-  });
+  }), [jangadas, search, filterBrand, filterModel, filterPackType, filterCapacity,
+    filterShip, filterInspecaoDe, filterInspecaoAte, filterProximaInspecaoMes,
+    onlyExpiring30Days, onlyHruCritical]);
 
-  const sortedFilteredJangadas = [...filteredJangadas].sort((a, b) => {
+  const sortedFilteredJangadas = useMemo(() => [...filteredJangadas].sort((a, b) => {
     const pausedDiff =
       getPausedInspectionRank(pausedInspectionDrafts[a.id]) -
       getPausedInspectionRank(pausedInspectionDrafts[b.id]);
@@ -1391,13 +1427,13 @@ export default function JangadasPage() {
     if (safeDateA !== safeDateB) return safeDateA - safeDateB;
 
     return `${a.brand} ${a.model} ${a.serial}`.localeCompare(`${b.brand} ${b.model} ${b.serial}`);
-  });
+  }), [filteredJangadas, pausedInspectionDrafts]);
 
-  const uniqueBrands = uniqueNormalizedLabels([
+  const uniqueBrands = useMemo(() => uniqueNormalizedLabels([
     ...jangadas.map(j => j.brand),
     ...catalogOptions.map(entry => entry.marca),
-  ]);
-  const uniqueModels = Array.from(
+  ]), [jangadas, catalogOptions]);
+  const uniqueModels = useMemo(() => Array.from(
     [
       ...jangadas.map(j => ({ brand: j.brand, model: j.model })),
       ...catalogOptions.map(entry => ({ brand: entry.marca, model: entry.modelo })),
@@ -1415,15 +1451,15 @@ export default function JangadasPage() {
         return acc;
       }, new Map<string, string>())
       .values(),
-  ).sort();
+  ).sort(), [jangadas, catalogOptions, filterBrand]);
   const uniquePackTypes = useMemo(
     () =>
       getRecognizedPackTypeOptions([...availablePackTypeOptions, ...jangadas.map(j => j.packType)]),
     [availablePackTypeOptions, jangadas],
   );
-  const uniqueLaunchTypes = Array.from(
+  const uniqueLaunchTypes = useMemo(() => Array.from(
     new Set(jangadas.map(j => normalizeLaunchTypeValue(j.launchType)).filter(Boolean)),
-  ).sort((a, b) => a.localeCompare(b, 'pt-PT'));
+  ).sort((a, b) => a.localeCompare(b, 'pt-PT')), [jangadas]);
 
   const raftCatalogByBrand = raftModelData as Record<
     string,
@@ -1435,6 +1471,7 @@ export default function JangadasPage() {
     }>
   >;
 
+  const { catalogBrandLabelByKey, catalogModelsByBrandKey } = useMemo(() => {
   const catalogBrandLabelByKey = new Map<string, string>();
   const catalogModelsByBrandKey = new Map<string, string[]>();
   for (const [catalogBrand, entries] of Object.entries(raftCatalogByBrand)) {
@@ -1468,6 +1505,10 @@ export default function JangadasPage() {
     catalogModelsByBrandKey.set(brandKey, currentModels.concat(modelLabel));
   }
 
+  return { catalogBrandLabelByKey, catalogModelsByBrandKey };
+  }, [catalogOptions]);
+
+  const brandLabelByKey = useMemo(() => {
   const brandLabelByKey = new Map<string, string>(catalogBrandLabelByKey);
   for (const dbBrand of uniqueBrands) {
     const key = normalizeModelFilterKey(dbBrand);
@@ -1482,6 +1523,8 @@ export default function JangadasPage() {
       brandLabelByKey.set(key, currentFormBrand);
     }
   }
+  return brandLabelByKey;
+  }, [catalogBrandLabelByKey, uniqueBrands, form.brand]);
 
   const debouncedForm = useDebounce(form, 200);
   const debouncedBrand = debouncedForm.brand;
@@ -1489,6 +1532,11 @@ export default function JangadasPage() {
   const debouncedPackType = debouncedForm.packType;
   const debouncedCapacity = debouncedForm.capacity;
   const debouncedLaunchType = debouncedForm.launchType;
+  const deferredBrand = useDeferredValue(debouncedBrand);
+  const deferredModel = useDeferredValue(debouncedModel);
+  const deferredPackType = useDeferredValue(debouncedPackType);
+  const deferredCapacity = useDeferredValue(debouncedCapacity);
+  const deferredLaunchType = useDeferredValue(debouncedLaunchType);
 
   const brandOptions = useMemo(() => {
     const brands = Object.keys(raftModelData);
@@ -1516,37 +1564,37 @@ export default function JangadasPage() {
   const filterSelectedBrandLabel = filterSelectedBrandKey
     ? brandLabelByKey.get(filterSelectedBrandKey) || filterBrand || filterSelectedBrandKey
     : '';
-  const filterModelsFromCatalogByBrand = filterSelectedBrandKey
+  const filterModelsFromCatalogByBrand = useMemo(() => filterSelectedBrandKey
     ? (catalogModelsByBrandKey.get(filterSelectedBrandKey) || []).map(
         m => canonicalizeRaftModelLabel(filterSelectedBrandLabel, m) || m,
       )
     : Array.from(catalogModelsByBrandKey.entries()).flatMap(([brandKey, models]) => {
         const brandLabel = brandLabelByKey.get(brandKey) || brandKey;
         return models.map(m => canonicalizeRaftModelLabel(brandLabel, m) || m);
-      });
-  const filterModelsFromDataByBrand = jangadas
+      }), [filterSelectedBrandKey, filterSelectedBrandLabel, catalogModelsByBrandKey, brandLabelByKey]);
+  const filterModelsFromDataByBrand = useMemo(() => jangadas
     .filter(
       j => !filterSelectedBrandKey || normalizeModelFilterKey(j.brand) === filterSelectedBrandKey,
     )
-    .map(j => canonicalizeRaftModelLabel(j.brand, j.model) || j.model);
+    .map(j => canonicalizeRaftModelLabel(j.brand, j.model) || j.model), [jangadas, filterSelectedBrandKey]);
 
-  const filterModelOptions = uniqueNormalizedLabels([
+  const filterModelOptions = useMemo(() => uniqueNormalizedLabels([
     ...filterModelsFromCatalogByBrand,
     ...filterModelsFromDataByBrand,
     ...uniqueModels,
-  ]);
+  ]), [filterModelsFromCatalogByBrand, filterModelsFromDataByBrand, uniqueModels]);
 
   
 
 
   const selectedTechnicalModel = useMemo(
-    () => findRaftTechnicalModel(debouncedBrand, debouncedModel),
-    [debouncedBrand, debouncedModel],
+    () => findRaftTechnicalModel(deferredBrand, deferredModel),
+    [deferredBrand, deferredModel],
   );
 
   const capacityOptions = useMemo(() => {
     const base = new Set<number>([4, 6, 8, 10, 12, 16, 20, 25, 50]);
-    const current = normalizeCapacityValue(debouncedCapacity);
+    const current = normalizeCapacityValue(deferredCapacity);
     if (current !== null) base.add(current);
 
     if (selectedTechnicalModel?.specifications) {
@@ -1557,7 +1605,7 @@ export default function JangadasPage() {
     }
 
     return Array.from(base).sort((a, b) => a - b);
-  }, [debouncedCapacity, selectedTechnicalModel]);
+  }, [deferredCapacity, selectedTechnicalModel]);
 
   const launchTypeOptions = useMemo(() => {
     const base = new Set<string>(uniqueLaunchTypes);
@@ -1565,10 +1613,10 @@ export default function JangadasPage() {
       .map(config => normalizeLaunchTypeValue(config))
       .filter(Boolean);
     for (const v of fromTech) if (v) base.add(v);
-    const fromForm = normalizeLaunchTypeValue(debouncedLaunchType);
+    const fromForm = normalizeLaunchTypeValue(deferredLaunchType);
     if (fromForm) base.add(fromForm);
     return Array.from(base).sort((a, b) => a.localeCompare(b, 'pt-PT'));
-  }, [debouncedLaunchType, selectedTechnicalModel, uniqueLaunchTypes]);
+  }, [deferredLaunchType, selectedTechnicalModel, uniqueLaunchTypes]);
 
   const packTypeOptions = useMemo(() => {
     return getRecognizedPackTypeOptions([
@@ -1576,16 +1624,16 @@ export default function JangadasPage() {
         .map(pack => String(pack || '').trim())
         .filter(Boolean),
       ...uniquePackTypes,
-      String(debouncedPackType || '').trim(),
+      String(deferredPackType || '').trim(),
     ]);
-  }, [debouncedPackType, selectedTechnicalModel, uniquePackTypes]);
+  }, [deferredPackType, selectedTechnicalModel, uniquePackTypes]);
 
-  const ownerOptions = uniqueNormalizedLabels(
+  const ownerOptions = useMemo(() => uniqueNormalizedLabels(
     jangadas
       .map(j => String(j.owner || '').trim())
       .filter(Boolean)
       .concat(String(form.owner || '').trim()),
-  );
+  ), [jangadas, form.owner]);
 
   useEffect(() => {
     if (!showWizard || Boolean(editId) || !selectedTechnicalModel) return;
@@ -1595,6 +1643,7 @@ export default function JangadasPage() {
     const suggestedCapacity = getSuggestedCapacity(selectedTechnicalModel.specifications);
 
     setForm(current => {
+      if (current.brand !== deferredBrand || current.model !== deferredModel) return current;
       const next = { ...current };
       let changed = false;
 
@@ -1615,20 +1664,21 @@ export default function JangadasPage() {
 
       return changed ? next : current;
     });
-  }, [editId, selectedTechnicalModel, showWizard]);
+  }, [editId, selectedTechnicalModel, showWizard, deferredBrand, deferredModel]);
 
   const wizardPackItems = useMemo<MandatoryPackItem[]>(() => {
     if (editId) return [];
-    if (!debouncedBrand || !debouncedModel || !String(debouncedPackType || '').trim()) return [];
-    const cap = normalizeCapacityValue(debouncedCapacity);
+    if (!showWizard) return [];
+    if (!deferredBrand || !deferredModel || !String(deferredPackType || '').trim()) return [];
+    const cap = normalizeCapacityValue(deferredCapacity);
     if (cap === null) return [];
     return getMandatoryPackItemsForRaft({
-      brand: debouncedBrand,
-      model: debouncedModel,
-      packType: debouncedPackType,
+      brand: deferredBrand,
+      model: deferredModel,
+      packType: deferredPackType,
       capacity: cap,
     });
-  }, [editId, debouncedBrand, debouncedModel, debouncedPackType, debouncedCapacity]);
+  }, [editId, showWizard, deferredBrand, deferredModel, deferredPackType, deferredCapacity]);
 
   const artigoValidadesCount = Object.keys(artigoValidades).filter(label =>
     Boolean(artigoValidades[label]),
@@ -1696,7 +1746,7 @@ export default function JangadasPage() {
     [sortedFilteredJangadas, pausedInspectionDrafts],
   );
 
-  const jangadaListColumns: ColumnDef<Jangada>[] = [
+  const jangadaListColumns = useMemo<ColumnDef<Jangada>[]>(() => [
     {
       key: 'marca',
       header: 'Marca',
@@ -1920,11 +1970,7 @@ export default function JangadasPage() {
       className: 'text-center',
       render: j => renderSemaforoStatus(j),
     },
-  ];
-
-  if (!isMounted) {
-    return <div className="min-h-screen bg-gray-50 py-8" suppressHydrationWarning />;
-  }
+  ], [uniquePackTypes, pausedInspectionDrafts]);
 
   const inflationSystemOptions = (() => {
     const options = new Set<string>();
@@ -1969,6 +2015,28 @@ export default function JangadasPage() {
     return Array.from(options.values());
   })();
 
+  const tablePageSizes = useMemo(() => [25, 50, 100, 250], []);
+  const tableRowClick = useCallback((j: Jangada) => { window.location.href = `/jangadas/${j.id}`; }, []);
+  const tableRowActions = useCallback((j: Jangada) => (
+    <div className="flex flex-wrap justify-end gap-1.5" onClick={e => e.stopPropagation()}>
+      {pausedInspectionDrafts[j.id] ? <Link href={`/jangadas/${j.id}?continueInspection=1`} className="bg-sky-600 px-2 py-1 rounded text-xs text-white hover:bg-sky-700" onClick={e => e.stopPropagation()}>Continuar</Link> : null}
+      <Link href={`/jangadas/${j.id}`} className="bg-indigo-600 hover:bg-indigo-700 px-2 py-1 rounded text-xs text-white font-medium flex items-center justify-center" onClick={e => e.stopPropagation()}>Dossier</Link>
+      <button type="button" className="bg-yellow-400 px-2 py-1 rounded text-xs font-medium" onClick={() => handleEdit(j)}>Editar</button>
+      <button type="button" className="bg-red-500 px-2 py-1 rounded text-xs text-white font-medium" onClick={() => handleDelete(j.id)}>Excluir</button>
+    </div>
+  ), [pausedInspectionDrafts, handleEdit, handleDelete]);
+  const tableBulkActions = useCallback((rows: Jangada[]) => (
+    <button type="button" className="px-3 py-1.5 rounded bg-red-600 text-white text-xs font-semibold disabled:opacity-50" disabled={deletingBatch} onClick={handleDeleteBatch}>
+      {deletingBatch ? 'A eliminar...' : `Excluir selecionadas (${rows.length})`}
+    </button>
+    // handleDeleteBatch depends on selectedJangadas; recreating it for unrelated form edits defeats table memoization.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ), [deletingBatch, selectedJangadas]);
+
+  if (!isMounted) {
+    return <div className="min-h-screen bg-gray-50 py-8" suppressHydrationWarning />;
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 py-8">
       <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8">
@@ -1978,22 +2046,25 @@ export default function JangadasPage() {
               <AlertTriangle className="text-amber-600 shrink-0" size={24} />
               <div>
                 <p className="font-bold text-sm">
-                  Rascunhos de inspeção por concluir detectados neste dispositivo
+                  Cópias locais de inspeção neste dispositivo
                 </p>
                 <p className="text-xs text-amber-700">
-                  Encontrámos {draftsFound.length} inspeção(ões) em rascunho guardadas localmente.
+                  A inspeção registada e a cópia local são apresentadas separadamente.
                 </p>
               </div>
             </div>
             <div className="flex gap-2">
               {draftsFound.map(d => (
+                <div key={d.id} className="text-xs space-y-1">
+                <p>{d.serial}: {d.status === 'redundant' ? 'Cópia já guardada' : d.status === 'pending' ? 'Rascunho pendente' : 'Rascunho por verificar'} · {draftTime(d.savedAt)}</p>
+                <p>Inspeção registada: {d.inspection}</p>
                 <button
-                  key={d.id}
-                  onClick={() => router.push(`/jangadas/${d.id}?startInspection=1`)}
+                  onClick={() => router.push(`/jangadas/${d.id}?continueInspection=1`)}
                   className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition shadow-sm"
                 >
-                  Retomar ({d.serial})
+                  Ver cópia local
                 </button>
+                </div>
               ))}
             </div>
           </div>
@@ -2274,11 +2345,14 @@ export default function JangadasPage() {
           </div>
         )}
         <NovaJangadaModal
+          saving={formSaving}
+          saveError={formSaveError}
           form={form}
           setForm={setForm}
           editId={editId}
           showWizard={showWizard}
           onClose={() => {
+            if (formSaveInFlight.current) return;
             setShowWizard(false);
             setEditId(null);
             setWizardTab('dados');
@@ -2313,10 +2387,9 @@ export default function JangadasPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    setSearch(pendingScanSerial);
-                    setPendingScanSerial(null);
+                    startAddWithSerial(pendingScanSerial);
                   }}
-                  className="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold"
+                  className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold"
                 >
                   Pesquisar
                 </button>
@@ -2329,7 +2402,18 @@ export default function JangadasPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => startAddWithSerial(pendingScanSerial)}
+                  onClick={() => {
+                    const serial = pendingScanSerial;
+                    setForm({ ...INITIAL_FORM, serial });
+                    setEditId(null);
+                    startTransition(() => {
+                      setShowWizard(true);
+                      setWizardTab('dados');
+                    });
+                    setArtigoValidades({});
+                    setPendingScanSerial(null);
+                    setSearch(serial || '');
+                  }}
                   className="px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold"
                 >
                   Adicionar jangada
@@ -2398,67 +2482,21 @@ export default function JangadasPage() {
                   <DataTable<Jangada>
                     data={sortedFilteredJangadas}
                     columns={jangadaListColumns}
-                    keyExtractor={j => j.id}
+                    keyExtractor={getJangadaKey}
                     searchPlaceholder="Pesquisar jangadas..."
-                    searchKeys={['marca', 'modelo', 'serial', 'navio', 'packType', 'armador', 'ilha', 'estacao', 'numeroObra']}
+                    searchKeys={JANGADA_SEARCH_KEYS}
                     pageSize={50}
-                    pageSizeOptions={[25, 50, 100, 250]}
+                    pageSizeOptions={tablePageSizes}
                     emptyMessage="Nenhuma jangada encontrada"
                     exportFileName="jangadas"
                     compact
                     selectable
-                    onSelectionChange={rows => setSelectedJangadas(rows.map(r => r.id))}
-                    bulkActions={rows => (
-                      <button
-                        type="button"
-                        className="px-3 py-1.5 rounded bg-red-600 text-white text-xs font-semibold disabled:opacity-50"
-                        disabled={deletingBatch}
-                        onClick={handleDeleteBatch}
-                      >
-                        {deletingBatch
-                          ? 'A eliminar...'
-                          : `Excluir selecionadas (${rows.length})`}
-                      </button>
-                    )}
+                    onSelectionChange={handleSelectionChange}
+                    bulkActions={tableBulkActions}
                     visibleColumnsKeys={dataTableVisibleKeys}
                     onVisibleColumnsChange={handleDataTableColumnsChange}
-                    onRowClick={j => {
-                      window.location.href = `/jangadas/${j.id}`;
-                    }}
-                    rowActions={j => (
-                      <div className="flex flex-wrap justify-end gap-1.5" onClick={e => e.stopPropagation()}>
-                        {pausedInspectionDrafts[j.id] ? (
-                          <Link
-                            href={`/jangadas/${j.id}?continueInspection=1`}
-                            className="bg-sky-600 px-2 py-1 rounded text-xs text-white hover:bg-sky-700"
-                            onClick={e => e.stopPropagation()}
-                          >
-                            Continuar
-                          </Link>
-                        ) : null}
-                        <Link
-                          href={`/jangadas/${j.id}`}
-                          className="bg-indigo-600 hover:bg-indigo-700 px-2 py-1 rounded text-xs text-white font-medium flex items-center justify-center"
-                          onClick={e => e.stopPropagation()}
-                        >
-                          Dossier
-                        </Link>
-                        <button
-                          type="button"
-                          className="bg-yellow-400 px-2 py-1 rounded text-xs font-medium"
-                          onClick={() => handleEdit(j)}
-                        >
-                          Editar
-                        </button>
-                        <button
-                          type="button"
-                          className="bg-red-500 px-2 py-1 rounded text-xs text-white font-medium"
-                          onClick={() => handleDelete(j.id)}
-                        >
-                          Excluir
-                        </button>
-                      </div>
-                    )}
+                    onRowClick={tableRowClick}
+                    rowActions={tableRowActions}
                   />
                 </div>
               )}

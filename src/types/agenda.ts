@@ -10,7 +10,7 @@ export type InspectionDefaults = {
 export const INSPECTION_TYPE_DEFAULTS: Record<InspectionType, InspectionDefaults> = {
   anual: {
     label: "Inspeção anual",
-    durationMinutes: 120,
+    durationMinutes: 180,
     bufferBeforeMinutes: 15,
     bufferAfterMinutes: 15,
   },
@@ -34,7 +34,7 @@ export const INSPECTION_TYPE_DEFAULTS: Record<InspectionType, InspectionDefaults
   },
   outro: {
     label: "Outro",
-    durationMinutes: 210,
+    durationMinutes: 180,
     bufferBeforeMinutes: 15,
     bufferAfterMinutes: 15,
   },
@@ -51,6 +51,30 @@ export function normalizeInspectionType(value?: string | null): InspectionType {
 
 export function getInspectionDefaults(type?: string | null): InspectionDefaults {
   return INSPECTION_TYPE_DEFAULTS[normalizeInspectionType(type)];
+}
+
+export function resolveAgendaDuration(event: {
+  raftSerial?: string | null;
+  type?: string | null;
+  inspectionType?: string | null;
+  durationMinutes?: number | null;
+  bufferBeforeMinutes?: number | null;
+  bufferAfterMinutes?: number | null;
+}): number {
+  const duration = Number(event.durationMinutes);
+  const inspectionType = normalizeInspectionType(event.inspectionType);
+  const fallback = getInspectionDefaults(inspectionType).durationMinutes;
+  if (!Number.isFinite(duration) || duration <= 0) return fallback;
+
+  const type = String(event.type || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+  const standardBuffers = (event.bufferBeforeMinutes ?? 15) === 15 && (event.bufferAfterMinutes ?? 15) === 15;
+  const syncBuffers = event.bufferBeforeMinutes === 0 && event.bufferAfterMinutes === 0;
+  // Legacy generic inspections inherited 210m defaults or a reused 30m delivery.
+  // Nonstandard durations/buffers and non-inspection events remain untouched.
+  if (event.raftSerial?.trim() && ["", "inspecao", "outro"].includes(type)
+    && inspectionType === "outro" && (duration === 30 || duration === 210)
+    && (standardBuffers || syncBuffers)) return fallback;
+  return duration;
 }
 
 // ── Operational event status ──────────────────────────────────────────────────

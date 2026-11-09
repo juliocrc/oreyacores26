@@ -20,9 +20,20 @@ export default function DocumentScanner({ onCapture, onClose }: Props) {
   const startCamera = useCallback(async () => {
     setMode("camera");
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      // "ideal" permite usar outra câmara em tablets sem câmara traseira.
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" } },
+        });
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      }
       streamRef.current = stream;
-      if (videoRef.current) videoRef.current.srcObject = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        void videoRef.current.play().catch(() => {});
+      }
     } catch {
       alert("Câmara não disponível. Use o upload de ficheiro.");
       setMode("upload");

@@ -1,23 +1,26 @@
 "use client";
 import Link from "next/link";
 import { getNavioLocationLabel, getCanonicalNavioLocationLabel } from "@/lib/navios-page-helpers";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
+import { useSession } from "next-auth/react";
+import { isWhatsAppAllowedEmail } from "@/lib/whatsapp-allowed";
 import { useParams, useRouter } from "next/navigation";
 import { CLIENTE_PAYMENT_MODE_OPTIONS } from "@/lib/cliente-payment-options";
 import { sortNaviosAlphabetically } from "@/lib/navios-sort";
 import { formatDateDisplay } from "@/lib/date-display";
-import { formatDateLongPt } from "@/lib/relatorios-page-helpers";
+import { buildThirdPartyEmail } from "@/lib/third-party-email";
 import { User, Ship, FileText, ClipboardList, Settings, Mail, Phone, MapPin, Save, Search, Plus, Trash2, ExternalLink, AlertTriangle, Loader2, Building2, Receipt, History, MessageSquare, CreditCard, DollarSign, KeyRound } from "lucide-react";
 import { IVA_ISENCAO_CODES } from "@/lib/iva-isencao-codes";
-import { buildAddressLine } from "@/lib/client-address";
 import { saveShipDocument, ensureFolderPermissionNow } from "@/lib/ship-downloads";
 import { appToast } from "@/lib/app-toast";
+import OfficialInvoiceUpload from "./OfficialInvoiceUpload";
+import DeclaracoesIvaPanel from "@/app/area-cliente/DeclaracoesIvaPanel";
 
 type Navio = { id: number; nome: string; matricula: string; portoRegisto?: string | null; ilha: string | null; tipoPesca: string; clienteId?: number | null; cliente?: { id: number; nome: string } | null };
-type Cliente = { id: number; nome: string; numeroCliente?: string | null; modoPagamento?: string | null; nif?: string | null; email?: string | null; telefone?: string | null; telmovel?: string | null; morada?: string | null; moradaNumero?: string | null; codigoPostal?: string | null; localidade?: string | null; ilha?: string | null; observacoes?: string | null; navios: Navio[] };
+type Cliente = { id: number; nome: string; numeroCliente?: string | null; modoPagamento?: string | null; nif?: string | null; email?: string | null; telefone?: string | null; telmovel?: string | null; morada?: string | null; moradaNumero?: string | null; codigoPostal?: string | null; localidade?: string | null; ilha?: string | null; observacoes?: string | null; portalAtivo?: boolean | null; navios: Navio[] };
 type TabKey = "ficha" | "navios" | "ordens" | "assistencia" | "financeiro" | "iva" | "acoes";
 type ServiceOrder = { id: number; numeroOrdem: string; tipo: string; status: string; orcamentoStatus?: string | null; valorTotal?: number; prioridade: string; tecnicoResponsavel?: string | null; dataPlaneadaInicio?: string | null; dataConclusao?: string | null; createdAt: string; jangada?: { serial?: string | null; brand?: string | null; model?: string | null } | null };
-type FaturaItem = { id: number; numeroFatura: string; ordemServicoId: number | null; numeroOrdem: string | null; ordemServicoStatus: string | null; valorSubtotal: number; valorIva: number; valorTotal: number; isIsentoIva: boolean; pagamentoStatus: string; dataEmissao: string; emitidaPor: string | null; jangada: string | null; cancelada?: boolean; dataCancelamento?: string | null; motivoCancelamento?: string | null; numeroRecibo?: string | null; notaCredito?: { numeroNotaCredito: string; dataEmissao: string } | null; ordemServicos?: Array<{ id: number; numeroOrdem: string; status: string; valorTotal: number; jangada: string | null }> };
+type FaturaItem = { id: number; numeroFatura: string; numeroFaturaOficial?: string | null; pdfOficial?: { filename: string } | null; updatedAt?: string; ordemServicoId: number | null; numeroOrdem: string | null; ordemServicoStatus: string | null; valorSubtotal: number; valorIva: number; valorTotal: number; isIsentoIva: boolean; pagamentoStatus: string; dataEmissao: string; emitidaPor: string | null; jangada: string | null; cancelada?: boolean; dataCancelamento?: string | null; motivoCancelamento?: string | null; numeroRecibo?: string | null; notaCredito?: { numeroNotaCredito: string; dataEmissao: string } | null; ordemServicos?: Array<{ id: number; numeroOrdem: string; status: string; valorTotal: number; jangada: string | null }> };
 
 function normalizeNaviosResponse(payload: unknown): Navio[] {
   if (!payload) return [];
@@ -27,6 +30,9 @@ function normalizeNaviosResponse(payload: unknown): Navio[] {
 }
 
 export default function ClienteDetalhePage() {
+  const { data: session } = useSession();
+  const codeActionBusy = useRef(false);
+  const [codeStatus, setCodeStatus] = useState<string | null>(null);
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const clienteId = Number(params?.id);
@@ -44,6 +50,8 @@ export default function ClienteDetalhePage() {
   const [saving, setSaving] = useState(false);
   const [busyNavio, setBusyNavio] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [portalAtivo, setPortalAtivo] = useState(true);
+  const [portalAccessBusy, setPortalAccessBusy] = useState(false);
   const [exportingThirdPartySheet, setExportingThirdPartySheet] = useState(false);
   const [declarationNavioId, setDeclarationNavioId] = useState<number | string>("");
   const [declarationIvaCode, setDeclarationIvaCode] = useState<string>("M05");
@@ -70,6 +78,7 @@ export default function ClienteDetalhePage() {
       const clienteData = (await clienteRes.json()) as Cliente;
       const naviosData = await naviosRes.json();
       setCliente(clienteData);
+    setPortalAtivo(clienteData.portalAtivo !== false);
       setAllNavios(sortNaviosAlphabetically(normalizeNaviosResponse(naviosData)));
       setProfileDraft({ nome: clienteData.nome || "", numeroCliente: clienteData.numeroCliente || "", modoPagamento: clienteData.modoPagamento || "", ilha: clienteData.ilha || "", morada: clienteData.morada || "", moradaNumero: clienteData.moradaNumero || "", codigoPostal: clienteData.codigoPostal || "", localidade: clienteData.localidade || "", nif: clienteData.nif || "", email: clienteData.email || "", telefone: clienteData.telefone || "", telmovel: clienteData.telmovel || "", observacoes: clienteData.observacoes || "" });
     } catch (e) { setError(e instanceof Error ? e.message : "Erro"); }
@@ -160,6 +169,36 @@ export default function ClienteDetalhePage() {
     finally { setSaving(false); }
   };
 
+  const togglePortalAccess = async () => {
+    if (!cliente || portalAccessBusy) return;
+    const next = !portalAtivo;
+    const message = next
+      ? `Reativar o acesso de "${cliente.nome}" ao portal? O cliente terá de entrar novamente com NIF e código.`
+      : `Suspender o acesso de "${cliente.nome}" ao portal? Todas as sessões ativas serão terminadas.`;
+    if (!confirm(message)) return;
+
+    try {
+      setPortalAccessBusy(true);
+      const res = await fetch(`/api/clientes/${cliente.id}/portal-access`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ativo: next }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Erro ao alterar o acesso ao portal.");
+      setPortalAtivo(next);
+      appToast.success(
+        next
+          ? "Acesso ao portal reativado. O cliente já pode entrar com NIF e código."
+          : "Acesso ao portal suspenso. As sessões ativas foram terminadas.",
+      );
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Erro ao alterar o acesso ao portal.");
+    } finally {
+      setPortalAccessBusy(false);
+    }
+  };
+
   const associateNavio = async () => {
     if (!cliente) return;
     const navioId = Number(selectedNavioId);
@@ -195,18 +234,26 @@ export default function ClienteDetalhePage() {
     finally { setDeleting(false); }
   };
 
-  const handleGerarCodigoAcesso = async () => {
-    if (!cliente) return;
+  const handleGerarCodigoAcesso = async (channel?: "email" | "whatsapp") => {
+    if (!cliente || codeActionBusy.current) return;
+    const target = channel === "email" ? cliente.email : cliente.telmovel?.trim() || cliente.telefone;
+    if (channel && !window.confirm(`Enviar codigo por ${channel === "email" ? "email" : "WhatsApp"} para ${target || "contacto em falta"}? Sera usado o contacto atualmente guardado na ficha.`)) return;
+    codeActionBusy.current = true;
     setGeneratingCode(true);
     setGeneratedCode(null);
     setGeneratedCodeError(null);
+    setCodeStatus(null);
     try {
-      const res = await fetch(`/api/portal/clientes/${cliente.id}/gerar-codigo`, { method: "POST" });
+      const res = await fetch(`/api/portal/clientes/${cliente.id}/gerar-codigo`, {
+        method: "POST", cache: "no-store", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(channel ? { channel } : {}),
+      });
       const data = await res.json();
       if (!res.ok) { setGeneratedCodeError(data.error || "Erro ao gerar código."); return; }
-      setGeneratedCode({ code: data.code, expiresAt: data.expiresAt });
-    } catch { setGeneratedCodeError("Erro de rede."); }
-    finally { setGeneratingCode(false); }
+      if (channel) setCodeStatus(`${data.message} Destino: ${data.target}.`);
+      else setGeneratedCode({ code: data.code, expiresAt: data.expiresAt });
+    } catch { setGeneratedCodeError("Erro de rede. Se pediu envio, verifique o historico antes de repetir."); }
+    finally { codeActionBusy.current = false; setGeneratingCode(false); }
   };
 
   const generateClienteExcel = async () => {
@@ -225,88 +272,28 @@ export default function ClienteDetalhePage() {
     finally { setExportingThirdPartySheet(false); }
   };
 
-  const generateIvaDeclaration = async () => {
-    if (!cliente) return;
-
-    const navio = cliente.navios.find((n) => n.id === Number(declarationNavioId)) || cliente.navios[0];
-
-    const clienteNomeDeclarante = String(cliente.nome || "").trim() || "[Nome do cliente]";
-    const clienteNifDeclarante = String(cliente.nif || "").trim() || "[NIF do cliente]";
-    const clienteMorada = buildAddressLine(cliente);
-
-    const navioNome = String(navio?.nome || "").trim() || "[Nome da Embarcação]";
-    const navioMatricula = String(navio?.matricula || "").trim() || "[Matrícula]";
-    const navioPortoRegisto = String(navio?.portoRegisto || "").trim() || "[Porto de Registo]";
-
-    const ivaCodeInfo = IVA_ISENCAO_CODES.find(c => c.code === declarationIvaCode);
-    const ivaCodeDisplay = ivaCodeInfo ? `${ivaCodeInfo.code} — ${ivaCodeInfo.mencao}` : "M05 — Isento artigo 14.º do CIVA";
-    const ivaCodeNorma = ivaCodeInfo?.norma || "Artigo 14.º do CIVA";
-
-    const htmlString = `
-      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-      <head>
-        <title>Declaração de Isenção de IVA</title>
-        <style>
-          body { font-family: 'Arial', sans-serif; font-size: 11pt; line-height: 1.5; padding: 2cm; }
-          h1 { font-size: 14pt; font-weight: bold; text-align: center; margin-bottom: 24pt; }
-          h2 { font-size: 12pt; font-weight: bold; margin-top: 18pt; margin-bottom: 6pt; border-bottom: 1px solid #ddd; padding-bottom: 3pt; }
-          p { margin-bottom: 12pt; text-align: justify; }
-          .footer { margin-top: 40pt; }
-          .signature-line { margin-top: 40pt; border-top: 1px solid #000; width: 250px; }
-        </style>
-      </head>
-      <body>
-        <h1>DECLARAÇÃO DE ISENÇÃO DE IVA</h1>
-
-        <h2>Identificação do Declarante</h2>
-        <p>
-          Eu, <strong>${clienteNomeDeclarante}</strong>, com o NIF <strong>${clienteNifDeclarante}</strong>,
-          residente/sediado em <strong>${clienteMorada}</strong>, associado ao navio denominado <strong>${navioNome}</strong>,
-          com a matrícula <strong>${navioMatricula}</strong>, registada no Porto <strong>${navioPortoRegisto}</strong>,
-          venho por este meio declarar que:
-        </p>
-
-        <h2>Atividade da Embarcação</h2>
-        <p>
-          A referida embarcação exerce atividade no setor da pesca marítima (CAE 03110), dedicando-se à pesca profissional.
-        </p>
-
-        <h2>Finalidade dos Serviços</h2>
-        <p>
-          Os serviços de inspeção de jangada e salvamento, adquiridos à empresa Orey Técnica Serviços Navais, Lda, com NIF 501117334, destinam-se à manutenção ou equipamento da citada embarcação.
-        </p>
-
-        <h2>Fundamento Legal</h2>
-        <p>
-          Pelo exposto, solicito a aplicação da isenção de IVA, nos termos da ${ivaCodeDisplay} (${ivaCodeNorma}), por se tratar de operações isentas relativas a embarcações de pesca.
-        </p>
-
-        <h2>Declaração de Responsabilidade</h2>
-        <p>
-          Estou ciente das obrigações declarativas e da responsabilidade pela veracidade destas informações, conforme disposto no Código do IVA.
-        </p>
-
-        <p class="footer">
-          Lagoa, ${formatDateLongPt()}.
-        </p>
-
-        <div style="margin-top: 50px;">
-          <p>Assinatura do Armador / Representante Legal:</p>
-          <br/><br/>
-          <div class="signature-line" style="border-top: 1px solid #000; width: 250px;"></div>
-          <p style="margin-top: 5px;">${clienteNomeDeclarante}</p>
-        </div>
-      </body>
-      </html>
-    `;
-
-    const blob = new Blob(['\ufeff' + htmlString], { type: 'application/msword' });
-    await saveShipDocument({
-      shipName: navio?.nome || "embarcacao",
-      category: 'Declarações IVA',
-      filename: `declaracao_isencao_iva_${String(navioNome || "embarcacao").replace(/\s+/g, "_")}.doc`,
-      blob,
-    });
+  const prepareThirdPartyEmail = async () => {
+    if (!cliente || exportingThirdPartySheet) return;
+    setExportingThirdPartySheet(true);
+    try {
+      const response = await fetch(`/api/clientes/${cliente.id}/ficha-terceiro`, { cache: 'no-store' });
+      if (!response.ok) throw new Error('Não foi possível gerar a ficha de terceiro.');
+      const attachment = new Uint8Array(await response.arrayBuffer());
+      const eml = buildThirdPartyEmail(cliente.nome, cliente.id, attachment, session?.user?.name);
+      const url = URL.createObjectURL(new Blob([eml], { type: 'message/rfc822' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `criar_terceiro_${cliente.id}.eml`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      alert('Email preparado com a ficha em anexo. Abra o ficheiro descarregado no seu programa de email, confirme e envie. Nada foi enviado automaticamente.');
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Não foi possível preparar o email.');
+    } finally {
+      setExportingThirdPartySheet(false);
+    }
   };
 
   const base64ToBytes = (base64: string): Uint8Array<ArrayBuffer> => {
@@ -390,6 +377,7 @@ export default function ClienteDetalhePage() {
               <button onClick={generateClienteExcel} disabled={exportingThirdPartySheet} className="inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-2 text-xs font-semibold text-white hover:bg-white/25 transition disabled:opacity-50">
                 <FileText size={14} /> {exportingThirdPartySheet ? "A gerar..." : "Ficha Terceiro"}
               </button>
+              <button type="button" onClick={prepareThirdPartyEmail} disabled={exportingThirdPartySheet} className="inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-2 text-xs font-semibold text-white hover:bg-white/25 transition disabled:opacity-50">Criar terceiro</button>
               <div className="rounded-lg bg-white/10 px-3 py-2 text-xs text-indigo-200">
                 {cliente.navios.length} navio{cliente.navios.length !== 1 ? "s" : ""}
               </div>
@@ -417,6 +405,34 @@ export default function ClienteDetalhePage() {
         {/* Tab: Ficha */}
         {tab === "ficha" && (
           <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
+            <div className={`flex flex-col gap-3 border-b px-6 py-4 sm:flex-row sm:items-center sm:justify-between ${portalAtivo ? "border-emerald-100 bg-emerald-50/50" : "border-rose-100 bg-rose-50/50"}`}>
+              <div className="flex items-start gap-3">
+                <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${portalAtivo ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}>
+                  <KeyRound size={18} />
+                </div>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-600">Acesso ao portal do cliente</p>
+                  <p className={`mt-1 text-sm font-semibold ${portalAtivo ? "text-emerald-800" : "text-rose-800"}`}>
+                    {portalAtivo ? "Ativo — o cliente pode entrar com NIF e código." : "Suspenso — as sessões ativas foram terminadas."}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    A sessão do dispositivo dura até 1 ano. Suspender invalida imediatamente todos os dispositivos do cliente.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={togglePortalAccess}
+                disabled={portalAccessBusy}
+                className={`shrink-0 rounded-xl px-4 py-2 text-sm font-bold transition disabled:opacity-50 ${
+                  portalAtivo
+                    ? "border border-rose-300 bg-white text-rose-700 hover:bg-rose-50"
+                    : "bg-emerald-600 text-white hover:bg-emerald-700"
+                }`}
+              >
+                {portalAccessBusy ? "A guardar..." : portalAtivo ? "Suspender acesso" : "Reativar acesso"}
+              </button>
+            </div>
             <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50"><h2 className="font-bold text-slate-800">Dados do Cliente (CRM 360)</h2></div>
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
               <InputField label="Nome" icon={<User size={14} />} value={profileDraft.nome} onChange={(v) => updateProfileField("nome", v)} required />
@@ -634,14 +650,14 @@ export default function ClienteDetalhePage() {
               {loadingFaturas ? (
                 <div className="flex items-center justify-center py-12 text-slate-400"><Loader2 size={20} className="animate-spin mr-2" />A carregar faturas...</div>
               ) : faturas.length === 0 ? (
-                <div className="py-12 text-center text-slate-400 text-sm">Nenhuma fatura oficial registada para este cliente. Emita faturas a partir da consola de faturação.</div>
+                <div className="py-12 text-center text-slate-400 text-sm">Nenhum registo de fatura para este cliente. Registe a fatura na consola de faturação antes de associar o PDF oficial.</div>
               ) : (
                 <div className="divide-y divide-slate-100">
                   {faturas.map((f) => (
                     <div key={f.id} className={`px-6 py-4 flex items-center justify-between gap-4 transition ${f.cancelada ? "bg-rose-50/40" : "hover:bg-slate-50"}`}>
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`text-sm font-bold ${f.cancelada ? "text-rose-500 line-through" : "text-slate-950"}`}>{f.numeroFatura}</span>
+                          <span className={`text-sm font-bold ${f.cancelada ? "text-rose-500 line-through" : "text-slate-950"}`}>{f.numeroFaturaOficial || f.numeroFatura}</span>
                           {f.numeroOrdem && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">OT {f.numeroOrdem}</span>}
                           {f.cancelada && <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-600">ANULADA</span>}
                           {f.notaCredito && (
@@ -651,6 +667,7 @@ export default function ClienteDetalhePage() {
                         <p className="text-xs text-slate-500 mt-0.5">
                           Emitida em {new Date(f.dataEmissao).toLocaleDateString("pt-PT")} · {f.jangada || "—"}
                         </p>
+                        {session?.user?.role === "ADMIN" && <OfficialInvoiceUpload invoice={f} onSaved={loadFaturas} />}
                       </div>
                       <div className="flex items-center gap-3">
                         <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
@@ -677,8 +694,8 @@ export default function ClienteDetalhePage() {
                           )}
                           {f.ordemServicoId && (
                             <>
-                              <a href={`/api/ordens-servico/${f.ordemServicoId}/fatura-excel`} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-600 hover:bg-emerald-50 transition">Fatura Excel</a>
-                              <a href={`/api/ordens-servico/${f.ordemServicoId}/fatura-pdf`} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition">Fatura PDF</a>
+                              <a href={`/api/ordens-servico/${f.ordemServicoId}/fatura-excel`} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-600 hover:bg-emerald-50 transition">Documento interno Excel</a>
+                              <a href={`/api/ordens-servico/${f.ordemServicoId}/fatura-pdf`} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition">Documento interno PDF</a>
                             </>
                           )}
                           {f.ordemServicoId && (f.pagamentoStatus === "Pago" || f.pagamentoStatus === "Pago Parcialmente") && (
@@ -753,17 +770,23 @@ export default function ClienteDetalhePage() {
 
             <div className="mt-5 pt-4 border-t border-slate-200">
               <h4 className="font-bold text-slate-800 mb-1 flex items-center gap-2"><KeyRound size={16} className="text-blue-500" />Código de Acesso Portal</h4>
-              <p className="text-xs text-slate-500 mb-3">Gere um código de 5 dígitos para o cliente aceder ao portal com o seu NIF. Comunique o código verbalmente ou por mensagem. Mantém-se válido até gerar um novo.</p>
-              {generatedCodeError && <p className="text-sm text-red-600 mb-2">{generatedCodeError}</p>}
+              <p className="text-xs text-slate-500 mb-3">Gere um código temporário de 5 dígitos para o cliente aceder ao portal. O NIF serve apenas de identificador. Novos códigos são válidos por 1 hora e para uma única utilização. O envio reutiliza o código ainda válido, sem prolongar a validade.</p>
+              {session?.user?.role === "ADMIN" && <div className="flex flex-wrap gap-2 mb-3">
+                <button onClick={() => handleGerarCodigoAcesso("email")} disabled={generatingCode || !cliente.email?.trim()} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Enviar codigo por email</button>
+                {isWhatsAppAllowedEmail(session.user.email) && <button onClick={() => handleGerarCodigoAcesso("whatsapp")} disabled={generatingCode || !(cliente.telmovel?.trim() || cliente.telefone?.trim())} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Enviar codigo por WhatsApp</button>}
+              </div>}
+              {generatingCode && <p role="status" className="text-sm text-slate-500 mb-2">A processar codigo...</p>}
+              {codeStatus && <p role="status" className="text-sm text-emerald-700 mb-2">{codeStatus}</p>}
+              {generatedCodeError && <p role="alert" className="text-sm text-red-600 mb-2">{generatedCodeError}</p>}
               {generatedCode ? (
                 <div className="rounded-xl bg-blue-50 border border-blue-200 p-4">
                   <p className="text-xs text-blue-600 font-semibold uppercase tracking-wider mb-1">Código Gerado</p>
                   <p className="text-3xl font-black text-blue-700 tracking-[0.3em] mb-1">{generatedCode.code}</p>
-                  <p className="text-xs text-blue-500">{generatedCode.expiresAt ? `Válido até: ${new Date(generatedCode.expiresAt).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })}` : "Sem validade — o cliente entra com o NIF + este código."}</p>
-                  <button onClick={() => setGeneratedCode(null)} className="mt-2 text-xs text-blue-600 underline font-semibold hover:text-blue-800">Gerar novo código</button>
+                  <p className="text-xs text-blue-500">{generatedCode.expiresAt ? `Válido até: ${new Date(generatedCode.expiresAt).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })}. Utilização única.` : "Código sem validade definida não permite iniciar sessão. Gere um novo código."}</p>
+                  <button disabled={generatingCode} onClick={() => setGeneratedCode(null)} className="mt-2 text-xs text-blue-600 underline font-semibold hover:text-blue-800 disabled:opacity-50">Gerar novo código</button>
                 </div>
               ) : (
-                <button onClick={handleGerarCodigoAcesso} disabled={generatingCode} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition disabled:opacity-50">
+                <button onClick={() => handleGerarCodigoAcesso()} disabled={generatingCode} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition disabled:opacity-50">
                   {generatingCode ? <><Loader2 size={14} className="animate-spin inline mr-1" />A gerar...</> : <><KeyRound size={14} className="inline mr-1" />Gerar Código de Acesso</>}
                 </button>
               )}
@@ -775,7 +798,7 @@ export default function ClienteDetalhePage() {
         {tab === "iva" && (
           <div className="rounded-2xl bg-white border border-slate-200 shadow-sm p-6">
             <h3 className="font-bold text-slate-800 mb-1 flex items-center gap-2"><Receipt size={16} className="text-indigo-500" />Declaração de Isenção de IVA</h3>
-            <p className="text-xs text-slate-500 mb-4">Gera o documento Word da declaração de isenção de IVA para o navio selecionado, com o código de isenção da Autoridade Tributária.</p>
+            <p className="text-xs text-slate-500 mb-4">Emita e consulte as declarações numeradas da embarcação selecionada.</p>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
               <div>
@@ -790,7 +813,7 @@ export default function ClienteDetalhePage() {
                     <option key={n.id} value={n.id}>{n.nome} ({n.matricula})</option>
                   ))}
                 </select>
-                {cliente.navios.length === 0 && <p className="text-xs text-amber-600 mt-1">Sem navios associados — a declaração usará valores por preencher.</p>}
+                {cliente.navios.length === 0 && <p className="text-xs text-amber-600 mt-1">Associe uma embarcação antes de emitir a declaração.</p>}
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Declarante</label>
@@ -815,12 +838,7 @@ export default function ClienteDetalhePage() {
               </div>
             </div>
 
-            <button
-              onClick={generateIvaDeclaration}
-              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition"
-            >
-              <FileText size={14} className="inline mr-1" />Gerar Declaração de Isenção de IVA (Word)
-            </button>
+            {cliente.navios.some(n => n.id === Number(declarationNavioId)) && <DeclaracoesIvaPanel key={String(declarationNavioId)} navioId={Number(declarationNavioId)} codigoIsencaoIva={declarationIvaCode} origem="cliente" format="docx" />}
           </div>
         )}
       </div>

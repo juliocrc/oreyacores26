@@ -6,6 +6,9 @@ import JsBarcode from "jsbarcode";
 import QRCode from "qrcode";
 import { useSession } from "next-auth/react";
 import { stockItemSupportsValidity } from "@/lib/stock-validity";
+import { compressStockPhoto } from "@/lib/compress-stock-photo";
+import StockValiditySelect from "@/components/stock/StockValiditySelect";
+import { getStockValidityManualMode } from "@/lib/stock-metadata";
 import {
     getStockCategoryLabel,
     getStockCategoryOptions,
@@ -16,6 +19,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import WarehouseMapDialog from "@/components/stock/WarehouseMapDialog";
 import BarcodeScanner from "@/components/shared/BarcodeScanner";
+import StockArticleThumbnail from "@/components/shared/StockArticleThumbnail";
 import { MapPin, ScanLine, Download } from "lucide-react";
 import DataTable, { type ColumnDef } from "@/components/shared/DataTable";
 import type { ItemStock, ViewMode, MonthlyNeed, StockNeedRow, NeedsSummary, StockPriorityGroupKey, StockScope, StockPrioritySection, StockListColumnKey } from "@/types/stock-page";
@@ -23,11 +27,16 @@ import { STOCK_NEW_ITEM_DRAFT_KEY, STOCK_LIST_COLUMNS_KEY, STOCK_CATEGORY_ACCORD
 import { buildDefaultStockListColumns, escapeHtml, parseMonthYearToDate, normalizeStockLabelText } from "@/lib/stock-page-helpers";
 import {
   STOCK_SHELVES,
-  buildShelfSummary,
   formatShelfLabel,
   resolveShelfCode,
-  shelfMatchesLocation,
 } from "@/lib/stock-shelves";
+import { buildShelfView, formatShelfAvailability } from "@/lib/stock-shelf-view";
+import type { StockCatalogKind } from "@/types/stock-page";
+import { isPhysicalStockItem, matchesStockCatalogKind, isLowPhysicalStock } from "@/lib/stock-page-helpers";
+
+function ResourceBadge() {
+  return <span className="inline-flex rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-semibold text-sky-800">Recurso sem controlo stock</span>;
+}
 
 export default function StockPage() {
   return (
@@ -42,10 +51,20 @@ function StockPageContent() {
   const searchParams = useSearchParams();
   const photoInputRef = useRef<HTMLInputElement | null>(null);
   const wizardAutoSaveTimeoutRef = useRef<number | null>(null);
-  const fichaAutoSaveTimeoutRef = useRef<number | null>(null);
+  const fichaAutoSaveTimeoutRef = useRef<Record<number, number>>({});
+  const activeItemRef = useRef<number | null>(null);
+  const openedQueryRef = useRef(0);
+  const savesRef = useRef<Record<number, Promise<unknown>>>({});
+  const draftsRef = useRef<Record<number, ItemStock>>({});
+  const photoSequenceRef = useRef<Record<number, number>>({});
+  const photoReadersRef = useRef<Record<number, FileReader>>({});
+  const photoBaselineRef = useRef<Record<number, string | undefined>>({});
+  const photoPreviewsRef = useRef<Record<number, string>>({});
+  const photoDisposedRef = useRef(false);
   const [isClientMounted, setIsClientMounted] = useState(false);
   const [itens, setItens] = useState<ItemStock[]>([]);
   const [filtroCategoria, setFiltroCategoria] = useState("");
+  const [catalogKind, setCatalogKind] = useState<StockCatalogKind>("all");
   const [filtroMarca, setFiltroMarca] = useState("");
   const [filtroModelo, setFiltroModelo] = useState("");
   const [filtroTexto, setFiltroTexto] = useState("");
@@ -108,6 +127,16 @@ function StockPageContent() {
   const canEditStock = userRole === "ADMIN"
     || hasEditablePathPermission(userPermissions, "/stock");
 
+  const photoIds = itens.map(item => item.id).sort((a, b) => a - b).join(",");
+  useEffect(() => {
+    photoDisposedRef.current = false;
+    return () => {
+      photoDisposedRef.current = true;
+      Object.values(photoReadersRef.current).forEach(reader => reader.abort());
+      Object.values(photoPreviewsRef.current).forEach(url => URL.revokeObjectURL(url));
+      photoPreviewsRef.current = {};
+    };
+  }, []);
   useEffect(() => {
     fetchItens();
   }, [stockScope]);
@@ -274,42 +303,45 @@ function StockPageContent() {
       return;
     }
 
-    let cancelled = false;
+    const controller = new AbortController();
 
     const loadFotos = async () => {
-      const ids = itens.map((item) => item.id).filter((id) => Number.isFinite(id));
-      const chunkSize = 20;
-      const map: Record<number, string> = {};
+      const ids = photoIds.split(",").map(Number).filter(id => id > 0);
+      const chunkSize = 100;
 
       for (let i = 0; i < ids.length; i += chunkSize) {
         const batch = ids.slice(i, i + chunkSize);
         try {
-          const res = await fetch(`/api/stock?includeFoto=true&ids=${batch.join(",")}`);
+          const sequence = { ...photoSequenceRef.current };
+          const res = await fetch(`/api/stock?includeFoto=true&ids=${batch.join(",")}`, { signal: controller.signal });
           if (!res.ok) continue;
           const rows = await res.json();
           if (!Array.isArray(rows)) continue;
+          const map: Record<number, string> = {};
           for (const row of rows) {
             const id = Number(row?.id);
             const foto = String(row?.foto || "").trim();
-            if (Number.isFinite(id) && foto) {
+            if (Number.isFinite(id) && foto && sequence[id] === photoSequenceRef.current[id]) {
               map[id] = foto;
+              photoBaselineRef.current[id] = foto;
             }
+          }
+          if (!controller.signal.aborted) {
+            setFotosByItemId(prev => ({ ...prev, ...map }));
+            setViewItem(prev => prev && map[prev.id] ? { ...prev, foto: map[prev.id] } : prev);
           }
         } catch (e) {
           console.warn("[Stock] Failed to load photo batch:", e);
         }
       }
 
-      if (!cancelled) {
-        setFotosByItemId(map);
-      }
     };
 
     loadFotos();
     return () => {
-      cancelled = true;
+      controller.abort();
     };
-  }, [itens]);
+  }, [photoIds]);
 
   async function fetchNeedsAnalysis() {
     try {
@@ -353,7 +385,7 @@ function StockPageContent() {
   }
 
   async function requestJson(url: string, options: RequestInit) {
-    const res = await fetch(url, options);
+    const res = await fetch(url, { ...options, headers: { "Content-Type": "application/json", ...options.headers } });
     if (!res.ok) {
       let messageText = "Erro na operação de stock";
       try {
@@ -364,6 +396,16 @@ function StockPageContent() {
     }
     if (res.status === 204) return null;
     return res.json();
+  }
+
+  function saveItemFields(itemId: number, payload: ItemStock) {
+    // Photos have an independent lifecycle; never resend base64 on a keystroke.
+    const { foto: _foto, ...fields } = payload;
+    const save = (savesRef.current[itemId] || Promise.resolve()).catch(() => {}).then(() =>
+      requestJson(`/api/stock/${itemId}`, { method: "PUT", body: JSON.stringify({ ...fields, validadeAplicavelManual: getStockValidityManualMode(fields.observacoes) }) })
+    );
+    savesRef.current[itemId] = save;
+    return save;
   }
 
   function saveNewItemDraft(next: ItemStock) {
@@ -439,7 +481,9 @@ function StockPageContent() {
               ? fotoRaw
               : `${window.location.origin}${fotoRaw.startsWith("/") ? fotoRaw : `/${fotoRaw}`}`)
           : "";
-        const barcode = buildBarcodeDataUrl(referencia);
+        // Old labels used the reference; retain that fallback for legacy rows only.
+        const encodedCode = String(item.codigoBarras || referencia).trim();
+        const barcode = buildBarcodeDataUrl(encodedCode);
         const qr = qrUrls[idx] || null;
         if (!barcode) return "";
 
@@ -450,8 +494,10 @@ function StockPageContent() {
             </div>
             <div class="ref">${escapeHtml(referencia)}</div>
             <div class="name">${escapeHtml(nome)}</div>
+            <div class="name">Lote: ${escapeHtml(item.lote || "Legado / sem lote")} | Val: ${escapeHtml(item.validade || "N/A")}</div>
+            ${!item.codigoBarras ? '<div class="name">Codigo legado por referencia</div>' : ""}
             <div class="codes">
-              <img class="barcode" src="${barcode}" alt="Código de barras ${escapeHtml(referencia)}" />
+              <img class="barcode" src="${barcode}" alt="Código de barras ${escapeHtml(encodedCode)}" />
               ${qr ? `<img class="qr" src="${qr}" alt="QR ${escapeHtml(referencia)}" />` : ""}
             </div>
           </div>
@@ -614,11 +660,7 @@ function StockPageContent() {
 
     wizardAutoSaveTimeoutRef.current = window.setTimeout(async () => {
       try {
-        await requestJson(`/api/stock/${itemId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
+        await saveItemFields(itemId, payload);
         setMessage({ type: "success", text: "Alterações guardadas automaticamente." });
       } catch (error: any) {
         setMessage({ type: "error", text: error?.message || "Falha no autosave." });
@@ -627,21 +669,20 @@ function StockPageContent() {
   }
 
   function scheduleFichaAutoSave(itemId: number, payload: ItemStock) {
-    if (fichaAutoSaveTimeoutRef.current) {
-      window.clearTimeout(fichaAutoSaveTimeoutRef.current);
+    if (fichaAutoSaveTimeoutRef.current[itemId]) {
+      window.clearTimeout(fichaAutoSaveTimeoutRef.current[itemId]);
     }
 
-    fichaAutoSaveTimeoutRef.current = window.setTimeout(async () => {
+    fichaAutoSaveTimeoutRef.current[itemId] = window.setTimeout(async () => {
       try {
-        const updated = await requestJson(`/api/stock/${itemId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
+        const updated = await saveItemFields(itemId, payload);
 
         const normalizedUpdated = updated as ItemStock;
-        setViewItem((prev) => (prev ? { ...prev, ...normalizedUpdated, foto: prev.foto } : prev));
-        setItens((prev) => prev.map((item) => (item.id === itemId ? { ...item, ...normalizedUpdated } : item)));
+        if (draftsRef.current[itemId] === payload) {
+          delete draftsRef.current[itemId];
+          setViewItem((prev) => (prev?.id === itemId ? { ...prev, ...normalizedUpdated, foto: prev.foto } : prev));
+        }
+        setItens((prev) => prev.map((item) => (item.id === itemId ? { ...item, ...normalizedUpdated, foto: item.foto } : item)));
         setMessage({ type: "success", text: "Ficha guardada automaticamente." });
       } catch (error: any) {
         setMessage({ type: "error", text: error?.message || "Falha no autosave da ficha." });
@@ -669,15 +710,24 @@ function StockPageContent() {
       if (name === "precoVenda" && value === "") next.precoVenda = 0;
       if (name === "quantidadeMinima" && value === "") next.quantidadeMinima = null;
 
-      if (editId) {
-        scheduleWizardAutoSave(editId, next);
-      } else {
+      if (!editId) {
         saveNewItemDraft(next);
       }
 
       return next;
     });
   }
+
+  useEffect(() => {
+    if (showWizard && editId) scheduleWizardAutoSave(editId, form);
+  }, [form, editId, showWizard]);
+
+  useEffect(() => {
+    if (isFichaEditing && fichaDraft) {
+      draftsRef.current[fichaDraft.id] = fichaDraft;
+      scheduleFichaAutoSave(fichaDraft.id, fichaDraft);
+    }
+  }, [fichaDraft, isFichaEditing]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -686,13 +736,10 @@ function StockPageContent() {
     setLoading(true);
     setMessage(null);
     try {
-      const payload = { ...form, nome: resolvedNome };
+      const payload = { ...form, nome: resolvedNome, validadeAplicavelManual: getStockValidityManualMode(form.observacoes) };
       if (editId) {
-        await requestJson(`/api/stock/${editId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
+        if (wizardAutoSaveTimeoutRef.current) window.clearTimeout(wizardAutoSaveTimeoutRef.current);
+        await saveItemFields(editId, payload);
         setEditId(null);
       } else {
         await requestJson("/api/stock", {
@@ -783,65 +830,88 @@ function StockPageContent() {
     }
   }
 
-  async function applyPhotoToItem(itemId: number, fotoDataUrl: string) {
-    try {
-      // Atualizar foto na base de dados via API
-      await requestJson(`/api/stock/${itemId}`, {
-        method: "PUT",
-        body: JSON.stringify({ foto: fotoDataUrl }),
-      });
+  function setItemPhoto(itemId: number, foto: string | undefined) {
+    setItens(prev => prev.map(item => item.id === itemId ? { ...item, foto } : item));
+    setFotosByItemId(prev => ({ ...prev, [itemId]: foto || "" }));
+    setViewItem(prev => prev?.id === itemId ? { ...prev, foto } : prev);
+    setFichaDraft(prev => prev?.id === itemId ? { ...prev, foto } : prev);
+    if (draftsRef.current[itemId]) draftsRef.current[itemId] = { ...draftsRef.current[itemId], foto };
+  }
 
-      // Atualizar estado local
-      setItens((prev) => prev.map((item) => (item.id === itemId ? { ...item, foto: fotoDataUrl } : item)));
-      setFotosByItemId((prev) => ({ ...prev, [itemId]: fotoDataUrl }));
-      setViewItem((prev) => (prev && prev.id === itemId ? { ...prev, foto: fotoDataUrl } : prev));
-      setFichaDraft((prev) => (prev && prev.id === itemId ? { ...prev, foto: fotoDataUrl } : prev));
+  async function applyPhotoToItem(itemId: number, foto: string | undefined, sequence?: number) {
+    if (photoDisposedRef.current || (sequence !== undefined && sequence !== photoSequenceRef.current[itemId])) return;
+    const version = sequence ?? (photoSequenceRef.current[itemId] || 0) + 1;
+    photoSequenceRef.current[itemId] = version;
+    if (!(itemId in photoBaselineRef.current)) photoBaselineRef.current[itemId] = fotosByItemId[itemId] ?? (viewItem?.id === itemId ? viewItem.foto : itens.find(item => item.id === itemId)?.foto);
+    setItemPhoto(itemId, foto);
+    try {
+      // Serialize writes too: aborting fetch alone cannot cancel a committed server write.
+      const save = (savesRef.current[itemId] || Promise.resolve()).catch(() => {}).then(() => {
+        if (photoDisposedRef.current || version !== photoSequenceRef.current[itemId]) return;
+        return requestJson(`/api/stock/${itemId}`, { method: "PUT", body: JSON.stringify({ foto: foto || null }) });
+      });
+      savesRef.current[itemId] = save;
+      const saved = await save;
+      if (saved !== undefined) photoBaselineRef.current[itemId] = foto;
+      if (photoDisposedRef.current || version !== photoSequenceRef.current[itemId]) return;
       setMessage({ type: "success", text: "Foto atualizada com sucesso." });
     } catch (error: any) {
+      if (photoDisposedRef.current || version !== photoSequenceRef.current[itemId]) return;
+      setItemPhoto(itemId, photoBaselineRef.current[itemId]);
       setMessage({ type: "error", text: error?.message || "Erro ao guardar foto." });
     }
   }
 
-  async function removePhotoFromItem(itemId: number) {
-    try {
-      // Remover foto na base de dados via API
-      await requestJson(`/api/stock/${itemId}`, {
-        method: "PUT",
-        body: JSON.stringify({ foto: null }),
-      });
-
-      // Atualizar estado local
-      setItens((prev) => prev.map((item) => (item.id === itemId ? { ...item, foto: undefined } : item)));
-      setFotosByItemId((prev) => {
-        const next = { ...prev };
-        delete next[itemId];
-        return next;
-      });
-      setViewItem((prev) => (prev && prev.id === itemId ? { ...prev, foto: undefined } : prev));
-      setFichaDraft((prev) => (prev && prev.id === itemId ? { ...prev, foto: undefined } : prev));
-      setMessage({ type: "success", text: "Foto removida com sucesso." });
-    } catch (error: any) {
-      setMessage({ type: "error", text: error?.message || "Erro ao remover foto." });
-    }
+  function removePhotoFromItem(itemId: number) {
+    photoReadersRef.current[itemId]?.abort();
+    releasePhotoPreview(itemId);
+    void applyPhotoToItem(itemId, undefined);
   }
 
-  function readImageFile(file: File, itemId: number) {
+  function releasePhotoPreview(itemId: number, expectedUrl = photoPreviewsRef.current[itemId]) {
+    if (!expectedUrl || photoPreviewsRef.current[itemId] !== expectedUrl) return;
+    URL.revokeObjectURL(expectedUrl);
+    delete photoPreviewsRef.current[itemId];
+  }
+
+  async function readImageFile(file: File, itemId: number) {
     if (!file.type.startsWith("image/")) {
       setMessage({ type: "error", text: "Selecione um ficheiro de imagem válido." });
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = typeof reader.result === "string" ? reader.result : "";
-      if (!result) {
-        setMessage({ type: "error", text: "Não foi possível carregar a imagem." });
-        return;
-      }
-      applyPhotoToItem(itemId, result);
+    const version = (photoSequenceRef.current[itemId] || 0) + 1;
+    photoSequenceRef.current[itemId] = version;
+    photoReadersRef.current[itemId]?.abort();
+    releasePhotoPreview(itemId);
+    if (!(itemId in photoBaselineRef.current)) photoBaselineRef.current[itemId] = fotosByItemId[itemId] ?? (viewItem?.id === itemId ? viewItem.foto : itens.find(item => item.id === itemId)?.foto);
+    const preview = URL.createObjectURL(file);
+    photoPreviewsRef.current[itemId] = preview;
+    setItemPhoto(itemId, preview);
+    const isCurrent = () => !photoDisposedRef.current && version === photoSequenceRef.current[itemId];
+    const failed = () => {
+      if (!isCurrent()) return;
+      setItemPhoto(itemId, photoBaselineRef.current[itemId]);
+      releasePhotoPreview(itemId, preview);
+      setMessage({ type: "error", text: "Erro ao ler a imagem." });
     };
-    reader.onerror = () => setMessage({ type: "error", text: "Erro ao ler a imagem." });
-    reader.readAsDataURL(file);
+    try {
+      const compressed = await compressStockPhoto(file);
+      if (!isCurrent()) return;
+      const reader = new FileReader();
+      photoReadersRef.current[itemId] = reader;
+      reader.onload = async () => {
+        if (!isCurrent()) return;
+        const result = typeof reader.result === "string" ? reader.result : "";
+        if (!result) { failed(); return; }
+        await applyPhotoToItem(itemId, result, version);
+        releasePhotoPreview(itemId, preview);
+      };
+      reader.onerror = failed;
+      reader.readAsDataURL(compressed);
+    } catch {
+      failed();
+    }
   }
 
   function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -860,22 +930,25 @@ function StockPageContent() {
   }
 
   function openViewItem(item: ItemStock) {
-    const foto = fotosByItemId[item.id] || item.foto;
+    activeItemRef.current = item.id;
+    const foto = fotosByItemId[item.id] ?? item.foto;
     const next = { ...item, foto };
     setViewItem(next);
-    setFichaDraft({ ...next });
-    setIsFichaEditing(false);
+    setFichaDraft(draftsRef.current[item.id] || { ...next });
+    setIsFichaEditing(Boolean(draftsRef.current[item.id]));
     setFichaStep("resumo");
   }
 
   useEffect(() => {
-    if (!Number.isFinite(queryItemId) || queryItemId <= 0) return;
+    if (!Number.isFinite(queryItemId) || queryItemId <= 0) { openedQueryRef.current = 0; return; }
+    if (openedQueryRef.current === queryItemId) return;
     if (!itens.length) return;
 
     const target = itens.find((item) => item.id === queryItemId);
     if (!target) return;
     if (viewItem?.id === queryItemId) return;
 
+    openedQueryRef.current = queryItemId;
     openViewItem(target);
   }, [queryItemId, itens, fotosByItemId, viewItem?.id]);
 
@@ -900,9 +973,14 @@ function StockPageContent() {
         const need = stockNeedsById[item.id];
         const row: Record<string, string | number> = {
           Nome: item.nome || item.descricao || "-",
+          Tipo: isPhysicalStockItem(item) ? "Peça" : "Recurso sem controlo stock",
         };
         for (const col of STOCK_LIST_COLUMNS) {
           if (col.key === "foto" || !isColumnVisible(col.key)) continue;
+          if (!isPhysicalStockItem(item) && ["quantidade", "quantidadeMinima", "prateleira", "necessidade12m", "saldoProjetado12m", "necessidadeMensal"].includes(col.key)) {
+            row[col.label] = "Não aplicável";
+            continue;
+          }
           switch (col.key) {
             case "nome":
               break;
@@ -985,10 +1063,6 @@ function StockPageContent() {
       if (name === "precoVenda" && value === "") next.precoVenda = 0;
       if (name === "quantidadeMinima" && value === "") next.quantidadeMinima = null;
 
-      if (isFichaEditing && viewItem?.id) {
-        scheduleFichaAutoSave(viewItem.id, next);
-      }
-
       return next;
     });
   }
@@ -1001,18 +1075,18 @@ function StockPageContent() {
     setLoading(true);
     setMessage(null);
     try {
+      if (fichaAutoSaveTimeoutRef.current[viewItem.id]) window.clearTimeout(fichaAutoSaveTimeoutRef.current[viewItem.id]);
       const payload = { ...fichaDraft, nome: resolvedNome };
-      const updated = await requestJson(`/api/stock/${viewItem.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const updated = await saveItemFields(viewItem.id, payload);
 
       const normalizedUpdated = updated as ItemStock;
-      setViewItem((prev) => (prev ? { ...prev, ...normalizedUpdated, foto: prev.foto } : prev));
-      setFichaDraft((prev) => (prev ? { ...prev, ...normalizedUpdated, foto: prev.foto } : prev));
-      await fetchItens();
-      setIsFichaEditing(false);
+      setItens(prev => prev.map(item => item.id === viewItem.id ? { ...item, ...normalizedUpdated, foto: item.foto } : item));
+      if (draftsRef.current[viewItem.id] === fichaDraft) {
+        delete draftsRef.current[viewItem.id];
+        setViewItem(prev => prev?.id === viewItem.id ? { ...prev, ...normalizedUpdated, foto: prev.foto } : prev);
+        setFichaDraft(prev => prev === fichaDraft ? { ...prev, ...normalizedUpdated, foto: prev.foto } : prev);
+        if (activeItemRef.current === viewItem.id) setIsFichaEditing(false);
+      }
       setMessage({ type: "success", text: "Ficha atualizada com sucesso." });
     } catch (error: any) {
       setMessage({ type: "error", text: error?.message || "Não foi possível atualizar a ficha." });
@@ -1042,9 +1116,10 @@ function StockPageContent() {
 
     window.addEventListener("paste", onPaste);
     return () => window.removeEventListener("paste", onPaste);
-  }, [viewItem, photoUploadTargetId]);
+  }, [viewItem?.id, photoUploadTargetId]);
 
   async function handleStockOperation(id: number, operacao: "entrada" | "saida", valor = 1) {
+    if (!itens.some(item => item.id === id && isPhysicalStockItem(item))) return;
     setLoading(true);
     setMessage(null);
     try {
@@ -1125,26 +1200,12 @@ function StockPageContent() {
   }
 
   function renderStockThumb(item: ItemStock) {
-    const foto = fotosByItemId[item.id] || item.foto;
-    if (foto) {
-      return (
-        <img
-          src={foto}
-          alt={`Foto de ${item.nome || item.descricao || "artigo"}`}
-          className="h-10 w-10 rounded border border-gray-200 object-cover bg-white"
-        />
-      );
-    }
-    return (
-      <div className="h-10 w-10 rounded border border-dashed border-gray-300 bg-gray-50 flex items-center justify-center text-[10px] text-gray-400">
-        Sem foto
-      </div>
-    );
+    const foto = fotosByItemId[item.id] ?? item.foto;
+    return <StockArticleThumbnail foto={foto} label={item.nome || item.descricao || "artigo"} />;
   }
 
   function isStockBaixo(item: ItemStock): boolean {
-    if (item.quantidadeMinima == null) return false;
-    return item.quantidade <= item.quantidadeMinima;
+    return isLowPhysicalStock(item);
   }
 
   function getValidadeDias(validade?: string): number | null {
@@ -1161,19 +1222,21 @@ function StockPageContent() {
   }
 
   function isValidadeProxima(item: ItemStock, dias: number): boolean {
+    if (!isPhysicalStockItem(item)) return false;
     const diasRestantes = getValidadeDias(item.validade);
     if (diasRestantes === null) return false;
     return diasRestantes <= dias && diasRestantes >= 0;
   }
 
   function isVencido(item: ItemStock): boolean {
+    if (!isPhysicalStockItem(item)) return false;
     const diasRestantes = getValidadeDias(item.validade);
     if (diasRestantes === null) return false;
     return diasRestantes < 0;
   }
 
   function itemSupportsValidity(item: ItemStock): boolean {
-    return stockItemSupportsValidity({
+    return isPhysicalStockItem(item) && stockItemSupportsValidity({
       nome: item.nome,
       descricao: item.descricao,
       categoria: item.categoria,
@@ -1189,6 +1252,7 @@ function StockPageContent() {
   }
 
   function getPrioritySectionKey(item: ItemStock): StockPriorityGroupKey {
+    if (!isPhysicalStockItem(item)) return "recursos";
     if (itemSupportsValidity(item)) return "validade";
     if (getRaftLinkScore(item) > 0) return "jangadas";
     return "restantes";
@@ -1248,6 +1312,7 @@ function StockPageContent() {
       validade: 0,
       jangadas: 1,
       restantes: 2,
+      recursos: 3,
     };
 
     const sectionDiff =
@@ -1293,8 +1358,9 @@ function StockPageContent() {
 
   const categoriasDisponiveis = getStockCategoryOptions().map((option) => option.value);
 
-  const itensFiltrados = itens
+  const itensFiltrados = useMemo(() => itens
     .filter((item) => {
+      if (!matchesStockCatalogKind(item, catalogKind)) return false;
       const marcas = splitApplicability(item.aplicavelMarcaJangada);
       const modelos = splitApplicability(item.aplicavelModeloJangada);
       const categoria = item.categoria || "DIVERSOS";
@@ -1335,7 +1401,7 @@ function StockPageContent() {
           case "marcaModelo":
             return `${item.aplicavelMarcaJangada || ""} ${item.aplicavelModeloJangada || ""}`.toLowerCase().includes(textoBusca);
           case "prateleira":
-            return `${resolveShelfCode(item.localizacao) || ""} ${item.localizacao || ""}`.toLowerCase().includes(textoBusca);
+            return isPhysicalStockItem(item) && `${resolveShelfCode(item.localizacao) || ""} ${item.localizacao || ""}`.toLowerCase().includes(textoBusca);
           default:
             return true;
         }
@@ -1345,17 +1411,24 @@ function StockPageContent() {
         (filtroValidade === "vencidos" && isVencido(item)) ||
         (filtroValidade === "30dias" && isValidadeProxima(item, 30)) ||
         (filtroValidade === "90dias" && isValidadeProxima(item, 90));
-      const shelfCode = resolveShelfCode(item.localizacao);
-      const okPrateleira =
-        !filtroPrateleira ||
-        (filtroPrateleira === "__NONE__" ? !shelfCode : shelfMatchesLocation(item.localizacao, filtroPrateleira));
+       const shelfLocation = item.localizacao?.trim() || "";
+       const okPrateleira =
+         !filtroPrateleira ||
+          (isPhysicalStockItem(item) && (filtroPrateleira === "__NONE__" ? !shelfLocation : shelfLocation === filtroPrateleira));
       return okCategoria && okMarca && okModelo && okPack && okTexto && okCampo && okStockBaixo && okSemPreco && okValidade && okPrateleira;
     })
-    .sort(compareStockItems);
+    .sort(compareStockItems), [itens, catalogKind, filtroCategoria, filtroMarca, filtroModelo, filtroPack, filtroTexto, filtroCampo, filtroStockBaixo, filtroSemPreco, filtroValidade, filtroPrateleira]);
 
-  const shelfSummary = useMemo(() => buildShelfSummary(itens), [itens]);
+  const shelfGroups = useMemo(() => buildShelfView(itens), [itens]);
 
-  const stockPrioritySections: StockPrioritySection[] = ([
+  const stockPrioritySections: StockPrioritySection[] = useMemo(() => ([
+    {
+      key: "recursos",
+      label: "Recursos",
+      description: "Serviços e recursos para orçamento, sem controlo de stock físico.",
+      items: [],
+      categories: [],
+    },
     {
       key: "validade",
       label: "Artigos com validade",
@@ -1399,7 +1472,7 @@ function StockPageContent() {
       items,
       categories,
     };
-  }).filter((section) => section.items.length > 0);
+  }).filter((section) => section.items.length > 0), [itensFiltrados]);
 
   const allCategoryAccordionKeys = useMemo(
     () =>
@@ -1432,6 +1505,7 @@ function StockPageContent() {
   }
 
   const stockNeedsById = stockNeeds.reduce<Record<number, StockNeedRow>>((acc, row) => {
+    if (!isPhysicalStockItem(row) || itens.some(item => item.id === row.stockId && !isPhysicalStockItem(item))) return acc;
     acc[row.stockId] = row;
     return acc;
   }, {});
@@ -1440,6 +1514,7 @@ function StockPageContent() {
     validade: "Com validade",
     jangadas: "Jangadas",
     restantes: "Restantes",
+    recursos: "Recursos",
   };
 
   const dataTableVisibleKeys = useMemo(
@@ -1505,6 +1580,7 @@ function StockPageContent() {
         { label: "Com validade", value: "validade" },
         { label: "Jangadas", value: "jangadas" },
         { label: "Restantes", value: "restantes" },
+        { label: "Recursos", value: "recursos" },
       ],
       accessor: (item) => getPrioritySectionKey(item),
       render: (item) => {
@@ -1552,6 +1628,7 @@ function StockPageContent() {
           title="Abrir ficha do produto"
         >
           {item.referencia || "-"}
+          {isPhysicalStockItem(item) && <span className="block text-xs text-slate-500">Lote: {item.lote || "Legado / sem lote"} | Val: {item.validade || "N/A"} | ID {item.id}</span>}
         </Link>
       ),
     },
@@ -1572,7 +1649,8 @@ function StockPageContent() {
       key: "quantidade",
       header: "Quantidade",
       sortable: true,
-      render: (item) => (
+      accessor: (item) => isPhysicalStockItem(item) ? item.quantidade : "Recurso sem controlo stock",
+      render: (item) => !isPhysicalStockItem(item) ? <ResourceBadge /> : (
         <div className="flex items-center gap-1">
           <span className={isStockBaixo(item) ? "font-bold text-red-700" : "font-semibold"}>{item.quantidade}</span>
           {isStockBaixo(item) && (
@@ -1593,8 +1671,8 @@ function StockPageContent() {
       key: "quantidadeMinima",
       header: "Qtd. mínima",
       sortable: true,
-      accessor: (item) => item.quantidadeMinima ?? 0,
-      render: (item) => item.quantidadeMinima ?? "-",
+      accessor: (item) => isPhysicalStockItem(item) ? item.quantidadeMinima ?? 0 : "",
+      render: (item) => isPhysicalStockItem(item) ? item.quantidadeMinima ?? "-" : "Não aplicável",
     },
     {
       key: "precoVenda",
@@ -1631,9 +1709,10 @@ function StockPageContent() {
       sortable: true,
       filterable: true,
       filterType: "text",
-      accessor: (item) => resolveShelfCode(item.localizacao) || item.localizacao || "-",
-      render: (item) => {
-        const code = resolveShelfCode(item.localizacao);
+       accessor: (item) => isPhysicalStockItem(item) ? item.localizacao?.trim() || "-" : "",
+        render: (item) => {
+          if (!isPhysicalStockItem(item)) return "Não aplicável";
+         const code = item.localizacao?.trim();
         return code ? (
           <button
             type="button"
@@ -1665,13 +1744,14 @@ function StockPageContent() {
       key: "necessidade12m",
       header: "Necess. 12m",
       sortable: true,
-      render: (item) => <span className="font-semibold">{stockNeedsById[item.id]?.necessidade12m ?? 0}</span>,
+      render: (item) => isPhysicalStockItem(item) ? <span className="font-semibold">{stockNeedsById[item.id]?.necessidade12m ?? 0}</span> : "Não aplicável",
     },
     {
       key: "saldoProjetado12m",
       header: "Saldo proj. 12m",
       sortable: true,
       render: (item) => {
+        if (!isPhysicalStockItem(item)) return "Não aplicável";
         const val = stockNeedsById[item.id]?.saldoProjetado12m ?? item.quantidade;
         return <span className={`font-semibold ${Number(val) < 0 ? "text-red-700" : "text-emerald-700"}`}>{val}</span>;
       },
@@ -1680,12 +1760,12 @@ function StockPageContent() {
       key: "necessidadeMensal",
       header: "Necessidade mensal",
       hideOnMobile: true,
-      render: (item) => <div className="max-w-[320px] text-[11px] leading-4">{renderMonthlyPlan(stockNeedsById[item.id]?.mensal || [])}</div>,
+      render: (item) => isPhysicalStockItem(item) ? <div className="max-w-[320px] text-[11px] leading-4">{renderMonthlyPlan(stockNeedsById[item.id]?.mensal || [])}</div> : "Não aplicável",
     },
   ];
 
   const selectedItems = itens.filter((item) => selectedIds.includes(item.id));
-  const formSupportsValidity = stockItemSupportsValidity({
+  const formSupportsValidity = isPhysicalStockItem(form) && stockItemSupportsValidity({
     nome: form.nome,
     descricao: form.descricao,
     categoria: form.categoria,
@@ -1694,7 +1774,7 @@ function StockPageContent() {
     observacoes: form.observacoes,
   });
   const fichaSupportsValidity = fichaDraft
-    ? stockItemSupportsValidity({
+    ? isPhysicalStockItem(fichaDraft) && stockItemSupportsValidity({
         nome: fichaDraft.nome,
         descricao: fichaDraft.descricao,
         categoria: fichaDraft.categoria,
@@ -1704,7 +1784,7 @@ function StockPageContent() {
       })
     : false;
   const viewItemSupportsValidity = viewItem
-    ? stockItemSupportsValidity({
+    ? isPhysicalStockItem(viewItem) && stockItemSupportsValidity({
         nome: viewItem.nome,
         descricao: viewItem.descricao,
         categoria: viewItem.categoria,
@@ -1719,7 +1799,8 @@ function StockPageContent() {
     const baixo = itens.filter((item) => isStockBaixo(item)).length;
     const vencidos = itens.filter((item) => isVencido(item)).length;
     const comValidade = itens.filter((item) => itemSupportsValidity(item)).length;
-    return { total, baixo, vencidos, comValidade };
+    const parts = itens.filter(isPhysicalStockItem).length;
+    return { total, baixo, vencidos, comValidade, parts, resources: total - parts };
   }, [itens]);
 
   useEffect(() => {
@@ -1766,7 +1847,7 @@ function StockPageContent() {
                   onClick={() => setStockScope("all")}
                   className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${stockScope === "all" ? "bg-white text-blue-700 shadow-sm" : "text-white hover:bg-white/10"}`}
                 >
-                  Todos
+                  Todas as aplicações
                 </button>
                 <button
                   type="button"
@@ -1803,7 +1884,7 @@ function StockPageContent() {
                   setIsWarehouseMapOpen(true);
                 }}
               >
-                🗂 20 Prateleiras
+                Prateleiras e localizações
               </button>
               {canEditStock ? (
                 <button
@@ -1830,7 +1911,7 @@ function StockPageContent() {
                     }
                   }}
                 >
-                  {organizingShelves ? "A organizar..." : "Organizar P01–P20"}
+                  {organizingShelves ? "A atribuir localizações..." : "Normalizar / atribuir P01–P20..."}
                 </button>
               ) : null}
             </div>
@@ -1838,7 +1919,7 @@ function StockPageContent() {
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {[
               { label: "Total em vista", value: itensFiltrados.length },
-              { label: "Artigos totais", value: stockStats.total },
+              { label: "Peças / Recursos", value: `${stockStats.parts} / ${stockStats.resources}` },
               { label: "Stock baixo", value: stockStats.baixo },
               { label: "Com validade", value: stockStats.comValidade },
             ].map((item) => (
@@ -1890,6 +1971,7 @@ function StockPageContent() {
               ))}
             </div>
             <form onSubmit={handleSubmit} className="space-y-3">
+              {!isPhysicalStockItem(form) && <ResourceBadge />}
               {formStep === "geral" && (
                 <div className="space-y-3">
                   <label className="block text-xs font-semibold text-gray-700">
@@ -1907,18 +1989,20 @@ function StockPageContent() {
                       Quantidade atual
                       <input
                         name="quantidade"
+                        disabled={!isPhysicalStockItem(form)}
                         type="number"
                         value={form.quantidade}
                         onChange={handleChange}
                         placeholder="0"
                         className="mt-1 border rounded px-2 py-1 w-full"
-                        required
+                        required={isPhysicalStockItem(form)}
                       />
                     </label>
                     <label className="block text-xs font-semibold text-gray-700">
                       Quantidade mínima
                       <input
                         name="quantidadeMinima"
+                        disabled={!isPhysicalStockItem(form)}
                         type="number"
                         value={form.quantidadeMinima ?? ""}
                         onChange={handleChange}
@@ -2099,12 +2183,14 @@ function StockPageContent() {
                       />
                     </label>
                     <label className="block text-xs font-semibold text-gray-700">
-                      Lote
+                      Lote (novo lote: mesma referencia, outro registo)
                       <input
                         name="lote"
+                        disabled={!formSupportsValidity}
+                        required={!editId && formSupportsValidity}
                         value={form.lote || ""}
                         onChange={handleChange}
-                        placeholder="Opcional"
+                        placeholder={formSupportsValidity ? "Obrigatorio para novo lote" : "Nao aplicavel"}
                         className="mt-1 border rounded px-2 py-1 w-full"
                       />
                     </label>
@@ -2112,6 +2198,7 @@ function StockPageContent() {
                       Validade
                       <input
                         name="validade"
+                        required={!editId && formSupportsValidity}
                         value={form.validade || ""}
                         onChange={handleChange}
                         placeholder={formSupportsValidity ? "MM/AAAA" : "Não aplicável a este artigo"}
@@ -2167,6 +2254,7 @@ function StockPageContent() {
                 </div>
               )}
 
+              <StockValiditySelect item={form} onChange={observacoes => setForm(prev => ({ ...prev, observacoes }))} />
               <div className="flex gap-2 justify-end">
                 <button type="button" className="px-4 py-2 bg-gray-300 rounded" onClick={() => { setShowWizard(false); setEditId(null); setFormStep("geral"); }}>Cancelar</button>
                 <button type="submit" className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700">Salvar</button>
@@ -2181,6 +2269,7 @@ function StockPageContent() {
             <div className="app-soft-blue-panel mb-4 rounded-xl p-4">
               <p className="text-xs uppercase tracking-wide text-blue-700 font-semibold">Ficha do artigo</p>
               <h3 className="text-xl font-bold text-gray-900">{viewItem.nome || viewItem.descricao || "Sem nome"}</h3>
+              {!isPhysicalStockItem(viewItem) && <ResourceBadge />}
               <p className="text-xs text-gray-600 mt-1 flex flex-wrap items-center gap-2">
                 <span>Referência:</span>
                 <span className="inline-flex rounded bg-indigo-50 px-2 py-0.5 font-medium text-indigo-700">
@@ -2202,6 +2291,16 @@ function StockPageContent() {
               <div className="mt-2 flex flex-wrap gap-2">
                 {canEditStock ? (
                   <>
+                    {itemSupportsValidity(viewItem) && (
+                      <button type="button" className="px-3 py-1.5 bg-emerald-700 text-white rounded text-xs" onClick={() => {
+                        setForm({ ...viewItem, id: 0, lote: "", validade: "", codigoBarras: null, quantidade: 0 });
+                        setEditId(null);
+                        setFormStep("comercial");
+                        setViewItem(null);
+                        setIsFichaEditing(false);
+                        setShowWizard(true);
+                      }}>Novo lote desta referencia</button>
+                    )}
                     <button
                       type="button"
                       className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs"
@@ -2260,11 +2359,11 @@ function StockPageContent() {
                       </label>
                       <label className="block text-xs font-semibold text-gray-700">
                         Quantidade atual
-                        <input name="quantidade" type="number" value={fichaDraft.quantidade ?? 0} onChange={handleFichaFieldChange} className="mt-1 border rounded px-2 py-1 w-full" />
+                        <input name="quantidade" disabled={!isPhysicalStockItem(fichaDraft)} type="number" value={fichaDraft.quantidade ?? 0} onChange={handleFichaFieldChange} className="mt-1 border rounded px-2 py-1 w-full" />
                       </label>
                       <label className="block text-xs font-semibold text-gray-700">
                         Quantidade mínima
-                        <input name="quantidadeMinima" type="number" value={fichaDraft.quantidadeMinima ?? ""} onChange={handleFichaFieldChange} className="mt-1 border rounded px-2 py-1 w-full" />
+                        <input name="quantidadeMinima" disabled={!isPhysicalStockItem(fichaDraft)} type="number" value={fichaDraft.quantidadeMinima ?? ""} onChange={handleFichaFieldChange} className="mt-1 border rounded px-2 py-1 w-full" />
                       </label>
                     </div>
                     <label className="block text-xs font-semibold text-gray-700">
@@ -2296,6 +2395,7 @@ function StockPageContent() {
                       <div className="mt-1 flex flex-wrap gap-2">
                         <select
                           name="localizacao"
+                          disabled={!isPhysicalStockItem(fichaDraft)}
                           value={resolveShelfCode(fichaDraft.localizacao) || ""}
                           onChange={(e) => {
                             const code = e.target.value;
@@ -2318,6 +2418,7 @@ function StockPageContent() {
                           }}
                           className="flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-3 text-[11px] font-bold text-indigo-700 hover:bg-indigo-100"
                           title="Escolher no mapa"
+                          disabled={!isPhysicalStockItem(fichaDraft)}
                         >
                           <MapPin size={14} />
                           Mapa
@@ -2340,14 +2441,14 @@ function StockPageContent() {
                     <div className="rounded-lg border border-gray-200 bg-white p-3"><span className="font-semibold text-gray-600">Referência</span><div className="text-sm mt-1"><span className="inline-flex rounded bg-indigo-50 px-2 py-0.5 font-medium text-indigo-700">{viewItem.referencia || "-"}</span></div></div>
                     <div className="rounded-lg border border-gray-200 bg-white p-3"><span className="font-semibold text-gray-600">Estado do artigo</span><div className="text-sm text-gray-900 mt-1">{viewItem.estadoArtigo || "ATIVO"}</div></div>
                     <div className="rounded-lg border border-gray-200 bg-white p-3"><span className="font-semibold text-gray-600">Referência substituta</span><div className="text-sm text-gray-900 mt-1">{viewItem.referenciaSubstituta || "-"}</div></div>
-                    <div className="rounded-lg border border-gray-200 bg-white p-3"><span className="font-semibold text-gray-600">Quantidade atual</span><div className="text-sm text-gray-900 mt-1">{viewItem.quantidade ?? 0}</div></div>
-                    <div className="rounded-lg border border-gray-200 bg-white p-3"><span className="font-semibold text-gray-600">Quantidade mínima</span><div className="text-sm mt-1"><span className={isStockBaixo(viewItem) ? "text-red-600 font-semibold" : "text-gray-900"}>{viewItem.quantidadeMinima ?? "-"}</span></div></div>
+                    <div className="rounded-lg border border-gray-200 bg-white p-3"><span className="font-semibold text-gray-600">Quantidade atual</span><div className="text-sm text-gray-900 mt-1">{isPhysicalStockItem(viewItem) ? viewItem.quantidade ?? 0 : <ResourceBadge />}</div></div>
+                    <div className="rounded-lg border border-gray-200 bg-white p-3"><span className="font-semibold text-gray-600">Quantidade mínima</span><div className="text-sm mt-1"><span className={isStockBaixo(viewItem) ? "text-red-600 font-semibold" : "text-gray-900"}>{isPhysicalStockItem(viewItem) ? viewItem.quantidadeMinima ?? "-" : "Não aplicável"}</span></div></div>
                     <div className="rounded-lg border border-gray-200 bg-white p-3"><span className="font-semibold text-gray-600">Categoria</span><div className="text-sm text-gray-900 mt-1">{getItemCategoryLabel(viewItem)}</div><div className="mt-2 text-xs">{itemSupportsValidity(viewItem) ? <span className="inline-flex rounded-full bg-green-100 px-2 py-1 font-medium text-green-800">✓ Validade aplicável</span> : <span className="inline-flex rounded-full bg-gray-100 px-2 py-1 font-medium text-gray-700">✗ Sem validade</span>}</div></div>
                     <div className="rounded-lg border border-gray-200 bg-white p-3"><span className="font-semibold text-gray-600">Descrição</span><div className="text-sm text-gray-900 mt-1">{viewItem.descricao || "-"}</div></div>
                     <div className="rounded-lg border border-gray-200 bg-white p-3">
                       <span className="font-semibold text-gray-600">Prateleira</span>
                       <div className="mt-1 text-sm text-gray-900">
-                        {resolveShelfCode(viewItem.localizacao)
+                        {!isPhysicalStockItem(viewItem) ? "Não aplicável" : resolveShelfCode(viewItem.localizacao)
                           ? formatShelfLabel(viewItem.localizacao)
                           : viewItem.localizacao || "—"}
                       </div>
@@ -2383,7 +2484,7 @@ function StockPageContent() {
                       </label>
                       <label className="block text-xs font-semibold text-gray-700">
                         Lote
-                        <input name="lote" value={fichaDraft.lote || ""} onChange={handleFichaFieldChange} className="mt-1 border rounded px-2 py-1 w-full" />
+                        <input name="lote" disabled={!isPhysicalStockItem(fichaDraft)} value={fichaDraft.lote || ""} onChange={handleFichaFieldChange} className="mt-1 border rounded px-2 py-1 w-full" />
                       </label>
                       <label className="block text-xs font-semibold text-gray-700">
                         Validade
@@ -2409,7 +2510,7 @@ function StockPageContent() {
                     <div className="rounded-lg border border-gray-200 bg-white p-3"><span className="font-semibold text-gray-600">Preço de venda</span><div className="text-sm text-gray-900 mt-1">{Number(viewItem.precoVenda ?? 0).toFixed(2)} €</div></div>
                     <div className="rounded-lg border border-gray-200 bg-white p-3"><span className="font-semibold text-gray-600">Código do fabricante</span><div className="text-sm mt-1"><span className="inline-flex rounded bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700">{viewItem.codigoFabricante || "-"}</span></div></div>
                     <div className="rounded-lg border border-gray-200 bg-white p-3"><span className="font-semibold text-gray-600">Nº Inventário</span><div className="text-sm text-gray-900 mt-1">{viewItem.inventario || "-"}</div></div>
-                    <div className="rounded-lg border border-gray-200 bg-white p-3"><span className="font-semibold text-gray-600">Lote</span><div className="text-sm text-gray-900 mt-1">{viewItem.lote || "-"}</div></div>
+                    <div className="rounded-lg border border-gray-200 bg-white p-3"><span className="font-semibold text-gray-600">Lote</span><div className="text-sm text-gray-900 mt-1">{isPhysicalStockItem(viewItem) ? viewItem.lote || "-" : "Não aplicável"}</div></div>
                     <div className="rounded-lg border border-gray-200 bg-white p-3"><span className="font-semibold text-gray-600">Validade</span><div className="text-sm text-gray-900 mt-1">{viewItemSupportsValidity ? (viewItem.validade || "-") : "Não aplicável"}</div></div>
                   </div>
                 )}
@@ -2445,6 +2546,7 @@ function StockPageContent() {
               </div>
             )}
 
+            {isFichaEditing && fichaDraft && <StockValiditySelect item={fichaDraft} onChange={observacoes => setFichaDraft(prev => prev ? { ...prev, observacoes } : prev)} />}
             <div className="flex gap-2 justify-end">
               {canEditStock && isFichaEditing ? (
                 <>
@@ -2452,8 +2554,8 @@ function StockPageContent() {
                   <button
                     className="px-4 py-2 bg-gray-300 rounded"
                     onClick={() => {
+                      if (fichaAutoSaveTimeoutRef.current[viewItem.id]) window.clearTimeout(fichaAutoSaveTimeoutRef.current[viewItem.id]);
                       setIsFichaEditing(false);
-                      setFichaDraft(viewItem ? { ...viewItem } : null);
                     }}
                   >
                     Cancelar edição
@@ -2467,8 +2569,8 @@ function StockPageContent() {
               <button
                 className="px-4 py-2 bg-gray-300 rounded"
                 onClick={() => {
+                  activeItemRef.current = null;
                   setViewItem(null);
-                  setFichaDraft(null);
                   setIsFichaEditing(false);
                   setFichaStep("resumo");
                 }}
@@ -2491,6 +2593,7 @@ function StockPageContent() {
               <ul className="space-y-1 text-xs text-gray-700">
                 {selectedItems.map((item) => (
                   <li key={item.id} className="flex items-center justify-between gap-3">
+                    {renderStockThumb(item)}
                     <span className="truncate">
                       {item.nome || item.descricao || "Sem nome"}
                       {item.referencia ? ` · ${item.referencia}` : ""}
@@ -2529,7 +2632,20 @@ function StockPageContent() {
       )}
       <div className="rounded-xl border border-gray-200 bg-white p-4">
         <h2 className="text-lg font-bold mb-2">Itens de Stock</h2>
-        {needsSummary && (
+        <div role="group" aria-label="Tipo de artigo" className="mb-4 flex flex-wrap gap-2">
+          {([{ key: "all", label: "Todos" }, { key: "parts", label: "Peças" }, { key: "resources", label: "Recursos" }] as const).map(kind => (
+            <button key={kind.key} type="button" aria-pressed={catalogKind === kind.key} onClick={() => {
+              setCatalogKind(kind.key);
+              if (kind.key === "resources") {
+                setFiltroStockBaixo(false);
+                setFiltroPrateleira("");
+                setFiltroValidade("todos");
+              }
+            }} className={`rounded-lg border px-4 py-2 text-sm font-semibold ${catalogKind === kind.key ? "border-indigo-600 bg-indigo-600 text-white" : "border-slate-300 bg-white text-slate-700"}`}>{kind.label}</button>
+          ))}
+        </div>
+        <p className="mb-3 text-xs text-slate-600">Stock físico e necessidades: apenas peças. Recursos mantêm os preços para orçamento, sem quantidades, lotes ou localização obrigatórios.</p>
+        {needsSummary && catalogKind !== "resources" && (
           <div className="mb-4 space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2">
             <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-xs">
@@ -2573,18 +2689,18 @@ function StockPageContent() {
                 }`}
                 title={showShelves ? "Ocultar prateleiras" : "Mostrar prateleiras"}
               >
-                {showShelves ? "▾" : "▸"} Prateleiras (20)
-                <span className="ml-1 rounded-full bg-white/70 px-1.5 py-0.5 text-[10px] font-bold text-indigo-800">
-                  {shelfSummary.shelves.filter((s) => s.occupied).length}/20 ocupadas
+                 {showShelves ? "▾" : "▸"} Prateleiras e localizações
+                 <span className="ml-1 rounded-full bg-white/70 px-1.5 py-0.5 text-[10px] font-bold text-indigo-800">
+                   {shelfGroups.filter((s) => s.location).length} com stock
                 </span>
               </button>
               {filtroPrateleira ? (
                 <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
-                  filtro: {filtroPrateleira === "__NONE__" ? "sem prateleira" : filtroPrateleira}
+                   filtro: {filtroPrateleira === "__NONE__" ? "sem localização" : filtroPrateleira}
                 </span>
               ) : null}
-              {shelfSummary.unassignedCount > 0 ? (
-                <span className="text-[11px] text-indigo-700/80">{shelfSummary.unassignedCount} sem prateleira</span>
+               {shelfGroups.some((s) => !s.location) ? (
+                 <span className="text-[11px] text-indigo-700/80">{shelfGroups.find((s) => !s.location)?.items.length} registos sem localização</span>
               ) : null}
             </div>
             {showShelves || filtroPrateleira ? (
@@ -2599,40 +2715,29 @@ function StockPageContent() {
           </div>
           {(showShelves || filtroPrateleira) && (
           <div className="flex flex-wrap gap-1.5">
-            {STOCK_SHELVES.map((shelf) => {
-              const stats = shelfSummary.shelves.find((s) => s.code === shelf.code);
-              const active = filtroPrateleira === shelf.code;
-              return (
-                <button
-                  key={shelf.code}
-                  type="button"
-                  title={`${shelf.label} · ${shelf.zone}`}
-                  onClick={() => setFiltroPrateleira(active ? "" : shelf.code)}
+             {shelfGroups.map((shelf) => {
+               const filterValue = shelf.location || "__NONE__";
+               const active = filtroPrateleira === filterValue;
+               return (
+                 <button
+                   key={filterValue}
+                   type="button"
+                   title={`${shelf.label} · Disponível = quantidade menos reservas, por unidade`}
+                   onClick={() => setFiltroPrateleira(active ? "" : filterValue)}
                   className={`inline-flex min-w-[3.25rem] flex-col items-center rounded-lg border px-1.5 py-1 text-[10px] font-bold transition ${
                     active
                       ? "border-indigo-700 bg-indigo-700 text-white"
-                      : stats?.occupied
+                       : shelf.location
                         ? "border-indigo-200 bg-white text-indigo-900 hover:bg-indigo-50"
                         : "border-slate-200 bg-slate-50 text-slate-500 hover:bg-white"
                   }`}
                 >
-                  <span>{shelf.code}</span>
-                  <span className="opacity-80">{stats?.itemCount || 0}</span>
+                   <span>{shelf.label}</span>
+                   <span className="opacity-80">{shelf.productCount} produtos · {shelf.items.length} registos</span>
+                   <span>Disponível: {formatShelfAvailability(shelf.availability)}</span>
                 </button>
               );
             })}
-            <button
-              type="button"
-              onClick={() => setFiltroPrateleira(filtroPrateleira === "__NONE__" ? "" : "__NONE__")}
-              className={`inline-flex min-w-[3.25rem] flex-col items-center rounded-lg border px-1.5 py-1 text-[10px] font-bold ${
-                filtroPrateleira === "__NONE__"
-                  ? "border-rose-600 bg-rose-600 text-white"
-                  : "border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100"
-              }`}
-            >
-              <span>N/A</span>
-              <span>{shelfSummary.unassignedCount}</span>
-            </button>
           </div>
           )}
         </div>
@@ -2782,6 +2887,7 @@ function StockPageContent() {
               type="button"
               onClick={() => {
                 setFiltroTexto("");
+                setCatalogKind("all");
                 setFiltroCampo("");
                 setFiltroCategoria("");
                 setFiltroMarca("");
@@ -2877,7 +2983,7 @@ Limpar todos os filtros
                   <span>
                     <b>{section.label}</b>: {section.items.length} artigo(s)
                   </span>
-                  <span className="flex gap-2 text-slate-600">
+                  {section.key === "recursos" ? <ResourceBadge /> : <span className="flex gap-2 text-slate-600">
                     <span>
                       {section.items.reduce((acc, item) => acc + Number(item.quantidade ?? 0), 0)} un.
                     </span>
@@ -2886,7 +2992,7 @@ Limpar todos os filtros
                         section.items.reduce((acc, item) => acc + Number(item.quantidade ?? 0) * Number(item.precoVenda ?? 0), 0)
                       )}
                     </span>
-                  </span>
+                  </span>}
                 </span>
               ))}
             </div>
@@ -2934,8 +3040,8 @@ Limpar todos os filtros
                     <div className="flex gap-1">
                       {canEditStock ? (
                         <>
-                          <button className="bg-green-600 px-1.5 py-0.5 rounded text-[10px] text-white" onClick={() => handleStockOperation(item.id, "entrada")}>+1</button>
-                          <button className="bg-orange-500 px-1.5 py-0.5 rounded text-[10px] text-white" onClick={() => handleStockOperation(item.id, "saida")}>-1</button>
+                          {isPhysicalStockItem(item) && <button className="bg-green-600 px-1.5 py-0.5 rounded text-[10px] text-white" onClick={() => handleStockOperation(item.id, "entrada")}>+1</button>}
+                          {isPhysicalStockItem(item) && <button className="bg-orange-500 px-1.5 py-0.5 rounded text-[10px] text-white" onClick={() => handleStockOperation(item.id, "saida")}>-1</button>}
                           {isStockBaixo(item) && (
                             <button
                               className="bg-rose-600 px-1.5 py-0.5 rounded text-[10px] text-white"
@@ -2979,7 +3085,7 @@ Limpar todos os filtros
                   </div>
                   <span className="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-[11px] font-semibold text-blue-800">
                     {section.items.length} artigo(s)
-                    {(() => {
+                    {section.key !== "recursos" && (() => {
                       const totalQtd = section.items.reduce((acc2, item2) => acc2 + Number(item2.quantidade ?? 0), 0);
                       const totalValor = section.items.reduce((acc2, item2) => acc2 + Number(item2.quantidade ?? 0) * Number(item2.precoVenda ?? 0), 0);
                       return (
@@ -3073,14 +3179,15 @@ Limpar todos os filtros
                           </div>
                           <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 mt-2 text-xs text-gray-600">
                             <p>
-                              <b>Quantidade:</b> {item.quantidade}
-                              {item.quantidadeMinima != null && (
+                              <b>Stock:</b> {isPhysicalStockItem(item) ? item.quantidade : <ResourceBadge />}
+                              {isPhysicalStockItem(item) && item.quantidadeMinima != null && (
                                 <span className={isStockBaixo(item) ? "ml-1 font-semibold text-red-700" : "ml-1 text-gray-500"}>
                                   (mín: {item.quantidadeMinima})
                                 </span>
                               )}
                             </p>
                             <p><b>Referência:</b> <span className="font-medium text-indigo-700">{item.referencia || "-"}</span></p>
+                            {isPhysicalStockItem(item) && <p><b>Lote:</b> {item.lote || "Legado / sem lote"} | {item.validade || "N/A"} | ID {item.id}</p>}
                             <p><b>Preço:</b> {Number(item.precoVenda ?? 0).toFixed(2)} €</p>
                             <p><b>Jangada:</b> {item.associavelJangada ? "Sim" : "Não"}</p>
                             <p className="col-span-2"><b>Marca/Modelo:</b> {item.aplicavelMarcaJangada || "-"} / {item.aplicavelModeloJangada || "-"}</p>
@@ -3090,8 +3197,8 @@ Limpar todos os filtros
                             <button className="bg-blue-500 px-1.5 py-0.5 rounded text-[11px] text-white" onClick={() => openViewItem(item)}>Ficha</button>
                             {canEditStock ? (
                               <>
-                                <button className="bg-green-600 px-1.5 py-0.5 rounded text-[11px] text-white" onClick={() => handleStockOperation(item.id, "entrada")}>+1</button>
-                                <button className="bg-orange-500 px-1.5 py-0.5 rounded text-[11px] text-white" onClick={() => handleStockOperation(item.id, "saida")}>-1</button>
+                                {isPhysicalStockItem(item) && <button className="bg-green-600 px-1.5 py-0.5 rounded text-[11px] text-white" onClick={() => handleStockOperation(item.id, "entrada")}>+1</button>}
+                                {isPhysicalStockItem(item) && <button className="bg-orange-500 px-1.5 py-0.5 rounded text-[11px] text-white" onClick={() => handleStockOperation(item.id, "saida")}>-1</button>}
                                 {isStockBaixo(item) && (
                                   <button
                                     className="bg-rose-600 px-1.5 py-0.5 rounded text-[11px] text-white"
@@ -3133,14 +3240,17 @@ Limpar todos os filtros
             const estados = Array.from(new Set(items.map(estadoOf))).sort((a, b) => a.localeCompare(b, "pt"));
             const categorias = Array.from(new Set(items.map(categoriaOf))).sort((a, b) => a.localeCompare(b, "pt"));
             const currency = new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" });
-            type MatrixCell = { count: number; qty: number; value: number };
+            type MatrixCell = { count: number; parts: number; qty: number; value: number };
             const matrix = new Map<string, MatrixCell>();
             for (const item of items) {
               const cellKey = `${categoriaOf(item)}\u0000${estadoOf(item)}`;
-              const cell = matrix.get(cellKey) || { count: 0, qty: 0, value: 0 };
+              const cell = matrix.get(cellKey) || { count: 0, parts: 0, qty: 0, value: 0 };
               cell.count += 1;
-              cell.qty += Number(item.quantidade ?? 0);
-              cell.value += Number(item.quantidade ?? 0) * Number(item.precoVenda ?? 0);
+              if (isPhysicalStockItem(item)) {
+                cell.parts += 1;
+                cell.qty += Number(item.quantidade ?? 0);
+                cell.value += Number(item.quantidade ?? 0) * Number(item.precoVenda ?? 0);
+              }
               matrix.set(cellKey, cell);
             }
             if (items.length === 0) {
@@ -3150,18 +3260,20 @@ Limpar todos os filtros
                 </div>
               );
             }
-            const totalQty = items.reduce((acc, item) => acc + Number(item.quantidade ?? 0), 0);
-            const totalValue = items.reduce((acc, item) => acc + Number(item.quantidade ?? 0) * Number(item.precoVenda ?? 0), 0);
+            const totalQty = items.filter(isPhysicalStockItem).reduce((acc, item) => acc + Number(item.quantidade ?? 0), 0);
+            const totalValue = items.filter(isPhysicalStockItem).reduce((acc, item) => acc + Number(item.quantidade ?? 0) * Number(item.precoVenda ?? 0), 0);
             return (
               <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <h3 className="text-sm font-bold text-gray-900">Matriz categoria × estado</h3>
-                    <p className="text-xs text-gray-600">Visão compacta da distribuição do stock. Cada célula mostra artigos / unidades / valor.</p>
+                    <p className="text-xs text-gray-600">Cada célula conta artigos do catálogo. Unidades e valor de stock físico incluem apenas peças, nunca recursos.</p>
                   </div>
                   <div className="flex flex-wrap gap-2 text-[11px]">
-                    <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 font-semibold text-emerald-800">{totalQty} un.</span>
-                    <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-700">{currency.format(totalValue)}</span>
+                    {items.some(isPhysicalStockItem) ? <>
+                      <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 font-semibold text-emerald-800">{totalQty} un.</span>
+                      <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-700">{currency.format(totalValue)}</span>
+                    </> : <ResourceBadge />}
                   </div>
                 </div>
                 <div className="overflow-x-auto">
@@ -3193,7 +3305,7 @@ Limpar todos os filtros
                                   {cell ? (
                                     <span className="inline-flex flex-col leading-tight">
                                       <span className="font-bold">{cell.count}</span>
-                                      <span className="text-[10px] text-slate-500">{cell.qty} un · {currency.format(cell.value)}</span>
+                                      {cell.parts ? <span className="text-[10px] text-slate-500">{cell.qty} un · {currency.format(cell.value)}</span> : <ResourceBadge />}
                                     </span>
                                   ) : "—"}
                                 </td>
@@ -3201,8 +3313,10 @@ Limpar todos os filtros
                             })}
                             <td className="border border-slate-200 bg-slate-50 px-3 py-2 text-center font-bold text-slate-800">
                               <span className="inline-flex flex-col leading-tight">
-                                <span>{rowQty} un</span>
-                                <span className="text-[10px] font-semibold text-slate-500">{currency.format(rowValue)}</span>
+                                {items.some(item => categoriaOf(item) === categoria && isPhysicalStockItem(item)) ? <>
+                                  <span>{rowQty} un</span>
+                                  <span className="text-[10px] font-semibold text-slate-500">{currency.format(rowValue)}</span>
+                                </> : <ResourceBadge />}
                               </span>
                             </td>
                           </tr>
@@ -3214,13 +3328,13 @@ Limpar todos os filtros
                         <td className="sticky left-0 z-10 border border-slate-200 bg-slate-200 px-3 py-2 font-bold text-slate-800">Total</td>
                         {estados.map((estado) => {
                           const colItems = items.filter((item) => estadoOf(item) === estado);
-                          const colQty = colItems.reduce((acc, item) => acc + Number(item.quantidade ?? 0), 0);
-                          const colValue = colItems.reduce((acc, item) => acc + Number(item.quantidade ?? 0) * Number(item.precoVenda ?? 0), 0);
+                          const colQty = colItems.filter(isPhysicalStockItem).reduce((acc, item) => acc + Number(item.quantidade ?? 0), 0);
+                          const colValue = colItems.filter(isPhysicalStockItem).reduce((acc, item) => acc + Number(item.quantidade ?? 0) * Number(item.precoVenda ?? 0), 0);
                           return (
                             <td key={estado} className="border border-slate-200 bg-slate-100 px-3 py-2 text-center font-bold text-slate-800">
                               <span className="inline-flex flex-col leading-tight">
                                 <span>{colItems.length}</span>
-                                <span className="text-[10px] font-semibold text-slate-500">{colQty} un · {currency.format(colValue)}</span>
+                                {colItems.some(isPhysicalStockItem) ? <span className="text-[10px] font-semibold text-slate-500">{colQty} un · {currency.format(colValue)}</span> : <ResourceBadge />}
                               </span>
                             </td>
                           );
@@ -3228,7 +3342,7 @@ Limpar todos os filtros
                         <td className="border border-slate-200 bg-slate-300 px-3 py-2 text-center font-bold text-slate-900">
                           <span className="inline-flex flex-col leading-tight">
                             <span>{items.length}</span>
-                            <span className="text-[10px] font-semibold text-slate-600">{totalQty} un · {currency.format(totalValue)}</span>
+                            {items.some(isPhysicalStockItem) ? <span className="text-[10px] font-semibold text-slate-600">{totalQty} un · {currency.format(totalValue)}</span> : <ResourceBadge />}
                           </span>
                         </td>
                       </tr>
@@ -3259,7 +3373,7 @@ Limpar todos os filtros
                   </div>
                   <span className="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-[11px] font-semibold text-blue-800">
                     {section.items.length} artigo(s)
-                    {(() => {
+                    {section.key !== "recursos" && (() => {
                       const totalQtd = section.items.reduce((acc2, item2) => acc2 + Number(item2.quantidade ?? 0), 0);
                       const totalValor = section.items.reduce((acc2, item2) => acc2 + Number(item2.quantidade ?? 0) * Number(item2.precoVenda ?? 0), 0);
                       return (
@@ -3331,8 +3445,8 @@ Limpar todos os filtros
                     <button className="bg-blue-500 px-1.5 py-0.5 rounded text-[11px] text-white" onClick={() => openViewItem(item)}>Ficha</button>
                     {canEditStock ? (
                       <>
-                        <button className="bg-green-600 px-1.5 py-0.5 rounded text-[11px] text-white" onClick={() => handleStockOperation(item.id, "entrada")}>+1</button>
-                        <button className="bg-orange-500 px-1.5 py-0.5 rounded text-[11px] text-white" onClick={() => handleStockOperation(item.id, "saida")}>-1</button>
+                        {isPhysicalStockItem(item) && <button className="bg-green-600 px-1.5 py-0.5 rounded text-[11px] text-white" onClick={() => handleStockOperation(item.id, "entrada")}>+1</button>}
+                        {isPhysicalStockItem(item) && <button className="bg-orange-500 px-1.5 py-0.5 rounded text-[11px] text-white" onClick={() => handleStockOperation(item.id, "saida")}>-1</button>}
                         {isStockBaixo(item) && (
                           <button
                             className="bg-rose-600 px-1.5 py-0.5 rounded text-[11px] text-white"
@@ -3350,14 +3464,15 @@ Limpar todos os filtros
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-x-3 gap-y-1 mt-2 text-xs">
                   <p>
-                    <b>Quantidade:</b> {item.quantidade}
-                    {item.quantidadeMinima != null && (
+                    <b>Stock:</b> {isPhysicalStockItem(item) ? item.quantidade : <ResourceBadge />}
+                    {isPhysicalStockItem(item) && item.quantidadeMinima != null && (
                       <span className={isStockBaixo(item) ? "ml-1 font-semibold text-red-700" : "ml-1 text-gray-500"}>
                         (mín: {item.quantidadeMinima})
                       </span>
                     )}
                   </p>
                   <p><b>Referência:</b> <span className="font-medium text-indigo-700">{item.referencia || "-"}</span></p>
+                  {isPhysicalStockItem(item) && <p><b>Lote:</b> {item.lote || "Legado / sem lote"} | {item.validade || "N/A"} | ID {item.id}</p>}
                   <p><b>Preço de venda:</b> {Number(item.precoVenda ?? 0).toFixed(2)} €</p>
                   <p><b>Associável a jangada:</b> {item.associavelJangada ? "Sim" : "Não"}</p>
                   <p><b>Marca/Modelo:</b> {item.aplicavelMarcaJangada || "-"} / {item.aplicavelModeloJangada || "-"}</p>
@@ -3396,15 +3511,14 @@ Limpar todos os filtros
       <WarehouseMapDialog
         isOpen={isWarehouseMapOpen}
         onClose={() => setIsWarehouseMapOpen(false)}
-        items={itens}
+        items={itens.map(item => ({ ...item, foto: fotosByItemId[item.id] || item.foto }))}
         mode={warehouseMapMode}
-        selectedLocation={resolveShelfCode(fichaDraft?.localizacao) || fichaDraft?.localizacao || ""}
+         selectedLocation={fichaDraft?.localizacao || ""}
         onSelectLocation={(loc) => {
           if (warehouseMapMode === "select" && fichaDraft) {
-            const code = resolveShelfCode(loc) || loc;
-            setFichaDraft((prev: any) => (prev ? { ...prev, localizacao: code } : null));
+             setFichaDraft((prev: any) => (prev ? { ...prev, localizacao: loc } : null));
           } else if (warehouseMapMode === "view") {
-            setFiltroPrateleira(resolveShelfCode(loc) || "");
+             setFiltroPrateleira(loc);
           }
         }}
       />
@@ -3421,10 +3535,18 @@ Limpar todos os filtros
         <BarcodeScanner
           onScan={async (code) => {
             try {
-              const res = await fetch(`/api/stock?q=${encodeURIComponent(code)}&limit=1`);
+              const res = await fetch(`/api/stock/by-barcode?code=${encodeURIComponent(code)}`);
               const data = await res.json();
-              const item = Array.isArray(data) ? data[0] : null;
+              if (res.status === 409) { alert(data.error); return; }
+              if (!res.ok && res.status !== 404) throw new Error(data.error);
+              const item = res.ok ? data : null;
               if (item) {
+                if (!isPhysicalStockItem(item)) {
+                  setShowScanner(false);
+                  setScanStep(null);
+                  setMessage({ type: "error", text: "Recurso sem controlo stock. Use o recurso no orçamento." });
+                  return;
+                }
                 setScannedItem(item);
                 setScanStep("jangada");
               } else {
@@ -3447,6 +3569,7 @@ Limpar todos os filtros
           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
             <h3 className="font-bold text-slate-800 mb-2">Adicionar à Jangada</h3>
             <p className="text-sm text-slate-600 mb-4">
+              <StockArticleThumbnail foto={fotosByItemId[scannedItem.id] || scannedItem.foto} label={scannedItem.referencia || scannedItem.descricao || 'artigo'} className="w-10 h-10 float-left mr-3" />
               Artigo: <strong>{scannedItem.descricao || scannedItem.referencia}</strong>
               <br />Stock atual: <strong>{scannedItem.quantidade}</strong>
             </p>
@@ -3464,8 +3587,9 @@ Limpar todos os filtros
                     return;
                   }
                   const qty = parseInt(prompt("Quantidade a adicionar:", "1") || "1");
-                  const validade = prompt("Validade (MM/AAAA) - deixar em branco se não aplicável:", "") || "";
-                  await fetch(`/api/jangadas/${jangada.id}/artigos`, {
+                  if (!Number.isSafeInteger(qty) || qty <= 0) throw new Error("Quantidade invalida.");
+                  const validade = scannedItem.validade || "";
+                  await requestJson(`/api/jangadas/${jangada.id}/artigos`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -3477,14 +3601,6 @@ Limpar todos os filtros
                       stockId: scannedItem.id,
                     }),
                   });
-                  // Update stock validity to match
-                  if (validade) {
-                    await fetch(`/api/stock/${scannedItem.id}`, {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ validade, quantidade: Math.max(0, scannedItem.quantidade - qty) }),
-                    });
-                  }
                   alert(`✅ ${qty}x ${scannedItem.referencia} adicionado à jangada ${jangada.serial || serial}!`);
                   const openJangada = window.confirm("Abrir ficha da jangada?");
                   if (openJangada) window.open(`/jangadas/${jangada.id}`, "_blank");
@@ -3503,4 +3619,3 @@ Limpar todos os filtros
     </div>
   );
 }
-

@@ -52,6 +52,7 @@ export const artigosSubstituidosSchema = z.array(
     motivo: z.string().nullable().optional(),
     precoUnitario: z.number().nullable().optional(),
     validade: z.string().nullable().optional(),
+    lote: z.string().nullable().optional(),
     codigoFabricante: z.string().nullable().optional(),
     name: z.string().nullable().optional(),
     unitPrice: z.number().nullable().optional(),
@@ -61,6 +62,8 @@ export const artigosSubstituidosSchema = z.array(
 export const saveInspectionSchema = z
   .object({
     id: idOrNull,
+    expectedUpdatedAt: z.string().optional(),
+    expectedRaftUpdatedAt: z.string().optional(),
     shipId: idOrNull,
     raftId: idOrNull,
     coleteId: idOrNull,

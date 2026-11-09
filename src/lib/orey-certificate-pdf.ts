@@ -1,6 +1,7 @@
 import jsPDF from "jspdf";
 import {
   loadFilledCertificateWorkbook,
+  clearCertificateStationText,
   type OreyCertificateTemplateInput,
 } from "@/lib/orey-certificate-template";
 import { imageSizeFromDataUrl, renderWorksheetToPdf } from "@/lib/xlsx-worksheet-render";
@@ -48,11 +49,22 @@ export async function buildOreyCertificatePdfBuffer(
   options: BuildOreyCertificatePdfOptions = {},
 ): Promise<Buffer> {
   const { workbook, worksheet } = await loadFilledCertificateWorkbook(input);
+  const stampImage = options.stamp?.imageDataUrl;
+  const hasStampImage = isImageDataUrl(stampImage);
 
   // No certificado carimbado o nome da estação consta já no carimbo oficial.
   // A linha "For authorized servicing station" (I62:L62) é removida apenas no
   // PDF; o Excel mantém o texto do template.
   worksheet.getCell("I62").value = null;
+  clearCertificateStationText(worksheet);
+  if (hasStampImage) {
+    // A imagem oficial ja inclui a linha de assinatura.
+    for (const address of ["J67", "K67"]) {
+      const cell = worksheet.getCell(address);
+      cell.style = JSON.parse(JSON.stringify(cell.style));
+      cell.border = { ...cell.border, bottom: undefined };
+    }
+  }
 
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const layout = renderWorksheetToPdf(doc, worksheet, workbook, {
@@ -64,24 +76,21 @@ export async function buildOreyCertificatePdfBuffer(
     logoWidthMm: 45,
   });
 
-  // Carimbo oficial na área I61:L65. A imagem é reproduzida ao seu tamanho
-  // natural (digitalização a 300 dpi), escalada com o resto do certificado e
-  // limitada à área disponível para não invadir a linha da assinatura.
-  const stampImage = options.stamp?.imageDataUrl;
+  // A imagem completa inclui o nome da estacao, carimbo e assinatura.
   const stationName = String(options.stamp?.stationName ?? "").trim();
-  const stampRegion = layout.cellRect(60, 9, 66, 13);
+  const stampRegion = layout.cellRect(61, 9, 70, 12);
   if (isImageDataUrl(stampImage)) {
     const size = imageSizeFromDataUrl(stampImage) || { width: 574, height: 265 };
     const aspect = size.width > 0 ? size.height / size.width : 265 / 574;
-    const naturalWidth = (size.width * 25.4) / 300 * layout.scale;
-    let width = Math.min(naturalWidth, stampRegion.w * 1.15);
+    let width = stampRegion.w;
     let height = width * aspect;
-    if (height > stampRegion.h * 1.15) {
-      height = stampRegion.h * 1.15;
+    const maxHeight = stampRegion.h;
+    if (height > maxHeight) {
+      height = maxHeight;
       width = height / aspect;
     }
     const x = stampRegion.x + (stampRegion.w - width) / 2;
-    const y = stampRegion.y - 1.0;
+    const y = stampRegion.y;
     try {
       doc.addImage(stampImage, imageFormat(stampImage), x, y, width, height);
     } catch {

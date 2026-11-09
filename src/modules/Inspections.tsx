@@ -1,14 +1,17 @@
 "use client";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import StockArticleThumbnail from '@/components/shared/StockArticleThumbnail';
 
-import { buildChecklistInitialValues, buildInspectionChecklistFromQuadro, ChecklistField } from "./inspectionChecklist";
+import { buildChecklistInitialValues, buildInspectionChecklistFromQuadro, getBooleanChecklistCompletionErrors, resolveChecklistArticleValidity, ChecklistField } from "./inspectionChecklist";
+import { getArticleExpiryStatus, getBooleanArticleExpiryErrors, resolveArticleNextInspection } from './JangadaWizard/articleExpiry';
+import ArticleExpiryResolution from './JangadaWizard/ArticleExpiryResolution';
+import { ChecklistReplacementPicker, getChecklistReplacementItems } from './Checklist';
 import { findRaftTechnicalModel } from "./rafts/raftModelData";
 import { getSeaSafeSpec } from "./rafts/seaSafeModelData";
 import { broadcastServiceStationSync } from "@/lib/service-station-sync";
 import { DRINKING_WATER_REFERENCE_CANDIDATES, DRINKING_WATER_STOCK_REFERENCE, FOOD_RATIONS_REFERENCE_CANDIDATES, FOOD_RATIONS_STOCK_REFERENCE } from "@/lib/stock-reference-rules";
 import { dedupeRaftArticles } from "./rafts/mandatoryPack";
-import { formatMonthYearDisplay, normalizeMonthYearValue } from "@/lib/date-display";
-import { getCameraErrorMessage } from "@/lib/camera-error";
+import { normalizeMonthYearValue } from "@/lib/date-display";
 
 type ViewMode = "quadros" | "lista" | "detalhes";
 const CHECKLIST_DRAFT_PREFIX = "inspection-wizard-draft";
@@ -37,6 +40,7 @@ type ChecklistStockReplacement = {
   codigoFabricante?: string;
   descricao: string;
   validade?: string;
+  lote?: string;
   pickedAt: string;
 };
 
@@ -125,6 +129,7 @@ async function updateServiceStationStatus(payload: {
 
 function normalizeInspection(item: any) {
   return {
+    updatedAt: item?.updatedAt,
     id: item?.id,
     shipId: item?.shipId ?? item?.navioId ?? "",
     raftId: item?.raftId ?? item?.jangadaId ?? "",
@@ -199,14 +204,7 @@ export default function Inspections() {
   const [checklistRaftDetails, setChecklistRaftDetails] = useState<any | null>(null);
   const [stockPicker, setStockPicker] = useState<StockPickerState | null>(null);
   const [stockItems, setStockItems] = useState<any[]>([]);
-  const [stockSearch, setStockSearch] = useState("");
-  const [stockBarcodeSearch, setStockBarcodeSearch] = useState("");
   const [stockLoading, setStockLoading] = useState(false);
-  const [isScanOpenInsp, setIsScanOpenInsp] = useState(false);
-  const [useCameraInsp, setUseCameraInsp] = useState(false);
-  const [scanMockCodeInsp, setScanMockCodeInsp] = useState("");
-  const [scanErrorInsp, setScanErrorInsp] = useState<string | null>(null);
-  const scannerRefInsp = useRef<any>(null);
   const [stockReplacements, setStockReplacements] = useState<Record<string, ChecklistStockReplacement>>({});
   const [stockCatalog, setStockCatalog] = useState<any[]>([]);
   const [ships, setShips] = useState<any[]>([]);
@@ -248,6 +246,7 @@ export default function Inspections() {
           step,
           data,
           checklistValues: values,
+          stockReplacements,
           updatedAt: new Date().toISOString(),
         })
       );
@@ -667,12 +666,8 @@ export default function Inspections() {
     return map;
   }, [lastInspection]);
 
-  // Função para calcular meses entre datas
-  function monthsBetween(date1: string, date2: string) {
-    const d1 = new Date(date1);
-    const d2 = new Date(date2);
-    return (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth());
-  }
+  const inspectionDate = String(checklistValues.dataInspecao || quickInspection.date || selectedRaft?.dataInspecao || '');
+  const nextInspection = resolveArticleNextInspection({ ...selectedRaft, dataInspecao: inspectionDate, dataProxInspecao: String(checklistValues.dataProxInspecao || '') });
 
   const stockByReference = useMemo(() => {
     const map: Record<string, any> = {};
@@ -946,19 +941,11 @@ export default function Inspections() {
     const replacement = stockReplacements[config.sourceFieldName] || null;
     const stockEntry = replacement || (config.refs?.length ? getStockEntry(...config.refs) : null);
     const articleEntry = config.articleTokens?.length ? getRaftArticle(...config.articleTokens) : null;
-    const validityValue = String(
-      replacement?.validade
-      || (config.validityField ? checklistValues[config.validityField] : "")
-      || articleEntry?.validade
-      || stockEntry?.validade
-      || ""
-    );
-    const refValue = String(replacement?.referencia || articleEntry?.referencia || stockEntry?.referencia || "").trim();
+    const validityValue = resolveChecklistArticleValidity(checklistValues, config.validityField, replacement, articleEntry);
+    const refValue = String(replacement ? replacement.referencia : articleEntry?.referencia || stockEntry?.referencia || "").trim();
     const quantityValue = Math.max(1, Number(replacement?.quantity || articleEntry?.quantidade || config.quantity || 1));
     const qtyValue = quantityValue > 1 ? `(${quantityValue})` : "";
-    const validIso = toIsoLike(validityValue);
-    const months = validIso ? monthsBetween(new Date().toISOString().slice(0, 10), validIso) : null;
-    const expiring = months !== null && months < 12;
+    const expiring = getArticleExpiryStatus(validityValue, nextInspection) === 'replace';
 
     return {
       sourceFieldName: config.sourceFieldName,
@@ -1209,11 +1196,7 @@ export default function Inspections() {
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
                 {guide.stockItems.slice(0, 3).map((item) => (
                   <div key={String(item.id || item.referencia || item.codigoFabricante)} className="flex gap-3 rounded-lg border border-slate-200 bg-white p-2">
-                    {item.foto ? (
-                      <img src={item.foto} alt={item.descricao || item.nome || item.referencia} className="h-16 w-16 flex-shrink-0 rounded-lg border object-cover" />
-                    ) : (
-                      <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-lg border bg-slate-100 text-2xl">📷</div>
-                    )}
+                    <StockArticleThumbnail foto={item.foto} label={item.referencia || item.descricao || item.nome || 'artigo'} className="h-16 w-16" />
                     <div className="min-w-0 text-xs">
                       <div className="line-clamp-2 font-semibold text-slate-800">{item.descricao || item.nome || "Artigo de stock"}</div>
                       <div className="text-slate-500">Ref: {item.referencia || "—"}</div>
@@ -1244,32 +1227,29 @@ export default function Inspections() {
       stockReferences: config.refs,
       articleTokens: config.articleTokens,
     });
-    setStockSearch("");
-    setStockBarcodeSearch("");
+    setStockItems([]);
     setStockLoading(true);
     try {
-      const res = await fetch("/api/stock?take=5000");
+      const res = await fetch("/api/stock?take=5000&includeFoto=true");
       if (!res.ok) throw new Error("Falha ao carregar stock");
       const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) {
-        setStockItems(data);
-      } else {
-        setStockItems(Array.isArray(stockCatalog) ? stockCatalog : []);
-      }
+      setStockItems(Array.isArray(data) ? data : []);
     } catch {
-      setStockItems(Array.isArray(stockCatalog) ? stockCatalog : []);
+      setStockItems([]);
     } finally {
       setStockLoading(false);
     }
   };
 
   const handleStockPick = (item: any) => {
-    if (!stockPicker) return;
+    if (!stockPicker || stockLoading || !getChecklistReplacementItems(stockItems, stockPicker).some(row => row.id === item.id)) return;
 
     const validadeIso = item.validade ? toIsoLike(String(item.validade)) : "";
     setChecklistValues((prev) => ({
       ...prev,
       [stockPicker.sourceFieldName]: true,
+      [`${stockPicker.sourceFieldName}_stockId`]: Number(item.id),
+      ...(stockPicker.validityFieldName ? { [`${stockPicker.sourceFieldName}_lote`]: String(item.lote || ''), [`${stockPicker.validityFieldName}_substituido`]: true } : {}),
       ...(stockPicker.validityFieldName ? { [stockPicker.validityFieldName]: validadeIso || String(item.validade || "") } : {}),
     }));
 
@@ -1285,7 +1265,7 @@ export default function Inspections() {
         referencia: String(item.referencia || "").trim(),
         codigoFabricante: String(item.codigoFabricante || "").trim() || undefined,
         descricao: String(item.descricao || stockPicker.articleName || stockPicker.fieldLabel || "").trim(),
-        validade: validadeIso || String(item.validade || "") || undefined,
+        ...(stockPicker.validityFieldName ? { lote: String(item.lote || ''), validade: validadeIso || String(item.validade || '') } : {}),
         pickedAt: new Date().toISOString(),
       },
     }));
@@ -1293,155 +1273,8 @@ export default function Inspections() {
     setStockPicker(null);
   };
 
-  const filteredStockItems = useMemo(() => {
-    if (!stockPicker) return [] as any[];
-
-    const manualQuery = normalizeText(stockSearch);
-    const barcodeQuery = normalizeText(stockBarcodeSearch);
-    const refs = new Set((stockPicker.stockReferences || []).map((value) => normalizeText(value)).filter(Boolean));
-    const tokens = (stockPicker.articleTokens || []).map((value) => normalizeText(value)).filter(Boolean);
-
-    return [...stockItems]
-      .filter((item) => {
-        const descricao = normalizeText(item?.descricao);
-        const referencia = normalizeText(item?.referencia);
-        const codigoFabricante = normalizeText(item?.codigoFabricante);
-        const inventario = normalizeText(item?.inventario);
-        const lote = normalizeText(item?.lote);
-
-        const matchesManual = !manualQuery || [descricao, referencia, codigoFabricante].some((value) => value.includes(manualQuery));
-        const matchesBarcode = !barcodeQuery || [referencia, codigoFabricante, inventario, lote].some((value) => value.includes(barcodeQuery));
-        return matchesManual && matchesBarcode;
-      })
-      .sort((a, b) => {
-        const score = (item: any) => {
-          const descricao = normalizeText(item?.descricao);
-          const referencia = normalizeText(item?.referencia);
-          const codigoFabricante = normalizeText(item?.codigoFabricante);
-          const directRef = refs.has(referencia) || refs.has(codigoFabricante);
-          const tokenMatch = tokens.some((token) => descricao.includes(token) || referencia.includes(token) || codigoFabricante.includes(token));
-          return (directRef ? 1000 : 0) + (tokenMatch ? 100 : 0) + Math.max(0, Number(item?.quantidade ?? 0));
-        };
-
-        return score(b) - score(a);
-      });
-  }, [stockPicker, stockItems, stockSearch, stockBarcodeSearch]);
-
-  // ── Scanner Lifecycle ──
-  useEffect(() => {
-    if (!isScanOpenInsp) {
-      setUseCameraInsp(false);
-    }
-  }, [isScanOpenInsp]);
-
-  useEffect(() => {
-    const startCamera = async () => {
-      try {
-        const { Html5Qrcode } = await import("html5-qrcode");
-        const html5QrCode = new Html5Qrcode("reader-insp");
-        scannerRefInsp.current = html5QrCode;
-        await html5QrCode.start(
-          { facingMode: "environment" },
-          {
-            fps: 10,
-            qrbox: { width: 250, height: 250 },
-          },
-          (decodedText) => {
-            handleScanCodeInsp(decodedText);
-            setUseCameraInsp(false);
-          },
-          () => {}
-        );
-      } catch (err) {
-        console.error("Camera error (Inspections):", err);
-        setScanErrorInsp(getCameraErrorMessage(err));
-        setUseCameraInsp(false);
-      }
-    };
-
-    const stopCamera = () => {
-      try {
-        if (scannerRefInsp.current) {
-          scannerRefInsp.current.stop().catch(() => {});
-          scannerRefInsp.current = null;
-        }
-      } catch {}
-    };
-
-    if (useCameraInsp) {
-      void startCamera();
-    } else {
-      stopCamera();
-    }
-
-    return () => {
-      stopCamera();
-    };
-  }, [useCameraInsp]);
-
-  const handleScanCodeInsp = async (code: string) => {
-    const cleanCode = code.trim();
-    if (!cleanCode) return;
-    setScanErrorInsp(null);
-
-    const normalizedSerial = cleanCode.toLowerCase();
-    const localRaft = rafts.find(
-      (raft: any) => String(raft?.serial ?? "").trim().toLowerCase() === normalizedSerial,
-    );
-
-    let raftId = localRaft?.id ? String(localRaft.id) : "";
-
-    if (!raftId) {
-      try {
-        const response = await fetch(`/api/jangadas/serial/${encodeURIComponent(cleanCode)}`);
-        if (response.ok) {
-          const raft = await response.json();
-          if (raft?.id) raftId = String(raft.id);
-        }
-      } catch {
-        // Se a pesquisa falhar, continua para a pesquisa de stock.
-      }
-    }
-
-    if (raftId) {
-      setScanMockCodeInsp("");
-      setIsScanOpenInsp(false);
-      window.location.href = `/jangadas/${raftId}`;
-      return;
-    }
-
-    // Try to find a stock item matching by referencia or codigoBarras
-    const matchedStockItem = stockItems.find(
-      (stock) => stock.referencia === cleanCode || stock.codigoBarras === cleanCode
-    );
-    if (matchedStockItem) {
-      // Fill barcode search field so the stock picker filters to this item
-      setStockBarcodeSearch(cleanCode);
-      setScanMockCodeInsp("");
-      setIsScanOpenInsp(false);
-      return;
-    }
-
-    // Fuzzy match: try normalized partial match
-    const normalizedCode = normalizeText(cleanCode);
-    const fuzzyMatch = stockItems.find((stock) => {
-      const ref = normalizeText(stock.referencia);
-      const barcode = normalizeText(stock.codigoBarras);
-      const fab = normalizeText(stock.codigoFabricante);
-      return ref.includes(normalizedCode) || barcode.includes(normalizedCode) || fab.includes(normalizedCode);
-    });
-    if (fuzzyMatch) {
-      setStockBarcodeSearch(cleanCode);
-      setScanMockCodeInsp("");
-      setIsScanOpenInsp(false);
-      return;
-    }
-
-    setScanErrorInsp(`Nenhuma jangada ou artigo em stock coincide com o código "${cleanCode}".`);
-  };
-
   const buildChecklistSnapshot = () => {
-    const snapshot: Record<string, string | number | boolean> = { ...checklistValues };
+    const snapshot: Record<string, string | number | boolean> = { ...checklistValues, dataProxInspecao: nextInspection };
 
     checklistSections.forEach((section: any) => {
       (section?.fields || []).forEach((field: ChecklistField) => {
@@ -1451,11 +1284,8 @@ export default function Inspections() {
         if (referenceFieldName && rowMeta.referenceCode) {
           snapshot[referenceFieldName] = rowMeta.referenceCode;
         }
-        if (rowMeta.validityFieldName && rowMeta.validityValue) {
+        if (rowMeta.validityFieldName) {
           snapshot[rowMeta.validityFieldName] = toIsoLike(rowMeta.validityValue) || rowMeta.validityValue;
-        }
-        if (field.type === "checkbox" && rowMeta.replacement) {
-          snapshot[sourceFieldName] = true;
         }
       });
     });
@@ -1468,12 +1298,27 @@ export default function Inspections() {
       stockId: replacement.stockId,
       referencia: replacement.referencia,
       codigoFabricante: replacement.codigoFabricante,
+      ...(replacement.validityFieldName ? { lote: replacement.lote || '' } : {}),
       descricao: replacement.descricao || replacement.articleName,
       quantidade: replacement.quantity,
-      validade: replacement.validade,
+      validade: resolveChecklistArticleValidity(checklistValues, replacement.validityFieldName, replacement),
       motivo: `Substituição checklist: ${replacement.fieldLabel}`,
     }));
   };
+
+  const renderNonReplacementReason = (field: ChecklistField) => checklistValues[field.name] === false ? (
+    <div className="mt-2 space-y-1">
+      <label htmlFor={`reason-${field.name}`} className="text-xs font-bold text-red-800">Justificação de não substituição</label>
+      <textarea
+        id={`reason-${field.name}`}
+        value={String(checklistValues[`${field.name}_justificacaoNaoSubstituicao`] || '')}
+        onChange={(e) => setChecklistValues(prev => ({ ...prev, [`${field.name}_justificacaoNaoSubstituicao`]: e.target.value }))}
+        rows={2}
+        className="w-full rounded border border-red-300 bg-white px-2 py-1 text-sm text-gray-900"
+      />
+      <p className="text-xs text-red-700">Obrigatória para concluir sem substituir. A falha mantém-se, sem declaração de conformidade.</p>
+    </div>
+  ) : null;
 
   const renderChecklistTableSection = (section: any) => {
     const visibleFields = (section?.fields || []).filter((field: ChecklistField) => !field.name.startsWith("validade_"));
@@ -1499,14 +1344,20 @@ export default function Inspections() {
                     <td className="w-[44%] bg-[#efefef] px-3 py-2">
                       <div className="text-[13px] font-bold text-black">{field.label}</div>
                       {field.englishLabel && <div className="text-[11px] text-gray-700">{field.englishLabel}</div>}
+                      {isCheckbox && renderNonReplacementReason(field)}
                     </td>
                     <td className="w-[8%] bg-[#efefef] px-2 py-2 text-center align-middle">
                       {isCheckbox ? (
-                        <input
-                          type="checkbox"
-                          checked={Boolean(value)}
-                          onChange={(e) => setChecklistValues((prev) => ({ ...prev, [field.name]: e.target.checked }))}
-                        />
+                        <select
+                          aria-label={`Estado: ${field.label}`}
+                          value={value === true ? 'OK' : value === false ? 'FALHA' : ''}
+                          onChange={(e) => setChecklistValues(prev => ({ ...prev, [field.name]: e.target.value === 'OK' ? true : e.target.value === 'FALHA' ? false : '' }))}
+                          className="w-full text-xs"
+                        >
+                          <option value="">Por verificar</option>
+                          <option value="OK">OK</option>
+                          <option value="FALHA">Falha</option>
+                        </select>
                       ) : (
                         <span className="text-xs text-gray-400">—</span>
                       )}
@@ -1527,7 +1378,7 @@ export default function Inspections() {
                       <div className="text-right font-bold text-black">{rowMeta.validityLabel || ''}</div>
                     </td>
                     <td className="w-[8%] px-2 py-2 align-middle text-right">
-                      {rowMeta.expiring ? (
+                      {isCheckbox ? (
                         <button
                           type="button"
                           onClick={() => void openStockPickerForField(field)}
@@ -1538,6 +1389,10 @@ export default function Inspections() {
                       ) : null}
                     </td>
                   </tr>
+                  {rowMeta.validityFieldName && <tr><td colSpan={5} className="px-3 py-2">
+                    <input aria-label={`Validade: ${field.label}`} type="month" value={normalizeMonthYearValue(rowMeta.validityValue) || ''} onChange={e => setChecklistValues(prev => ({ ...prev, [rowMeta.validityFieldName!]: e.target.value ? `${e.target.value}-01` : '' }))} className="rounded border px-2 py-1 text-sm" />
+                    <ArticleExpiryResolution name={field.label} validade={rowMeta.validityValue} nextInspection={nextInspection} replaced={!!rowMeta.replacement} reason={String(checklistValues[`${rowMeta.validityFieldName}_justificacaoNaoSubstituicao`] || '')} onReasonChange={reason => setChecklistValues(prev => ({ ...prev, [`${rowMeta.validityFieldName}_justificacaoNaoSubstituicao`]: reason }))} />
+                  </td></tr>}
                   {technicalGuide ? (
                     <tr className="border-t border-slate-200">
                       <td colSpan={5} className="bg-white px-3 py-3">
@@ -1563,10 +1418,7 @@ export default function Inspections() {
       const artigoNome = field.label?.toLowerCase();
       const validade = lastInspectionValidities[artigoNome];
       if (validade) {
-        // Considera data da inspeção anterior ou hoje
-        const refDate = lastInspection?.date || new Date().toISOString().slice(0, 10);
-        const months = monthsBetween(refDate, validade);
-        const isExpiring = months < 12;
+        const isExpiring = getArticleExpiryStatus(validade, nextInspection) === 'replace';
         validityInfo = (
           <span className={`ml-2 text-xs font-semibold ${isExpiring ? 'text-red-600' : 'text-gray-500'}`}>
             Validade: {(() => { const ym = normalizeMonthYearValue(validade); return ym ? `${ym.split('-')[1]}/${ym.split('-')[0]}` : '—'; })()} {isExpiring && <span className="ml-1 bg-red-100 text-red-700 px-2 py-0.5 rounded">Substituir</span>}
@@ -1579,13 +1431,10 @@ export default function Inspections() {
     let validadeAlert = null;
     if (field.name.startsWith('validade_') && field.type === 'date') {
       const dateStr = String(value ?? '');
-      if (dateStr && dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
-        const today = new Date().toISOString().slice(0, 10);
-        const months = monthsBetween(today, dateStr);
-        if (months < 12) {
+      if (getArticleExpiryStatus(dateStr, nextInspection) !== 'ok') {
           validadeAlert = (
             <div className="flex items-center gap-2 mt-1 px-3 py-1.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
-              <span className="font-semibold">⚠️ Validade em menos de {months <= 0 ? 'EXPIRADO' : `${months} meses`}!</span>
+              <ArticleExpiryResolution name={field.label} validade={dateStr} nextInspection={nextInspection} replaced={!!stockReplacements[getChecklistFieldStockConfig(field).sourceFieldName]} reason={String(checklistValues[`${field.name}_justificacaoNaoSubstituicao`] || '')} onReasonChange={reason => setChecklistValues(prev => ({ ...prev, [`${field.name}_justificacaoNaoSubstituicao`]: reason }))} />
               <button
                 type="button"
                 onClick={() => void openStockPickerForField(field)}
@@ -1595,21 +1444,24 @@ export default function Inspections() {
               </button>
             </div>
           );
-        }
       }
     }
 
     if (field.type === "checkbox") {
       return (
-        <label key={field.name} className="flex items-center gap-2 text-sm text-gray-800">
+        <div key={field.name} className="text-sm text-gray-800">
+        <label className="flex items-center gap-2">
           <input
             type="checkbox"
             checked={Boolean(value)}
             onChange={(e) => setChecklistValues((prev) => ({ ...prev, [field.name]: e.target.checked }))}
           />
           <span>{field.label}</span>
+          {value !== true && value !== false && <span className="text-xs text-amber-700">Por verificar</span>}
           {validityInfo}
         </label>
+        {renderNonReplacementReason(field)}
+        </div>
       );
     }
 
@@ -1753,6 +1605,13 @@ export default function Inspections() {
     const isExternalCertificate = isChecklistStart && quickInspection.certificateMode === "externo";
 
     const checklistSnapshot = buildChecklistSnapshot();
+    if (isChecklistStart) {
+      const errors = [...getBooleanChecklistCompletionErrors(checklistSections, checklistSnapshot), ...getBooleanArticleExpiryErrors(checklistSections, checklistSnapshot, nextInspection)];
+      if (errors.length) {
+        alert(`Nao e possivel concluir como conforme:\n\n${errors.join('\n')}`);
+        return;
+      }
+    }
     const artigosSubstituidos = buildInspectionReplacementPayload();
 
     const newInspection = {
@@ -1875,6 +1734,9 @@ export default function Inspections() {
       if (draft?.checklistValues && typeof draft.checklistValues === "object") {
         setChecklistValues(draft.checklistValues as Record<string, string | number | boolean>);
       }
+      if (draft?.stockReplacements && typeof draft.stockReplacements === 'object' && !Array.isArray(draft.stockReplacements)) {
+        setStockReplacements(draft.stockReplacements);
+      }
       if (typeof draft.step === "number") {
         setWizardStep(Math.max(0, draft.step));
       }
@@ -1970,7 +1832,7 @@ export default function Inspections() {
   useEffect(() => {
     if (!showModal || !isChecklistStart) return;
     saveChecklistDraft(wizardStep, quickInspection, checklistValues);
-  }, [showModal, isChecklistStart, wizardStep, quickInspection, checklistValues]);
+  }, [showModal, isChecklistStart, wizardStep, quickInspection, checklistValues, stockReplacements]);
 
   useEffect(() => {
     if (!isChecklistStart || checklistSections.length === 0) return;
@@ -2006,6 +1868,7 @@ export default function Inspections() {
       const merged = { ...prev } as Record<string, string | number | boolean>;
       Object.entries(initialValues).forEach(([key, value]) => {
         const current = prev[key];
+        if (key.startsWith('validade_') && Object.prototype.hasOwnProperty.call(prev, key)) return;
         const isEmpty = current === undefined || current === null || (typeof current === "string" && current.trim() === "");
         if (isEmpty) {
           merged[key] = value;
@@ -2043,7 +1906,7 @@ export default function Inspections() {
     Promise.all([
       fetch("/api/navios").then((res) => (res.ok ? res.json() : [] as any[])).catch(() => [] as any[]),
       fetch("/api/jangadas").then((res) => (res.ok ? res.json() : [] as any[])).catch(() => [] as any[]),
-      fetch("/api/stock?take=5000").then((res) => (res.ok ? res.json() : [] as any[])).catch(() => [] as any[]),
+      fetch("/api/stock?take=5000&includeFoto=true").then((res) => (res.ok ? res.json() : [] as any[])).catch(() => [] as any[]),
     ]).then(([shipsData, raftsData, stockData]) => {
       if (!mounted) return;
       const safeShips = Array.isArray(shipsData) ? shipsData : [];
@@ -2453,6 +2316,11 @@ export default function Inspections() {
                       : renderChecklistTableSection(currentChecklistSection)}
                   </div>
                   <div className="grid grid-cols-2 gap-2">
+                    <div className="col-span-2 space-y-1 text-xs text-red-800">
+                      {checklistSections.flatMap(section => section.fields)
+                        .filter(field => field.type === 'checkbox' && checklistValues[field.name] === false && String(checklistValues[`${field.name}_justificacaoNaoSubstituicao`] || '').trim())
+                        .map(field => <p key={field.name}><strong>{field.label}: Falha, não substituído.</strong> Justificação: {String(checklistValues[`${field.name}_justificacaoNaoSubstituicao`])}. A conclusão não declara conformidade deste item.</p>)}
+                    </div>
                     <button
                       type="button"
                       disabled={wizardStep === 0}
@@ -2757,7 +2625,7 @@ export default function Inspections() {
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded shadow-lg w-full max-w-md">
             <h3 className="text-lg font-bold mb-4">Editar Inspeção</h3>
-            <form onSubmit={e => {
+            <form onSubmit={async e => {
               e.preventDefault();
               if (!editModal.item) return;
               const updatedItem = {
@@ -2770,14 +2638,20 @@ export default function Inspections() {
                 status: editModal.item.status ?? "",
                 responsavel: editModal.item.responsavel ?? ""
               };
-              setInspections((prev: any[]) => prev.map((ins: any) => ins.id === updatedItem.id ? updatedItem : ins));
-              addAudit('Editado', updatedItem);
-              fetch(`/api/inspecoes?id=${updatedItem.id}`, {
+              try {
+              const response = await fetch(`/api/inspecoes?id=${updatedItem.id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updatedItem),
+                body: JSON.stringify({ ...updatedItem, expectedUpdatedAt: updatedItem.updatedAt ?? null }),
               });
+              const result = await response.json().catch(() => ({}));
+              if (!response.ok) throw new Error(result.error || 'Nao foi possivel guardar a inspecao.');
+              setInspections((prev: any[]) => prev.map((ins: any) => ins.id === updatedItem.id ? { ...updatedItem, updatedAt: result.updatedAt } : ins));
+              addAudit('Editado', updatedItem);
               setEditModal({open:false});
+              } catch (error) {
+                alert(error instanceof Error ? error.message : 'Erro ao guardar. Os dados locais foram preservados.');
+              }
             }} className="space-y-3">
               <input
                 list="edit-inspection-ship-options"
@@ -3003,236 +2877,8 @@ export default function Inspections() {
       </div>
 
       {/* Stock Picker Modal */}
-      {stockPicker && (
-        <div className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4" onClick={() => setStockPicker(null)}>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="p-4 border-b flex justify-between items-center">
-              <h3 className="font-bold text-gray-900 text-base">Substituir: <span className="text-blue-700">{stockPicker.fieldLabel}</span></h3>
-              <button onClick={() => setStockPicker(null)} className="text-gray-400 hover:text-gray-700 text-xl font-bold leading-none">&times;</button>
-            </div>
-            <div className="p-3 border-b">
-              <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                <input
-                  autoFocus
-                  placeholder="Pesquisar artigo por nome ou referência..."
-                  value={stockSearch}
-                  onChange={e => setStockSearch(e.target.value)}
-                  className="border rounded-lg px-3 py-2 w-full text-sm focus:ring-2 focus:ring-blue-300 outline-none"
-                />
-                <input
-                  placeholder="Leitor / código de barras / fabricante..."
-                  value={stockBarcodeSearch}
-                  onChange={e => setStockBarcodeSearch(e.target.value)}
-                  className="border rounded-lg px-3 py-2 w-full text-sm focus:ring-2 focus:ring-emerald-300 outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => setIsScanOpenInsp(true)}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-all whitespace-nowrap"
-                  title="Abrir leitor óptico / câmara"
-                >
-                  📷 Leitor
-                </button>
-              </div>
-              <div className="mt-2 text-xs text-gray-500">
-                Pode procurar manualmente ou usar o leitor de código de barras ligado ao posto para filtrar por referência, código do fabricante, inventário ou lote.
-              </div>
-              <div className="mt-2 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-700">
-                Substituição prevista: <span className="font-semibold">{stockPicker.quantity} un.</span> de <span className="font-semibold">{stockPicker.articleName}</span>
-              </div>
-            </div>
-            <div className="overflow-y-auto flex-1 p-3">
-              {stockLoading ? (
-                <div className="flex justify-center py-10 text-gray-400">A carregar...</div>
-              ) : (
-                <div className="grid grid-cols-2 gap-3">
-                  {filteredStockItems.map(item => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => handleStockPick(item)}
-                        className="border border-gray-200 rounded-xl p-3 text-left hover:border-blue-500 hover:bg-blue-50 active:bg-blue-100 transition flex gap-3 items-start"
-                      >
-                        {item.foto ? (
-                          <img src={item.foto} alt={item.descricao} className="w-16 h-16 object-cover rounded-lg border flex-shrink-0" />
-                        ) : (
-                          <div className="w-16 h-16 bg-gray-100 rounded-lg border flex items-center justify-center text-2xl flex-shrink-0">📦</div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-sm text-gray-900 line-clamp-2 leading-tight">{item.descricao}</div>
-                          <div className="text-xs text-gray-500 mt-0.5">{item.referencia}</div>
-                          {item.codigoFabricante && (
-                            <div className="text-[11px] text-gray-400 mt-0.5">Fab: {item.codigoFabricante}</div>
-                          )}
-                          {item.validade && (
-                            <div className="text-xs text-blue-600 mt-1 font-medium">Val: {formatMonthYearDisplay(item.validade)}</div>
-                          )}
-                          {item.quantidade != null && (
-                            <div className="text-xs text-gray-400">Stock: {item.quantidade}</div>
-                          )}
-                        </div>
-                      </button>
-                    ))}
-                  {filteredStockItems.length === 0 && (
-                    <div className="col-span-2 py-10 text-center text-gray-400">Nenhum artigo encontrado.</div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Modal Leitor Óptico / Scanner de Código de Barras (Inspeções) ── */}
-      {isScanOpenInsp && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <style>{`
-            @keyframes scanInsp {
-              0% { top: 0%; }
-              50% { top: 100%; }
-              100% { top: 0%; }
-            }
-            .animate-scan-insp {
-              position: absolute;
-              height: 3px;
-              width: 100%;
-              background-color: #10b981;
-              box-shadow: 0 0 10px #10b981;
-              animation: scanInsp 2.5s linear infinite;
-            }
-          `}</style>
-          
-          <div className="w-full max-w-lg rounded-xl bg-white shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[90vh]">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-sky-100 to-indigo-100 text-slate-900 px-4 py-3 flex items-center justify-between border-b border-sky-200">
-              <div className="flex items-center gap-2">
-                <span className="text-indigo-700 text-lg">📷</span>
-                <h3 className="font-semibold text-sm">Leitor Óptico — Inspeções</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsScanOpenInsp(false)}
-                className="text-slate-500 hover:text-slate-900 transition-colors text-lg font-bold"
-              >
-                &times;
-              </button>
-            </div>
-
-            {/* Viewfinder Area */}
-            <div className="relative bg-black h-56 flex items-center justify-center overflow-hidden">
-              {useCameraInsp ? (
-                <div id="reader-insp" className="w-full h-full absolute inset-0 bg-black" />
-              ) : (
-                <>
-                  <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#333_1px,transparent_1px)] [background-size:16px_16px]"></div>
-                  {/* Scan Line */}
-                  <div className="animate-scan-insp" />
-                  {/* Viewfinder corner brackets */}
-                  <div className="absolute top-4 left-4 h-6 w-6 border-t-2 border-l-2 border-emerald-500"></div>
-                  <div className="absolute top-4 right-4 h-6 w-6 border-t-2 border-r-2 border-emerald-500"></div>
-                  <div className="absolute bottom-4 left-4 h-6 w-6 border-b-2 border-l-2 border-emerald-500"></div>
-                  <div className="absolute bottom-4 right-4 h-6 w-6 border-b-2 border-r-2 border-emerald-500"></div>
-                  
-                  <div className="text-center text-xs text-slate-400 z-10 space-y-1">
-                    <p className="font-semibold text-amber-500 uppercase tracking-widest text-[10px]">Câmara Desligada</p>
-                    <p className="text-[10px] text-slate-500">Ligue a câmara abaixo ou use a simulação manual</p>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Simulation Controls & Suggestions */}
-            <div className="p-4 flex-1 overflow-y-auto space-y-4 text-xs">
-              <div className="flex justify-between items-center bg-slate-50 p-2.5 rounded-lg border border-slate-200/60 mb-2">
-                <span className="font-semibold text-slate-700">Leitor Físico:</span>
-                <button
-                  type="button"
-                  onClick={() => setUseCameraInsp(c => !c)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all ${
-                    useCameraInsp 
-                      ? "bg-red-600 hover:bg-red-700 text-white" 
-                      : "bg-indigo-600 hover:bg-indigo-700 text-white"
-                  }`}
-                >
-                  {useCameraInsp ? "Desligar Câmara" : "Ligar Câmara"}
-                </button>
-              </div>
-
-              <div className="space-y-2">
-                <label className="block font-semibold text-slate-700">Simulação de Leitura Manual</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={scanMockCodeInsp}
-                    onChange={(e) => setScanMockCodeInsp(e.target.value)}
-                    placeholder="Serial da jangada, código de barras ou referência..."
-                    className="flex-1 rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        handleScanCodeInsp(scanMockCodeInsp);
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handleScanCodeInsp(scanMockCodeInsp)}
-                    className="rounded bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition-colors"
-                  >
-                    Simular
-                  </button>
-                </div>
-                {scanErrorInsp && (
-                  <p className="text-red-600 font-medium">{scanErrorInsp}</p>
-                )}
-              </div>
-
-              {/* Suggestions Box */}
-              <div className="border-t border-slate-100 pt-3 space-y-3">
-                <div>
-                  <h4 className="font-semibold text-slate-700 mb-1.5">Códigos de Stock Disponíveis (Consumo)</h4>
-                  <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto">
-                    {stockItems.filter(item => item.referencia || item.codigoBarras).map((item) => {
-                      const code = item.codigoBarras || item.referencia || "";
-                      return (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={() => {
-                            setScanMockCodeInsp(code);
-                            handleScanCodeInsp(code);
-                          }}
-                          className="px-2 py-1 rounded border border-emerald-100 bg-emerald-50/50 text-emerald-800 hover:bg-emerald-50 text-left transition-all"
-                        >
-                          <span className="font-bold font-mono block text-[9px]">{code}</span>
-                          <span className="text-[10px] block truncate max-w-[150px]">{item.descricao || "Sem descrição"}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="bg-slate-50 px-4 py-3 border-t border-slate-100 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setIsScanOpenInsp(false)}
-                className="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-all"
-              >
-                Fechar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {stockPicker && !stockLoading && <ChecklistReplacementPicker items={stockItems} config={stockPicker} onSelect={handleStockPick} onClose={() => setStockPicker(null)} />}
+      {stockPicker && stockLoading && <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60"><div className="rounded-xl bg-white p-4"><p role="status">A carregar stock...</p><button type="button" onClick={() => setStockPicker(null)}>Cancelar</button></div></div>}
     </div>
   );
 }
-
-
-
-
-
-
-

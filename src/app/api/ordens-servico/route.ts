@@ -16,6 +16,7 @@ import {
   normalizeOrdemPrioridade,
   normalizeOrdemStatus,
   normalizeOrdemTipo,
+  normalizeWorkflowStatus,
   parseOrdemServicoMeta,
   replaceOrdemServicoJangadas,
   resolveClienteIdForShipId,
@@ -29,6 +30,8 @@ import {
 import { parseFlexibleDate } from "@/lib/agenda-sync";
 import { buildDatabaseErrorResponse } from "@/lib/database-errors";
 import { getCanonicalNavioLocationLabel } from "@/lib/navios-page-helpers";
+import { normalizeQuoteLines, quoteNumber, QuoteInputError, roundQuoteMoney } from "@/lib/ordem-quote-input";
+import { canonicalOrderNumber, OrderNumberConflictError } from '@/lib/order-number';
 
 const ORDEM_INCLUDE = {
   jangada: {
@@ -134,6 +137,8 @@ function applyServiceStationScope(where: Record<string, unknown>, req: NextReque
       where.serviceStationId = { in: access.allowedStationIds };
     } else if (access.stationId) {
       where.serviceStationId = access.stationId;
+    } else {
+      where.serviceStationId = { in: [] };
     }
   }
 }
@@ -312,8 +317,9 @@ async function buildLatestInspectionSummaryForOrders(serializedOrders: ReturnTyp
   });
 }
 
-function serializeOrder(row: OrdemServicoRow) {
+function serializeOrder(row: OrdemServicoRow, numeroOrdem = row.numeroOrdem) {
   const meta = parseOrdemServicoMeta(row.metadados);
+  if (meta.grupoNumeroOrdem === row.numeroOrdem) meta.grupoNumeroOrdem = numeroOrdem;
   const queue = Array.isArray(row.serviceStationQueues) ? row.serviceStationQueues[0] : null;
   const jangadas = (() => {
     const linked = Array.isArray(row.ordemJangadas)
@@ -333,7 +339,7 @@ function serializeOrder(row: OrdemServicoRow) {
 
   return {
     id: row.id,
-    numeroOrdem: row.numeroOrdem,
+    numeroOrdem,
     grupoNumeroOrdem: meta.grupoNumeroOrdem || null,
     tipo: row.tipo,
     prioridade: row.prioridade,
@@ -356,13 +362,14 @@ function serializeOrder(row: OrdemServicoRow) {
     dataInicio: row.dataInicio?.toISOString() || null,
     dataConclusao: row.dataConclusao?.toISOString() || null,
     durationMinutes: row.durationMinutes || 0,
-    orcamentoStatus: row.orcamentoStatus || "Rascunho",
+    orcamentoStatus: row.orcamentoStatus,
     isPesca: row.isPesca || false,
     isIsentoIva: row.isIsentoIva || false,
-    valorPecas: row.valorPecas || 0,
-    valorMaoObra: row.valorMaoObra || 0,
-    valorDesconto: row.valorDesconto || 0,
-    valorTotal: row.valorTotal || 0,
+    codigoIsencaoIva: row.codigoIsencaoIva ?? null,
+    valorPecas: row.valorPecas,
+    valorMaoObra: row.valorMaoObra,
+    valorDesconto: row.valorDesconto,
+    valorTotal: row.valorTotal,
     metadados: meta,
     jangadaId: primaryJangada?.id || row.jangadaId,
     shipId: primaryJangada?.shipId ?? row.shipId ?? meta.shipId ?? null,
@@ -441,14 +448,15 @@ async function fetchOrders(where?: Record<string, unknown>) {
     include: ORDEM_INCLUDE,
   });
 
-  const serialized = rows.map(serializeOrder);
+  const serialized = await Promise.all(rows.map(async row => serializeOrder(row, await canonicalOrderNumber(prisma, row))));
   return buildLatestInspectionSummaryForOrders(serialized);
 }
 
 function parsePagination(searchParams: URLSearchParams) {
-  const page = Math.max(0, Number(searchParams.get("page") || 0));
+  const requestedPage = Number(searchParams.get("page") || 0);
+  const page = Number.isSafeInteger(requestedPage) && requestedPage >= 0 ? requestedPage : 0;
   const requestedPageSize = Number(searchParams.get("pageSize") || 20);
-  const pageSize = Math.min(100, Math.max(1, Number.isFinite(requestedPageSize) ? requestedPageSize : 20));
+  const pageSize = Math.min(100, Math.max(1, Number.isSafeInteger(requestedPageSize) ? requestedPageSize : 20));
   const sort = String(searchParams.get("sort") || "").trim();
   const sortDir = String(searchParams.get("sortDir") || "desc").trim().toLowerCase() as "asc" | "desc";
   const q = String(searchParams.get("q") || "").trim();
@@ -520,7 +528,7 @@ async function fetchOrdersPaginated(
     }),
   ]);
 
-  const serialized = rows.map(serializeOrder);
+  const serialized = await Promise.all(rows.map(async row => serializeOrder(row, await canonicalOrderNumber(prisma, row))));
   const orders = await buildLatestInspectionSummaryForOrders(serialized);
   return { total, orders, page, pageSize, totalPages: Math.ceil(total / pageSize) };
 }
@@ -641,30 +649,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
     }
 
-    const body = (await req.json()) as Record<string, unknown>;
+    const body = (await req.json().catch(() => { throw new QuoteInputError("JSON invalido."); })) as Record<string, unknown>;
+    if (!body || typeof body !== "object" || Array.isArray(body)) throw new QuoteInputError("Pedido invalido.");
+    if ("metadados" in body && (!body.metadados || typeof body.metadados !== "object" || Array.isArray(body.metadados))) throw new QuoteInputError("Metadados deve ser um objeto.");
+    if ("isIsentoIva" in body && typeof body.isIsentoIva !== "boolean") throw new QuoteInputError("Indicador fiscal invalido.");
     const jangadaIds = await resolveJangadaIds(body);
     if (jangadaIds.length === 0) {
       return NextResponse.json({ error: "jangadaId/jangadaIds inválidos." }, { status: 400 });
     }
 
-    let jangadaContext = await resolveOrderJangadasContext(jangadaIds);
+    const jangadaContext = await resolveOrderJangadasContext(jangadaIds);
+    if (!access.isAdmin && !(access.allowedStationIds.length ? access.allowedStationIds : access.stationId ? [access.stationId] : []).includes(jangadaContext.serviceStationId as number)) return NextResponse.json({ error: 'Sem acesso a estacao.' }, { status: 403 });
     const explicitShipId = Number(body.shipId);
     if (Number.isFinite(explicitShipId) && explicitShipId > 0 && explicitShipId !== jangadaContext.shipId) {
-      // Modo cascata: o navio foi escolhido explicitamente mas as jangadas
-      // selecionadas têm outro shipId (ou ainda não têm). Em vez de rejeitar,
-      // associar as jangadas ao navio indicado para manter a OT coerente.
-      await prisma.jangada.updateMany({
-        where: { id: { in: jangadaIds } },
-        data: { shipId: explicitShipId },
-      });
-      const refreshedContext = await resolveOrderJangadasContext(jangadaIds);
-      if (refreshedContext.shipId && explicitShipId !== refreshedContext.shipId) {
-        return NextResponse.json({ error: "As jangadas selecionadas não pertencem ao navio indicado." }, { status: 400 });
-      }
-      jangadaContext = refreshedContext;
+      return NextResponse.json({ error: "As jangadas selecionadas não pertencem ao navio indicado. Atualize a seleção; criar uma obra não altera a associação ao navio." }, { status: 400 });
     }
 
     const status = normalizeOrdemStatus(body.status);
+    if ("status" in body && status === "pendente" && String(body.status).trim().toLowerCase() !== "pendente") throw new QuoteInputError("Estado da ordem invalido.");
+    if ("workflowStatus" in body && !normalizeWorkflowStatus(body.workflowStatus)) throw new QuoteInputError("Etapa operacional invalida.");
     const dataPlaneadaInicio = parseOptionalDate(body.dataPlaneadaInicio);
     const dataPlaneadaFim = parseOptionalDate(body.dataPlaneadaFim);
     const dataPrevista = parseOptionalDate(body.dataPrevista);
@@ -705,30 +708,39 @@ export async function POST(req: NextRequest) {
     let draftMaterials: NonNullable<OrdemServicoMeta["materials"]> = [];
     let computedValorPecas = 0;
 
-    if (Array.isArray(providedMeta.materials) && providedMeta.materials.length > 0) {
-      draftMaterials = providedMeta.materials as NonNullable<OrdemServicoMeta["materials"]>;
-      computedValorPecas = Number(body.valorPecas || 0);
-    } else if (jangadaIds && jangadaIds.length > 0) {
+    const linhas = "linhas" in providedMeta ? normalizeQuoteLines(providedMeta.linhas) : undefined;
+    if ("materials" in providedMeta) {
+      if (!Array.isArray(providedMeta.materials)) throw new QuoteInputError("Materiais deve ser uma lista.");
+      draftMaterials = providedMeta.materials.map((entry) => {
+        if (!entry || typeof entry !== "object" || Array.isArray(entry)) throw new QuoteInputError("Material invalido.");
+        const material = entry as NonNullable<OrdemServicoMeta["materials"]>[number];
+        const quantidadePrevista = quoteNumber(material.quantidadePrevista);
+        const precoUnitario = quoteNumber(material.precoUnitario);
+        return { ...material, quantidadePrevista, precoUnitario };
+      });
+      computedValorPecas = roundQuoteMoney(draftMaterials.reduce((sum, material) => sum + roundQuoteMoney((material.quantidadePrevista ?? 0) * (material.precoUnitario ?? 0)), 0));
+    } else if (!linhas && !("valorPecas" in body) && jangadaIds.length > 0) {
       const generated = await autoGenerateDraftMaterialsForJangadas(jangadaIds, tipo);
       draftMaterials = generated.materials;
       computedValorPecas = generated.valorPecas;
     }
 
-    const valorMaoObra = Number(body.valorMaoObra || 0);
-    const valorDesconto = Number(body.valorDesconto || 0);
-    const isIsentoIva = Boolean(body.isIsentoIva);
-    const valorPecas = Number(body.valorPecas || computedValorPecas);
-    const subtotal = Math.max(0, valorPecas + valorMaoObra - valorDesconto);
-    const iva = isIsentoIva ? 0 : subtotal * getIvaRate();
-    const valorTotal = Number(body.valorTotal || subtotal + iva);
+    const valorMaoObra = roundQuoteMoney(quoteNumber(body.valorMaoObra ?? 0));
+    const valorDesconto = roundQuoteMoney(quoteNumber(body.valorDesconto ?? 0));
+    const isIsentoIva = body.isIsentoIva === true;
+    const valorPecas = linhas ? roundQuoteMoney(linhas.reduce((sum, line) => sum + line.total, 0))
+      : roundQuoteMoney(quoteNumber(body.valorPecas ?? computedValorPecas));
+    const subtotal = roundQuoteMoney(Math.max(0, valorPecas + valorMaoObra - valorDesconto));
+    const iva = isIsentoIva ? 0 : roundQuoteMoney(subtotal * getIvaRate());
+    const valorTotal = roundQuoteMoney(subtotal + iva);
     const baseMeta = {
       grupoNumeroOrdem: groupNumber,
       origem: String(body.origem || "manual").trim() || "manual",
       shipId: jangadaContext.shipId ?? (Number.isFinite(explicitShipId) ? explicitShipId : undefined),
       shipName: String(body.shipName || "").trim() || jangadaContext.shipName || undefined,
       materials: draftMaterials,
-      linhas: Array.isArray(providedMeta.linhas) ? providedMeta.linhas : undefined,
-      totais: providedMeta.totais && typeof providedMeta.totais === "object" ? providedMeta.totais as Record<string, number> : undefined,
+      linhas,
+      totais: { subtotal, iva, totalComIva: valorTotal },
       observacao: String(providedMeta.observacao || "").trim() || undefined,
     };
 
@@ -743,15 +755,25 @@ export async function POST(req: NextRequest) {
     });
 
     const created = await prisma.$transaction(async (tx) => {
+      const inspecaoId = parseOptionalPositiveInt(body.inspecaoId);
+      if (inspecaoId) {
+        const inspection = await tx.inspecao.findUnique({ where: { id: inspecaoId } });
+        if (!inspection || inspection.jangadaId !== jangadaContext.primaryJangadaId) throw new QuoteInputError('Inspecao e jangada incompatíveis.');
+      }
+      const canonicalNumber = inspecaoId ? await canonicalOrderNumber(tx, {
+        numeroOrdem: /^FO/i.test(numeroOrdem) ? '' : numeroOrdem,
+        inspecaoId, jangadaId: jangadaContext.primaryJangadaId,
+        shipId: jangadaContext.shipId, serviceStationId: jangadaContext.serviceStationId,
+      }) || numeroOrdem : numeroOrdem;
       const order = await tx.ordemServico.create({
         data: {
-          numeroOrdem,
+          numeroOrdem: canonicalNumber,
           serviceStationId: jangadaContext.serviceStationId,
           jangadaId: jangadaContext.primaryJangadaId!,
           shipId: jangadaContext.shipId,
           clienteId: resolvedClienteId,
           tecnicoId: tecnicoIdResolved,
-          inspecaoId: Number.isFinite(Number(body.inspecaoId)) ? Number(body.inspecaoId) : null,
+          inspecaoId,
           tipo,
           prioridade,
           status,
@@ -769,7 +791,7 @@ export async function POST(req: NextRequest) {
           valorDesconto,
           valorTotal,
           isIsentoIva,
-          metadados: toOrdemServicoMetaJson(metaWithLog),
+          metadados: toOrdemServicoMetaJson({ ...metaWithLog, grupoNumeroOrdem: metaWithLog.grupoNumeroOrdem === numeroOrdem ? canonicalNumber : metaWithLog.grupoNumeroOrdem }),
         },
       });
 
@@ -793,11 +815,6 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      await tx.jangada.updateMany({
-        where: { id: { in: jangadaIds } },
-        data: { numeroObra: groupNumber },
-      });
-
       return order;
     });
 
@@ -812,6 +829,8 @@ export async function POST(req: NextRequest) {
     const rows = await fetchOrders({ id: created.id });
     return NextResponse.json(rows, { status: 201 });
   } catch (error) {
+    if (error instanceof OrderNumberConflictError || (error as { code?: string })?.code === 'P2002') return NextResponse.json({ error: 'Conflito no numero de obra.' }, { status: 409 });
+    if (error instanceof QuoteInputError || error instanceof SyntaxError) return NextResponse.json({ error: error.message }, { status: 400 });
     console.error("[POST /api/ordens-servico]", error);
     const detail = error instanceof Error ? error.message : String(error);
     return NextResponse.json({ error: "Erro ao criar ordem de serviço.", detail }, { status: 500 });

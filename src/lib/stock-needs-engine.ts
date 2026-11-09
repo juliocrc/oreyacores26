@@ -3,6 +3,7 @@ import { certificateItemHasManagedValidity, normalizeCertificateItemName } from 
 import { stockItemSupportsValidity } from "@/lib/stock-validity";
 import { resolveMandatoryPackItemsForRaftAsync } from "@/lib/custom-pack-types";
 import { type MandatoryPackItem } from "@/modules/rafts/mandatoryPack";
+import { adjustedForecast90d, forecastOrderDeadline } from "@/lib/stock-forecast-planning";
 
 export type StockNeedsScope = "all" | "jangadas-ocean" | "";
 
@@ -194,6 +195,7 @@ type StockRecord = {
   raftSerials: Set<string>;
   raftIds: Set<number>;
   hasValidity?: boolean;
+  firstNeedDate: Date | null;
 };
 
 const DEFAULT_LEAD_TIME_DAYS = 15;
@@ -775,11 +777,13 @@ export async function computeStockNeeds(options?: {
           raftSerials: new Set(),
           raftIds: new Set(),
           hasValidity: itemHasValidity,
+          firstNeedDate: inspectionDate,
         } as DemandEntry & { hasValidity: boolean };
         demandMap.set(key, entry);
       } else if (itemHasValidity) {
         (entry as DemandEntry & { hasValidity?: boolean }).hasValidity = true;
       }
+      if (inspectionDate && (!entry.firstNeedDate || inspectionDate < entry.firstNeedDate)) entry.firstNeedDate = inspectionDate;
 
       const qty = Number(item.quantity) || 0;
       if (days <= 30) entry.byWindow["30d"] += qty;
@@ -803,8 +807,6 @@ export async function computeStockNeeds(options?: {
       }
     }
   }
-
-  const earliest90 = [...within90d].sort((a, b) => (a.inspectionDays || 999) - (b.inspectionDays || 999))[0];
 
   const needs: NeedRow[] = Array.from(demandMap.values()).map((demand) => {
     const { matched, matchedBy } = findStockForDemand(stockItems, byRef, demand);
@@ -845,9 +847,7 @@ export async function computeStockNeeds(options?: {
     const consumoHistorico90d = consumo?.total || 0;
     const consumoMeses = consumo?.meses || [];
     const consumoMedioMensal = consumoHistorico90d / 3;
-    const demandaAjustada90d = Math.ceil(
-      demand90d * (1 - HIST_BLEND) + Math.max(consumoHistorico90d, demand90d * 0.25) * HIST_BLEND
-    );
+    const demandaAjustada90d = adjustedForecast90d(demand90d, consumoHistorico90d, HIST_BLEND);
 
     // Sazonalidade: índice por mês do calendário calculado a partir do consumo
     // alargado; aplica-se à procura ajustada dos próximos 90 dias.
@@ -858,7 +858,7 @@ export async function computeStockNeeds(options?: {
       coberturaDias != null ? addDays(now, coberturaDias).toISOString().slice(0, 10) : null;
     const seasonalFactors = buildSeasonalFactors(sazonal);
     const fatorSazonal = seasonalFactorForWindow(seasonalFactors, now, 3);
-    const demandaSazonal90d = Math.ceil(demandaAjustada90d * fatorSazonal);
+    const demandaSazonal90d = Math.max(demand90d, Math.ceil(demandaAjustada90d * fatorSazonal));
 
     const planningDemand = Math.max(demandaSazonal90d, minQty > 0 && stockAvailable <= minQty ? minQty : 0);
     const isLow = stockAvailable < planningDemand || (minQty > 0 && stockAvailable <= minQty);
@@ -866,18 +866,9 @@ export async function computeStockNeeds(options?: {
     const safetyBuffer = computeSafetyStock(planningDemand / 3, consumoMeses, leadTimeDias);
     const reorderQty = isLow ? Math.max(0, planningDemand - stockAvailable + safetyBuffer) : 0;
 
-    let orderLimitDate = "";
-    if (reorderQty > 0) {
-      if (earliest90?.dataProxInspecao) {
-        const inspDate = parseDate(earliest90.dataProxInspecao)!;
-        inspDate.setDate(inspDate.getDate() - leadTimeDias);
-        orderLimitDate = inspDate.toISOString().slice(0, 10);
-      } else {
-        const limit = new Date(now);
-        limit.setDate(limit.getDate() + leadTimeDias);
-        orderLimitDate = limit.toISOString().slice(0, 10);
-      }
-    }
+    const orderLimitDate = reorderQty > 0
+      ? forecastOrderDeadline(demand90d > 0 ? demand.firstNeedDate : null, leadTimeDias, now)
+      : "";
 
     const mensal = Array.from(demand.byMonth.entries())
       .sort(([a], [b]) => a.localeCompare(b))

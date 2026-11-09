@@ -16,6 +16,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { InspectionData } from "./types";
+import { isSosRaft } from '@/lib/raft-model-rules';
 
 export type WizardStep = {
   key: string;
@@ -32,7 +33,7 @@ export const BASE_STEPS_BY_KEY: Record<string, WizardStep> = {
   testes: { key: "testes", title: "Testes", icon: AlertCircle },
   boletins: { key: "boletins", title: "Boletins de Serviço", icon: ShieldCheck },
   reparacoes: { key: "reparacoes", title: "Reparações / Colagem", icon: Hammer },
-  contentor: { key: "contentor", title: "Contentor", icon: Box },
+  contentor: { key: "contentor", title: "Fecho do Contentor", icon: Box },
   orcamento: { key: "orcamento", title: "Orçamento", icon: Receipt },
   artigos: { key: "artigos", title: "Artigos Substituídos", icon: ListChecks },
   resumo: { key: "resumo", title: "Resumo Final", icon: CheckCircle },
@@ -41,7 +42,8 @@ export const BASE_STEPS_BY_KEY: Record<string, WizardStep> = {
 };
 
 export function needsRepair(data: InspectionData): boolean {
-  return String(data.testes?.testeWP || "").toUpperCase() === "REPROVOU";
+  return (!isSosRaft(data) && String(data.testes?.testeWP || "").toUpperCase() === "REPROVOU") ||
+    Boolean(data.reparacoes?.length) || data.repairRequested === true;
 }
 
 export function getWizardSteps(
@@ -54,22 +56,23 @@ export function getWizardSteps(
       BASE_STEPS_BY_KEY.checklist,
       BASE_STEPS_BY_KEY.resumo,
       BASE_STEPS_BY_KEY.certificados,
-      BASE_STEPS_BY_KEY.historico,
     ];
   }
   const order: string[] = [
     "dados",
+    // Missing applicability is unknown, not confirmation that none apply.
+    ...(!Array.isArray(data.applicableServiceBulletins) || data.applicableServiceBulletins.length > 0 ||
+      Object.keys(data.serviceBulletinsApplied || {}).length > 0 ? ["boletins"] : []),
     "checklist",
     "componentes",
     "pack",
     "cilindros",
-    "testes",
-    "boletins",
+    ...(!isSosRaft(data) ? ["testes"] : []),
   ];
   if (needsRepair(data)) order.push("reparacoes");
   // Equipamento de fecho do contentor antes do orçamento: os artigos marcados
   // aqui entram automaticamente nas linhas do orçamento.
-  order.push("contentor", "orcamento", "resumo", "certificados", "historico");
+  order.push("contentor", "orcamento", "resumo", "certificados");
   // Técnicos (role USER) não gerem preços: no lugar do Orçamento veem apenas a
   // lista read-only dos artigos substituídos.
   const mapped = opts?.hideOrcamento
@@ -89,5 +92,20 @@ export function getStepNumberByKey(
 }
 
 export function getStepIndexByKey(steps: { key: string }[], key: string) {
-  return steps.findIndex((s) => s.key === key) + 1;
+  const mappedKey = key === 'historico' ? 'resumo' : key;
+  const idx = steps.findIndex((s) => s.key === mappedKey);
+  if (idx >= 0) return idx + 1;
+  if (key === 'orcamento') return steps.findIndex(s => s.key === 'artigos') + 1;
+  if (key === 'artigos') return steps.findIndex(s => s.key === 'orcamento') + 1;
+  return 0;
+}
+
+// Numeric-only local drafts predate the reordered flow. New drafts save a key.
+export function getSavedStepKey(data: InspectionData, draft: { currentStepKey?: string; currentStep?: number }, hideOrcamento = false): string {
+  if (draft.currentStepKey) return draft.currentStepKey;
+  const legacy = data.abate?.ativo
+    ? ['dados', 'checklist', 'resumo', 'certificados', 'historico']
+    : ['dados', 'checklist', 'componentes', 'pack', 'cilindros', 'testes', 'boletins',
+      ...(String(data.testes?.testeWP || '').toUpperCase() === 'REPROVOU' ? ['reparacoes'] : []), 'contentor', hideOrcamento ? 'artigos' : 'orcamento', 'historico', 'certificados', 'resumo'];
+  return legacy[(draft.currentStep || 1) - 1] || 'dados';
 }

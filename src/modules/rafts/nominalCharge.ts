@@ -1,5 +1,4 @@
 import { findRaftTechnicalModel } from './raftModelData';
-import type { RaftSpecification } from './types';
 
 /**
  * Carga nominal de gás (CO2/N2) de um cilindro de insuflação, obtida da tabela
@@ -31,12 +30,21 @@ export function resolveNominalCharge(args: {
   model?: string | null;
   capacity?: number | string | null;
   launchType?: string | null;
+  packType?: string | null;
 }): NominalChargeMatch | null {
   const capacity = parseCapacity(args.capacity);
   if (!capacity) return null;
 
   const technicalModel = findRaftTechnicalModel(args.brand, args.model);
   if (!technicalModel || !Array.isArray(technicalModel.specifications)) return null;
+
+  // Partial model matches are useful for searching, but not for gas charges.
+  const normalize = (value?: string | null) => (value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const normalizeModel = (value?: string | null) => (value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9<>]/g, '');
+  const requestedModel = normalizeModel(args.model);
+  if (![technicalModel.name, ...(technicalModel.aliases || [])].some(name => normalizeModel(name) === requestedModel)) return null;
+  // Generic Eurovinil model names can refer to different generations.
+  if (normalize(args.brand) === 'EUROVINIL' && !/M14|SYNTESY/.test(requestedModel)) return null;
 
   const config = normalizeRaftConfig(args.launchType);
   const specs = technicalModel.specifications.filter(
@@ -48,16 +56,21 @@ export function resolveNominalCharge(args: {
   );
   if (specs.length === 0) return null;
 
-  let matched: RaftSpecification | null = null;
-  if (config) {
-    matched = specs.find((spec) => normalizeRaftConfig(spec.configuration) === config) || null;
-  }
-  if (!matched) {
-    matched = specs.find((spec) => !spec.configuration) || null;
-  }
-  if (!matched) {
-    matched = specs[0];
-  }
+  if (args.launchType?.trim() && !config) return null;
+  const pack = normalize(args.packType);
+  const candidates = specs.filter(spec => {
+    const specConfig = normalizeRaftConfig(spec.configuration);
+    if (spec.configuration && !specConfig) return false;
+    if (config && specConfig && config !== specConfig) return false;
+    if (spec.pack && pack && normalize(spec.pack) !== pack) return false;
+    if (spec.pack && !pack && normalize(args.brand) === 'EUROVINIL') return false;
+    return true;
+  });
+  // No first-row fallback: multiple rows may differ in pack, configuration or source.
+  if (candidates.length !== 1) return null;
+  const matched = candidates[0];
+  // Syntesy catalogue values attributed to packing tables are not verified gas-charge data.
+  if (normalize(args.brand) === 'EUROVINIL' && matched.source?.doc?.includes('Syntesy')) return null;
 
   const co2 = matched.cylinder?.co2 ?? 0;
   const n2 = matched.cylinder?.n2 ?? 0;

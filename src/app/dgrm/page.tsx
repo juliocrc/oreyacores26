@@ -49,7 +49,7 @@ type DgrmStationAudit = {
 };
 
 const INITIAL_AUDIT: DgrmStationAudit = {
-  stationName: "Orey Açores — Estação de Serviço Principal (Ponta Delgada)",
+  stationName: "Orey Tecnica- Serviços Navais, Lda — Estação de Serviço Principal (Ponta Delgada)",
   approvalNumber: "DGRM / ISN Cert. 50937",
   issueDate: "2024-05-12",
   expiryDate: "2027-02-12",

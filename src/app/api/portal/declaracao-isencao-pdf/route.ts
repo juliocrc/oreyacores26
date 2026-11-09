@@ -1,80 +1,46 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
-import prisma from "@/lib/prisma";
-import { getAuthSession } from "@/auth";
 import { syncEmittedDocumentToOneDrive } from "@/lib/onedrive-sync";
-import { emitirDeclaracaoIsencaoIva } from "@/lib/declaracao-isencao-iva";
+import { DeclaracaoIvaError } from "@/lib/declaracao-isencao-iva";
+import { resolveIvaDeclaration } from "@/lib/declaracao-isencao-iva-request";
+import { gerarDeclaracaoIsencaoIvaDocx, nomeFicheiroDeclaracao } from "@/lib/declaracao-isencao-iva-docx";
+import { ivaDeclarationText } from "@/lib/iva-declaration-text";
 
 export const runtime = "nodejs";
 
-export async function GET(req: NextRequest) {
+export const GET = (req: NextRequest) => handle(req, false);
+export const POST = (req: NextRequest) => handle(req, true);
+
+async function handle(req: NextRequest, post: boolean) {
   try {
-    const session = await getAuthSession();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
-    }
     const { searchParams } = new URL(req.url);
-    const clienteId = searchParams.get("clienteId");
-    const navioId = searchParams.get("navioId");
-
-    let clienteNome = searchParams.get("cliente") || "Armador";
-    let clienteNif = searchParams.get("nif") || "—";
-    let clienteMorada = searchParams.get("morada") || "—";
-    let navioNome = searchParams.get("navio") || "Embarcação";
-    let tipoPesca = searchParams.get("tipoPesca") || "";
-
-    if (clienteId) {
-      const c = await prisma.cliente.findUnique({ where: { id: Number(clienteId) } });
-      if (c) {
-        clienteNome = c.nome;
-        clienteNif = c.nif || "—";
-        clienteMorada = c.morada || "—";
+    if (post) {
+      const body = await req.json().catch(() => null);
+      if (!body || typeof body !== "object" || Array.isArray(body)) throw new DeclaracaoIvaError("Pedido invalido.", 400);
+      for (const key of ["navioId", "clienteId", "codigoIsencaoIva", "origem", "idempotencyKey", "format", "declaracaoId"]) {
+        if (body[key] !== undefined) searchParams.set(key, String(body[key]));
       }
+      if (req.headers.has("Idempotency-Key")) searchParams.set("idempotencyKey", req.headers.get("Idempotency-Key")!);
     }
-
-    if (session.user.role === "CLIENTE") {
-      const ownClientId = Number(session.user.clienteId);
-      if (!ownClientId) return NextResponse.json({ error: "Conta de cliente sem associação válida." }, { status: 403 });
-      const ownClient = await prisma.cliente.findUnique({ where: { id: ownClientId } });
-      if (!ownClient) return NextResponse.json({ error: "Cliente não encontrado." }, { status: 404 });
-      clienteNome = ownClient.nome;
-      clienteNif = ownClient.nif || "—";
-      clienteMorada = ownClient.morada || "—";
-    }
-
-    if (navioId) {
-      const n = await prisma.navio.findUnique({ where: { id: Number(navioId), }, select: { id: true, nome: true, tipoPesca: true, clienteId: true } });
-      if (!n) return NextResponse.json({ error: "Navio não encontrado." }, { status: 404 });
-      if (n) {
-        if (session.user.role === "CLIENTE" && Number(session.user.clienteId) !== n.clienteId) {
-          return NextResponse.json({ error: "O navio não pertence ao cliente autenticado." }, { status: 403 });
-        }
-        navioNome = n.nome;
-        tipoPesca = n.tipoPesca || "";
-      }
-    }
-
-    if (!navioId) {
-      return NextResponse.json({ error: "É obrigatório indicar o navio da declaração." }, { status: 400 });
-    }
-
-    const declaration = await emitirDeclaracaoIsencaoIva({
-      clienteNome,
-      clienteNif,
-      navioNome,
-      codigoIsencaoIva: searchParams.get("codigoIsencaoIva"),
-      origem: "cliente",
-      emitidoPorId: String(session.user.id),
-    });
-
-    // Verificar se é embarcação de pesca
-    const isPesca = tipoPesca && tipoPesca.toLowerCase() !== "não aplicável" && tipoPesca.toLowerCase() !== "outro";
-    if (!isPesca && navioId) {
-      // Se não for pesca, rejeitar a emissão da isenção de IVA
-      return NextResponse.json(
-        { error: "A declaração de isenção de IVA só pode ser emitida para embarcações de pesca." },
-        { status: 400 }
-      );
+    const result = await resolveIvaDeclaration(searchParams, post);
+    if ("history" in result) return NextResponse.json(result.history, { headers: { "Cache-Control": "private, no-store" } });
+    const { declaration, snapshot } = result;
+    const clienteNome = declaration.clienteNome || "Armador";
+    const clienteNif = declaration.clienteNif || "—";
+    const navioNome = declaration.navioNome || "Embarcação";
+    const { clienteMorada, tipoPesca } = snapshot;
+    const docx = searchParams.get("format") === "docx";
+    if (docx) {
+      const buffer = await gerarDeclaracaoIsencaoIvaDocx({ ...declaration, ...snapshot });
+      const fileName = nomeFicheiroDeclaracao(declaration.numeroCompleto);
+      if (post) await syncEmittedDocumentToOneDrive({ kind: "declaracao-iva", shipName: navioNome, fileName, buffer }).catch(() => null);
+      return new NextResponse(new Uint8Array(buffer), { headers: {
+        "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "Content-Disposition": `attachment; filename="${fileName}"`,
+        "X-Declaration-Id": String(declaration.id), "X-Declaration-Number": declaration.numeroCompleto,
+        "X-Declaration-Date": declaration.dataEmissao.toISOString(),
+        "Cache-Control": "private, no-store",
+      } });
     }
 
     const doc = await PDFDocument.create();
@@ -99,12 +65,12 @@ export async function GET(req: NextRequest) {
 
     // Header
     page.drawRectangle({ x: 0, y: 841.89 - 100, width: PAGE_WIDTH, height: 100, color: rgb(0.06, 0.46, 0.43) });
-    drawText("DECLARAÇÃO DE ISENÇÃO DE IVA", MARGIN, 841.89 - 65, 20, { font: fontBold, color: [1, 1, 1] });
+    drawText("DECLARAÇÃO DE ISENÇÃO DE IVA", MARGIN, 841.89 - 65, 16, { font: fontBold, color: [1, 1, 1] });
     drawText(declaration.numeroCompleto, PAGE_WIDTH - MARGIN, 841.89 - 65, 12, { font: fontBold, color: [1, 1, 1], align: "right" });
     drawText("Embarcação de Pesca Comercial · Regime de Isenção", MARGIN, 841.89 - 85, 11, { color: [0.9, 0.95, 0.95] });
 
     y = 841.89 - 140;
-    drawText(`Data: ${new Date().toLocaleDateString("pt-PT")}`, MARGIN, y, 10, { font: fontBold });
+    drawText(`Data: ${declaration.dataEmissao.toLocaleDateString("pt-PT", { timeZone: "Europe/Lisbon" })}`, MARGIN, y, 10, { font: fontBold });
     y -= 25;
 
     drawText("Identificação do Armador / Proprietário:", MARGIN, y, 11, { font: fontBold });
@@ -120,16 +86,16 @@ export async function GET(req: NextRequest) {
     y -= 18;
     drawText(`Nome da Embarcação: ${navioNome}`, MARGIN + 10, y, 10);
     y -= 16;
+    drawText(`Matrícula: ${declaration.navioMatricula || "—"} | CFR: ${snapshot.navioCfr || "—"}`, MARGIN + 10, y, 10);
+    y -= 16;
     drawText(`Tipo / Atividade: ${tipoPesca || "Pesca Comercial"}`, MARGIN + 10, y, 10);
     y -= 30;
 
     drawText("Fundamentação Legal da Isenção:", MARGIN, y, 11, { font: fontBold });
     y -= 18;
-    const isencaoTexto = 
-      "Declara-se para os devidos efeitos fiscais que a embarcação acima identificada dedica-se à atividade " +
-      "da pesca comercial, enquadrando-se nos normativos legais de isenção de IVA aplicáveis aos fornecimentos " +
-      "de bens e prestação de serviços destinados a embarcações que exercem a pesca comercial (Artigo 14.º do CIVA " +
-      "ou legislação equivalente aplicável na Região Autónoma dos Açores).";
+    drawText(`${snapshot.isencaoInfo.code}: ${snapshot.isencaoInfo.norma}`, MARGIN, y, 10);
+    y -= 16;
+    const isencaoTexto = ivaDeclarationText(snapshot.isencaoInfo.norma);
     
     page.drawText(isencaoTexto, {
       x: MARGIN,
@@ -149,13 +115,13 @@ export async function GET(req: NextRequest) {
     const pdfBytes = await doc.save();
     const copy = new Uint8Array(pdfBytes.byteLength);
     copy.set(pdfBytes);
-    const fileName = `declaracao-isencao-iva-${declaration.numeroCompleto.replace(/\//g, "-")}-${navioNome.replace(/\s+/g, "_")}.pdf`;
-    const syncResult = await syncEmittedDocumentToOneDrive({
+    const fileName = `declaracao-isencao-iva-${declaration.numeroCompleto.replace(/\//g, "-")}.pdf`;
+    const syncResult = post ? await syncEmittedDocumentToOneDrive({
       kind: "declaracao-iva",
       shipName: navioNome,
       fileName,
       buffer: Buffer.from(copy),
-    });
+    }).catch(() => ({ synced: false })) : { synced: false };
     const blob = new Blob([copy], { type: "application/pdf" });
 
     return new NextResponse(blob, {
@@ -163,12 +129,15 @@ export async function GET(req: NextRequest) {
       headers: {
         "Content-Disposition": `attachment; filename=${fileName}`,
         "X-Declaration-Number": declaration.numeroCompleto,
+        "X-Declaration-Id": String(declaration.id),
+        "X-Declaration-Date": declaration.dataEmissao.toISOString(),
+        "Cache-Control": "private, no-store",
         "X-OneDrive-Synced": String(syncResult.synced),
         "Content-Type": "application/pdf",
       },
     });
   } catch (err: any) {
     console.error("[GET /api/portal/declaracao-isencao-pdf]", err);
-    return NextResponse.json({ error: err?.message || "Erro ao gerar declaração de isenção de IVA." }, { status: 500 });
+    return NextResponse.json({ error: err instanceof DeclaracaoIvaError ? err.message : "Erro ao gerar declaração de isenção de IVA." }, { status: err instanceof DeclaracaoIvaError ? err.status : 500 });
   }
 }

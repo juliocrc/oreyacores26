@@ -1,7 +1,11 @@
 import { sendSms } from "./sms-provider";
+import { sendEmail } from "./email-sender";
 import { normalizeE164 } from "./textbee-sms";
-import { sendWhatsAppApi, whatsappApiConfigurado } from "./whatsapp-provider";
+import { sendWhatsAppApi, whatsappApiConfigurado, type WhatsAppProviderResult } from "./whatsapp-provider";
 import prisma from "./prisma";
+import { isOpenwaSelected, OPENWA_CLOSED, OPENWA_UNCERTAIN } from "./openwa";
+import { openwaBusinessHours } from "./business-hours";
+import { canUseEmailSenderProfiles } from "./email-sender-access";
 
 export type ComunicacaoTipo = "SMS" | "WHATSAPP" | "EMAIL" | "CHAMADA";
 
@@ -30,6 +34,7 @@ export type ComunicacaoRef = {
 };
 
 export type EnvioComunicacaoInput = {
+  senderAccount?: "julio" | "tecnica";
   tipo: ComunicacaoTipo;
   mensagem: string;
   assunto?: string;
@@ -72,7 +77,7 @@ export function mensagemRecordacaoVistoria(d: DadosVistoria): string {
     `Ficamos a aguardar o seu contacto.`,
     ``,
     `Com os melhores cumprimentos,`,
-    `Orey Azores`,
+    `Orey Tecnica- Serviços Navais, Lda`,
   ].join("\n");
 }
 
@@ -85,7 +90,7 @@ export function mensagemOrcamentoAprovado(d: { owner?: string | null; model?: st
     ``,
     `Entraremos em contacto para agendar a data da intervenção.`,
     ``,
-    `Orey Azores`,
+    `Orey Tecnica- Serviços Navais, Lda`,
   ].filter(Boolean).join("\n");
 }
 
@@ -97,7 +102,7 @@ export function mensagemCertificadoPronto(d: { owner?: string | null; model?: st
     ``,
     `Estamos à sua disposição para qualquer esclarecimento.`,
     ``,
-    `Orey Azores`,
+    `Orey Tecnica- Serviços Navais, Lda`,
   ].filter(Boolean).join("\n");
 }
 
@@ -109,15 +114,34 @@ export function buildWhatsAppUrl(phoneRaw: string | undefined | null, message: s
 
 /**
  * Envia uma comunicação e regista-a no histórico.
- * Para SMS usa o TextBee; para WhatsApp devolve o link wa.me (fica registado como "pendente").
+ * SMS e WhatsApp usam os providers configurados; EMAIL usa SMTP.
+ * O fallback wa.me fica registado como "pendente".
  */
-export async function enviarComunicacao(input: EnvioComunicacaoInput): Promise<{
+export async function enviarComunicacao(input: EnvioComunicacaoInput, options?: { comunicacaoId?: number; authenticatedEmail?: string }): Promise<{
   ok: boolean;
   erro?: string;
   whatsappUrl?: string;
   comunicacaoId?: number;
   providerId?: string;
+  status?: string;
+  uncertain?: boolean;
+  closed?: boolean;
 }> {
+  if (input.senderAccount !== undefined && !canUseEmailSenderProfiles(options?.authenticatedEmail)) {
+    return { ok: false, erro: "Sem permissao para usar contas de envio." };
+  }
+  if (options?.comunicacaoId !== undefined) {
+    const existing = await prisma.comunicacao.findUnique({ where: { id: options.comunicacaoId } });
+    if (!existing) return { ok: false, erro: "Comunicacao nao encontrada." };
+    if (["openwa-audio", "infinireach-audio"].includes(existing.canal || "") || existing.canal?.startsWith("twilio")) {
+      return { ok: false, erro: "Reenvio desativado para audio ou fornecedor removido." };
+    }
+    if (existing.tipo === "SMS" && existing.status === "pendente") return { ok: false, uncertain: true, status: "pendente", erro: "SMS pendente ou sem confirmação. Verifique o fornecedor antes de repetir.", comunicacaoId: existing.id };
+    if (existing.status === "pendente" && (existing.canal === "openwa" || existing.providerId)) {
+      return { ok: false, uncertain: true, status: "pendente", erro: OPENWA_UNCERTAIN, comunicacaoId: existing.id };
+    }
+    if (!["falhou", "pendente"].includes(existing.status)) return { ok: false, erro: "Comunicacao nao elegivel para reenvio." };
+  }
   const mensagem = String(input.mensagem || "").trim();
   if (!mensagem) return { ok: false, erro: "A mensagem não pode estar vazia." };
 
@@ -159,56 +183,108 @@ export async function enviarComunicacao(input: EnvioComunicacaoInput): Promise<{
     return { ok: false, erro: input.tipo === "EMAIL" ? "O cliente não tem email na ficha." : "O cliente não tem telemóvel na ficha." };
   }
 
+  if (input.tipo === "EMAIL" && !/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+$/i.test(destinatario)) {
+    return { ok: false, erro: "Indique um unico endereco de email valido." };
+  }
+
+  const assunto = input.tipo === "EMAIL" ? input.assunto?.trim() || "Orey Tecnica- Serviços Navais, Lda - Comunicação" : input.assunto;
   let status = "enviado";
   let erro: string | undefined;
   let whatsappUrl: string | undefined;
   let providerId: string | undefined;
-  let canal = input.tipo === "SMS" ? "textbee" : input.tipo === "EMAIL" ? "email" : "wa.me";
+  let canal = input.tipo === "SMS" ? "sms" : input.tipo === "EMAIL" ? "email" : "wa.me";
+  let communicationId = options?.comunicacaoId;
+  let uncertain = false;
+  let closed = false;
+
+  if (input.tipo === "WHATSAPP" && isOpenwaSelected()) {
+    if (!openwaBusinessHours().open) return { ok: false, closed: true, status: "closed", erro: OPENWA_CLOSED };
+    // Claim a retry atomically before any network I/O. Pending OpenWA rows are never automatically retried.
+    try {
+      if (communicationId) {
+        const claimed = await prisma.comunicacao.updateMany({
+          where: { id: communicationId, status: { in: ["falhou", "pendente"] },
+            AND: [
+              { OR: [{ canal: null }, { canal: { notIn: ["openwa-audio", "infinireach-audio", "twilio", "twilio-voice"] } }] },
+              { OR: [{ status: "falhou" }, { status: "pendente", providerId: null, OR: [{ canal: null }, { canal: { not: "openwa" } }] }] },
+            ] },
+          data: { status: "pendente", canal: "openwa", erro: OPENWA_UNCERTAIN },
+        });
+        if (claimed.count !== 1) return { ok: false, uncertain: true, status: "pendente", erro: OPENWA_UNCERTAIN, comunicacaoId: communicationId };
+      } else {
+        const row = await prisma.comunicacao.create({ data: {
+          tipo: input.tipo, canal: "openwa", destinatario, mensagem, assunto, status: "pendente", erro: OPENWA_UNCERTAIN,
+          ...input.ref, enviadoPor: input.enviadoPor,
+        } });
+        communicationId = row.id;
+      }
+    } catch { return { ok: false, erro: "Nao foi possivel guardar o envio antes de contactar OpenWA." }; }
+  }
 
   if (input.tipo === "SMS") {
     const result = await sendSms(destinatario, mensagem);
+    canal = result.provider || "sms";
+    providerId = result.providerId;
+    uncertain = result.uncertain === true;
     if (!result.ok) {
-      status = "falhou";
+      status = uncertain ? "pendente" : "falhou";
       erro = result.error;
+    } else status = "pendente";
+  } else if (input.tipo === "EMAIL") {
+    try {
+      const result = await sendEmail({ to: destinatario, subject: assunto!, text: mensagem, ...(input.senderAccount !== undefined ? { senderAccount: input.senderAccount } : {}) });
+      if (!result.ok) {
+        status = "falhou";
+        erro = result.error || "Falha ao enviar email.";
+      }
+    } catch (e) {
+      status = "falhou";
+      erro = e instanceof Error ? e.message : "Falha ao enviar email.";
     }
   } else if (input.tipo === "WHATSAPP") {
-    const result = await sendWhatsAppApi(destinatario, mensagem);
-    whatsappUrl = result.link;
+    const result = await sendWhatsAppApi(destinatario, mensagem, communicationId).catch((error: unknown): WhatsAppProviderResult => {
+      if (!isOpenwaSelected()) throw error;
+      return { ok: false, provider: "openwa" as const, uncertain: true, erro: OPENWA_UNCERTAIN };
+    });
+    uncertain = result.uncertain === true;
+    closed = result.closed === true;
+    whatsappUrl = !isOpenwaSelected() && !uncertain && !result.enviadoDeFacto ? result.link : undefined;
     providerId = result.providerId;
-    canal = result.enviadoDeFacto ? "whatsapp-api" : "wa.me";
+    canal = isOpenwaSelected() || result.provider === "openwa" ? "openwa" : result.enviadoDeFacto ? result.provider || "whatsapp-api" : "wa.me";
     if (result.ok && result.enviadoDeFacto) {
-      status = "enviado";
+      status = result.provider === "openwa" || result.accepted ? "pendente" : "enviado";
     } else if (result.ok) {
       status = "pendente";
     } else {
-      status = "falhou";
+      status = uncertain ? "pendente" : "falhou";
       erro = result.erro;
     }
   }
 
   try {
-    const registo = await prisma.comunicacao.create({
-      data: {
-        tipo: input.tipo,
-        canal,
-        destinatario,
-        assunto: input.assunto,
-        mensagem,
-        status,
-        erro,
-        providerId,
-        refTipo: input.ref?.refTipo,
-        refId: input.ref?.refId ?? null,
-        clienteId: input.ref?.clienteId ?? null,
-        jangadaId: input.ref?.jangadaId ?? null,
-        ordemServicoId: input.ref?.ordemServicoId ?? null,
-        enviadoPor: input.enviadoPor,
-      },
-    });
-    return { ok: status !== "falhou", erro, whatsappUrl, comunicacaoId: registo.id, providerId };
+    const data = {
+      tipo: input.tipo,
+      canal,
+      destinatario,
+      assunto,
+      mensagem,
+      status,
+      erro: erro ?? null,
+      providerId: providerId ?? null,
+      refTipo: input.ref?.refTipo,
+      refId: input.ref?.refId ?? null,
+      clienteId: input.ref?.clienteId ?? null,
+      jangadaId: input.ref?.jangadaId ?? null,
+      ordemServicoId: input.ref?.ordemServicoId ?? null,
+      enviadoPor: input.enviadoPor,
+    };
+    const registo = communicationId
+      ? await prisma.comunicacao.update({ where: { id: communicationId }, data })
+      : await prisma.comunicacao.create({ data });
+    return { ok: status !== "falhou" && !uncertain, erro, whatsappUrl, comunicacaoId: registo.id, providerId, status, uncertain, closed };
   } catch (e) {
-    console.error("[communications] Erro a registar histórico:", e);
-    return { ok: status !== "falhou", erro: erro || "Falha ao registar no histórico.", whatsappUrl };
+    console.error("[communications] Erro a registar historico.");
+    return { ok: status !== "falhou" && !uncertain, erro: erro || "Falha ao registar no histórico. Nao repita o envio.", whatsappUrl, providerId, comunicacaoId: communicationId, status, uncertain, closed };
   }
 }
 
@@ -286,18 +362,18 @@ export async function encontrarClientePorContacto(
   const raw = String(contacto || "").trim().toLowerCase();
   if (!raw) return null;
 
+  if (raw.includes("@")) {
+    // Normalize in JS for identical exact matching on SQLite and PostgreSQL.
+    const clientes = await prisma.cliente.findMany({
+      where: { email: { not: null } },
+      select: { id: true, nome: true, email: true },
+    }).catch(() => []);
+    const cliente = clientes.find((c) => c.email?.trim().toLowerCase() === raw);
+    return cliente ? { id: cliente.id, nome: cliente.nome } : null;
+  }
+
   const chave = normalizarParaBusca(raw);
   if (!chave) return null;
-
-  const eEmail = raw.includes("@");
-  if (eEmail) {
-    const email = raw;
-    const cliente = await prisma.cliente.findFirst({
-      where: { email: { contains: email } },
-      select: { id: true, nome: true },
-    }).catch(() => null);
-    if (cliente) return { id: cliente.id, nome: cliente.nome };
-  }
 
   const clientes = await prisma.cliente.findMany({
     where: {

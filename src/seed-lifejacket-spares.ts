@@ -138,9 +138,10 @@ async function main() {
     console.log("  ⚠  No service stations found — creating items without station.\n");
     for (const item of stockItems) {
       try {
-        const existing = await prisma.stock.findFirst({
-          where: { referencia: item.referencia, serviceStationId: null },
-        });
+        const matches = await prisma.stock.findMany({ where: { referencia: item.referencia, serviceStationId: null, OR: [{ lote: "" }, { lote: null }] } });
+        if (matches.length > 1) throw new Error("Ambiguous legacy stock; seed requires an explicit Stock ID.");
+        const existing = matches[0];
+        if (existing?.lote === null) { console.log(`Preserved unknown legacy stock ID ${existing.id}`); continue; }
         const created = existing
           ? await prisma.stock.update({
               where: { id: existing.id },
@@ -156,6 +157,7 @@ async function main() {
           : await prisma.stock.create({
               data: {
                 ...item,
+                lote: "",
                 serviceStationId: null,
               },
             });
@@ -169,9 +171,13 @@ async function main() {
       console.log(`  📦 Station: ${station.codigo}\n`);
       for (const item of stockItems) {
         try {
+          const legacy = await prisma.stock.findMany({ where: { referencia: item.referencia, serviceStationId: station.id, lote: null } });
+          if (legacy.length > 1) throw new Error("Ambiguous legacy stock; seed requires an explicit Stock ID.");
+          if (legacy.length) { console.log(`Preserved unknown legacy stock ID ${legacy[0].id}`); continue; }
           const created = await prisma.stock.upsert({
             where: {
-              referencia_serviceStationId: {
+              referencia_serviceStationId_lote: {
+                lote: "",
                 referencia: item.referencia,
                 serviceStationId: station.id,
               },
@@ -186,6 +192,7 @@ async function main() {
             },
             create: {
               ...item,
+              lote: "",
               serviceStationId: station.id,
             },
           });

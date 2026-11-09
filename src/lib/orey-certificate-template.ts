@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { isSosDocumentRaft } from './raft-document-rules';
 import fs from 'node:fs/promises';
 import ExcelJS from 'exceljs';
 import * as XLSX from 'xlsx';
@@ -37,6 +38,10 @@ export type OreyCertificateTemplateInput = {
   hruReference?: string;
   hruSerial?: string;
   hruExpiry?: string;
+  napTestDone?: unknown;
+  giTestDone?: unknown;
+  fsTestDone?: unknown;
+  loadTestDone?: unknown;
   radarReflector?: string;
   radarReflectorExpiry?: string;
   technician?: string;
@@ -111,7 +116,7 @@ function asYesNo(value: unknown) {
   return value ? 'YES' : 'NO';
 }
 
-function getTestDateCellValue(status: 'YES' | 'NO', dateValue: string) {
+function getTestDateCellValue(status: 'YES' | 'NO' | 'N/A', dateValue: string) {
   return status === 'YES' ? dateValue : '';
 }
 
@@ -180,9 +185,11 @@ export function clearCertificateStationText(worksheet: ExcelJS.Worksheet) {
     });
   });
 
-  // Also clear stamp area explicitly
+  // Also clear stamp area explicitly (apenas a linha do nome da estação,
+  // I61:L61). A linha I62:L62 ("For authorized servicing station") é limpa
+  // só no PDF, depois de gerado o Excel, para não alterar o ficheiro .xlsx.
   const ranges: Array<[number, number, number, number]> = [
-    [60, 9, 66, 14],
+    [61, 9, 61, 12],
   ];
 
   for (const [top, left, bottom, right] of ranges) {
@@ -214,8 +221,7 @@ function combineBrandAndModel(brand: unknown, model: unknown) {
 
   const brandUpper = brandText.toUpperCase();
   const modelUpper = modelText.toUpperCase();
-  if (modelUpper.startsWith(brandUpper)) return modelText;
-  if (brandUpper.startsWith(modelUpper)) return brandText;
+  if (modelUpper === brandUpper || (modelUpper.startsWith(brandUpper) && !/[A-Z0-9]/.test(modelUpper.charAt(brandUpper.length)))) return modelText;
 
   return `${brandText} ${modelText}`;
 }
@@ -353,12 +359,12 @@ function isThrowOverRaft(input: OreyCertificateTemplateInput) {
 }
 
 export function fillTemplate(worksheet: ExcelJS.Worksheet, input: OreyCertificateTemplateInput) {
+  const sos = isSosDocumentRaft(input);
   const checklist = input.checklist || {};
-  const statusYesNo = asYesNo(input.status && !String(input.status).toLowerCase().includes('pend'));
-  const napTestYesNo = asYesNo((checklist as Record<string, unknown>).teste_nap ?? (checklist as Record<string, unknown>).teste_wp ?? statusYesNo);
-  const giTestYesNo = asYesNo((checklist as Record<string, unknown>).teste_gi);
-  const fsTestYesNo = asYesNo((checklist as Record<string, unknown>).teste_fs);
-  const loadTestYesNo = asYesNo((checklist as Record<string, unknown>).teste_dl);
+  const napTestYesNo = sos ? 'N/A' : asYesNo(checklist.testeNAP ?? checklist.teste_nap ?? input.napTestDone);
+  const giTestYesNo = sos ? 'N/A' : asYesNo(checklist.testeGI ?? checklist.teste_gi ?? input.giTestDone);
+  const fsTestYesNo = sos ? 'N/A' : asYesNo(checklist.testeFS ?? checklist.teste_fs ?? input.fsTestDone);
+  const loadTestYesNo = sos ? 'N/A' : asYesNo(checklist.testeDL ?? checklist.teste_dl ?? input.loadTestDone);
   const firstAidExpiry = findFirstValidity(checklist, ['validade_farmacia']);
   const hasFirstAid = asYesNo(checklist.ambulancia) === 'YES' || Boolean(firstAidExpiry) || Boolean(checklist.ref_farmacia) || Boolean(checklist.farmacia);
   const isThrowOver = isThrowOverRaft(input);
@@ -367,8 +373,8 @@ export function fillTemplate(worksheet: ExcelJS.Worksheet, input: OreyCertificat
     asString((checklist as Record<string, unknown>).cilindro_co2) ||
     asString((checklist as Record<string, unknown>).ref_cilindro_co2);
 
-  const cleanBrand = asString(input.brand).replace(/\bRFD\b/gi, "").trim();
-  const cleanModel = asString(input.raftModel).replace(/\bRFD\b/gi, "").trim();
+  const cleanBrand = asString(input.brand);
+  const cleanModel = asString(input.raftModel);
 
   setText(worksheet.getCell('K3'), input.certNumber);
   setText(worksheet.getCell('I5'), '');
@@ -409,7 +415,7 @@ export function fillTemplate(worksheet: ExcelJS.Worksheet, input: OreyCertificat
   setText(worksheet.getCell('D20'), cylinderSerial);
   setText(worksheet.getCell('H20'), formatWeightKg(input.cylinderCo2));
   setText(worksheet.getCell('J20'), formatWeightKg(input.cylinderN2));
-  setText(worksheet.getCell('L20'), formatMonthYearSlash(input.cylinderHydroTestDate));
+  setText(worksheet.getCell('L20'), sos ? 'N/A' : formatMonthYearSlash(input.cylinderHydroTestDate));
 
   // Cylinder labels — row 19 (headers for row 20)
   setText(worksheet.getCell('D19'), 'Serial No.');
@@ -424,14 +430,14 @@ export function fillTemplate(worksheet: ExcelJS.Worksheet, input: OreyCertificat
   setText(worksheet.getCell('L18'), '');
 
   // Keep C27:E27 untouched in the template.
-  setText(worksheet.getCell('G27'), input.packType);
-  setText(worksheet.getCell('I27'), input.raftSerial);
-  setText(worksheet.getCell('K27'), formatDateDDMMYYYY(input.nextInspectionDate));
+  setText(worksheet.getCell('G27'), sos ? '' : input.packType);
+  setText(worksheet.getCell('I27'), sos ? '' : input.raftSerial);
+  setText(worksheet.getCell('K27'), sos ? '' : formatDateDDMMYYYY(input.nextInspectionDate));
 
   // HRU row (merged label C31:E31 "HRU test:") — reference, serial and expiry.
-  setText(worksheet.getCell('G31'), input.hruReference);
-  setText(worksheet.getCell('I31'), input.hruSerial);
-  setText(worksheet.getCell('K31'), formatMonthYear(input.hruExpiry));
+  setText(worksheet.getCell('G31'), sos ? '' : input.hruReference);
+  setText(worksheet.getCell('I31'), sos ? '' : input.hruSerial);
+  setText(worksheet.getCell('K31'), sos ? '' : formatMonthYear(input.hruExpiry));
 
   if (asString(input.radarReflector)) {
     setText(worksheet.getCell('D33'), '1');
@@ -451,7 +457,7 @@ export function fillTemplate(worksheet: ExcelJS.Worksheet, input: OreyCertificat
   setText(worksheet.getCell('L41'), loadTestYesNo);
 
   // Test latest dates — shown in MM/AA (short year) format
-  const napTestDate = formatMonthYearShort(input.inspectionDate);
+  const napTestDate = sos ? '' : formatMonthYearShort(input.inspectionDate);
   setText(worksheet.getCell('E43'), getTestDateCellValue(napTestYesNo, napTestDate));
   setText(worksheet.getCell('D43'), '');
   setText(worksheet.getCell('H43'), getTestDateCellValue(giTestYesNo, napTestDate));
@@ -464,6 +470,20 @@ export function fillTemplate(worksheet: ExcelJS.Worksheet, input: OreyCertificat
   setText(worksheet.getCell('G48'), SERVICE_STATION_NAME);
   setText(worksheet.getCell('K48'), formatDateDDMMYYYY(input.nextInspectionDate));
   setText(worksheet.getCell('F51'), 'REPORT ANNEXED');
+
+  // Wording only: use the recorded interval, never infer validity from the brand.
+  const issued = toDateKey(input.inspectionDate);
+  const next = toDateKey(input.nextInspectionDate);
+  if (issued && next) {
+    const anniversary = new Date(`${issued}T12:00:00Z`);
+    anniversary.setUTCFullYear(anniversary.getUTCFullYear() + 3);
+    const remaining = anniversary.getTime() - new Date(`${next}T12:00:00Z`).getTime();
+    // An inclusive expiry may be the day before the third anniversary.
+    if (remaining >= 0 && remaining <= 86_400_000) {
+      setText(worksheet.getCell('B55'), '');
+      setText(worksheet.getCell('B56'), '');
+    }
+  }
 
   setText(worksheet.getCell('D59'), asString(input.shipFlag) || 'Portugal');
   setText(worksheet.getCell('D61'), input.shipImo);
@@ -530,7 +550,6 @@ export async function loadFilledCertificateWorkbook(input: OreyCertificateTempla
 
   applyCertificateMerges(worksheet);
   fillTemplate(worksheet, input);
-  clearCertificateStationText(worksheet);
   removeGreenLikeFills(worksheet);
   configureCertificatePrintLayout(worksheet);
 

@@ -13,6 +13,8 @@ import {
   Ship,
   XCircle,
 } from "lucide-react";
+import { PORTAL_EQUIPMENT_FIELDS, type PortalEquipmentType } from '@/lib/portal-equipment-proposal';
+import { formatDate as formatCivilDate } from '@/lib/date-utils';
 
 type EquipamentoChange = {
   tipo?: string;
@@ -20,7 +22,7 @@ type EquipamentoChange = {
   changes?: Record<string, unknown>;
 };
 
-type AssocItem = { tipoEquipamento?: string; serial?: string };
+type AssocItem = { tipoEquipamento?: string; serial?: string; dataProxInspecao?: string; modo?: string; novoEquipamento?: Record<string, unknown>; existente?: { id: number; shipId: number | null } };
 
 type ProposalDados = {
   tipo?: string;
@@ -397,6 +399,14 @@ export default function PortalPropostasPage() {
                               <span className="font-bold">{ASSOC_TIPO_LABEL[item.tipoEquipamento || ""] || item.tipoEquipamento}</span>
                               {" · "}
                               <span className="font-mono">{item.serial}</span>
+                              <p className="mt-1 font-bold text-indigo-700">{item.modo === 'novo' ? 'Criar novo equipamento e associar ao navio' : `Associar equipamento existente${item.existente ? ` #${item.existente.id} (navio atual: ${item.existente.shipId ?? 'sem navio'})` : ''}`}</p>
+                              <p>Proxima inspecao / recarga proposta: {item.dataProxInspecao ? formatCivilDate(item.dataProxInspecao) : 'Em falta: solicitar nova proposta'}</p>
+                              {item.novoEquipamento && <dl className="mt-2 grid grid-cols-1 gap-1 break-words sm:grid-cols-2">
+                                {(PORTAL_EQUIPMENT_FIELDS[item.tipoEquipamento as PortalEquipmentType] || []).filter(field => item.novoEquipamento![field.key] !== undefined).map(field => <div key={field.key}>
+                                  <dt className="font-semibold">{field.label}</dt><dd>{renderValue(item.novoEquipamento![field.key])}</dd>
+                                </div>)}
+                              </dl>}
+                              <p className="mt-1 text-slate-500">A aprovacao aplica a data indicada. Uma ficha nova nao emite certificados nem substitui os dados de equipamentos existentes.</p>
                             </li>
                           ))}
                         </ul>

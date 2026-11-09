@@ -1,21 +1,11 @@
+import { phoneIdentity } from "./communication-inbox";
+
 const TEXTBEE_API_KEY = process.env.TEXTBEE_API_KEY || "";
 const TEXTBEE_DEVICE_ID = process.env.TEXTBEE_DEVICE_ID || "";
 
 export function normalizeE164(raw: string): string | null {
-  const cleaned = String(raw || "").trim().replace(/\s+/g, "");
-  if (!cleaned) return null;
-
-  let number = cleaned;
-  if (number.startsWith("00")) {
-    number = `+${number.slice(2)}`;
-  } else if (/^[89]\d{8}$/.test(number)) {
-    number = `+351${number}`;
-  } else if (/^351\d{9}$/.test(number)) {
-    number = `+${number}`;
-  }
-
-  if (!/^\+[1-9]\d{7,14}$/.test(number)) return null;
-  return number;
+  const phone = phoneIdentity(String(raw || ""));
+  return phone && /^\+[1-9]\d{7,14}$/.test(phone) ? phone : null;
 }
 
 export async function sendTextBeeSms(phoneRaw: string, message: string): Promise<{ ok: boolean; error?: string }> {

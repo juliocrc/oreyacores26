@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="orey_client_primary">#0B4F6C</color>
+    <color name="orey_client_primary_dark">#073B52</color>
+    <color name="orey_client_accent">#0EA5A4</color>
+    <color name="orey_client_background">#FFFFFF</color>
+    <color name="orey_client_surface">#F8FAFC</color>
+    <color name="orey_white">#FFFFFF</color>
+    <color name="orey_black">#000000</color>
+</resources>

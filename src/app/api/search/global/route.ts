@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { getAccessContext } from "@/lib/access-control";
+import { getDashboardScope } from "@/lib/dashboard-access";
+import { hasModulePermission, hasVisiblePathPermission } from "@/lib/permission-access";
 
 function compactLabel(parts: Array<string | null | undefined>) {
   return parts
@@ -25,19 +26,27 @@ export async function GET(request: NextRequest) {
   if (qSearch.length < 2) return NextResponse.json([]);
 
   try {
-    const access = await getAccessContext();
-    if (!access) return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
+    const scope = await getDashboardScope(request);
+    if (scope.error) return scope.error;
+    const { access, where } = scope;
+    const permitted = (module: string, path: string) => access.isAdmin ||
+      (hasModulePermission(access.permissions, module) && hasVisiblePathPermission(access.permissions, path));
+    const needsShips = permitted("equipamentos", "/equipamentos") || permitted("epirbs", "/epirbs") || permitted("fatos-imersao", "/fatos-imersao");
+    // Equipment has no station column: associate it only through visible ships.
+    const restrictStation = where.serviceStationId !== undefined;
+    const shipIds = needsShips && restrictStation ? (await prisma.navio.findMany({ where, select: { id: true } })).map(ship => ship.id) : [];
+    const equipmentScope = restrictStation ? { shipId: { in: shipIds } } : {};
 
     const [jangadas, navios, clientes, coletes, epirbs, fatosImersao, stockItems, faturas, ordensServico] = await Promise.all([
-      prisma.jangada.findMany({ take: 5000, orderBy: { updatedAt: 'desc' } }),
-      prisma.navio.findMany({ take: 5000, orderBy: { nome: 'asc' } }),
-      prisma.cliente.findMany({ take: 5000, orderBy: { nome: 'asc' } }),
-      prisma.colete.findMany({ take: 5000, orderBy: { updatedAt: 'desc' } }),
-      prisma.epirb.findMany({ take: 5000, orderBy: { updatedAt: 'desc' } }),
-      prisma.fatoImersao.findMany({ take: 5000, orderBy: { updatedAt: 'desc' } }),
-      prisma.stock.findMany({ take: 5000, orderBy: { updatedAt: 'desc' } }),
-      prisma.fatura.findMany({ take: 5000, orderBy: { dataEmissao: 'desc' }, include: { cliente: { select: { nome: true, numeroCliente: true } } } }),
-      prisma.ordemServico.findMany({ take: 5000, orderBy: { updatedAt: 'desc' }, include: { jangada: { select: { serial: true } } } }),
+      permitted("jangadas", "/jangadas") ? prisma.jangada.findMany({ where, take: 5000, orderBy: { updatedAt: 'desc' } }) : [],
+      permitted("navios", "/navios") ? prisma.navio.findMany({ where, take: 5000, orderBy: { nome: 'asc' } }) : [],
+      permitted("clientes", "/clientes") ? prisma.cliente.findMany({ where, take: 5000, orderBy: { nome: 'asc' } }) : [],
+      permitted("equipamentos", "/equipamentos") ? prisma.colete.findMany({ where: equipmentScope, take: 5000, orderBy: { updatedAt: 'desc' } }) : [],
+      permitted("epirbs", "/epirbs") ? prisma.epirb.findMany({ where: equipmentScope, take: 5000, orderBy: { updatedAt: 'desc' } }) : [],
+      permitted("fatos-imersao", "/fatos-imersao") ? prisma.fatoImersao.findMany({ where: equipmentScope, take: 5000, orderBy: { updatedAt: 'desc' } }) : [],
+      permitted("stock", "/stock") ? prisma.stock.findMany({ where, take: 5000, orderBy: { updatedAt: 'desc' } }) : [],
+      permitted("faturacao", "/faturacao") ? prisma.fatura.findMany({ where: restrictStation ? { cliente: where } : {}, take: 5000, orderBy: { dataEmissao: 'desc' }, include: { cliente: { select: { nome: true, numeroCliente: true } } } }) : [],
+      permitted("ordens-servico", "/ordens-servico") ? prisma.ordemServico.findMany({ where, take: 5000, orderBy: { updatedAt: 'desc' }, include: { jangada: { select: { serial: true } } } }) : [],
     ]);
 
     const filteredJangadas = jangadas.filter((j) =>
@@ -133,9 +142,9 @@ export async function GET(request: NextRequest) {
       })),
     ];
 
-    return NextResponse.json(results);
+    return NextResponse.json(results, { headers: { "Cache-Control": "private, no-store" } });
   } catch (err: any) {
     console.error("[GET /api/search/global]", err);
-    return NextResponse.json({ error: err?.message || "Erro na pesquisa global." }, { status: 500 });
+    return NextResponse.json({ error: "Erro na pesquisa global." }, { status: 500 });
   }
 }

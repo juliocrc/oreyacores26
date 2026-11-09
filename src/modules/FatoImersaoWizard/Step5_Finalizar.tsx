@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Save, CheckCircle2, ShieldCheck, FileWarning } from "lucide-react";
 import { useFatoImersaoWizardStore } from "./store/useFatoImersaoWizardStore";
-import { evaluateOverallResult, BER_CODES } from "@/lib/fatos-imersao-checklist";
+import { evaluateOverallResult, BER_CODES, FATO_CHECKLIST_ITEMS } from "@/lib/fatos-imersao-checklist";
 import { toDisplayDate } from "@/lib/fato-date-utils";
 import { appToast } from "@/lib/app-toast";
 import { performOfflineAwareJsonRequest } from "@/lib/offline-sync/client";
@@ -15,22 +15,32 @@ export default function Step5_Finalizar({ onPrev }: Props) {
   const router = useRouter();
   const { fatoId, inspectionData, reset, setIsDirty } = useFatoImersaoWizardStore();
   const [saving, setSaving] = useState(false);
+  const [confirmarCertificado, setConfirmarCertificado] = useState(false);
 
   const resultado = evaluateOverallResult(
     inspectionData.checklist as Record<string, string>,
     inspectionData.leakResultado,
-    inspectionData.codigoBER
+    inspectionData.codigoBER,
+    inspectionData.leakReTest,
+    inspectionData.leakMetodo
   );
 
   const falhas = Object.entries(inspectionData.checklist).filter(([, v]) => v === "F" || v === "S");
   const comps = inspectionData.componentes.filter((c) => c.stockId || c.reference);
+  const traceReady = Boolean(inspectionData.manualReferencia.trim() && inspectionData.manualRevisao.trim() && inspectionData.equipamentoEnsaio.trim());
 
   const handleSave = async () => {
     if (!fatoId) return;
     setSaving(true);
     try {
+      let certificadoEmitido = false;
+      let certificadoEmFila = false;
       const light = inspectionData.componentes.find((c) => c.id === "light");
       const whistle = inspectionData.componentes.find((c) => c.id === "whistle");
+      const pressao = Number(inspectionData.leakPressaoInicial.replace(',', '.'));
+      const pressaoKpa = inspectionData.leakPressaoInicial.trim() && Number.isFinite(pressao)
+        ? String(inspectionData.leakUnidade === "mbar" ? pressao / 10 : pressao)
+        : undefined;
 
       const estado =
         resultado === "BER"
@@ -39,7 +49,7 @@ export default function Step5_Finalizar({ onPrev }: Props) {
             ? "Manutenção"
             : "Ativo";
 
-      await performOfflineAwareJsonRequest({
+      const update = await performOfflineAwareJsonRequest({
         path: `/api/fatos-imersao/${fatoId}`,
         method: "PUT",
         body: {
@@ -71,7 +81,7 @@ export default function Step5_Finalizar({ onPrev }: Props) {
           buoyancyEstado: inspectionData.checklist.buoyancy || undefined,
           testeImpermeabilidade: inspectionData.leakResultado || undefined,
           leakMetodo: inspectionData.leakMetodo || undefined,
-          leakPressaoKpa: inspectionData.leakPressaoInicial || undefined,
+          leakPressaoKpa: pressaoKpa,
           leakResultado: inspectionData.leakResultado || undefined,
           codigoBER: inspectionData.codigoBER || null,
         },
@@ -99,8 +109,9 @@ export default function Step5_Finalizar({ onPrev }: Props) {
           codigoBER: inspectionData.codigoBER || null,
           motivoBER: inspectionData.motivoBER || null,
           dataVerificacao: inspectionData.dataInspecao,
-          inspectorNome: inspectionData.inspectorNome || "Técnico",
+          inspectorNome: inspectionData.inspectorNome,
           observacoes: inspectionData.observacoes,
+          trace: { manualReferencia: inspectionData.manualReferencia, manualRevisao: inspectionData.manualRevisao, equipamentoEnsaio: inspectionData.equipamentoEnsaio, reparacoes: inspectionData.reparacoes },
           dataProxInspecao: inspectionData.dataProxInspecao,
           intervaloServicoMeses: inspectionData.intervaloServicoMeses,
         },
@@ -115,12 +126,14 @@ export default function Step5_Finalizar({ onPrev }: Props) {
         if (err?.message) throw new Error(err.message);
       }
 
-      if (resultado === "OK") {
-        await performOfflineAwareJsonRequest({
+      if (resultado === "OK" && confirmarCertificado && traceReady && inspectionData.inspectorNome.trim() && inspectionData.dataProxInspecao && !update.queued && !ver.queued) {
+        const certificado = await performOfflineAwareJsonRequest({
           path: `/api/fatos-imersao/${fatoId}/certificado`,
           method: "POST",
           body: {
             resultado: "Aprovado",
+            confirmarRevisao: true,
+            verificacaoId: (ver.data as { id?: number } | null)?.id,
             emitidoPor: inspectionData.inspectorNome || undefined,
             dataCertificado: inspectionData.dataInspecao,
             dataValidade: inspectionData.dataProxInspecao || undefined,
@@ -132,7 +145,9 @@ export default function Step5_Finalizar({ onPrev }: Props) {
             summary: `Fato ${inspectionData.serial || fatoId}: certificado aprovado`,
           },
         });
-      } else if (resultado === "BER") {
+        certificadoEmFila = certificado.queued;
+        certificadoEmitido = !certificado.queued;
+      } else if (resultado === "BER" && !update.queued && !ver.queued) {
         await performOfflineAwareJsonRequest({
           path: `/api/fatos-imersao/${fatoId}/certificado`,
           method: "POST",
@@ -152,7 +167,7 @@ export default function Step5_Finalizar({ onPrev }: Props) {
 
       setIsDirty(false);
       reset();
-      appToast.success(resultado === "OK" ? "Inspeção concluída e certificado emitido" : "Inspeção gravada");
+      appToast.success(update.queued || ver.queued ? "Operações em fila para sincronização; certificado não emitido" : certificadoEmFila ? "Inspeção gravada; certificado em fila para sincronização" : certificadoEmitido ? "Inspeção concluída e certificado emitido" : "Inspeção gravada");
       router.push(`/fatos-imersao/${fatoId}`);
       router.refresh();
     } catch (e: unknown) {
@@ -187,7 +202,7 @@ export default function Step5_Finalizar({ onPrev }: Props) {
         )}
         <div>
           <p className="font-bold text-lg">
-            Resultado: {resultado === "OK" ? "Aprovado" : resultado === "BER" ? "Condenado (BER)" : "Reparar + re-test"}
+            Resultado: {resultado === "OK" ? "Aprovado" : resultado === "BER" ? "Condenado (BER)" : "Pendente / intervenção necessária"}
           </p>
           <p className="text-sm text-slate-600 mt-1">
             {inspectionData.serial} · {inspectionData.brand} {inspectionData.model}
@@ -206,13 +221,19 @@ export default function Step5_Finalizar({ onPrev }: Props) {
             <li>Data: {toDisplayDate(inspectionData.dataInspecao)}</li>
             <li>Próxima: {toDisplayDate(inspectionData.dataProxInspecao) || "—"}</li>
             <li>Inspetor: {inspectionData.inspectorNome || "—"}</li>
+            <li>Manual: {inspectionData.manualReferencia || "—"} · Revisão: {inspectionData.manualRevisao || "—"}</li>
+            <li>Equipamento: {inspectionData.equipamentoEnsaio || "—"}</li>
+            <li>Método: {inspectionData.leakMetodo || "—"} · Duração: {inspectionData.leakDuracaoMin || "—"} min</li>
+            <li>Reparações: {inspectionData.reparacoes || "—"}</li>
             <li>Leak: {inspectionData.leakResultado || "—"} · {inspectionData.leakPressaoInicial} {inspectionData.leakUnidade}</li>
             <li>ΔP: {inspectionData.leakDeltaP || "—"} · Re-test: {inspectionData.leakReTest}</li>
             <li>Zonas fuga: {inspectionData.zonasFuga.length ? inspectionData.zonasFuga.join(", ") : "nenhuma"}</li>
           </ul>
         </div>
         <div className="bg-white border rounded-2xl p-4">
-          <h3 className="font-bold mb-2">Checklist falhas</h3>
+          <h3 className="font-bold mb-2">Checklist — revisão completa</h3>
+          <ul className="text-sm text-slate-700 space-y-1 mb-3">{FATO_CHECKLIST_ITEMS.map(item => <li key={item.key}>{item.label}: {inspectionData.checklist[item.key] || "Por verificar"}</li>)}</ul>
+          <h3 className="font-bold mb-2">Falhas</h3>
           {falhas.length === 0 ? (
             <p className="text-sm text-emerald-700">Sem falhas registadas</p>
           ) : (
@@ -235,6 +256,7 @@ export default function Step5_Finalizar({ onPrev }: Props) {
         </div>
       </div>
 
+      {resultado === "OK" && <label className="flex gap-2 text-sm text-slate-700"><input type="checkbox" checked={confirmarCertificado} onChange={(e) => setConfirmarCertificado(e.target.checked)} disabled={!traceReady || !inspectionData.inspectorNome.trim() || !inspectionData.dataProxInspecao} /> Confirmo a revisão técnica, a aplicabilidade do manual e a data de validade; emitir certificado aprovado. Indique manual, revisão, equipamento, inspetor e próxima inspeção.</label>}
       <div className="flex justify-between pt-2">
         <button onClick={onPrev} className="inline-flex items-center gap-2 border px-5 py-3 rounded-xl font-bold">
           <ArrowLeft size={18} /> Anterior

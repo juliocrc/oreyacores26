@@ -8,6 +8,7 @@ interface ArtigoInspecao {
 }
 
 interface Inspecao {
+  updatedAt?: string;
   id: number;
   jangadaId?: number;
   certificadoNumero: string | null;

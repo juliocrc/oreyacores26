@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="new_inspection"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_new_inspection"
+        android:shortcutLongLabel="@string/shortcut_new_inspection_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="pt.oreyacores.tecnicos"
+            android:targetClass="pt.oreyacores.tecnicos.MainActivity"
+            android:data="orey://inspection/new" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="view_invoices"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_invoices"
+        android:shortcutLongLabel="@string/shortcut_invoices_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="pt.oreyacores.tecnicos"
+            android:targetClass="pt.oreyacores.tecnicos.MainActivity"
+            android:data="orey://invoices" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="dark_mode"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_dark_mode"
+        android:shortcutLongLabel="@string/shortcut_dark_mode_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="pt.oreyacores.tecnicos"
+            android:targetClass="pt.oreyacores.tecnicos.MainActivity"
+            android:data="orey://settings/theme" />
+    </shortcut>
+</shortcuts>

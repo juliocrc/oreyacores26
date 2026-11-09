@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { requireApiAccess } from "@/lib/api-access";
 
 // GET — lista navios duplicados (case-insensitive)
-// POST — faz merge dos duplicados (mantém o que tem mais jangadas)
+// POST — preview only; name matches are candidates, never proof of identity.
 export async function GET() {
   try {
+    const { error } = await requireApiAccess("/navios", { adminOnly: true });
+    if (error) return error;
     const allShips = await prisma.navio.findMany({
       select: {
         id: true,
@@ -13,6 +16,7 @@ export async function GET() {
         ilha: true,
         tipoPesca: true,
         clienteId: true,
+        serviceStationId: true,
         ativo: true,
       },
       orderBy: { nome: "asc" },
@@ -53,8 +57,16 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const { error } = await requireApiAccess("/navios", { adminOnly: true });
+    if (error) return error;
     const body = await req.json();
     const { dryRun = true } = body || {};
+    if (dryRun !== true) {
+      return NextResponse.json({
+        code: "MERGE_REQUIRES_REVIEW",
+        error: "Fusão automática suspensa. Reveja os IDs, matrículas, clientes e estações e prepare uma operação transacional com backup.",
+      }, { status: 409 });
+    }
 
     const allShips = await prisma.navio.findMany({
       orderBy: { nome: "asc" },
@@ -113,48 +125,6 @@ export async function POST(req: NextRequest) {
       const keeper = shipStats[0];
       const toMerge = shipStats.slice(1);
 
-      if (!dryRun) {
-        // Escolher o melhor nome: preferir a versão com capitalização mista (tem acentos correctos)
-        // Ex: preferir "Vilaçor" sobre "VILAÇOR", "Três Pastorinhos" sobre "TRES PASTORINHOS"
-        const allNames = shipStats.map((s) => s.nome);
-        const mixedCaseName = allNames.find((n) => n !== n.toUpperCase() && n !== n.toLowerCase());
-        const bestName = mixedCaseName || keeper.nome;
-
-        for (const dup of toMerge) {
-          // Mover todas as referências para o keeper
-          await prisma.jangada.updateMany({ where: { shipId: dup.id }, data: { shipId: keeper.id } });
-          // Também atualizar shipNameManual nas jangadas que referenciam o nome antigo
-          await prisma.jangada.updateMany({ 
-            where: { shipNameManual: dup.nome }, 
-            data: { shipNameManual: bestName } 
-          });
-          await prisma.colete.updateMany({ where: { shipId: dup.id }, data: { shipId: keeper.id } });
-          await prisma.epirb.updateMany({ where: { shipId: dup.id }, data: { shipId: keeper.id } });
-          await prisma.inspecao.updateMany({ where: { navioId: dup.id }, data: { navioId: keeper.id, navioNome: bestName } });
-          await prisma.ordemServico.updateMany({ where: { shipId: dup.id }, data: { shipId: keeper.id } });
-
-          // Copiar dados úteis do duplicado (matricula, clienteId) se o keeper não os tem
-          if ((!keeper.matricula || keeper.matricula === "N/D") && dup.matricula && dup.matricula !== "N/D") {
-            await prisma.navio.update({ where: { id: keeper.id }, data: { matricula: dup.matricula } });
-          }
-          if (!keeper.clienteId && dup.clienteId) {
-            await prisma.navio.update({ where: { id: keeper.id }, data: { clienteId: dup.clienteId } });
-          }
-          if ((!keeper.tipoPesca || keeper.tipoPesca === "N/D") && dup.tipoPesca && dup.tipoPesca !== "N/D") {
-            await prisma.navio.update({ where: { id: keeper.id }, data: { tipoPesca: dup.tipoPesca } });
-          }
-
-          // Apagar o navio duplicado
-          await prisma.navio.delete({ where: { id: dup.id } });
-        }
-
-        // Atualizar o nome do keeper com a versão correcta (acentos preservados)
-        await prisma.navio.update({
-          where: { id: keeper.id },
-          data: { nome: bestName },
-        });
-      }
-
       mergeResults.push({
         kept: { id: keeper.id, nome: keeper.nome },
         merged: toMerge.map((dup) => ({ id: dup.id, nome: dup.nome })),
@@ -170,9 +140,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       dryRun,
-      message: dryRun
-        ? "Simulação completa. Envie { dryRun: false } para aplicar."
-        : `Merge concluído! ${mergeResults.length} grupo(s) unificado(s).`,
+      message: "Análise concluída. Nenhum registo foi alterado. As correspondências por nome exigem revisão de identidade.",
       merged: mergeResults.length,
       details: mergeResults,
     });

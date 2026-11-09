@@ -7,6 +7,7 @@ import {
 import { findRaftTechnicalModel } from "@/modules/rafts/raftModelData";
 import { HRU_STOCK_REFERENCE, HRU_REFERENCE_CANDIDATES } from "@/lib/stock-reference-rules";
 import type { GlobalStockItem, InspectionData } from "./types";
+import { withoutSosEquipment } from './sosRules';
 
 export type ClosureItemKind = "cinta" | "autocolante" | "hru" | "reparo";
 
@@ -153,6 +154,7 @@ function getEffectiveContainerModel(data: InspectionData): string | null {
 }
 
 export function buildClosureSuggestions(data: InspectionData): ClosureSuggestion[] {
+  data = withoutSosEquipment(data);
   const suggestions: ClosureSuggestion[] = [];
 
   const containerModel = getEffectiveContainerModel(data);

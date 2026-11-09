@@ -88,7 +88,7 @@ Estado de pagamento: {pagamentoStatus}.
 {link}Agradecemos o seu pagamento.
 
 Cumprimentos,
-Orey Açores — Serviços Navais`,
+Orey Tecnica- Serviços Navais, Lda`,
     emailSubject: "Lembrete de pagamento — Fatura {numeroFatura}",
     linkPublico: true,
   };
@@ -318,7 +318,7 @@ export function construirEmailHtmlLembrete(vars: Record<string, string>): string
     </table>
     ${vars.link ? `<p><a href="${vars.link}">Consultar estado da fatura online</a></p>` : ""}
     <p>Agradecemos o seu pagamento.</p>
-    <p style="margin-top:24px;">Cumprimentos,<br/><strong>Orey Açores — Serviços Navais</strong></p>
+    <p style="margin-top:24px;">Cumprimentos,<br/><strong>Orey Tecnica- Serviços Navais, Lda</strong></p>
   </div>
 </body>
 </html>`;
@@ -590,7 +590,7 @@ export async function enviarEmailLembreteCobranca(opts: {
   if (!transporter) return { ok: false, error: "SMTP não configurado." };
   try {
     await transporter.sendMail({
-      from: process.env.SMTP_FROM || `"Orey Açores — Gestor Naval" <${process.env.SMTP_USER}>`,
+      from: process.env.SMTP_FROM || `"Orey Tecnica- Serviços Navais, Lda — Gestor Naval" <${process.env.SMTP_USER}>`,
       to: opts.to,
       subject: opts.subject,
       html: opts.html,

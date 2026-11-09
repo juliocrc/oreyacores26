@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getAccessContext } from "@/lib/access-control";
+import { invoiceDisplay } from "@/lib/invoice-official";
 
 export async function GET(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
@@ -59,6 +60,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
         return {
           id: f.id,
           numeroFatura: f.numeroFatura,
+          ...(access.isAdmin ? { ...invoiceDisplay(f), updatedAt: f.updatedAt } : {}),
           ordemServicoId: ordemServicos[0]?.id ?? null,
           ordemServicos: ordemServicos.map((o) => ({
             id: o.id,

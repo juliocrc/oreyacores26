@@ -1,5 +1,30 @@
 import { normalizeLooseText } from "@/lib/text-normalization";
 import { normalizeStockCategory } from "@/lib/stock-categories";
+import { getStockValidityManualMode, parseStockValidityManualInput } from "@/lib/stock-metadata";
+import { parseMonthYearValue } from "@/lib/date-utils";
+import { isServiceResourceReference } from '@/lib/stock-reference-rules';
+
+function validityCalendarDate(value: string | null | undefined, monthEnd: boolean): number | null {
+  const parsed = parseMonthYearValue(value);
+  if (!parsed) return null;
+  const raw = String(value).trim();
+  const isoDay = raw.match(/^\d{4}-\d{1,2}-(\d{1,2})(?:T.*)?$/);
+  const localDay = raw.match(/^(\d{1,2})\/\d{1,2}\/\d{4}$/);
+  const dayText = isoDay?.[1] ?? localDay?.[1];
+  if (!dayText && !/^(?:\d{4}-\d{1,2}|\d{1,2}\/\d{4})$/.test(raw)) return null;
+  // Month-only expiry covers the entire month; exact dates keep their day.
+  const day = dayText ? Number(dayText) : monthEnd ? new Date(Date.UTC(parsed.year, parsed.month, 0)).getUTCDate() : 1;
+  const date = new Date(Date.UTC(parsed.year, parsed.month - 1, day));
+  if (date.getUTCMonth() + 1 !== parsed.month || date.getUTCDate() !== day) return null;
+  return date.getTime();
+}
+
+export function getValidityCoverageStatus(validade: string | null | undefined, referenceDate: string | null | undefined): 'pending' | 'replace' | 'ok' {
+  const expiry = validityCalendarDate(validade, true);
+  const reference = validityCalendarDate(referenceDate, false);
+  if (expiry === null || reference === null) return 'pending';
+  return expiry < reference ? 'replace' : 'ok';
+}
 
 const NON_EXPIRING_KEYWORDS = [
   // Pagaias / Remos
@@ -227,7 +252,14 @@ export function stockItemSupportsValidity(input: {
   codigoFabricante?: unknown;
   referencia?: unknown;
   observacoes?: unknown;
+  validadeAplicavelManual?: unknown;
+  validadeAplicavel?: unknown;
 }) {
+  if (isServiceResourceReference(input.referencia)) return false;
+  const explicit = parseStockValidityManualInput(input.validadeAplicavelManual ?? input.validadeAplicavel);
+  if (typeof explicit === "boolean") return explicit;
+  const manual = explicit === null ? "AUTO" : getStockValidityManualMode(String(input?.observacoes || ""));
+  if (manual !== "AUTO") return manual === "SIM";
   const haystack = normalizeText([
     input?.nome,
     input?.descricao,

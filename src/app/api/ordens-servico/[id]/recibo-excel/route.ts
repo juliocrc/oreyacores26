@@ -4,8 +4,6 @@ import ExcelJS from "exceljs";
 import { getAccessContext } from "@/lib/access-control";
 import { carregarFaturaPorOrdemServico, resumoFatura } from "@/lib/faturamento";
 
-const ISSUER_NAME = "Orey Técnica - Serviços Navais";
-
 function formatEuro(value: number) {
   return new Intl.NumberFormat("pt-PT", {
     style: "currency",
@@ -24,10 +22,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   try {
     const access = await getAccessContext();
     if (!access) return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
+    if (!access.isAdmin) return NextResponse.json({ error: "Acesso reservado a administradores." }, { status: 403 });
 
     const { id: rawId } = await params;
     const id = Number(rawId);
-    if (!Number.isFinite(id) || id <= 0) {
+    if (!Number.isSafeInteger(id) || id <= 0) {
       return NextResponse.json({ error: "ID inválido." }, { status: 400 });
     }
 
@@ -58,13 +57,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const link = await carregarFaturaPorOrdemServico(id);
     const fatura = link?.fatura ?? null;
+    if (!fatura?.recibos?.length) return NextResponse.json({ error: "Nao existe recibo registado para esta ordem." }, { status: 404 });
+    if (fatura.cancelada) return NextResponse.json({ error: "A fatura associada esta cancelada." }, { status: 400 });
     const resumo = resumoFatura(link ?? null);
     const ordens = (fatura ? resumo.ordens : [order]) as Array<typeof order>;
-
-    const pecas = Number(order.valorPecas || 0);
-    const maoObra = Number(order.valorMaoObra || 0);
-    const desconto = Number(order.valorDesconto || 0);
-    const total = fatura ? resumo.total : pecas + maoObra - desconto;
 
     const clienteNome = resumo.clienteNome;
     const nif = resumo.cliente?.nif || null;
@@ -82,9 +78,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const foiPago = pagamentoStatus === "Pago" || pagamentoStatus === "Pago Parcialmente";
 
     const reciboRegistado = fatura?.recibos?.[0] ?? null;
-    const numeroRecibo = reciboRegistado?.numeroRecibo || `REC-PROVISORIO-${numeroFatura}`;
-    const valorRecibo = reciboRegistado ? Number(reciboRegistado.valorPago) : total;
-    const dataRecibo = reciboRegistado?.dataEmissao || new Date();
+    const numeroRecibo = reciboRegistado.numeroRecibo;
+    const valorRecibo = Number(reciboRegistado.valorPago);
+    const dataRecibo = reciboRegistado.dataEmissao;
 
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("Recibo");

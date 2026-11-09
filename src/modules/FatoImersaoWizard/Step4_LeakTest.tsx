@@ -5,7 +5,6 @@ import { ArrowLeft, ChevronRight, Gauge, Droplets, AlertTriangle } from "lucide-
 import {
   BER_CODES,
   LEAK_METHODS,
-  LEAK_PRESSURE_PRESETS,
 } from "@/lib/fatos-imersao-checklist";
 import { useFatoImersaoWizardStore } from "./store/useFatoImersaoWizardStore";
 import ImmersionSuitDiagram from "@/components/fatos-imersao/ImmersionSuitDiagram";
@@ -16,9 +15,9 @@ export default function Step4_LeakTest({ onNext, onPrev }: Props) {
   const { inspectionData, setInspectionData, toggleZonaFuga } = useFatoImersaoWizardStore();
 
   const calcDelta = () => {
-    const a = parseFloat(inspectionData.leakPressaoInicial);
-    const b = parseFloat(inspectionData.leakPressaoFinal);
-    if (Number.isFinite(a) && Number.isFinite(b)) {
+    const a = Number(inspectionData.leakPressaoInicial.replace(',', '.'));
+    const b = Number(inspectionData.leakPressaoFinal.replace(',', '.'));
+    if (inspectionData.leakPressaoInicial.trim() && inspectionData.leakPressaoFinal.trim() && Number.isFinite(a) && Number.isFinite(b)) {
       setInspectionData({ leakDeltaP: (a - b).toFixed(2) });
     }
   };
@@ -26,15 +25,22 @@ export default function Step4_LeakTest({ onNext, onPrev }: Props) {
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       <div>
-        <h2 className="text-2xl font-bold text-slate-800">4. Leak test (MSC/Circ.1114)</h2>
+        <h2 className="text-2xl font-bold text-slate-800">4. Ensaio de estanquidade</h2>
         <p className="text-slate-600 mt-1">
-          Lalizas 0,7–1,4 kPa · Viking 20 mbar · Crewsaver 2,0 kPa / ΔP 3h
+          Confirme modelo, material, equipamento e revisão vigente do manual antes de selecionar o método e a pressão. Os critérios variam entre configurações; registe a referência do manual nas observações.
         </p>
+        <p className="mt-2 text-sm text-amber-800">Crewsaver: os métodos de retenção e observação de fugas não são intercambiáveis. Viking: confirme o método para o material e esclareça as divergências da edição disponível. Lalizas: o dispositivo 70168 não é automaticamente compatível com outras marcas.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="space-y-4">
           <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+            {([
+              ["manualReferencia", "Manual aplicável"],
+              ["manualRevisao", "Revisão / edição confirmada"],
+              ["equipamentoEnsaio", "Equipamento de ensaio e identificação"],
+              ["reparacoes", "Reparações: zona, material e peças"],
+            ] as const).map(([key, label]) => <label key={key} className="block text-sm"><span className="text-slate-600 font-semibold">{label}</span><input value={inspectionData[key]} onChange={e => setInspectionData({ [key]: e.target.value })} className="mt-1 w-full border rounded-xl px-3 py-2 bg-slate-50" /></label>)}
             <div className="flex items-center gap-2 font-bold text-slate-800">
               <Gauge className="text-cyan-700" size={18} /> Método e pressão
             </div>
@@ -45,33 +51,18 @@ export default function Step4_LeakTest({ onNext, onPrev }: Props) {
                 onChange={(e) => setInspectionData({ leakMetodo: e.target.value })}
                 className="mt-1 w-full border rounded-xl px-3 py-2.5 bg-slate-50"
               >
+                <option value="">Selecione o método confirmado...</option>
                 {LEAK_METHODS.map((m) => (
                   <option key={m.value} value={m.value}>{m.label}</option>
                 ))}
               </select>
             </label>
-            <div className="flex flex-wrap gap-2">
-              {LEAK_PRESSURE_PRESETS.map((p) => (
-                <button
-                  key={p.label}
-                  type="button"
-                  onClick={() =>
-                    setInspectionData({
-                      leakPressaoInicial: inspectionData.leakUnidade === "mbar" ? p.mbar : p.kpa,
-                    })
-                  }
-                  className="text-xs px-2.5 py-1.5 rounded-lg border border-cyan-200 bg-cyan-50 text-cyan-900 font-medium hover:bg-cyan-100"
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
             <div className="grid grid-cols-2 gap-3">
               <label className="text-sm">
                 <span className="text-slate-600">Unidade</span>
                 <select
                   value={inspectionData.leakUnidade}
-                  onChange={(e) => setInspectionData({ leakUnidade: e.target.value })}
+                  onChange={(e) => setInspectionData({ leakUnidade: e.target.value, leakPressaoInicial: "", leakPressaoFinal: "", leakDeltaP: "" })}
                   className="mt-1 w-full border rounded-xl px-3 py-2 bg-slate-50"
                 >
                   <option value="kPa">kPa</option>
@@ -91,7 +82,7 @@ export default function Step4_LeakTest({ onNext, onPrev }: Props) {
                 <span className="text-slate-600">P inicial</span>
                 <input
                   value={inspectionData.leakPressaoInicial}
-                  onChange={(e) => setInspectionData({ leakPressaoInicial: e.target.value })}
+                  onChange={(e) => setInspectionData({ leakPressaoInicial: e.target.value, leakDeltaP: "" })}
                   className="mt-1 w-full border rounded-xl px-3 py-2 bg-slate-50"
                 />
               </label>
@@ -99,7 +90,7 @@ export default function Step4_LeakTest({ onNext, onPrev }: Props) {
                 <span className="text-slate-600">P final</span>
                 <input
                   value={inspectionData.leakPressaoFinal}
-                  onChange={(e) => setInspectionData({ leakPressaoFinal: e.target.value })}
+                  onChange={(e) => setInspectionData({ leakPressaoFinal: e.target.value, leakDeltaP: "" })}
                   onBlur={calcDelta}
                   className="mt-1 w-full border rounded-xl px-3 py-2 bg-slate-50"
                 />
@@ -136,7 +127,7 @@ export default function Step4_LeakTest({ onNext, onPrev }: Props) {
               </select>
             </label>
             <label className="block text-sm">
-              <span className="text-slate-600">Re-test após reparo</span>
+              <span className="text-slate-600">Reensaio após reparação — confirme os requisitos do manual</span>
               <select
                 value={inspectionData.leakReTest}
                 onChange={(e) => setInspectionData({ leakReTest: e.target.value })}
@@ -193,7 +184,7 @@ export default function Step4_LeakTest({ onNext, onPrev }: Props) {
               value={inspectionData.observacoes}
               onChange={(e) => setInspectionData({ observacoes: e.target.value })}
               className="mt-1 w-full border rounded-xl px-3 py-2 bg-slate-50 min-h-[100px]"
-              placeholder="Reparos, cola 8h, beeswax no zip..."
+              placeholder="Manual e revisão confirmados, equipamento, reparações e observações..."
             />
           </label>
         </div>
@@ -204,7 +195,7 @@ export default function Step4_LeakTest({ onNext, onPrev }: Props) {
           <ArrowLeft size={18} /> Anterior
         </button>
         <button
-          disabled={!inspectionData.leakResultado && !inspectionData.codigoBER}
+          disabled={(!inspectionData.leakResultado && !inspectionData.codigoBER) || (inspectionData.leakResultado === "OK" && !inspectionData.leakMetodo && !inspectionData.codigoBER)}
           onClick={onNext}
           className="inline-flex items-center gap-2 bg-cyan-700 disabled:opacity-40 text-white px-6 py-3 rounded-xl font-bold"
         >

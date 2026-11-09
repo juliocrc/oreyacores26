@@ -1,5 +1,7 @@
-import { dedupeRaftArticles } from "@/modules/rafts/mandatoryPack";
+import { dedupeRaftArticles, normalizeMandatoryPackCode, getMandatoryPackItemsForRaft, buildMandatoryPackItemsFromCustomArticles, findMatchingArticleForPackItem } from "@/modules/rafts/mandatoryPack";
 import { toDateKey } from "@/lib/date-utils";
+import { resolveFiringHeadDesignation, type FiringHeadSource } from './firing-head';
+import { FOOD_RATIONS_REFERENCE_CANDIDATES } from './stock-reference-rules';
 
 // =============================================================
 // Helpers de cálculo do teste de WP (partilhados entre dossier
@@ -121,7 +123,11 @@ export function buildWpDerivedValues(source: {
 // Fonte de verdade única para dossier e histórico.
 // =============================================================
 
-export type QuadroChecklistSource = {
+export type QuadroChecklistSource = FiringHeadSource & {
+  packType?: string | null;
+  brand?: string | null;
+  model?: string | null;
+  capacity?: number | null;
   inspectionChecklistValues?: Record<string, unknown> | null;
   artigos?: Array<{
     name?: string;
@@ -167,6 +173,21 @@ type QuadroSubstituicaoRule = {
 
 const QUADRO_SUBSTITUICAO_RULES: QuadroSubstituicaoRule[] = [
   {
+    replacementKey: 'substituicao_explicita__luz_exterior',
+    refKey: 'ref_luz_exterior', qtyKey: 'qtd_luz_exterior', valKey: 'validade_luzes_exteriores',
+    matches: (t) => /(?:luz|light|lamp).*(?:ext|outside|top)|(?:external|outside|top).*light/.test(t),
+  },
+  {
+    replacementKey: 'substituicao_explicita__luz_interior',
+    refKey: 'ref_luz_interior', qtyKey: 'qtd_luz_interior', valKey: 'validade_luz_interior',
+    matches: (t) => /(?:luz|light|lamp).*(?:int|inside)|(?:internal|inside).*light/.test(t),
+  },
+  {
+    replacementKey: 'substituicao_explicita__bateria_litio',
+    refKey: 'ref_bateria_litio', qtyKey: 'qtd_bateria_litio', valKey: 'validade_bateria',
+    matches: (t) => /litio|lithium/.test(t),
+  },
+  {
     replacementKey: 'substituicao_explicita__farmacia',
     refKey: 'ref_farmacia',
     qtyKey: 'qtd_farmacia',
@@ -178,7 +199,7 @@ const QUADRO_SUBSTITUICAO_RULES: QuadroSubstituicaoRule[] = [
     refKey: 'ref_comprimidos',
     qtyKey: 'qtd_comprimidos',
     valKey: 'validade_comprimidos',
-    matches: (t) => /comprim|pastilh|enjoo|seasick|tablet/.test(t),
+    matches: (t) => !/(saco|bag)/.test(t) && /comprim|pastilh|enjoo|seasick|tablet/.test(t),
   },
   {
     replacementKey: 'substituicao_explicita__foguetes_paraquedas',
@@ -245,14 +266,15 @@ export function applyQuadroSubstituicoesToChecklist<T extends Record<string, unk
   checklist: T,
   substituicoes: QuadroSubstituicaoLike[] | null | undefined,
 ): T {
-  if (!Array.isArray(substituicoes)) return checklist;
-
   const target = checklist as Record<string, unknown>;
+  const expiry = target._articleExpiry as { packItems?: Record<string, QuadroSubstituicaoLike> } | undefined;
+  const savedItems = expiry?.packItems && typeof expiry.packItems === 'object' && !Array.isArray(expiry.packItems)
+    ? Object.values(expiry.packItems) : [];
 
-  substituicoes.forEach((item) => {
+  [...savedItems, ...(Array.isArray(substituicoes) ? substituicoes : [])].forEach((item) => {
     if (!item || typeof item !== 'object') return;
     const quantidade = Number(item.quantidade || 0);
-    if (!Number.isFinite(quantidade) || quantidade <= 0) return;
+    if (item.quantidade == null || !Number.isFinite(quantidade) || quantidade < 0) return;
     const descricao = normalizeQuadroText(item.descricao || item.name);
     if (!descricao) return;
     const rule = QUADRO_SUBSTITUICAO_RULES.find((entry) => entry.matches(descricao));
@@ -260,6 +282,7 @@ export function applyQuadroSubstituicoesToChecklist<T extends Record<string, unk
     const referencia = String(item.referencia || '').trim();
     target[rule.replacementKey] = Math.round(quantidade);
     target[rule.qtyKey] = Math.round(quantidade);
+    if (quantidade === 0) return;
     if (referencia) target[rule.refKey] = referencia;
     if (rule.valKey && item.validade) {
       const validadeIso = toDateKey(item.validade);
@@ -270,37 +293,67 @@ export function applyQuadroSubstituicoesToChecklist<T extends Record<string, unk
   return checklist;
 }
 
+type DocumentPackContext = Pick<QuadroChecklistSource, 'packType' | 'brand' | 'model' | 'capacity'>;
+
+export function documentAllowsFoodRations(context: DocumentPackContext): boolean {
+  const code = normalizeMandatoryPackCode(context.packType, context.model);
+  // Resolve aliases before looking up the definition; unresolved packs retain explicit values.
+  const items = getMandatoryPackItemsForRaft({ ...context, packType: code, capacity: context.capacity || 1 });
+  return !items.length || items.some(item => item.checklistName === 'racoes_alimentares');
+}
+
+const documentRationItem = buildMandatoryPackItemsFromCustomArticles({
+  packCode: '', items: [{ name: 'Food Rations', quantity: 1 }],
+})[0];
+
+export function isDocumentFoodRationArticle(article: { name?: string | null; descricao?: string | null; referencia?: string | null }): boolean {
+  return FOOD_RATIONS_REFERENCE_CANDIDATES.some(ref => ref === article.referencia?.trim().toUpperCase())
+    || Boolean(findMatchingArticleForPackItem(documentRationItem, [{ ...article, name: article.descricao || article.name }]));
+}
+
+export function applyDocumentPackApplicability<T extends Record<string, unknown>>(checklist: T, context: DocumentPackContext): T {
+  const result: Record<string, unknown> = { ...checklist };
+  if (!documentAllowsFoodRations(context)) {
+    result.racoes_alimentares = 'NO';
+    for (const key of ['ref_racoes', 'qtd_racoes', 'validade_racoes', 'substituicao_explicita__racoes_alimentares']) delete result[key];
+  }
+  return result as T;
+}
+
 export function buildQuadroChecklistPayload(source: QuadroChecklistSource): Record<string, unknown> {
   const checklist: Record<string, unknown> = {
     ...(source.inspectionChecklistValues || {})
   };
   const arts = source.artigos || [];
+  checklist.cabeca_disparo = resolveFiringHeadDesignation(source, checklist.cabeca_disparo);
 
   const normalizeText = (text: string) => {
     return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   };
 
-  const findArticle = (tokens: string[]) => {
+  const findArticle = (tokens: string[], excludeTokens: string[] = []) => {
     const dedupedArticles = dedupeRaftArticles(arts as any);
     const matches = (art: any, test: (nameNorm: string) => boolean) => {
       const nameNorm = normalizeText(art.name || '');
       return nameNorm ? test(nameNorm) : false;
     };
+    const excluded = (nameNorm: string) =>
+      excludeTokens.some((token) => nameNorm.includes(normalizeText(token)));
 
     // Correspondencia exacta primeiro. Sem isto, mapArticle(['lanterna']) ia
     // buscar "Pilhas para Lanterna" (contem "lanterna") em vez de "Lanterna",
     // e a referencia e a validade da lanterna ficavam na linha das pilhas.
     const tokenNorms = tokens.map(normalizeText).filter(Boolean);
-    const exact = dedupedArticles.find((art: any) => matches(art, (n) => n === tokenNorms.join(' ')));
+    const exact = dedupedArticles.find((art: any) => matches(art, (n) => !excluded(n) && n === tokenNorms.join(' ')));
     if (exact) return exact;
 
     return dedupedArticles.find((art: any) =>
-      matches(art, (n) => tokenNorms.every((token) => n.includes(token)))
+      matches(art, (n) => !excluded(n) && tokenNorms.every((token) => n.includes(token)))
     );
   };
 
-  const mapArticle = (tokens: string[], refKey?: string, valKey?: string, qtyKey?: string, statusKey?: string, explicitReplacementKey?: string) => {
-    const art = findArticle(tokens);
+  const mapArticle = (tokens: string[], refKey?: string, valKey?: string, qtyKey?: string, statusKey?: string, explicitReplacementKey?: string, excludeTokens: string[] = []) => {
+    const art = findArticle(tokens, excludeTokens);
     if (art) {
       if (refKey && art.referencia) checklist[refKey] = art.referencia;
       if (valKey && art.validade) {
@@ -335,11 +388,12 @@ export function buildQuadroChecklistPayload(source: QuadroChecklistSource): Reco
   if (!checklist.ref_farmacia) mapArticle(['first', 'aid'], 'ref_farmacia', 'validade_farmacia', 'qtd_farmacia', 'ambulancia', 'substituicao_explicita__farmacia');
   if (!checklist.ref_farmacia) mapArticle(['socorros'], 'ref_farmacia', 'validade_farmacia', 'qtd_farmacia', 'ambulancia', 'substituicao_explicita__farmacia');
 
-  mapArticle(['comprimido'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'substituicao_explicita__comprimidos_p_enjoo');
-  if (!checklist.ref_comprimidos) mapArticle(['pastilha'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'substituicao_explicita__comprimidos_p_enjoo');
-  if (!checklist.ref_comprimidos) mapArticle(['enjoo'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'substituicao_explicita__comprimidos_p_enjoo');
-  if (!checklist.ref_comprimidos) mapArticle(['seasick'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'substituicao_explicita__comprimidos_p_enjoo');
-  if (!checklist.ref_comprimidos) mapArticle(['tables'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'substituicao_explicita__comprimidos_p_enjoo');
+  const SICKNESS_BAG_EXCLUDE = ['saco', 'bag'];
+  mapArticle(['comprimido'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'substituicao_explicita__comprimidos_p_enjoo', SICKNESS_BAG_EXCLUDE);
+  if (!checklist.ref_comprimidos) mapArticle(['pastilha'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'substituicao_explicita__comprimidos_p_enjoo', SICKNESS_BAG_EXCLUDE);
+  if (!checklist.ref_comprimidos) mapArticle(['enjoo'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'substituicao_explicita__comprimidos_p_enjoo', SICKNESS_BAG_EXCLUDE);
+  if (!checklist.ref_comprimidos) mapArticle(['seasick'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'substituicao_explicita__comprimidos_p_enjoo', SICKNESS_BAG_EXCLUDE);
+  if (!checklist.ref_comprimidos) mapArticle(['tables'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'substituicao_explicita__comprimidos_p_enjoo', SICKNESS_BAG_EXCLUDE);
 
   mapArticle(['paraquedas'], 'ref_paraquedas', 'validade_paraquedas', 'qtd_paraquedas', 'foguetoes_paraquedas', 'substituicao_explicita__foguetes_paraquedas');
   if (!checklist.ref_paraquedas) mapArticle(['parachute'], 'ref_paraquedas', 'validade_paraquedas', 'qtd_paraquedas', 'foguetoes_paraquedas', 'substituicao_explicita__foguetes_paraquedas');
@@ -362,9 +416,13 @@ export function buildQuadroChecklistPayload(source: QuadroChecklistSource): Reco
   mapArticle(['pilha'], 'ref_bateria', 'validade_pilhas_lanterna', 'qtd_pilhas_lanterna', 'pilhas_lanterna', 'substituicao_explicita__pilhas_para_lanterna');
   if (!checklist.ref_bateria) mapArticle(['torch', 'batter'], 'ref_bateria', 'validade_pilhas_lanterna', 'qtd_pilhas_lanterna', 'pilhas_lanterna', 'substituicao_explicita__pilhas_para_lanterna');
 
-  mapArticle(['bateria', 'litio'], 'ref_bateria_litio', 'validade_bateria', 'qtd_bateria_litio', 'bateria_litio');
-  if (!checklist.ref_bateria_litio) mapArticle(['bateria', 'lítio'], 'ref_bateria_litio', 'validade_bateria', 'qtd_bateria_litio', 'bateria_litio');
-  if (!checklist.ref_bateria_litio) mapArticle(['bateria', 'lithium'], 'ref_bateria_litio', 'validade_bateria', 'qtd_bateria_litio', 'bateria_litio');
+  mapArticle(['bateria', 'litio'], 'ref_bateria_litio', 'validade_bateria', 'qtd_bateria_litio');
+  if (!checklist.ref_bateria_litio) mapArticle(['bateria', 'lítio'], 'ref_bateria_litio', 'validade_bateria', 'qtd_bateria_litio');
+  if (!checklist.ref_bateria_litio) mapArticle(['bateria', 'lithium'], 'ref_bateria_litio', 'validade_bateria', 'qtd_bateria_litio');
+  // E24 ("Bateria de lítio") só é marcada quando existe bateria no artigo.
+  const temBateriaLitio = Boolean(findArticle(['bateria', 'litio']));
+  if (temBateriaLitio) checklist.bateria_litio = 'YES';
+  else delete checklist.bateria_litio;
 
   mapArticle(['cinta', 'fecho'], 'ref_cinta_fecho', undefined, 'qtd_cinta_fecho', 'cinta_fecho');
   if (!checklist.ref_cinta_fecho) mapArticle(['bursting', 'band'], 'ref_cinta_fecho', undefined, 'qtd_cinta_fecho', 'cinta_fecho');
@@ -373,19 +431,23 @@ export function buildQuadroChecklistPayload(source: QuadroChecklistSource): Reco
   mapArticle(['jogo', 'repara'], 'ref_jogo_reparacao', undefined, 'qtd_jogo_reparacao', 'jogo_reparacao');
   if (!checklist.ref_jogo_reparacao) mapArticle(['repair', 'kit'], 'ref_jogo_reparacao', undefined, 'qtd_jogo_reparacao', 'jogo_reparacao');
 
-  mapArticle(['luz', 'ext'], undefined, 'validade_luzes_exteriores', undefined, 'luz_exterior_bateria');
-  mapArticle(['luz', 'int'], undefined, 'validade_bateria', undefined, 'luz_interior_bateria');
+  mapArticle(['luz', 'ext'], 'ref_luz_exterior', 'validade_luzes_exteriores', 'qtd_luz_exterior', 'luz_exterior_bateria');
+  mapArticle(['luz', 'int'], 'ref_luz_interior', 'validade_luz_interior', 'qtd_luz_interior', 'luz_interior_bateria');
 
   mapArticle(['agua'], 'ref_agua', 'validade_agua', undefined, 'saco_agua');
   if (!checklist.ref_agua) mapArticle(['água'], 'ref_agua', 'validade_agua', undefined, 'saco_agua');
   if (!checklist.ref_agua) mapArticle(['water'], 'ref_agua', 'validade_agua', undefined, 'saco_agua');
 
-  mapArticle(['racao'], 'ref_racoes', 'validade_racoes', undefined, 'racoes_alimentares');
-  if (!checklist.ref_racoes) mapArticle(['ração'], 'ref_racoes', 'validade_racoes', undefined, 'racoes_alimentares');
-  if (!checklist.ref_racoes) mapArticle(['racoes'], 'ref_racoes', 'validade_racoes', undefined, 'racoes_alimentares');
-  if (!checklist.ref_racoes) mapArticle(['rações'], 'ref_racoes', 'validade_racoes', undefined, 'racoes_alimentares');
-  if (!checklist.ref_racoes) mapArticle(['ration'], 'ref_racoes', 'validade_racoes', undefined, 'racoes_alimentares');
-  if (!checklist.ref_racoes) mapArticle(['food'], 'ref_racoes', 'validade_racoes', undefined, 'racoes_alimentares');
+  const ration = arts.find(isDocumentFoodRationArticle);
+  if (ration) {
+    checklist.racoes_alimentares = 'YES';
+    if (ration.referencia) checklist.ref_racoes = ration.referencia;
+    if (ration.quantidade !== undefined) checklist.qtd_racoes = ration.quantidade;
+    const expiry = toDateKey(ration.validade);
+    if (expiry) checklist.validade_racoes = expiry;
+  } else if (checklist.racoes_alimentares === undefined) {
+    checklist.racoes_alimentares = 'NO';
+  }
 
   // Os artigos substituídos chegam numa lista própria (com a referência e a
   // quantidade efetivamente aplicadas). É a fonte de verdade para as células
@@ -425,5 +487,5 @@ export function buildQuadroChecklistPayload(source: QuadroChecklistSource): Reco
     checklist.cyl_test_days = diffDays;
   }
 
-  return checklist;
+  return applyDocumentPackApplicability(checklist, source);
 }

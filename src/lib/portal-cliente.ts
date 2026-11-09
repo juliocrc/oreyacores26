@@ -1,6 +1,9 @@
 import prisma from "@/lib/prisma";
 import { getInspectionStatus } from "@/lib/inspection-status";
 import { signCertificatePdfToken } from "@/lib/certificate-pdf-token";
+import { isPortalInspectionCertified } from "@/lib/portal-inspection-documents";
+import { isSosDocumentRaft } from '@/lib/raft-document-rules';
+import { invoiceDisplay } from '@/lib/invoice-official';
 
 export type PortalClienteData = Awaited<ReturnType<typeof buildPortalClienteData>>;
 
@@ -31,12 +34,15 @@ export async function buildPortalClienteData(clienteId: number) {
   });
   const navioIds = navios.map((n) => n.id);
 
+  const coletes = await prisma.colete.findMany({
+    where: { shipId: { in: navioIds } },
+    select: { id: true, shipId: true, serial: true, marca: true, modelo: true, dataProxInspecao: true },
+    orderBy: { serial: "asc" },
+  });
+
   const jangadas = await prisma.jangada.findMany({
     where: {
-      OR: [
-        { owner: { equals: cliente.nome } },
-        ...(navioIds.length > 0 ? [{ shipId: { in: navioIds } }] : []),
-      ],
+      shipId: { in: navioIds },
     },
   });
 
@@ -45,7 +51,7 @@ export async function buildPortalClienteData(clienteId: number) {
     jangadaIds.length > 0
       ? await prisma.inspecao.findMany({
           where: { jangadaId: { in: jangadaIds } },
-          orderBy: { dataInspecao: "desc" },
+          orderBy: [{ dataInspecao: "desc" }, { id: "desc" }],
         })
       : [];
 
@@ -105,6 +111,11 @@ export async function buildPortalClienteData(clienteId: number) {
       ultimoCertificadoNumero: certNum,
       certificadoExternoNumero: j.certificadoExternoNumero,
       certificadoExternoUrl: null as string | null,
+      quadroInspecaoId: ultimaInspecao?.id ?? null,
+      quadroInspecaoData: ultimaInspecao?.dataInspecao ? new Date(ultimaInspecao.dataInspecao).toISOString() : null,
+      quadroPdfUrl: !isSosDocumentRaft(j) && ultimaInspecao && isPortalInspectionCertified(ultimaInspecao)
+        ? `/api/portal/documentos?jangadaId=${j.id}&inspecaoId=${ultimaInspecao.id}&document=quadro&format=pdf`
+        : null,
       certificadoPdfUrl:
         certNum
           ? `/api/certificados/pdf?serial=${encodeURIComponent(j.serial)}`
@@ -140,10 +151,9 @@ export async function buildPortalClienteData(clienteId: number) {
     },
   });
 
-  const faturas = await prisma.fatura.findMany({
+  const invoiceRecords = await prisma.fatura.findMany({
     where: { clienteId: cliente.id },
     orderBy: { dataEmissao: "desc" },
-    take: 10,
     include: {
       notaCredito: true,
       recibos: { orderBy: { dataEmissao: "desc" } },
@@ -161,9 +171,14 @@ export async function buildPortalClienteData(clienteId: number) {
     },
   });
 
+  // Internal records and reference-only entries are not client invoice documents.
+  const faturas = invoiceRecords.filter(f => {
+    const display = invoiceDisplay(f);
+    return display.numeroFaturaOficial && display.pdfOficial;
+  }).slice(0, 10);
   const faturasFormatadas = faturas.map((f) => ({
     id: f.id,
-    numeroFatura: f.numeroFatura,
+    numeroFatura: invoiceDisplay(f).numeroFaturaOficial!,
     valorTotal: Number(f.valorTotal || 0),
     valorPago: f.recibos.reduce((acc, r) => acc + Number(r.valorPago || 0), 0),
     pagamentoStatus: f.pagamentoStatus,
@@ -172,7 +187,7 @@ export async function buildPortalClienteData(clienteId: number) {
     motivoCancelamento: f.motivoCancelamento,
     numeroNotaCredito: f.notaCredito?.numeroNotaCredito || null,
     numeroRecibo: f.recibos[0]?.numeroRecibo || null,
-    faturaPdfUrl: `/api/ordens-servico/${f.ordemServicos[0]?.ordemServicoId || 1}/fatura-pdf`,
+    faturaPdfUrl: `/api/portal/faturas/${f.id}/oficial`,
     ordemServicos: f.ordemServicos.map((os) => ({
       id: os.ordemServico.id,
       numeroOrdem: os.ordemServico.numeroOrdem || `#${os.ordemServico.id}`,
@@ -192,6 +207,7 @@ export async function buildPortalClienteData(clienteId: number) {
   return {
     cliente,
     navios,
+    coletes,
     jangadas: jangadasFormatadas,
     ordensServico: ordensServico.map((o) => ({
       ...o,

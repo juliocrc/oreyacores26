@@ -16,7 +16,7 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: __dirname,
   compress: true,
   turbopack: {},
-  serverExternalPackages: ["pdf-parse", "pdfjs-dist", "pdf-lib", "@prisma/client"],
+  serverExternalPackages: ["pdf-parse", "pdfjs-dist", "pdf-lib", "@prisma/client", "ws"],
   outputFileTracingExcludes: {
     "*": [
       "./documentacao/**/*",
@@ -37,13 +37,21 @@ const nextConfig: NextConfig = {
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "X-Frame-Options", value: "SAMEORIGIN" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-          { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=()" },
+          { key: "Permissions-Policy", value: "camera=(self), microphone=(self), geolocation=()" },
         ],
       },
       {
         source: "/icons/(.*)",
         headers: [
           { key: "Cache-Control", value: "public, max-age=86400, must-revalidate" },
+        ],
+      },
+      {
+        // Motor OCR local (worker + wasm + idiomas). São ficheiros grandes e
+        // versionados com a aplicação; podem ficar em cache durante uma semana.
+        source: "/ocr/(.*)",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=604800, stale-while-revalidate=86400" },
         ],
       },
     ];

@@ -18,6 +18,7 @@ export default function ClientesPage() {
   const [search, setSearch] = useState("");
   const [selectedClienteId, setSelectedClienteId] = useState("");
   const [selectedIlha, setSelectedIlha] = useState("");
+  const [clienteAtivoFilter, setClienteAtivoFilter] = useState<'todos' | 'ativos' | 'inativos'>("todos");
   const [expandedClienteId, setExpandedClienteId] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("quadros");
   const [selectedNavioByCliente, setSelectedNavioByCliente] = useState<Record<number, string>>({});
@@ -569,6 +570,10 @@ export default function ClientesPage() {
         )
       );
 
+      const ativo = (cliente.navios || []).length > 0;
+      if (clienteAtivoFilter === "ativos" && !ativo) return false;
+      if (clienteAtivoFilter === "inativos" && ativo) return false;
+
       return matchesSearch && (!selectedClienteId || cliente.id === Number(selectedClienteId));
     });
     if (filtered.length > 0) {
@@ -585,12 +590,13 @@ export default function ClientesPage() {
   const stats = useMemo(() => {
     const total = allClientes.length;
     const ilhas = allIlhas.length;
-    const comNavios = allClientes.filter((cliente) => cliente.navios.length > 0).length;
+    const comNavios = allClientes.filter((cliente) => (cliente.navios || []).length > 0).length;
+    const semNavios = total - comNavios;
     const semContacto = allClientes.filter(
       (cliente) => !String(cliente.email || "").trim() && !String(cliente.telefone || cliente.telmovel || "").trim()
     ).length;
 
-    return { total, ilhas, comNavios, semContacto };
+    return { total, ilhas, comNavios, semNavios, semContacto };
   }, [allClientes, allIlhas]);
 
   const openCreateClienteForm = () => {
@@ -706,6 +712,15 @@ export default function ClientesPage() {
                 {ilha}
               </option>
             ))}
+          </select>
+          <select
+            value={clienteAtivoFilter}
+            onChange={e => setClienteAtivoFilter(e.target.value as any)}
+            className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 shadow-sm focus:border-transparent focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="todos">Todos os clientes</option>
+            <option value="ativos">Ativos (com navio associado)</option>
+            <option value="inativos">Inativos (sem navio associado)</option>
           </select>
           <select
             value={selectedClienteId}

@@ -4,9 +4,11 @@ import { useJangadaWizardStore } from "./store/useJangadaWizardStore";
 import { Container, Scale, Calendar, AlertTriangle, Plus, Trash2 } from "lucide-react";
 import { resolveNominalCharge } from "@/modules/rafts/nominalCharge";
 import { getStepNumberByKey } from "./steps";
+import { isSosRaft } from '@/lib/raft-model-rules';
 
 export default function Step5_Cilindros() {
   const { inspectionData, setInspectionData, hideOrcamento } = useJangadaWizardStore();
+  const sos = isSosRaft(inspectionData);
   const stepNo = getStepNumberByKey(inspectionData, "cilindros", { hideOrcamento });
 
   const cylinders: any[] = Array.isArray((inspectionData as any).cylinders) && (inspectionData as any).cylinders.length > 0
@@ -57,8 +59,8 @@ export default function Step5_Cilindros() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">{stepNo > 0 ? stepNo + ". " : ""}Cilindros e Teste Hidráulico</h2>
-          <p className="text-slate-600 mt-1">Registe os dados dos cilindros de insuflação e datas de prova.</p>
+          <h2 className="text-2xl font-bold text-slate-800">{stepNo > 0 ? stepNo + ". " : ""}{sos ? 'Cilindros' : 'Cilindros e Teste Hidráulico'}</h2>
+          <p className="text-slate-600 mt-1">{sos ? 'Registe os dados dos cilindros de insuflação.' : 'Registe os dados dos cilindros de insuflação e datas de prova.'}</p>
         </div>
         <button onClick={add} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl font-semibold">
           <Plus size={18} /> Adicionar Cilindro
@@ -132,7 +134,7 @@ export default function Step5_Cilindros() {
                 </div>
               </div>
             </div>
-            <div className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
+            {!sos && <div className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
               <div className="border border-slate-200 bg-white rounded-2xl p-6 shadow-sm">
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Data do Teste Hidráulico</label>
@@ -155,7 +157,7 @@ export default function Step5_Cilindros() {
                   )}
                 </div>
               </div>
-            </div>
+            </div>}
           </div>
         );
       })}

@@ -120,7 +120,7 @@ export default function EpirbsPage() {
         </head>
         <body onload="window.print(); window.close();">
           <div class="label">
-            <div class="title">OREY AZORES (EPIRB)</div>
+            <div class="title">Orey Tecnica- Serviços Navais, Lda (EPIRB)</div>
             <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(itemUrl)}" width="150" height="150" />
             <div class="serial">${e.serial}</div>
             <div class="model">${e.marca || ''} ${e.modelo || ''}</div>

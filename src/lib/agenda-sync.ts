@@ -1,4 +1,5 @@
 import prisma from "@/lib/prisma";
+import { getInspectionDefaults, resolveAgendaDuration } from "@/types/agenda";
 import { getTechnicianKeyByName, normalizeTechnicianName } from "@/lib/agenda-technicians";
 
 const ACTIVE_AGENDA_STATUSES = ["scheduled", "confirmed", "in_progress", "testing", "paused"] as const;
@@ -162,6 +163,7 @@ export async function syncAssistenciaAgendaEvent(params: {
   const existing = await prisma.agendaEvento.findFirst({
     where: {
       raftSerial: { equals: raftSerial },
+      type: { notIn: ["Entrega", "ausencia", "expiracao"] },
       status: { in: [...ACTIVE_AGENDA_STATUSES] },
       date: { gte: dayInicio, lte: dayFim },
     },
@@ -180,7 +182,7 @@ export async function syncAssistenciaAgendaEvent(params: {
           : ((responsavel ?? existing.responsavel) || ""),
         type: existing.type || "Inspeção",
         inspectionType: existing.inspectionType || "Inspeção",
-        durationMinutes: existing.durationMinutes && existing.durationMinutes > 0 ? existing.durationMinutes : 210,
+        durationMinutes: resolveAgendaDuration(existing),
         status: "scheduled",
       },
     });
@@ -202,7 +204,7 @@ export async function syncAssistenciaAgendaEvent(params: {
       status: "scheduled",
       type: "Inspeção",
       inspectionType: "Inspeção",
-      durationMinutes: 210,
+      durationMinutes: getInspectionDefaults("outro").durationMinutes,
       bufferBeforeMinutes: 0,
       bufferAfterMinutes: 0,
       serviceStationId: params.serviceStationId ?? null,

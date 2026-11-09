@@ -1,0 +1,58 @@
+# yaml-language-server: $schema=https://render.com/schema/render.yaml.json
+# API-only, ephemeral Free deployment. See docs/openwa-render.md before applying.
+services:
+  - type: web
+    name: orey-acores-openwa
+    runtime: image
+    plan: free
+    region: frankfurt
+    image:
+      url: docker.io/rmyndharis/openwa:0.25.0@sha256:bb883bd67101b9c985649ebd4e7677dc7ecd9db034c2d164a8f3d522fdd4311d
+    healthCheckPath: /api/health/ready
+    envVars:
+      - key: PORT
+        value: "10000"
+      - key: NODE_ENV
+        value: production
+      - key: ENGINE_TYPE
+        value: baileys
+      - key: MAX_CONCURRENT_SESSIONS
+        value: "1"
+      - key: DATABASE_TYPE
+        value: sqlite
+      - key: DATABASE_NAME
+        value: /app/data/openwa.sqlite
+      - key: MAIN_DATABASE_NAME
+        value: /app/data/main.sqlite
+      - key: DATABASE_SYNCHRONIZE
+        value: "false"
+      - key: MAIN_DATABASE_SYNCHRONIZE
+        value: "false"
+      - key: BAILEYS_AUTH_DIR
+        value: /app/data/baileys
+      - key: POSTGRES_BUILTIN
+        value: "false"
+      - key: REDIS_BUILTIN
+        value: "false"
+      - key: MINIO_BUILTIN
+        value: "false"
+      - key: REDIS_ENABLED
+        value: "false"
+      - key: QUEUE_ENABLED
+        value: "false"
+      - key: CACHE_ENABLED
+        value: "false"
+      - key: SERVE_DASHBOARD
+        value: "false"
+      - key: BAILEYS_SYNC_FULL_HISTORY
+        value: "false"
+      - key: MEDIA_DOWNLOAD_ENABLED
+        value: "false"
+      - key: MEDIA_DOWNLOAD_MAX_BYTES
+        value: "10485760"
+      - key: BODY_SIZE_LIMIT
+        value: 16mb
+      - key: API_MASTER_KEY
+        sync: false
+      - key: API_KEY_PEPPER
+        generateValue: true

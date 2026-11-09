@@ -284,7 +284,15 @@ export async function GET(req: NextRequest) {
     const searchParams = new URL(req.url).searchParams;
     const includeInactive = searchParams.get("includeInactive") === "true";
     const search = String(searchParams.get("search") || "").trim();
-    const activeStationId = resolveActiveServiceStationId(req, access);
+    const requestedStation = searchParams.get('serviceStationId');
+    const requestedStationId = requestedStation === null ? null : Number(requestedStation);
+    if (requestedStation !== null && (!Number.isSafeInteger(requestedStationId) || Number(requestedStationId) <= 0)) {
+      return NextResponse.json({ error: 'Estacao invalida.' }, { status: 400 });
+    }
+    if (requestedStationId && !access.isAdmin && !access.allowedStationIds.includes(requestedStationId)) {
+      return NextResponse.json({ error: 'Sem permissao para esta estacao.' }, { status: 403 });
+    }
+    const activeStationId = requestedStationId || resolveActiveServiceStationId(req, access);
     const tecnicoSearchWhere: Prisma.TecnicoWhereInput | undefined = search
       ? {
           OR: [

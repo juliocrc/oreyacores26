@@ -1,4 +1,9 @@
 export const FOOD_RATIONS_STOCK_REFERENCE = "30202084";
+
+export function isServiceResourceReference(value: unknown): boolean {
+  const reference = String(value ?? '').trim().toUpperCase();
+  return /^L-/.test(reference) || /^ES\d+$/.test(reference) || ['A10', 'B10', 'A8'].includes(reference);
+}
 export const DRINKING_WATER_STOCK_REFERENCE = "30202085";
 export const BELLOWS_STOCK_REFERENCE = "20402009";
 export const TABLETS_STOCK_REFERENCE = "30202051";
@@ -245,6 +250,7 @@ export function normalizeStockReferenceByRule(
   ...contextValues: Array<unknown>
 ) {
   const normalizedReference = String(reference ?? "").trim();
+  if (isServiceResourceReference(normalizedReference)) return normalizedReference;
   const normalizedReferenceText = normalizeReferenceRuleText(normalizedReference);
   const normalizedContext = contextValues
     .map((value) => normalizeReferenceRuleText(value))

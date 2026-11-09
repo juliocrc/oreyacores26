@@ -17,8 +17,9 @@ export async function POST(req: NextRequest) {
   }
 
   const rateKey = `register:${req.headers.get("x-forwarded-for") || "unknown"}`;
-  const { allowed } = checkRateLimit(rateKey, 5, 15 * 60 * 1000);
-  if (!allowed) {
+  const rate = await checkRateLimit(rateKey, 5, 15 * 60 * 1000);
+  if (rate.status === 503) return NextResponse.json({ error: "Servico temporariamente indisponivel." }, { status: 503 });
+  if (!rate.allowed) {
     return NextResponse.json({ error: "Demasiadas tentativas. Tente novamente mais tarde." }, { status: 429 });
   }
 

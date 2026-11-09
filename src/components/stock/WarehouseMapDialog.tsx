@@ -33,12 +33,13 @@ export default function WarehouseMapDialog({
             </h3>
             <p className="mt-0.5 text-xs text-slate-500">
               {mode === "select"
-                ? "Seleciona P01–P20 para posicionar este artigo."
-                : "Vista rápida do armazém (20 prateleiras)."}
+                ? "Escolhe uma localização e confirma para este artigo."
+                : "Stock agrupado pelas localizações registadas, sem alterar o armazém."}
             </p>
           </div>
           <button
             type="button"
+            aria-label="Fechar prateleiras"
             onClick={onClose}
             className="rounded-full p-2 text-slate-400 transition hover:bg-slate-200/65 hover:text-slate-700"
           >

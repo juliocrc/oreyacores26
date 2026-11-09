@@ -130,7 +130,7 @@ export default async function CertificadoFatoImersaoPage({ params }: { params: P
       <div className="certificado-sheet mx-auto max-w-[820px] rounded-2xl border border-slate-300 bg-white p-10 shadow-xl print:max-w-none print:rounded-none">
         <header className="flex items-start justify-between gap-6 border-b-4 border-cyan-700 pb-6">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-700">Orey Azores</p>
+            <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-700">Orey Tecnica- Serviços Navais, Lda</p>
             <h1 className="mt-1 text-3xl font-black uppercase tracking-tight text-slate-900">Certificado de Inspeção</h1>
             <p className="mt-1 text-sm font-semibold uppercase tracking-wide text-slate-500">Fato de Imersão</p>
           </div>
@@ -271,7 +271,7 @@ export default async function CertificadoFatoImersaoPage({ params }: { params: P
 
         <footer className="mt-8 border-t border-slate-200 pt-4 text-center text-[10px] leading-relaxed text-slate-500">
           <p>
-            Certificado {certificado.numeroCertificado} · Documento emitido eletronicamente pelo Sistema Orey Azores. A validade
+            Certificado {certificado.numeroCertificado} · Documento emitido eletronicamente pelo Sistema Orey Tecnica- Serviços Navais, Lda. A validade
             está sujeita à realização das inspeções periódicas previstas.
           </p>
         </footer>

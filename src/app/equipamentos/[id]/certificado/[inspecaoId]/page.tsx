@@ -94,7 +94,7 @@ export default async function CertificadoColetePrintPage({
             <p className="text-sm font-bold text-slate-500 uppercase tracking-widest mt-1">Colete Salva-Vidas Insuflável</p>
           </div>
           <div className="text-right">
-            <p className="text-sm font-bold text-slate-800">Orey Azores</p>
+            <p className="text-sm font-bold text-slate-800">Orey Tecnica- Serviços Navais, Lda</p>
             <p className="text-xs text-slate-500">Estação de Serviço Autorizada</p>
           </div>
         </header>

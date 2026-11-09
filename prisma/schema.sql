@@ -295,6 +295,8 @@ CREATE TABLE IF NOT EXISTS "Cliente" (
     "tipoCliente" TEXT,
     "verificationCode" TEXT,
     "verificationCodeExpires" TIMESTAMP(3),
+    "portalAtivo" BOOLEAN NOT NULL DEFAULT true,
+    "portalSessionVersion" INTEGER NOT NULL DEFAULT 0,
 
     CONSTRAINT "Cliente_pkey" PRIMARY KEY ("id")
 );
@@ -394,7 +396,7 @@ CREATE TABLE IF NOT EXISTS "AgendaEvento" (
     "status" TEXT NOT NULL DEFAULT 'scheduled',
     "type" TEXT NOT NULL DEFAULT 'Inspeção',
     "inspectionType" TEXT NOT NULL DEFAULT 'outro',
-    "durationMinutes" INTEGER NOT NULL DEFAULT 210,
+    "durationMinutes" INTEGER NOT NULL DEFAULT 180,
     "bufferBeforeMinutes" INTEGER NOT NULL DEFAULT 15,
     "bufferAfterMinutes" INTEGER NOT NULL DEFAULT 15,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -628,6 +630,7 @@ CREATE TABLE IF NOT EXISTS "CustomPackTypeItem" (
 -- CreateTable
 CREATE TABLE IF NOT EXISTS "MovimentacaoStock" (
     "id" SERIAL NOT NULL,
+    "reversaoDeId" INTEGER,
     "stockId" INTEGER NOT NULL,
     "tipo" TEXT NOT NULL,
     "quantidade" INTEGER NOT NULL,
@@ -1311,7 +1314,8 @@ CREATE INDEX IF NOT EXISTS "Stock_estadoArtigo_idx" ON "Stock"("estadoArtigo");
 CREATE INDEX IF NOT EXISTS "Stock_validade_idx" ON "Stock"("validade");
 
 -- CreateIndex
-CREATE UNIQUE INDEX IF NOT EXISTS "Stock_referencia_serviceStationId_key" ON "Stock"("referencia", "serviceStationId");
+CREATE UNIQUE INDEX IF NOT EXISTS "Stock_referencia_serviceStationId_lote_key" ON "Stock"("referencia", "serviceStationId", "lote");
+CREATE UNIQUE INDEX IF NOT EXISTS "Stock_global_referencia_lote_key" ON "Stock"("referencia", "lote") WHERE "serviceStationId" IS NULL AND "lote" IS NOT NULL;
 
 -- CreateIndex
 CREATE UNIQUE INDEX IF NOT EXISTS "CustomPackType_name_key" ON "CustomPackType"("name");
@@ -1333,6 +1337,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS "CustomPackTypeItem_customPackTypeId_stockRefe
 
 -- CreateIndex
 CREATE INDEX IF NOT EXISTS "MovimentacaoStock_stockId_idx" ON "MovimentacaoStock"("stockId");
+CREATE UNIQUE INDEX IF NOT EXISTS "MovimentacaoStock_reversaoDeId_key" ON "MovimentacaoStock"("reversaoDeId");
 
 -- CreateIndex
 CREATE INDEX IF NOT EXISTS "MovimentacaoStock_createdAt_idx" ON "MovimentacaoStock"("createdAt");
@@ -1651,6 +1656,7 @@ ALTER TABLE "CustomPackTypeItem" ADD CONSTRAINT "CustomPackTypeItem_stockId_fkey
 
 -- AddForeignKey
 ALTER TABLE "MovimentacaoStock" ADD CONSTRAINT "MovimentacaoStock_stockId_fkey" FOREIGN KEY ("stockId") REFERENCES "Stock"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "MovimentacaoStock" ADD CONSTRAINT "MovimentacaoStock_reversaoDeId_fkey" FOREIGN KEY ("reversaoDeId") REFERENCES "MovimentacaoStock"("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
 
 -- AddForeignKey
 ALTER TABLE "OrdemServico" ADD CONSTRAINT "OrdemServico_jangadaId_fkey" FOREIGN KEY ("jangadaId") REFERENCES "Jangada"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -1724,3 +1730,24 @@ ALTER TABLE "ServiceStationQueue" ADD CONSTRAINT "ServiceStationQueue_serviceSta
 -- AddForeignKey
 ALTER TABLE "CertificacaoFabricanteTecnico" ADD CONSTRAINT "CertificacaoFabricanteTecnico_tecnicoId_fkey" FOREIGN KEY ("tecnicoId") REFERENCES "Tecnico"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
+-- Persisted IVA declarations; existing installations use scripts/sql/iva-declarations.sql.
+CREATE TABLE IF NOT EXISTS "DeclaracaoIsencaoIva" (
+    "id" SERIAL PRIMARY KEY,
+    "numeroSequencial" INTEGER NOT NULL,
+    "ano" INTEGER NOT NULL,
+    "numeroCompleto" TEXT NOT NULL,
+    "clienteId" INTEGER, "navioId" INTEGER,
+    "snapshotJson" TEXT, "idempotencyKey" TEXT, "pdfAssinadoMeta" TEXT,
+    "clienteNome" TEXT, "clienteNif" TEXT, "navioNome" TEXT, "navioMatricula" TEXT,
+    "codigoIsencaoIva" TEXT, "origem" TEXT, "emitidoPorId" TEXT,
+    "dataEmissao" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "DeclaracaoIsencaoIva_numeroCompleto_key" ON "DeclaracaoIsencaoIva"("numeroCompleto");
+CREATE UNIQUE INDEX IF NOT EXISTS "DeclaracaoIsencaoIva_ano_numeroSequencial_key" ON "DeclaracaoIsencaoIva"("ano", "numeroSequencial");
+CREATE UNIQUE INDEX IF NOT EXISTS "DeclaracaoIsencaoIva_idempotencyKey_key" ON "DeclaracaoIsencaoIva"("idempotencyKey");
+CREATE INDEX IF NOT EXISTS "DeclaracaoIsencaoIva_ano_idx" ON "DeclaracaoIsencaoIva"("ano");
+CREATE INDEX IF NOT EXISTS "DeclaracaoIsencaoIva_numeroSequencial_idx" ON "DeclaracaoIsencaoIva"("numeroSequencial");
+CREATE INDEX IF NOT EXISTS "DeclaracaoIsencaoIva_clienteId_dataEmissao_idx" ON "DeclaracaoIsencaoIva"("clienteId", "dataEmissao");
+CREATE INDEX IF NOT EXISTS "DeclaracaoIsencaoIva_navioId_dataEmissao_idx" ON "DeclaracaoIsencaoIva"("navioId", "dataEmissao");

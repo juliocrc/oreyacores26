@@ -17,6 +17,9 @@
 /.next/
 /out/
 
+# OCR runtime assets (gerados por scripts/copy-ocr-assets.cjs no postinstall)
+/public/ocr/
+
 # production
 /build
 
@@ -239,3 +242,14 @@ clean_pkg.js
 !templates/template Ficha de Verif. Múltipla.xlsx
 !templates/terceiro template.xlsx
 !templates/FICHA_DGRM_TEMPLATE.docx
+
+# Chaves de assinatura das apps Android (nunca vao para o repositorio).
+android-tecnicos/keystore.properties
+android-clientes/keystore.properties
+*.jks
+*.keystore
+
+# Credenciais da chave de assinatura (nunca vao para o repositorio).
+/CHAVE-ASSINATURA.txt
+.vercel
+.env*

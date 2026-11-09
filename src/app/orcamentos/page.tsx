@@ -1,12 +1,16 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useState, useMemo } from "react";
+import { Fragment, useCallback, useEffect, useState, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Loader2, Search, X, ClipboardCheck, History, FileText, ExternalLink, ArrowRightCircle, Plus, Trash2, Save, CheckCircle2, Ban, FileDown, AlertCircle, ChevronRight, List, LayoutGrid, Columns3, FilterX } from "lucide-react";
 import { formatDateTimeShort } from "@/lib/date-utils";
 import { getIvaRate } from "@/lib/iva";
+import { useDebounce } from "@/hooks/useDebounce";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
+import { persistedQuoteLines } from "./quote-editor";
+import { roundQuoteMoney } from "@/lib/ordem-quote-input";
 
 const ORCAMENTO_STATUS_LIST = ["Rascunho", "Enviado", "Aprovado", "Rejeitado"];
 
@@ -30,8 +34,6 @@ const STATUS_BADGE_CLASSES: Record<string, string> = {
 
 const statusLabel = (status?: string | null) => STATUS_LABELS[status || ""] || status || "—";
 
-const round2 = (value: number) => Math.round((value || 0) * 100) / 100;
-
 type OrcamentoLinha = {
   id: string;
   stockId?: number | string | null;
@@ -39,31 +41,13 @@ type OrcamentoLinha = {
   descricao: string;
   quantidade: number;
   unitPrice: number;
+  descontoPercentual?: number;
   total: number;
   source: "service" | "pack" | "componente" | "stock" | "manual" | "closure" | string;
 };
 
-const normalizeLinhas = (metaLinhas: unknown): OrcamentoLinha[] => {
-  if (!Array.isArray(metaLinhas)) return [];
-  const seen = new Set<string>();
-  return (metaLinhas as OrcamentoLinha[]).map((l) => {
-    let id = l.id || `linha-${Math.random().toString(36).slice(2, 8)}`;
-    if (seen.has(id)) id = `${id}-${Math.random().toString(36).slice(2, 8)}`;
-    seen.add(id);
-    return {
-      ...l,
-      id,
-      referencia: l.referencia || "",
-      descricao: l.descricao || "",
-      quantidade: Number(l.quantidade) || 0,
-      unitPrice: Number(l.unitPrice) || 0,
-      total: Number(l.total) || 0,
-    };
-  });
-};
-
-const getMeta = (row: OrcamentoRow | null): Record<string, any> =>
-  row?.metadados && typeof row.metadados === "object" ? (row.metadados as Record<string, any>) : {};
+const getMeta = (row: OrcamentoRow | null): Record<string, unknown> =>
+  row?.metadados && typeof row.metadados === "object" ? (row.metadados as Record<string, unknown>) : {};
 
 type InspectionArtigo = { name?: string; referencia?: string | null; quantidade?: number };
 type InspectionInfo = {
@@ -92,6 +76,8 @@ type OrcamentoRow = {
   valorPecas?: number | null;
   valorMaoObra?: number | null;
   valorDesconto?: number | null;
+  isIsentoIva?: boolean | null;
+  updatedAt?: string;
   dataAbertura?: string | null;
   dataPrevista?: string | null;
   dataPlaneadaInicio?: string | null;
@@ -143,6 +129,11 @@ export default function OrcamentosPage() {
   const [rows, setRows] = useState<OrcamentoRow[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [q, setQ] = useState("");
+  const debouncedQ = useDebounce(q, 300);
+  const listRequest = useRef<AbortController | null>(null);
+  const historyRequest = useRef<AbortController | null>(null);
+  const mutationLock = useRef(false);
+  const [baseline, setBaseline] = useState("");
   const [vista, setVista] = useState<"lista" | "quadro" | "detalhes">("lista");
   const [tipoFilter, setTipoFilter] = useState<string>("");
   const [prioridadeFilter, setPrioridadeFilter] = useState<string>("");
@@ -162,7 +153,7 @@ export default function OrcamentosPage() {
   const [maoObra, setMaoObra] = useState("0");
   const [desconto, setDesconto] = useState("0");
   const [isentoIva, setIsentoIva] = useState(false);
-  const [novo, setNovo] = useState({ referencia: "", descricao: "", quantidade: 1, unitPrice: 0 });
+  const [novo, setNovo] = useState({ referencia: "", descricao: "", quantidade: 1, descontoPercentual: 0, unitPrice: 0, stockId: null as number | null });
   const [mostrarNovo, setMostrarNovo] = useState(false);
   const [savingAnalise, setSavingAnalise] = useState(false);
   const [decidindo, setDecidindo] = useState(false);
@@ -170,12 +161,16 @@ export default function OrcamentosPage() {
   const [feedback, setFeedback] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [stockList, setStockList] = useState<Array<{ id: number; referencia: string; descricao: string; precoVenda: number }>>([]);
   const [stockSearch, setStockSearch] = useState("");
+  const editorSnapshot = JSON.stringify([linhas, maoObra, desconto, isentoIva]);
+  const dirty = Boolean(detailRow) && baseline !== editorSnapshot;
+  const { confirmLeave } = useUnsavedChanges(dirty || mostrarNovo);
+  const busy = savingAnalise || decidindo || emitindo || deleting;
 
   const filteredStock = useMemo(() => {
     const q = stockSearch.trim().toLowerCase();
     if (!q) return stockList.slice(0, 50);
-    return stockList.filter(s => 
-      String(s.referencia || "").toLowerCase().includes(q) || 
+    return stockList.filter(s =>
+      String(s.referencia || "").toLowerCase().includes(q) ||
       String(s.descricao || "").toLowerCase().includes(q)
     ).slice(0, 50);
   }, [stockList, stockSearch]);
@@ -227,86 +222,73 @@ export default function OrcamentosPage() {
   }, []);
 
   const loadEditor = (row: OrcamentoRow) => {
-    setLinhas(normalizeLinhas(getMeta(row).linhas));
+    const loadedLines = persistedQuoteLines(row);
+    const exempt = Boolean(row.isIsentoIva ?? getMeta(row).isIsentoIva);
+    setLinhas(loadedLines);
     setMaoObra(String(row.valorMaoObra ?? 0));
     setDesconto(String(row.valorDesconto ?? 0));
-    setIsentoIva(Boolean(getMeta(row).isIsentoIva));
-    setNovo({ referencia: "", descricao: "", quantidade: 1, unitPrice: 0 });
+    setIsentoIva(exempt);
+    setBaseline(JSON.stringify([loadedLines, String(row.valorMaoObra ?? 0), String(row.valorDesconto ?? 0), exempt]));
+    setNovo({ referencia: "", descricao: "", quantidade: 1, descontoPercentual: 0, unitPrice: 0, stockId: null });
     setMostrarNovo(false);
     setFeedback(null);
   };
 
   const openDetail = async (row: OrcamentoRow) => {
+    if (mutationLock.current || !confirmLeave()) return;
+    historyRequest.current?.abort();
+    const controller = new AbortController();
+    historyRequest.current = controller;
     setDetailRow(row);
     loadEditor(row);
     setDetailHistory([]);
     setDetailHistoryError(null);
+    setDetailHistoryLoading(false);
     const jangadaId = row.jangada?.id || row.jangadas?.[0]?.id || null;
     if (!jangadaId) return;
     setDetailHistoryLoading(true);
     try {
-      const res = await fetch(`/api/inspecoes?jangadaId=${jangadaId}`);
+      const res = await fetch(`/api/inspecoes?jangadaId=${jangadaId}`, { signal: controller.signal });
+      if (!res.ok) throw new Error("Erro ao carregar histórico.");
       const data = await res.json();
+      if (controller.signal.aborted) return;
       const history = Array.isArray(data) ? data : [];
       setDetailHistory(history);
 
-      const currentLinhas = normalizeLinhas(getMeta(row).linhas);
-      if (currentLinhas.length === 0) {
-        const targetInsp = (row.inspecao?.id ? history.find((i: any) => i.id === row.inspecao?.id) : null) || history[0];
-        if (targetInsp) {
-          const derivedLinhas: OrcamentoLinha[] = [
-            { id: 'srv-1', referencia: 'L-JD', descricao: 'Inspeção de Jangada', quantidade: 1, unitPrice: 200, total: 200, source: 'service' },
-            { id: 'srv-2', referencia: 'L-CER', descricao: 'Certificado de Inspeção', quantidade: 1, unitPrice: 100, total: 100, source: 'service' },
-          ];
-          if (Array.isArray(targetInsp.artigos)) {
-            targetInsp.artigos.forEach((art: any, idx: number) => {
-              const qtd = Number(art.quantidade || 1);
-              const price = Number(art.precoUnitario || art.precoVenda || 0);
-              derivedLinhas.push({
-                id: `insp-art-${idx}`,
-                referencia: art.referencia || 'ART',
-                descricao: art.descricao || art.name || 'Artigo substituído',
-                quantidade: qtd,
-                unitPrice: price,
-                total: round2(qtd * price),
-                source: 'pack',
-              });
-            });
-          }
-          setLinhas(derivedLinhas);
-        }
-      }
-    } catch (e) {
-      setDetailHistoryError("Erro ao carregar o histórico de inspeções.");
+    } catch {
+      if (!controller.signal.aborted) setDetailHistoryError("Erro ao carregar o histórico de inspeções.");
     } finally {
-      setDetailHistoryLoading(false);
+      if (!controller.signal.aborted) setDetailHistoryLoading(false);
     }
   };
 
   const closeDetail = () => {
+    if (mutationLock.current || !confirmLeave()) return false;
+    historyRequest.current?.abort();
     setDetailRow(null);
     setDetailHistory([]);
     setDetailHistoryError(null);
+    return true;
   };
 
   const linhasTotal = linhas.reduce((acc, l) => acc + (Number(l.total) || 0), 0);
-  const metaTemLinhas = Array.isArray(getMeta(detailRow).linhas);
-  const pecasEfetivas = linhas.length > 0 ? linhasTotal : Number(detailRow?.valorPecas || 0);
+  const pecasEfetivas = linhasTotal;
   const subtotal = Math.max(0, pecasEfetivas + (Number(maoObra) || 0) - (Number(desconto) || 0));
   const ivaValor = isentoIva ? 0 : Math.round(subtotal * getIvaRate() * 100) / 100;
   const totalGeral = Math.round((subtotal + ivaValor) * 100) / 100;
 
   const orcStatus = detailRow?.orcamentoStatus || "Rascunho";
   const faturaNumero = String(getMeta(detailRow).faturaNumero || "") || null;
-  const podeEditar = Boolean(detailRow) && !faturaNumero;
+  const podeEditar = Boolean(detailRow) && !faturaNumero && !busy;
 
   const aplicarAtualizacao = (updated: OrcamentoRow) => {
     setRows((prev) => prev.map((r) => (r.id === updated.id ? { ...r, ...updated } : r)));
     setDetailRow((prev) => (prev && prev.id === updated.id ? { ...prev, ...updated } : prev));
   };
 
-  const guardarAnalise = async (): Promise<boolean> => {
-    if (!detailRow) return false;
+  const guardarAnalise = async (decision?: "Aprovado" | "Rejeitado", keepLock = false): Promise<boolean> => {
+    if (!detailRow || mutationLock.current || faturaNumero) return false;
+    mutationLock.current = true;
     setSavingAnalise(true);
     setFeedback(null);
     try {
@@ -314,7 +296,9 @@ export default function OrcamentosPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          linhas: metaTemLinhas || linhas.length > 0 ? linhas : undefined,
+          linhas,
+          updatedAt: detailRow.updatedAt,
+          orcamentoStatus: decision,
           valorMaoObra: Number(maoObra) || 0,
           valorDesconto: Number(desconto) || 0,
           isIsentoIva: isentoIva,
@@ -326,19 +310,21 @@ export default function OrcamentosPage() {
         throw new Error(`${body?.error || "Erro ao guardar o orçamento."}${detalhes}`);
       }
       aplicarAtualizacao(body as OrcamentoRow);
-      setFeedback({ type: "ok", text: "Alterações guardadas." });
+      loadEditor({ ...detailRow, ...body });
+      setFeedback({ type: "ok", text: decision ? `Alterações guardadas e orçamento ${decision === "Aprovado" ? "aprovado" : "rejeitado"}.` : "Alterações guardadas." });
       return true;
     } catch (e) {
       setFeedback({ type: "err", text: e instanceof Error ? e.message : "Erro ao guardar o orçamento." });
       return false;
     } finally {
+      if (!keepLock) mutationLock.current = false;
       setSavingAnalise(false);
     }
   };
 
   const decidir = async (novoEstado: "Aprovado" | "Rejeitado") => {
-    if (!detailRow) return;
-    if (linhas.length === 0) {
+    if (!detailRow || mutationLock.current) return;
+    if (novoEstado === "Aprovado" && linhas.length === 0 && Number(maoObra) <= 0) {
       setFeedback({ type: "err", text: "Não existem linhas de orçamento para decidir." });
       return;
     }
@@ -348,22 +334,7 @@ export default function OrcamentosPage() {
     setDecidindo(true);
     setFeedback(null);
     try {
-      const guardado = await guardarAnalise();
-      if (!guardado) return;
-      const res = await fetch(`/api/ordens-servico/${detailRow.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orcamentoStatus: novoEstado }),
-      });
-      const body = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(body?.error || `Erro ao ${novoEstado === "Aprovado" ? "aprovar" : "rejeitar"} o orçamento.`);
-      aplicarAtualizacao(body as OrcamentoRow);
-      setFeedback({
-        type: "ok",
-        text: novoEstado === "Aprovado"
-          ? "Orçamento aprovado. Já pode emitir a fatura."
-          : "Orçamento rejeitado. Aguarda revisão no wizard.",
-      });
+      await guardarAnalise(novoEstado);
     } catch (e) {
       setFeedback({ type: "err", text: e instanceof Error ? e.message : "Erro ao decidir o orçamento." });
     } finally {
@@ -372,7 +343,7 @@ export default function OrcamentosPage() {
   };
 
   const emitirProforma = async () => {
-    if (!detailRow) return;
+    if (!detailRow || mutationLock.current) return;
     setFeedback(null);
     if (orcStatus !== "Aprovado") {
       setFeedback({ type: "err", text: "Aprove o orçamento antes de gerar a fatura pró-forma." });
@@ -380,13 +351,26 @@ export default function OrcamentosPage() {
     }
     setEmitindo(true);
     try {
-      const guardado = await guardarAnalise();
+      const guardado = await guardarAnalise(undefined, true);
       if (!guardado) return;
-      window.open(`/api/ordens-servico/${detailRow.id}/fatura-pdf`, "_blank");
+      const response = await fetch(`/api/ordens-servico/${detailRow.id}/fatura-pdf`);
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error || "Erro ao gerar a fatura pro-forma.");
+      }
+      const blob = await response.blob();
+      if (!blob.size || !blob.type.includes("application/pdf")) throw new Error("Resposta invalida ao gerar a fatura pro-forma.");
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `proforma-${detailRow.numeroOrdem || detailRow.id}.pdf`;
+      anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
       setFeedback({ type: "ok", text: "Fatura pró-forma gerada. A ordem de serviço mantém-se aberta até à conclusão do trabalho." });
     } catch (e) {
       setFeedback({ type: "err", text: e instanceof Error ? e.message : "Erro ao gerar a fatura pró-forma." });
     } finally {
+      mutationLock.current = false;
       setEmitindo(false);
     }
   };
@@ -395,19 +379,22 @@ export default function OrcamentosPage() {
     if (!novo.descricao.trim()) return;
     const quantidade = Math.max(1, Number(novo.quantidade) || 1);
     const unitPrice = Math.max(0, Number(novo.unitPrice) || 0);
+    const descontoPercentual = Math.min(100, Math.max(0, Number(novo.descontoPercentual) || 0));
     setLinhas((prev) => [
       ...prev,
       {
         id: `manual-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        stockId: novo.stockId,
         referencia: novo.referencia.trim(),
         descricao: novo.descricao.trim(),
         quantidade,
         unitPrice,
-        total: round2(quantidade * unitPrice),
+        descontoPercentual,
+        total: roundQuoteMoney(quantidade * unitPrice * (1 - descontoPercentual / 100)),
         source: "manual",
       },
     ]);
-    setNovo({ referencia: "", descricao: "", quantidade: 1, unitPrice: 0 });
+    setNovo({ referencia: "", descricao: "", quantidade: 1, descontoPercentual: 0, unitPrice: 0, stockId: null });
     setMostrarNovo(false);
   };
 
@@ -418,7 +405,8 @@ export default function OrcamentosPage() {
         const next = { ...l, ...patch };
         next.quantidade = Math.max(0, Number(next.quantidade) || 0);
         next.unitPrice = Math.max(0, Number(next.unitPrice) || 0);
-        next.total = round2(next.quantidade * next.unitPrice);
+        next.descontoPercentual = Math.min(100, Math.max(0, Number(next.descontoPercentual) || 0));
+        next.total = roundQuoteMoney(next.quantidade * next.unitPrice * (1 - next.descontoPercentual / 100));
         return next;
       }),
     );
@@ -429,7 +417,7 @@ export default function OrcamentosPage() {
   const startWizard = (row: OrcamentoRow) => {
     const jangadaId = row.jangada?.id || row.jangadas?.[0]?.id || null;
     if (!jangadaId) return;
-    closeDetail();
+    if (!closeDetail()) return;
     router.push(`/jangadas/${jangadaId}?startInspection=1`);
   };
 
@@ -441,44 +429,52 @@ export default function OrcamentosPage() {
       alert("Ainda não existe nenhuma vistoria registada para esta jangada.");
       return;
     }
-    closeDetail();
+    if (!closeDetail()) return;
     router.push(`/jangadas/${jangadaId}?startInspection=1&inspecaoId=${lastInspection.id}`);
   };
 
   const load = useCallback(async () => {
+    listRequest.current?.abort();
+    const controller = new AbortController();
+    listRequest.current = controller;
     setLoading(true);
     setError(null);
     try {
        const params = new URLSearchParams({ includeClosed: "1", excludeFaturadas: "1" });
       if (statusFilter) params.set("orcamentoStatus", statusFilter);
-      if (q.trim()) params.set("q", q.trim());
-      const res = await fetch(`/api/ordens-servico?${params.toString()}`);
+      if (debouncedQ.trim()) params.set("q", debouncedQ.trim());
+      const res = await fetch(`/api/ordens-servico?${params.toString()}`, { signal: controller.signal });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
+        if (controller.signal.aborted) return;
         setError(body?.error || "Erro ao carregar orçamentos.");
         setRows([]);
         return;
       }
       const data = await res.json();
+      if (controller.signal.aborted) return;
       setRows(Array.isArray(data) ? data : []);
-    } catch (e) {
-      setError("Erro ao carregar orçamentos.");
+    } catch {
+      if (!controller.signal.aborted) setError("Erro ao carregar orçamentos.");
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
-  }, [statusFilter, q]);
+  }, [statusFilter, debouncedQ]);
 
   useEffect(() => {
     if (sessionStatus !== "authenticated") return;
     if (!isAdmin) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Access denial must clear the initial loading state.
       setError("Apenas administradores podem aceder à área de orçamentos.");
       setLoading(false);
       setRows([]);
       return;
     }
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- setLoading(true) no início do fetch assíncrono controla o estado de carregamento.
     load();
+    return () => listRequest.current?.abort();
   }, [load, sessionStatus, isAdmin]);
+
+  useEffect(() => () => historyRequest.current?.abort(), []);
 
   const toggleSelect = (id: number) => {
     setSelectedIds((prev) => {
@@ -490,12 +486,13 @@ export default function OrcamentosPage() {
   };
 
   const handleBulkDelete = async () => {
-    if (selectedIds.size === 0) return;
+    if (selectedIds.size === 0 || mutationLock.current || !confirmLeave()) return;
     const ids = [...selectedIds];
     const confirmText = window.confirm(
       `Eliminar definitivamente ${ids.length} orçamento(s)/OT(s)?\n\nEsta ação não pode ser anulada.`,
     );
     if (!confirmText) return;
+    mutationLock.current = true;
     setDeleting(true);
     setError(null);
     try {
@@ -511,6 +508,7 @@ export default function OrcamentosPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao eliminar ordens.");
     } finally {
+      mutationLock.current = false;
       setDeleting(false);
     }
   };
@@ -832,6 +830,7 @@ export default function OrcamentosPage() {
               <button
                 type="button"
                 onClick={closeDetail}
+                disabled={busy}
                 className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
               >
                 <X className="h-5 w-5" />
@@ -842,10 +841,10 @@ export default function OrcamentosPage() {
                {/* Percurso comercial: proposta analisada → aprovada → pró-forma → faturação definitiva */}
               <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                 {[
-                  { key: "submetido", label: "Submetido" },
+                  { key: "submetido", label: "Orçamento" },
                   { key: "analise", label: "Análise e edição" },
-                  { key: "aprovado", label: "Aprovado" },
-                   { key: "fatura", label: "Pró-forma" },
+                  { key: "aprovado", label: "Trabalho (após aprovação)" },
+                   { key: "fatura", label: "Fatura" },
                 ].map((etapa, idx, arr) => {
                   const estadoAtual = faturaNumero
                     ? "fatura"
@@ -1001,12 +1000,12 @@ export default function OrcamentosPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={guardarAnalise}
-                          disabled={savingAnalise}
+                          onClick={() => guardarAnalise()}
+                          disabled={busy}
                           className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-50"
                         >
                           {savingAnalise ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                          Guardar
+                          {savingAnalise ? "A guardar..." : "Guardar alterações"}
                         </button>
                       </>
                     )}
@@ -1014,7 +1013,7 @@ export default function OrcamentosPage() {
                 </div>
 
                 {mostrarNovo && (
-                  <div className="mt-3 space-y-2 rounded-lg border border-blue-100 bg-blue-50/60 p-3">
+                  <fieldset disabled={busy} className="mt-3 space-y-2 rounded-lg border border-blue-100 bg-blue-50/60 p-3">
                     <div className="space-y-1 relative">
                       <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Procurar artigo no stock por escrita</label>
                       <input
@@ -1029,15 +1028,17 @@ export default function OrcamentosPage() {
                           {filteredStock.length === 0 ? (
                             <div className="p-2.5 text-xs text-slate-400 text-center">Nenhum artigo encontrado no stock.</div>
                           ) : (
-                            filteredStock.map((s: any) => (
+                            filteredStock.map((s) => (
                               <button
                                 key={s.id}
                                 type="button"
                                 onClick={() => {
                                   setNovo({
+                                    stockId: s.id,
                                     referencia: s.referencia || "",
                                     descricao: s.descricao || "",
                                     quantidade: 1,
+                                    descontoPercentual: 0,
                                     unitPrice: Number(s.precoVenda || 0),
                                   });
                                   setStockSearch("");
@@ -1052,7 +1053,7 @@ export default function OrcamentosPage() {
                         </div>
                       )}
                     </div>
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-[110px_1fr_90px_110px_auto]">
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-[90px_1fr_70px_90px_110px_auto]">
                       <input
                         value={novo.referencia}
                         onChange={(e) => setNovo((p) => ({ ...p, referencia: e.target.value }))}
@@ -1071,6 +1072,18 @@ export default function OrcamentosPage() {
                         value={novo.quantidade}
                         onChange={(e) => setNovo((p) => ({ ...p, quantidade: Number(e.target.value) || 1 }))}
                         placeholder="Qtd"
+                        aria-label="Quantidade da nova linha"
+                        className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-right text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        value={novo.descontoPercentual}
+                        onChange={(e) => setNovo((p) => ({ ...p, descontoPercentual: Number(e.target.value) || 0 }))}
+                        aria-label="Desconto (%) da nova linha"
+                        title="Desconto (%)"
                         className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-right text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
                       />
                       <input
@@ -1079,7 +1092,9 @@ export default function OrcamentosPage() {
                         step="0.01"
                         value={novo.unitPrice}
                         onChange={(e) => setNovo((p) => ({ ...p, unitPrice: Number(e.target.value) || 0 }))}
-                        placeholder="Preço €"
+                        placeholder="Preço unitário €"
+                        aria-label="Preço unitário da nova linha"
+                        title="Preço unitário €"
                         className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-right text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
                       />
                       <button
@@ -1091,7 +1106,7 @@ export default function OrcamentosPage() {
                         Adicionar
                       </button>
                     </div>
-                  </div>
+                  </fieldset>
                 )}
 
                 {linhas.length === 0 ? (
@@ -1101,13 +1116,15 @@ export default function OrcamentosPage() {
                   </div>
                 ) : (
                   <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200">
-                    <table className="w-full text-xs">
+                    <table className="w-full min-w-[720px] text-xs">
                       <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500">
                         <tr>
-                          <th className="px-3 py-2 text-left font-semibold">Artigo</th>
+                          <th className="px-3 py-2 text-left font-semibold">Ref.</th>
+                          <th className="px-3 py-2 text-left font-semibold">Descrição</th>
                           <th className="w-20 px-2 py-2 text-right font-semibold">Qtd</th>
-                          <th className="w-28 px-2 py-2 text-right font-semibold">Preço €</th>
-                          <th className="w-28 px-2 py-2 text-right font-semibold">Total €</th>
+                          <th className="w-24 px-2 py-2 text-right font-semibold">Desconto (%)</th>
+                          <th className="w-28 px-2 py-2 text-right font-semibold">Preço unitário €</th>
+                          <th className="w-28 px-2 py-2 text-right font-semibold">Valor €</th>
                           <th className="w-10 px-2 py-2" />
                         </tr>
                       </thead>
@@ -1116,6 +1133,8 @@ export default function OrcamentosPage() {
                           <tr key={linha.id}>
                             <td className="px-3 py-2">
                               <div className="font-bold text-slate-800">{linha.referencia || "—"}</div>
+                            </td>
+                            <td className="px-3 py-2">
                               <div className="text-slate-500">{linha.descricao}</div>
                             </td>
                             <td className="px-2 py-2">
@@ -1124,6 +1143,7 @@ export default function OrcamentosPage() {
                                 min="0"
                                 step="1"
                                 value={linha.quantidade}
+                                aria-label={`Quantidade: ${linha.descricao}`}
                                 disabled={!podeEditar}
                                 onChange={(e) => atualizarLinha(linha.id, { quantidade: Number(e.target.value) || 0 })}
                                 className="w-full rounded-lg border border-slate-300 px-1.5 py-1 text-right text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:cursor-not-allowed disabled:bg-slate-100"
@@ -1133,8 +1153,22 @@ export default function OrcamentosPage() {
                               <input
                                 type="number"
                                 min="0"
+                                max="100"
+                                step="0.01"
+                                value={linha.descontoPercentual ?? 0}
+                                aria-label={`Desconto (%): ${linha.descricao}`}
+                                disabled={!podeEditar}
+                                onChange={(e) => atualizarLinha(linha.id, { descontoPercentual: Number(e.target.value) || 0 })}
+                                className="w-full rounded-lg border border-slate-300 px-1.5 py-1 text-right text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:cursor-not-allowed disabled:bg-slate-100"
+                              />
+                            </td>
+                            <td className="px-2 py-2">
+                              <input
+                                type="number"
+                                min="0"
                                 step="0.01"
                                 value={linha.unitPrice}
+                                aria-label={`Preço unitário: ${linha.descricao}`}
                                 disabled={!podeEditar}
                                 onChange={(e) => atualizarLinha(linha.id, { unitPrice: Number(e.target.value) || 0 })}
                                 className="w-full rounded-lg border border-slate-300 px-1.5 py-1 text-right text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:cursor-not-allowed disabled:bg-slate-100"
@@ -1243,7 +1277,7 @@ export default function OrcamentosPage() {
               <div className="flex flex-wrap items-center gap-3 border-t border-slate-100 pt-4">
                 <button
                   type="button"
-                  onClick={guardarAnalise}
+                  onClick={() => guardarAnalise()}
                   disabled={!podeEditar || savingAnalise}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
                 >
@@ -1253,22 +1287,22 @@ export default function OrcamentosPage() {
                 <button
                   type="button"
                   onClick={() => decidir("Aprovado")}
-                  disabled={decidindo || savingAnalise || !!faturaNumero || orcStatus === "Aprovado"}
+                  disabled={busy || !!faturaNumero || orcStatus === "Aprovado"}
                   title={faturaNumero ? "Já existe fatura emitida" : orcStatus === "Aprovado" ? "Orçamento já aprovado" : "Aprovar orçamento e libertar faturação"}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {decidindo ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                  Aprovar
+                  Guardar e aprovar
                 </button>
                 <button
                   type="button"
                   onClick={() => decidir("Rejeitado")}
-                  disabled={decidindo || savingAnalise || !!faturaNumero || orcStatus === "Rejeitado"}
+                  disabled={busy || !!faturaNumero || orcStatus === "Rejeitado"}
                   title={faturaNumero ? "Já existe fatura emitida" : orcStatus === "Rejeitado" ? "Orçamento já rejeitado" : "Rejeitar e devolver ao wizard"}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {decidindo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ban className="h-4 w-4" />}
-                  Rejeitar
+                  Guardar e rejeitar
                 </button>
                 <button
                   type="button"
@@ -1292,6 +1326,7 @@ export default function OrcamentosPage() {
                     <>
                       <Link
                         href={`/jangadas/${jangadaId}`}
+                        onClick={e => { if (mutationLock.current || !confirmLeave()) e.preventDefault(); }}
                         className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                       >
                         <ExternalLink className="h-4 w-4" /> Abrir jangada
@@ -1306,7 +1341,7 @@ export default function OrcamentosPage() {
                       <button
                         type="button"
                         onClick={() => openLastInspection(detailRow)}
-                        disabled={!detailHistory || detailHistory.length === 0}
+                        disabled={busy || !detailHistory || detailHistory.length === 0}
                         className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <History className="h-4 w-4" /> Vistoria Registada
@@ -1338,7 +1373,7 @@ export default function OrcamentosPage() {
               </button>
               <button
                 onClick={handleBulkDelete}
-                disabled={deleting}
+                disabled={busy}
                 className="rounded-lg bg-rose-600 px-3 py-1.5 text-sm font-bold text-white hover:bg-rose-700 disabled:opacity-50"
               >
                 {deleting ? "A eliminar…" : "Eliminar selecionadas"}

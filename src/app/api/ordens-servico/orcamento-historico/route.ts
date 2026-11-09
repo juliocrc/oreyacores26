@@ -3,19 +3,14 @@ import prisma from "@/lib/prisma";
 import ExcelJS from "exceljs";
 import { getAccessContext } from "@/lib/access-control";
 import { getIvaRate } from "@/lib/iva";
+import { parseOrdemServicoMeta } from "@/lib/ordens-servico";
+import { roundQuoteMoney } from "@/lib/ordem-quote-input";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("pt-PT", {
     style: "currency",
     currency: "EUR",
   }).format(value || 0);
-}
-
-function formatDate(value: Date | null | undefined) {
-  if (!value) return "";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "";
-  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 }
 
 function formatDateStr(value?: string | null) {
@@ -29,11 +24,12 @@ export async function GET(req: NextRequest) {
   try {
     const access = await getAccessContext();
     if (!access) return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
+    if (!access.isAdmin) return NextResponse.json({ error: "Acesso reservado a administradores." }, { status: 403 });
 
     const { searchParams } = new URL(req.url);
     const inspecaoId = Number(searchParams.get("inspecaoId"));
 
-    if (!Number.isFinite(inspecaoId) || inspecaoId <= 0) {
+    if (!Number.isSafeInteger(inspecaoId) || inspecaoId <= 0) {
       return NextResponse.json({ error: "ID de inspeção inválido." }, { status: 400 });
     }
 
@@ -68,47 +64,30 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    const artigos = inspecao.artigos || [];
-
-    // Obter os preços de venda atuais do stock para cada referência de artigo substituído
-    const referencias = artigos.map((a) => a.referencia).filter(Boolean) as string[];
-    const stockItems = referencias.length > 0 ? await prisma.stock.findMany({
-      where: { referencia: { in: referencias } },
-      select: { referencia: true, precoVenda: true },
-    }) : [];
-
-    const precoMap = new Map<string, number>();
-    stockItems.forEach((s) => {
-      if (s.referencia) precoMap.set(s.referencia, Number(s.precoVenda || 0));
-    });
-
-    let valorPecas = 0;
-    const artigosCalculados = artigos.map((art) => {
-      const qtd = Number(art.quantidade || 1);
-      const unitPrice = (art.referencia && precoMap.has(art.referencia)) 
-        ? precoMap.get(art.referencia)! 
-        : 25.0; // fallback padrão se o artigo não estiver catalogado no stock
-      const sub = qtd * unitPrice;
-      valorPecas += sub;
+    if (!ordem) return NextResponse.json({ error: "Nao existe orcamento registado associado a esta inspecao." }, { status: 404 });
+    const linhas = parseOrdemServicoMeta(ordem.metadados).linhas || [];
+    const artigosCalculados = (inspecao.artigos || []).map((art) => {
+      // Historical exports use recorded quote prices, never today's catalogue or a default price.
+      const matches = linhas.filter(line => art.referencia ? line.referencia === art.referencia : line.descricao === art.name);
+      const unitPrice = matches.length === 1 && matches[0].unitPrice != null ? Number(matches[0].unitPrice) : null;
+      const qtd = Number(art.quantidade ?? 1);
       return {
         ...art,
         quantidade: qtd,
         precoUnitario: unitPrice,
-        subtotal: sub,
+        subtotal: unitPrice == null ? null : roundQuoteMoney(qtd * unitPrice),
       };
     });
 
-    if (ordem && Number(ordem.valorPecas || 0) > 0) {
-      valorPecas = Number(ordem.valorPecas);
-    }
+    const valorPecas = Number(ordem.valorPecas);
 
     const valorMaoObra = Number(ordem?.valorMaoObra || 0);
     const valorDesconto = Number(ordem?.valorDesconto || 0);
     const isentoIva = Boolean(ordem?.isIsentoIva);
-    const subtotalGeral = Math.max(0, valorPecas + valorMaoObra - valorDesconto);
+    const subtotalGeral = roundQuoteMoney(Math.max(0, valorPecas + valorMaoObra - valorDesconto));
     const ivaRate = getIvaRate();
-    const iva = isentoIva ? 0 : subtotalGeral * ivaRate;
-    const total = subtotalGeral + iva;
+    const iva = isentoIva ? 0 : roundQuoteMoney(subtotalGeral * ivaRate);
+    const total = roundQuoteMoney(subtotalGeral + iva);
 
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("Orçamento Histórico");
@@ -149,8 +128,8 @@ export async function GET(req: NextRequest) {
           art.name,
           `${art.referencia || "—"} / ${art.codigoFabricante || "—"}`,
           art.quantidade,
-          formatEuro(art.precoUnitario),
-          formatEuro(art.subtotal),
+           art.precoUnitario == null ? "Nao registado" : formatEuro(art.precoUnitario),
+           art.subtotal == null ? "Nao registado" : formatEuro(art.subtotal),
         ]);
       });
     }

@@ -207,14 +207,18 @@ async function seedStock() {
       codigoFabricante: item.codigoFabricante || null,
       precoVenda: Number(item.precoVenda ?? 0) || 0,
       quantidade: Number(item.quantidade ?? 0) || 0,
+      lote: '',
     };
 
-    const existing = await prisma.stock.findUnique({ where: { referencia } });
+    const matches = await prisma.stock.findMany({ where: { referencia, serviceStationId: null, OR: [{ lote: '' }, { lote: null }] } });
+    if (matches.length > 1) throw new Error('Ambiguous legacy stock; seed requires an explicit Stock ID.');
+    const existing = matches[0];
+    if (existing && existing.lote === null) { console.log(`Preserved unknown legacy stock ID ${existing.id}`); continue; }
     if (!existing) {
       await prisma.stock.create({ data });
       created += 1;
     } else {
-      await prisma.stock.update({ where: { referencia }, data });
+      await prisma.stock.update({ where: { id: existing.id }, data });
       updated += 1;
     }
   }

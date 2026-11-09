@@ -459,18 +459,16 @@ export async function GET(req: NextRequest) {
     }
 
     const where: Prisma.NavioWhereInput = {};
-    // Quando existe uma estação ativa no seletor, a lista mostra apenas os
-    // navios dessa estação. Sem estação ativa mantém-se a visão global.
+    // Visão global com guardas regionais: mantemos o agrupamento por ilha para
+    // estações como Alcantarilha, mas não limitamos por estação ativa.
     const activeStationId = resolveActiveServiceStationId(req, access);
-    if (activeStationId) {
-      if (await activeStationIsAlcantarilha(activeStationId)) {
-        where.OR = [
-          { ilha: { in: SOUTH_REGION_ILHA_VALUES } },
-          { serviceStationId: activeStationId },
-        ];
-      } else {
-        where.serviceStationId = activeStationId;
-      }
+    if (activeStationId && (await activeStationIsAlcantarilha(activeStationId))) {
+      where.OR = [
+        { ilha: { in: SOUTH_REGION_ILHA_VALUES } },
+        { serviceStationId: activeStationId },
+      ];
+    } else {
+      where.OR = undefined;
     }
     // Station scoping removed - all users see all navios
     /*
@@ -545,7 +543,6 @@ export async function GET(req: NextRequest) {
           // associacao passaria a duplicar — falhas silenciosas.
           select: { id: true, nome: true, matricula: true, ilha: true, cliente: { select: { id: true, nome: true } } },
           orderBy: [{ nome: "asc" }],
-          take: 10000,
         });
         if (textFilterActive) {
           lite = lite.filter((row) => navioMatchesTextFilters(row as NavioSearchableRow, textFilters));
@@ -560,7 +557,6 @@ export async function GET(req: NextRequest) {
         findNaviosWithResilientSelect(where, {
           orderBy: [{ nome: "asc" }],
           skip: 0,
-          take: 10000,
         }),
         computeNavioStats(scopeWhere),
         prisma.navio.groupBy({ by: ["portoRegisto"], where: scopeWhere, _count: { _all: true } }),
@@ -588,7 +584,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    let navios = await findNaviosWithResilientSelect(where, { take: 10000 });
+    let navios = await findNaviosWithResilientSelect(where);
     if (textFilterActive) {
       navios = navios.filter((row) => navioMatchesTextFilters(row as NavioSearchableRow, textFilters));
     }

@@ -4,13 +4,9 @@ set -e
 # Ensure data directory exists
 mkdir -p /app/data
 
-# Detect PostgreSQL vs SQLite
-if echo "$DATABASE_URL" | grep -qE "^postgresql://"; then
-  echo "PostgreSQL detected — applying schema via psql..."
-  psql "$DATABASE_URL" -f /app/prisma/schema.sql 2>&1 || echo "psql schema warning (non-fatal)"
-else
-  echo "SQLite detected — skipping psql."
-fi
+# No schema mutation at startup. Fail closed until approved migrations are ready.
+echo "Checking database schema compatibility..."
+node /app/scripts/check-runtime-database.cjs
 
 # Seed admin password if env var is set
 if [ -n "$ADMIN_SEED_EMAIL" ] && [ -n "$ADMIN_SEED_PASSWORD" ]; then

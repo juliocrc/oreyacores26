@@ -18,6 +18,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
     }
 
+    if (!access.isAdmin) return NextResponse.json({ error: "Acesso reservado a administradores." }, { status: 403 });
     const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
     const pagamentoStatus = body && typeof body.pagamentoStatus === "string" && body.pagamentoStatus.trim()
       ? body.pagamentoStatus.trim()
@@ -27,13 +28,10 @@ export async function POST(req: NextRequest) {
       ordemServicoIds: [id],
       pagamentoStatus,
       emitidaPor: access.email || "sistema",
+      updatedAt: typeof body?.updatedAt === "string" ? body.updatedAt : undefined,
     });
 
-    if (resultado.alreadyEmitted) {
-      return NextResponse.json({ fatura: resultado.fatura, numeroFatura: resultado.numeroFatura, alreadyEmitted: true });
-    }
-
-    return NextResponse.json({ fatura: resultado.fatura, numeroFatura: resultado.numeroFatura, alreadyEmitted: false });
+    return NextResponse.json(resultado);
   } catch (error) {
     if (error instanceof FaturamentoError) {
       return NextResponse.json({ error: error.message }, { status: error.status });

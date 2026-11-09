@@ -40,7 +40,7 @@ export default async function NavioCertificadoColetesPage({
 
   if (isMock) {
     navio = {
-      nome: 'Navio Demo (Orey Açores)',
+      nome: 'Navio Demo (Orey Tecnica- Serviços Navais, Lda)',
       matricula: 'PD-1234-C',
       imo: '9876543',
       armador: 'Cliente Demonstração Lda.'
@@ -131,7 +131,7 @@ export default async function NavioCertificadoColetesPage({
             <p className="text-sm font-bold text-slate-500 uppercase tracking-widest mt-1">Coletes Salva-Vidas (Consolidado)</p>
           </div>
           <div className="text-right">
-            <p className="text-sm font-bold text-slate-800">Orey Azores</p>
+            <p className="text-sm font-bold text-slate-800">Orey Tecnica- Serviços Navais, Lda</p>
             <p className="text-xs text-slate-500">Estação de Serviço Autorizada</p>
           </div>
         </header>
@@ -221,7 +221,7 @@ export default async function NavioCertificadoColetesPage({
           <div className="text-center">
             <div className="w-64 border-b border-slate-800 mb-2 h-16"></div>
             <p className="font-bold text-slate-800">Técnico Responsável</p>
-            <p className="text-xs text-slate-500">Orey Azores</p>
+            <p className="text-xs text-slate-500">Orey Tecnica- Serviços Navais, Lda</p>
           </div>
         </section>
       </div>

@@ -5,6 +5,9 @@ import { Mail, MessageCircle, X, FileText, Send, Eye, Paperclip, Check } from "l
 import { appToast } from "@/lib/app-toast";
 import type { InspectionCertificateInput } from "@/lib/inspection-certificate";
 import type { QuadroTemplateInput } from "@/lib/quadro-template";
+import { isSosDocumentRaft, SOS_DOCUMENT_NOTICE } from '@/lib/raft-document-rules';
+import EmailSenderSelect, { EMAIL_SENDER_PROFILES, type SenderAccount, type SenderAccountStatus } from '@/components/shared/EmailSenderSelect';
+import LocalOutlookCompose from '@/components/shared/LocalOutlookCompose';
 
 type Channel = "email" | "whatsapp";
 
@@ -17,6 +20,7 @@ interface EnviarCertificadoDialogProps {
   isOpen: boolean;
   onClose: () => void;
   certificate: InspectionCertificateInput;
+  raft?: { brand?: string | null; model?: string | null; serial?: string | null };
   /** Payload do quadro de inspeção, usado para anexar/pré-visualizar o PDF. */
   quadro?: QuadroPayload | null;
   defaultTo?: string;
@@ -25,6 +29,7 @@ interface EnviarCertificadoDialogProps {
   defaultMessage?: string;
   clienteId?: number;
   jangadaId?: number;
+  inspecaoId?: number;
   refId?: number;
   /** Registo da fila "por enviar" que deve passar a "enviado" ao concluir. */
   pendingId?: number;
@@ -49,7 +54,7 @@ function buildDefaultMessage(cert: InspectionCertificateInput): string {
   lines.push("Qualquer dúvida, ficamos ao seu inteiro dispor.");
   lines.push("");
   lines.push("Com os melhores cumprimentos,");
-  lines.push("Orey Açores — Gestor Naval");
+  lines.push("Orey Tecnica- Serviços Navais, Lda — Gestor Naval");
   return lines.join("\n");
 }
 
@@ -57,6 +62,7 @@ export default function EnviarCertificadoDialog({
   isOpen,
   onClose,
   certificate,
+  raft,
   quadro,
   defaultTo = "",
   defaultPhone = "",
@@ -64,24 +70,53 @@ export default function EnviarCertificadoDialog({
   defaultMessage,
   clienteId,
   jangadaId,
+  inspecaoId,
   refId,
   pendingId,
 }: EnviarCertificadoDialogProps) {
+  const sos = Boolean(raft && isSosDocumentRaft(raft)) || isSosDocumentRaft(certificate) || Boolean(quadro && isSosDocumentRaft(quadro));
+  if (sos) quadro = null;
   const [channel, setChannel] = useState<Channel>("email");
   const [to, setTo] = useState(defaultTo);
   const [phone, setPhone] = useState(defaultPhone);
   const [subject, setSubject] = useState(defaultSubject ?? "");
   const [message, setMessage] = useState(defaultMessage ?? "");
   const [includeCertificate, setIncludeCertificate] = useState(true);
-  const [includeQuadro, setIncludeQuadro] = useState(Boolean(quadro));
+  const [quadroSelected, setIncludeQuadro] = useState(Boolean(quadro));
+  const includeQuadro = !sos && quadroSelected;
   const [showPreview, setShowPreview] = useState(true);
   const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState("");
+  const [emailAccounts, setEmailAccounts] = useState<SenderAccountStatus[] | null>(null);
+  const [senderAccount, setSenderAccount] = useState<SenderAccount>("julio");
+  const [genericEmailConfigured, setGenericEmailConfigured] = useState<boolean | null>(null);
+  const canSelectSender = Boolean(emailAccounts?.length);
+  const emailConfigured = canSelectSender ? emailAccounts?.find(account => account.id === senderAccount)?.configured : genericEmailConfigured;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    setEmailAccounts(null);
+    setGenericEmailConfigured(null);
+    fetch("/api/certificados/enviar", { cache: "no-store" })
+      .then(async res => {
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || "Nao foi possivel confirmar a configuracao de email.");
+        if (!cancelled) {
+          setEmailAccounts(Array.isArray(json.emailAccounts) ? json.emailAccounts : null);
+          setGenericEmailConfigured(json.emailConfigured === true);
+        }
+      })
+      .catch(err => { if (!cancelled) setSendError(err instanceof Error ? err.message : "Estado de email indisponivel."); });
+    return () => { cancelled = true; };
+  }, [isOpen]);
   const [previewing, setPreviewing] = useState<null | "certificado" | "quadro">(null);
 
   const wasOpen = useRef(false);
   useEffect(() => {
     if (isOpen && !wasOpen.current) {
       setChannel("email");
+      setSendError("");
       setTo(defaultTo);
       setPhone(defaultPhone);
       setSubject(defaultSubject ?? buildDefaultSubject(certificate));
@@ -100,16 +135,17 @@ export default function EnviarCertificadoDialog({
     message.trim().length > 0 &&
     hasAnyAttachment &&
     (channel === "email"
-      ? EMAIL_RE.test(to.trim()) && subject.trim().length > 0
+      ? emailConfigured === true && EMAIL_RE.test(to.trim()) && subject.trim().length > 0
       : phone.trim().length >= 6);
 
   const certFileName = `${certificate.certNumber || "SEM-NUMERO"} ${certificate.shipName || "SEM NAVIO"}.pdf`;
 
-  const handlePreviewPdf = async (which: "certificado" | "quadro") => {
+  const handlePreviewPdf = async (which: "certificado" | "quadro", download = false) => {
+    if (which === "quadro" && sos) return;
     try {
       setPreviewing(which);
       const url = which === "certificado" ? "/api/certificados/pdf" : "/api/exportar-raft-pdf";
-      const payload = which === "certificado" ? { ...certificate, jangadaId } : quadro;
+      const payload = which === "certificado" ? { ...certificate, jangadaId, inspecaoId } : quadro ? { ...quadro, jangadaId, inspecaoId } : null;
       if (which === "quadro" && !payload) {
         throw new Error("Quadro indisponível para pré-visualização.");
       }
@@ -124,7 +160,14 @@ export default function EnviarCertificadoDialog({
       }
       const blob = await res.blob();
       const objUrl = URL.createObjectURL(blob);
-      window.open(objUrl, "_blank", "noopener,noreferrer");
+      if (download) {
+        const link = document.createElement("a");
+        link.href = objUrl;
+        link.download = which === "certificado" ? certFileName : "Quadro de inspecao.pdf";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      } else window.open(objUrl, "_blank", "noopener,noreferrer");
       setTimeout(() => URL.revokeObjectURL(objUrl), 60000);
     } catch (err) {
       appToast.error(err instanceof Error ? err.message : "Erro ao pré-visualizar o PDF.");
@@ -134,14 +177,16 @@ export default function EnviarCertificadoDialog({
   };
 
   const handleSend = async () => {
-    if (!valid) return;
+    if (!valid || sending) return;
     try {
       setSending(true);
+      setSendError("");
       const res = await fetch("/api/certificados/enviar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           channel,
+          senderAccount: channel === "email" && canSelectSender ? senderAccount : undefined,
           to: to.trim(),
           phone: phone.trim(),
           subject: subject.trim(),
@@ -152,6 +197,7 @@ export default function EnviarCertificadoDialog({
           includeQuadro,
           clienteId,
           jangadaId,
+          inspecaoId,
           refId,
           pendingId,
         }),
@@ -173,7 +219,9 @@ export default function EnviarCertificadoDialog({
       }
       onClose();
     } catch (err) {
-      appToast.error(err instanceof Error ? err.message : "Erro ao enviar.");
+      const error = err instanceof Error ? err.message : "Erro ao enviar.";
+      setSendError(error);
+      appToast.error(error);
     } finally {
       setSending(false);
     }
@@ -196,7 +244,7 @@ export default function EnviarCertificadoDialog({
             <div>
               <h3 className="text-lg font-bold text-slate-900">Enviar ao Armador</h3>
               <p className="text-xs text-slate-500">
-                Pré-visualize o email ou a mensagem WhatsApp antes de enviar. Os PDFs seguem em anexo.
+                No envio pelo servidor, os PDFs seguem em anexo. Na abertura local, anexe-os manualmente.
               </p>
             </div>
           </div>
@@ -231,11 +279,16 @@ export default function EnviarCertificadoDialog({
           </button>
         </div>
 
+        {sendError && <p role="alert" className="text-sm text-red-700">{sendError}</p>}
+        {channel === "email" && <p role="status" className="text-xs text-amber-800">
+          {emailConfigured === false ? "Conta de email nao configurada. Contacte a administracao." : emailConfigured === null ? "A confirmar configuracao de email..." : !EMAIL_RE.test(to.trim()) ? "Indique o email do armador para ativar o envio." : "Conta de envio configurada."}
+        </p>}
         <div className="grid md:grid-cols-2 gap-5">
           {/* Formulário */}
           <div className="space-y-4">
             {channel === "email" ? (
               <>
+                <EmailSenderSelect value={senderAccount} onChange={setSenderAccount} accounts={emailAccounts} />
                 <div>
                   <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">
                     Email do destinatário
@@ -291,7 +344,7 @@ export default function EnviarCertificadoDialog({
             </div>
 
             <div className="space-y-2">
-              <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">Documentos anexados</p>
+              <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">Documentos selecionados</p>
               <label className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer">
                 <span className="flex items-center gap-2 text-xs text-slate-600 min-w-0">
                   <input
@@ -314,7 +367,7 @@ export default function EnviarCertificadoDialog({
                 </button>
               </label>
 
-              <label
+              {sos ? <p className="text-sm text-indigo-700">{SOS_DOCUMENT_NOTICE}</p> : <label
                 className={`flex items-center justify-between p-3 border rounded-xl ${
                   quadro ? "bg-slate-50 border-slate-200 cursor-pointer" : "bg-slate-100 border-slate-200 opacity-60"
                 }`}
@@ -341,7 +394,7 @@ export default function EnviarCertificadoDialog({
                   <Eye size={14} />
                   {previewing === "quadro" ? "A gerar..." : "Ver PDF"}
                 </button>
-              </label>
+              </label>}
             </div>
           </div>
 
@@ -361,7 +414,7 @@ export default function EnviarCertificadoDialog({
             {showPreview && channel === "email" && (
               <div className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-sm">
                 <div className="bg-slate-100 px-3 py-2 text-[11px] font-mono text-slate-500 space-y-0.5">
-                  <div><span className="text-slate-400">De:</span> Orey Açores — Gestor Naval</div>
+                  {canSelectSender && <div><span className="text-slate-400">De:</span> {EMAIL_SENDER_PROFILES.find(profile => profile.id === senderAccount)?.email}</div>}
                   <div><span className="text-slate-400">Para:</span> {to.trim() || "—"}</div>
                   <div><span className="text-slate-400">Assunto:</span> {subject.trim() || "—"}</div>
                 </div>
@@ -396,7 +449,7 @@ export default function EnviarCertificadoDialog({
                     OA
                   </div>
                   <div>
-                    <p className="text-xs font-bold leading-tight">Orey Açores</p>
+                    <p className="text-xs font-bold leading-tight">Orey Tecnica- Serviços Navais, Lda</p>
                     <p className="text-[10px] text-emerald-100 leading-tight">{phone.trim() || "—"}</p>
                   </div>
                 </div>
@@ -425,7 +478,14 @@ export default function EnviarCertificadoDialog({
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-100">
+        {channel === "email" && <LocalOutlookCompose recipient={to} subject={subject} body={message} senderAccount={senderAccount} onSenderChange={setSenderAccount}>
+          <div className="flex flex-wrap gap-2">
+            {includeCertificate && <button type="button" disabled={previewing !== null} onClick={() => handlePreviewPdf("certificado", true)} className="min-h-10 rounded-lg border border-slate-200 bg-white px-3 font-semibold">Descarregar certificado</button>}
+            {includeQuadro && quadro && <button type="button" disabled={previewing !== null} onClick={() => handlePreviewPdf("quadro", true)} className="min-h-10 rounded-lg border border-slate-200 bg-white px-3 font-semibold">Descarregar quadro</button>}
+          </div>
+        </LocalOutlookCompose>}
+
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100">
           <p className="text-[11px] text-slate-400 flex items-center gap-1">
             <Check size={13} className="text-emerald-500" />
             {hasAnyAttachment

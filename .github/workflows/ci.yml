@@ -26,6 +26,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Lint application
+        run: npx eslint src
+
       - name: Build application
         run: npm run build:vercel
         env:

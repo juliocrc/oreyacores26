@@ -1,4 +1,4 @@
-import { readAuditoriaJson, writeAuditoriaJson } from "@/lib/auditorias-storage";
+﻿import { readAuditoriaJson, writeAuditoriaJson } from "@/lib/auditorias-storage";
 import { canonicalizePermissionModuleKey, canonicalizePermissionPathPrefix, pathMatchesPrefix } from "@/lib/permission-access";
 import prisma from "@/lib/prisma";
 import { normalizeCodeToken } from "@/lib/text-normalization";
@@ -160,8 +160,9 @@ export function defaultPermissionsForRole(role: "ADMIN" | "USER" | "CLIENTE"): E
     };
   }
 
-  const defaultModules = ["dashboard", "jangadas", "estacao-servico", "ia-importacao"] as PermissionModuleKey[];
-  const defaultPages = ["/", "/", "/jangadas", "/estacao-servico", "/ia-importacao"];
+
+  const defaultModules = ["dashboard", "jangadas", "estacao-servico"] as PermissionModuleKey[];
+  const defaultPages = ["/", "/", "/jangadas", "/estacao-servico"];
 
   return {
     visibleModules: defaultModules,

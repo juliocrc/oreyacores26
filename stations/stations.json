@@ -1,0 +1,42 @@
+[
+  {
+    "slug": "acores",
+    "stationId": 1,
+    "stationCode": "ACORES",
+    "name": "Açores",
+    "serverUrl": "https://oreyacoresdeluxe.vercel.app/",
+    "active": true
+  },
+  {
+    "slug": "lisboa",
+    "stationId": 2,
+    "stationCode": "LISBOA",
+    "name": "Lisboa",
+    "serverUrl": "https://oreyacoresdeluxe.vercel.app/",
+    "active": true
+  },
+  {
+    "slug": "aveleda",
+    "stationId": 5,
+    "stationCode": "AVELEDA",
+    "name": "Aveleda",
+    "serverUrl": "https://oreyacoresdeluxe.vercel.app/",
+    "active": true
+  },
+  {
+    "slug": "alcantarilha",
+    "stationId": 6,
+    "stationCode": "ALCANTARILHA",
+    "name": "Alcantarilha",
+    "serverUrl": "https://oreyacoresdeluxe.vercel.app/",
+    "active": true
+  },
+  {
+    "slug": "setubal",
+    "stationId": 11,
+    "stationCode": "SETUBAL",
+    "name": "Setúbal",
+    "serverUrl": "https://oreyacoresdeluxe.vercel.app/",
+    "active": true
+  }
+]

@@ -1,15 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
+import { assertEditVersion, expectedVersion, nextEditVersion, EditConflictError, isEditConflict, editConflictBody } from '@/lib/edit-conflict';
 import { logAuditoria } from "@/lib/auditoria";
 import { readAuditoriaJson, writeAuditoriaJson } from "@/lib/auditorias-storage";
 import { getApplicableServiceBulletinsForRaft } from "@/modules/rafts/serviceBulletins";
 import { buildDatabaseErrorResponse } from "@/lib/database-errors";
-import { readInspectionChecklistValues, writeInspectionChecklistValues } from "@/lib/inspection-checklist-store";
+import { normalizeInspectionChecklistValues, readInspectionChecklistValues, writeInspectionChecklistValues } from "@/lib/inspection-checklist-store";
 import { readJangadaAbate, writeJangadaAbate } from "@/lib/jangada-abate-store";
 import { notifyJangadaEnviada, tryNotifySms } from "@/lib/notify-jangada-sms";
 import { getAccessContext } from "@/lib/access-control";
+import { syncOrderNumber, OrderNumberConflictError } from '@/lib/order-number';
 import { canEditPath } from "@/lib/user-permissions";
+import { equipmentAccess } from "@/lib/jangada-equipment-access";
+import { auditEquipment, equipmentSnapshot, readEquipmentSnapshot } from "@/lib/jangada-equipment-audit";
 import { syncRaftArticlesWithPackType, syncRichChecklistToRaft } from "@/lib/checklist-sync";
 import { clearActiveAgendaForRaft, syncNextInspectionAgenda } from "@/lib/agenda-sync";
 import { clearEntregaAgendaEvent, syncEntregaAgendaEvent } from "@/lib/agenda-entrega";
@@ -75,6 +79,7 @@ const NAVIO_WITH_CLIENTE_SELECT = {
       ilha: true,
       telefone: true,
       telmovel: true,
+      email: true,
     },
   },
 } as const;
@@ -302,15 +307,14 @@ function applyHruBusinessRules(args: {
   const hruReferenciaFinal = hruReferencia || HRU_REFERENCE_ARTIGO;
 
   if (!hruDataInstalacao) {
-    targetData.hruDataInstalacao = new Date().toISOString().slice(0, 10);
-    targetData.hruValidade = addYearsToIsoDate(String(targetData.hruDataInstalacao), 2);
+    targetData.hruDataInstalacao = '';
     targetData.hruReferencia = hruReferenciaFinal;
     return { error: null as string | null };
   }
 
   targetData.hruReferencia = hruReferenciaFinal;
   targetData.hruDataInstalacao = hruDataInstalacao;
-  targetData.hruValidade = addYearsToIsoDate(hruDataInstalacao, 2);
+  if (hruReferenciaFinal === '20701002') targetData.hruValidade = addYearsToIsoDate(hruDataInstalacao, 2);
 
   return { error: null as string | null };
 }
@@ -535,7 +539,7 @@ function buildJangadaUpdateData(
     if (data.model === null || data.model === "") data.model = current.model || "SURVIVA";
     if (data.packType === null || data.packType === "") data.packType = current.packType || "R";
   }
-  if (data.capacity === undefined || data.capacity === null || Number.isNaN(Number(data.capacity))) {
+  if (Object.prototype.hasOwnProperty.call(input, "capacity") && (data.capacity === undefined || data.capacity === null || Number.isNaN(Number(data.capacity)))) {
     data.capacity = current?.capacity ?? 6;
   }
 
@@ -709,16 +713,44 @@ async function findJangadaByIdCompat(id: number) {
   }
 }
 
-async function updateJangadaCompat(id: number, data: Record<string, unknown>) {
+async function updateJangadaCompat(id: number, data: Record<string, unknown>, usuario: string, artigos?: ReturnType<typeof normalizeArtigosInput>, expected?: Date, beforeUpdate?: (db: Prisma.TransactionClient) => Promise<void>, afterUpdate?: (db: Prisma.TransactionClient) => Promise<void>) {
   const unsupportedFields = new Set<string>();
 
   while (true) {
     try {
-      const updated = await prisma.jangada.update({
-        where: { id },
-        data: omitUnsupportedFields(data, unsupportedFields) as unknown as Prisma.JangadaUncheckedUpdateInput,
-        select: buildJangadaDetailSelect(unsupportedFields),
-      });
+      const write = async (db: Prisma.TransactionClient) => {
+        const before = await db.jangada.findUnique({ where: { id }, select: buildJangadaDetailSelect(unsupportedFields) });
+        assertEditVersion(before?.updatedAt, expected);
+        if (expected) {
+          const claimed = await db.jangada.updateMany({ where: { id, updatedAt: expected }, data: { updatedAt: nextEditVersion(expected) } });
+          if (claimed.count !== 1) throw new EditConflictError();
+        }
+        await beforeUpdate?.(db);
+        const articlesBefore = artigos ? await db.artigoJangada.findMany({ where: { jangadaId: id, inspecaoId: null } }) : undefined;
+        const updated = await db.jangada.update({
+          where: { id },
+          data: { ...omitUnsupportedFields(data, unsupportedFields), ...(expected ? { updatedAt: nextEditVersion(expected) } : {}) } as unknown as Prisma.JangadaUncheckedUpdateInput,
+          select: buildJangadaDetailSelect(unsupportedFields),
+        });
+        if (artigos) {
+          await db.artigoJangada.deleteMany({ where: { jangadaId: id, inspecaoId: null } });
+          if (artigos.length) await db.artigoJangada.createMany({ data: artigos.map(art => ({ ...art, jangadaId: id })) });
+        }
+        await auditEquipment(db, { jangadaId: id, usuario, origem: "Ficha de equipamentos",
+          antes: equipmentSnapshot(before || {}, articlesBefore),
+          depois: equipmentSnapshot(updated, artigos),
+        });
+        if (afterUpdate) {
+          await afterUpdate(db);
+          if (expected) return db.jangada.update({ where: { id }, data: { updatedAt: nextEditVersion(expected) }, select: buildJangadaDetailSelect(unsupportedFields) });
+          return (await db.jangada.findUnique({ where: { id }, select: buildJangadaDetailSelect(unsupportedFields) }))!;
+        }
+        return updated;
+      };
+      // Replacement must roll back if either the scalar or article write fails.
+      // A ficha pode exigir várias leituras e auditorias através do pool remoto.
+      // Give the atomic transaction time to finish; never retry an uncertain commit.
+      const updated = await prisma.$transaction(write, { isolationLevel: "Serializable", maxWait: 10000, timeout: 20000 });
 
       return { updated, unsupportedFields };
     } catch (error) {
@@ -1148,6 +1180,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
                   ilha: navio.cliente.ilha,
                   telefone: navio.cliente.telefone,
                   telmovel: navio.cliente.telmovel,
+                  email: navio.cliente.email,
                 }
               : null,
           }
@@ -1241,7 +1274,8 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
         ]
       },
       include: {
-        artigos: true
+        artigos: true,
+        ordensServico: { select: { tecnicoResponsavel: true, tecnico: { select: { nome: true } } } },
       },
       orderBy: { dataInspecao: 'desc' }
     });
@@ -1335,27 +1369,23 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
 
 export async function PATCH(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
-    const access = await getAccessContext();
-    if (!access && process.env.AUTH_BYPASS !== "true") {
-      return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
-    }
-
     const { id: rawId } = await context.params;
     const id = Number(rawId);
-    if (!id) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
+    const guard = await equipmentAccess(id, true);
+    if (guard.error) return guard.error;
 
     const body = await req.json().catch(() => ({}));
-    const updateData: any = {};
+    const updateData: Prisma.JangadaUncheckedUpdateInput = {};
     if (body.shipNameManual !== undefined) updateData.shipNameManual = String(body.shipNameManual || "");
     if (body.shipId !== undefined) updateData.shipId = body.shipId ? Number(body.shipId) : null;
 
-    const updated = await prisma.jangada.update({
-      where: { id },
-      data: updateData,
-    });
+    const { updated } = await updateJangadaCompat(id, updateData as Record<string, unknown>, guard.access?.email || 'sistema', undefined, expectedVersion(body.expectedUpdatedAt));
 
     return NextResponse.json({ success: true, updated });
   } catch (err: unknown) {
+    if (err instanceof OrderNumberConflictError || (err as { code?: string })?.code === 'P2002') return NextResponse.json({ error: 'Conflito no numero de obra.' }, { status: 409 });
+    if (isEditConflict(err)) return NextResponse.json(editConflictBody(), { status: 409 });
+    if ((err as { code?: string })?.code === 'P2028') return NextResponse.json({ error: 'Não foi possível confirmar a gravação devido a uma interrupção na base de dados. Preserve os dados do formulário e verifique os dados guardados antes de repetir.', code: 'TRANSACTION_UNCONFIRMED' }, { status: 503 });
     return buildDatabaseErrorResponse(err, err instanceof Error ? err.message : "Erro ao atualizar jangada");
   }
 }
@@ -1386,7 +1416,8 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
         shipNameManual: true,
         dataInspecao: true,
         dataProxInspecao: true,
-        ultimoCertificadoNumero: true
+        ultimoCertificadoNumero: true,
+        updatedAt: true
       },
     });
     if (!existing) return NextResponse.json({ error: "Jangada não encontrada." }, { status: 404 });
@@ -1420,8 +1451,26 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
     }
 
     const data = rawData;
+    const responsibleInput = data.inspectionResponsible;
+    let responsible: { inspecaoId: number; tecnicoId: number; expectedUpdatedAt: Date } | undefined;
+    if (responsibleInput !== undefined) {
+      const input = responsibleInput as Record<string, unknown> | null;
+      if (!input || !Number.isSafeInteger(input.inspecaoId) || Number(input.inspecaoId) <= 0 ||
+          !Number.isSafeInteger(input.tecnicoId) || Number(input.tecnicoId) <= 0) {
+        return NextResponse.json({ error: 'Responsavel de inspecao invalido.' }, { status: 400 });
+      }
+      const version = expectedVersion(input.expectedUpdatedAt);
+      if (!version) throw new EditConflictError();
+      responsible = { inspecaoId: Number(input.inspecaoId), tecnicoId: Number(input.tecnicoId), expectedUpdatedAt: version };
+    }
+    const expected = expectedVersion(data.expectedUpdatedAt);
+    assertEditVersion(existing.updatedAt, expected);
 
     const jangadaData = buildJangadaUpdateData(data || {}, existing);
+    if (!access.isAdmin && Object.prototype.hasOwnProperty.call(jangadaData, "serviceStationId") &&
+        !access.allowedStationIds.includes(Number(jangadaData.serviceStationId || 0))) {
+      return NextResponse.json({ error: "Sem permissão para a estação de destino." }, { status: 403 });
+    }
     const hasServiceBulletinsApplied = Object.prototype.hasOwnProperty.call(data || {}, "serviceBulletinsApplied");
     const hasAbate = Object.prototype.hasOwnProperty.call(data || {}, "abate");
     const hasInspectionChecklistValues = Object.prototype.hasOwnProperty.call(data || {}, "inspectionChecklistValues");
@@ -1470,20 +1519,7 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
       }
     }
 
-    if (artigosInput && artigoJangadaDelegate) {
-      const artigosNormalizados = normalizeArtigosInput(artigosInput);
-      await artigoJangadaDelegate.deleteMany({
-        where: {
-          jangadaId: id,
-          inspecaoId: null,
-        },
-      });
-      if (artigosNormalizados.length > 0) {
-        await artigoJangadaDelegate.createMany({
-          data: artigosNormalizados.map((art) => ({ ...art, jangadaId: id })),
-        });
-      }
-    } else if (artigosInput) {
+    if (artigosInput && !artigoJangadaDelegate) {
       // Compatibilidade com esquema legado onde artigos era armazenado como texto JSON
       jangadaData.artigos = JSON.stringify(artigosInput);
     }
@@ -1525,7 +1561,33 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
       normalize(nextPackTypeForSync) !== normalize(existing.packType) ||
       nextCapacityForSync !== Number(existing.capacity || 0);
 
-    // Registar ou atualizar o histórico de inspeções
+    const snapshotsAfterCommit: string[] = [];
+    let savedResponsibleInspection: Record<string, unknown> | undefined;
+    const beforeUpdate = async (db: Prisma.TransactionClient) => {
+    if (responsible) {
+      if (!existing.serviceStationId) throw new Error('A jangada nao tem estacao de servico atribuida.');
+      const inspection = await db.inspecao.findFirst({ where: { id: responsible.inspecaoId, jangadaId: id } });
+      if (!inspection) throw new EditConflictError();
+      assertEditVersion(inspection.updatedAt, responsible.expectedUpdatedAt);
+      const technician = await db.tecnico.findFirst({ where: {
+        id: responsible.tecnicoId, ativo: true, serviceStationId: existing.serviceStationId,
+      } });
+      if (!technician) throw new Error('Tecnico indisponivel nesta estacao.');
+      const rawSnapshot = inspection.checklistSnapshot;
+      const snapshot = rawSnapshot && typeof rawSnapshot === 'object' && !Array.isArray(rawSnapshot) ? rawSnapshot : {};
+      const updatedInspection = await db.inspecao.update({ where: { id: inspection.id }, data: {
+        checklistSnapshot: { ...snapshot, responsavel: technician.nome },
+        updatedAt: nextEditVersion(inspection.updatedAt),
+      } });
+      savedResponsibleInspection = updatedInspection as unknown as Record<string, unknown>;
+      await db.auditoria.create({ data: {
+        tabela: 'Inspecao', idRegisto: inspection.id, tipoOperacao: 'UPDATE', usuario: access.email,
+        descricao: 'Correcao do tecnico responsavel pelo ensaio na ficha da jangada.',
+        dadosAntes: JSON.stringify({ responsavel: snapshot.responsavel }),
+        dadosDepois: JSON.stringify({ responsavel: technician.nome, tecnicoId: technician.id }),
+      } });
+    }
+    // Registar ou atualizar o histórico de inspeções, apenas apos adquirir o CAS.
     const nextDataInspecao = Object.prototype.hasOwnProperty.call(data || {}, "dataInspecao")
       ? (data.dataInspecao ? String(data.dataInspecao).trim() : null)
       : undefined;
@@ -1538,7 +1600,7 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
       
       if (targetDataInspecao) {
         // Tenta encontrar uma inspeção existente para esta data nesta jangada
-        let existingInspection = await prisma.inspecao.findFirst({
+        let existingInspection = await db.inspecao.findFirst({
           where: {
             jangadaId: id,
             dataInspecao: targetDataInspecao,
@@ -1547,7 +1609,7 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
 
         // Se não encontrar por data exata, tenta encontrar a última inspeção registada no histórico
         if (!existingInspection) {
-          existingInspection = await prisma.inspecao.findFirst({
+          existingInspection = await db.inspecao.findFirst({
             where: { jangadaId: id },
             orderBy: { dataInspecao: "desc" },
           });
@@ -1559,13 +1621,16 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
           if (nextDataInspecao !== undefined) updatePayload.dataInspecao = nextDataInspecao;
           if (nextDataProxInspecao !== undefined) updatePayload.dataProxInspecao = nextDataProxInspecao;
 
-          await prisma.inspecao.update({
+          const updatedInspection = await db.inspecao.update({
             where: { id: existingInspection.id },
             data: updatePayload,
           });
+          if (savedResponsibleInspection?.id === updatedInspection.id) {
+            savedResponsibleInspection = updatedInspection as unknown as Record<string, unknown>;
+          }
 
           // Guardar snapshot para esta inspeção existente
-          await saveInspectionSnapshot(existingInspection.certificadoNumero, id);
+          snapshotsAfterCommit.push(existingInspection.certificadoNumero);
         } else {
           // Se não houver nenhuma inspeção para este id no histórico, cria uma nova
           const certNum = await generateInspectionCertificateNumber(
@@ -1573,7 +1638,7 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
             await resolveCertificateStationPrefix({ raftId: id }),
           );
 
-          await prisma.inspecao.create({
+          await db.inspecao.create({
             data: {
               certificadoNumero: certNum,
               jangadaId: id,
@@ -1587,7 +1652,7 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
           });
 
           // Guardar snapshot para esta nova inspeção
-          await saveInspectionSnapshot(certNum, id);
+          snapshotsAfterCommit.push(certNum);
 
           // Atualizar o certificado na jangada
           jangadaData.ultimoCertificadoNumero = certNum;
@@ -1612,7 +1677,7 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
         destinoNome = s?.nome || null;
       }
 
-      await prisma.movimentoEquipamento.create({
+      await db.movimentoEquipamento.create({
         data: {
           tipoEquipamento: "Jangada",
           equipamentoId: id,
@@ -1626,11 +1691,33 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
       });
     }
 
-    const { updated } = await updateJangadaCompat(id, jangadaData);
-
-    if (shouldSyncMandatoryPackArticles && artigoJangadaDelegate) {
-      await syncRaftArticlesWithPackType(id);
+    };
+    const afterUpdate = async (db: Prisma.TransactionClient) => {
+    if (Object.prototype.hasOwnProperty.call(jangadaData, 'numeroObra')) {
+      const latest = await db.inspecao.findFirst({ where: { jangadaId: id }, orderBy: [{ dataInspecao: 'desc' }, { id: 'desc' }], select: { id: true } });
+      if (latest) {
+        const orders = await db.ordemServico.findMany({ where: { jangadaId: id, inspecaoId: latest.id, serviceStationId: existing.serviceStationId, status: { notIn: ['concluida', 'cancelada'] } }, select: { id: true } });
+        for (const order of orders) await syncOrderNumber(db, order.id);
+      }
     }
+    if (shouldSyncMandatoryPackArticles && artigoJangadaDelegate) {
+      const before = await readEquipmentSnapshot(id, db);
+      await syncRaftArticlesWithPackType(id, undefined, db);
+      await auditEquipment(db, { jangadaId: id, usuario: access.email, origem: "Sincronização do pack", antes: before, depois: await readEquipmentSnapshot(id, db) });
+    }
+    if (hasInspectionChecklistValues) {
+      const values = normalizeInspectionChecklistValues(data.inspectionChecklistValues);
+      if (Object.keys(values).length) {
+        const before = await readEquipmentSnapshot(id, db);
+        await syncRichChecklistToRaft(id, values, db);
+        await auditEquipment(db, { jangadaId: id, usuario: access.email, origem: "Equipamentos sincronizados pelo checklist", antes: before, depois: await readEquipmentSnapshot(id, db) });
+      }
+    }
+    };
+    const { updated } = await updateJangadaCompat(id, jangadaData, access.email,
+      artigosInput && artigoJangadaDelegate ? normalizeArtigosInput(artigosInput) : undefined, expected, beforeUpdate,
+      shouldSyncMandatoryPackArticles || hasInspectionChecklistValues || Object.prototype.hasOwnProperty.call(jangadaData, 'numeroObra') ? afterUpdate : undefined);
+    for (const certificate of snapshotsAfterCommit) await saveInspectionSnapshot(certificate, id);
 
     const updatedShipId = Number(updated.shipId || 0);
     const updatedShip = updatedShipId > 0
@@ -1659,6 +1746,9 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
                 id: updatedShip.cliente.id,
                 nome: updatedShip.cliente.nome,
                 ilha: updatedShip.cliente.ilha,
+                email: updatedShip.cliente.email,
+                telefone: updatedShip.cliente.telefone,
+                telmovel: updatedShip.cliente.telmovel,
               }
             : null,
         }
@@ -1815,18 +1905,8 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
       ? await writeServiceBulletinsApplied(id, data?.serviceBulletinsApplied)
       : await readServiceBulletinsApplied(id);
     const inspectionChecklistValues = hasInspectionChecklistValues
-      ? await writeInspectionChecklistValues(id, data?.inspectionChecklistValues)
+      ? await writeInspectionChecklistValues(id, data?.inspectionChecklistValues, access.email)
       : await readInspectionChecklistValues(id);
-    if (inspectionChecklistValues && Object.keys(inspectionChecklistValues).length > 0) {
-      try {
-        await syncRichChecklistToRaft(id, inspectionChecklistValues);
-        if (artigoJangadaDelegate) {
-          artigosPersistidos = await loadArtigosPersistidosLean(artigoJangadaDelegate, id);
-        }
-      } catch (syncRichError) {
-        console.error("Erro ao sincronizar rich checklist com a jangada:", syncRichError);
-      }
-    }
     const observacoes = hasObservacoes
       ? await writeJangadaObservacoes(id, data?.observacoes)
       : await readJangadaObservacoes(id);
@@ -1860,10 +1940,14 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
       applicableServiceBulletins: getApplicableServiceBulletinsForRaft(updated),
       serviceBulletinsApplied,
       inspectionChecklistValues,
+      ...(savedResponsibleInspection ? { savedResponsibleInspection } : {}),
       observacoes,
       abate,
     });
   } catch (err: unknown) {
+    if (err instanceof OrderNumberConflictError || (err as { code?: string })?.code === 'P2002') return NextResponse.json({ error: 'Conflito no numero de obra.' }, { status: 409 });
+    if (isEditConflict(err)) return NextResponse.json(editConflictBody(), { status: 409 });
+    if ((err as { code?: string })?.code === 'P2028') return NextResponse.json({ error: 'Não foi possível confirmar a gravação devido a uma interrupção na base de dados. Preserve os dados do formulário e verifique os dados guardados antes de repetir.', code: 'TRANSACTION_UNCONFIRMED' }, { status: 503 });
     return buildDatabaseErrorResponse(err, err instanceof Error ? err.message : "Erro ao atualizar jangada");
   }
 }

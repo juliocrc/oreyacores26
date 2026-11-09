@@ -1,8 +1,16 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
-import { normalizeMonthYearValue } from "@/lib/date-display";
-import { getCameraErrorMessage } from "@/lib/camera-error";
+import React, { useEffect, useState } from "react";
+import { toDateKey } from '@/lib/date-utils';
+import { ReplacementStockPicker } from '@/components/shared/ReplacementStockPicker';
+import BarcodeScanner from '@/components/shared/BarcodeScanner';
+import StockArticleThumbnail from '@/components/shared/StockArticleThumbnail';
+import { findMatchingArticleForPackItem } from './rafts/mandatoryPack';
+import { filterStockItems, getAvailableStock, type StockPickerItem } from '@/lib/stock-picker';
+import ArticleExpiryResolution from './JangadaWizard/ArticleExpiryResolution';
+import { getBooleanArticleExpiryErrors, resolveArticleNextInspection } from './JangadaWizard/articleExpiry';
+import { isSosRaft } from '@/lib/raft-model-rules';
+import { withoutSosEquipment } from './JangadaWizard/sosRules';
 import {
   buildInspectionChecklistFromQuadro,
   type ChecklistRaftInput,
@@ -14,12 +22,50 @@ interface ChecklistProps {
   initialValues?: Record<string, any>;
   itemPhotos?: Record<string, string>;
   onSave: (values: Record<string, any>) => void;
-  onItemAction?: (fieldName: string, action: "replace" | "ok", packItem?: any) => Promise<any>;
+  stockItems?: StockPickerItem[];
+  onItemAction?: (fieldName: string, action: "replace" | "ok", packItem?: any, selectedStock?: StockPickerItem) => Promise<any>;
   onUploadPhoto?: (fieldName: string, file: File | string) => Promise<string | null>;
   onClose: () => void;
 }
 
-export default function Checklist({ raft, initialValues, onSave, onItemAction, onClose }: ChecklistProps) {
+type ReplacementConfig = {
+  fieldLabel: string;
+  stockReferences: string[];
+  articleTokens: string[];
+  validityFieldName?: string;
+  quantity: number;
+};
+
+export function getChecklistReplacementItems(items: StockPickerItem[], config: ReplacementConfig) {
+  const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  const refs = config.stockReferences.map(ref => ref.trim().toUpperCase()).filter(Boolean);
+  const tokens = (config.articleTokens.length ? config.articleTokens : [config.fieldLabel]).map(normalize).filter(Boolean);
+  return items.filter(item => getAvailableStock(item) >= config.quantity && (refs.length
+    ? [item.referencia, item.codigoFabricante].some(ref => refs.includes(String(ref || '').trim().toUpperCase()))
+    : tokens.some(token => normalize(String(item.descricao || '')).includes(token))));
+}
+
+export function ChecklistReplacementPicker({ items, config, onSelect, onClose }: {
+  items: StockPickerItem[]; config: ReplacementConfig; onSelect: (item: StockPickerItem) => void; onClose: () => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [scanning, setScanning] = useState(false);
+  const eligible = getChecklistReplacementItems(items, config);
+  const filtered = filterStockItems(eligible, query);
+  if (config.validityFieldName) return <div className="relative z-[200]"><ReplacementStockPicker items={eligible} articleLabel={config.fieldLabel} onSelect={onSelect} onClose={onClose} /></div>;
+  return <div className="fixed inset-0 z-[200] bg-black/60 flex items-center justify-center p-4" onClick={onClose} onKeyDown={event => { if (event.key === 'Escape' && !scanning) onClose(); }}>
+    <div role="dialog" aria-modal="true" aria-label={`Substituir: ${config.fieldLabel}`} className="w-full max-w-lg max-h-[90dvh] overflow-y-auto rounded-xl bg-white p-4 space-y-3" onClick={event => event.stopPropagation()}>
+      <h3 className="font-bold">Substituir: {config.fieldLabel}</h3>
+      <button type="button" onClick={() => setScanning(true)} className="rounded bg-indigo-600 px-3 py-2 text-white text-sm">Ler codigo de barras / camara</button>
+      <label className="block text-sm">Pesquisar stock<input autoFocus value={query} onChange={event => setQuery(event.target.value)} className="mt-1 w-full rounded border px-3 py-2" /></label>
+      {filtered.map(item => <button key={item.id} type="button" onClick={() => onSelect(item)} className="flex items-center gap-3 w-full rounded border p-3 text-left text-sm"><StockArticleThumbnail foto={item.foto} label={String(item.referencia || item.descricao || item.id)} /><span>{item.referencia} - {item.descricao} (Qtd: {getAvailableStock(item)})</span></button>)}
+      {filtered.length === 0 && <p role="status">Sem stock disponivel para esta pesquisa.</p>}
+      <button type="button" onClick={onClose} className="rounded border px-3 py-2 text-sm">Cancelar</button>
+    </div>
+    {scanning && <div onClick={event => event.stopPropagation()}><BarcodeScanner onScan={code => { setQuery(code.trim()); setScanning(false); }} onClose={() => setScanning(false)} /></div>}
+  </div>;
+}
+export default function Checklist({ raft, initialValues, stockItems, onSave, onItemAction, onClose }: ChecklistProps) {
   const sections = buildInspectionChecklistFromQuadro(raft);
   const allFields = sections.flatMap((s) =>
     s.fields.map((f) => ({ ...f, sectionTitle: s.title }))
@@ -29,18 +75,33 @@ export default function Checklist({ raft, initialValues, onSave, onItemAction, o
   const [currentIndex, setCurrentIndex] = useState(0);
   const [values, setValues] = useState<Record<string, any>>(() => {
     const defaults = buildChecklistInitialValues(sections, raft);
-    return { ...defaults, ...(initialValues || {}) };
+    return withoutSosEquipment({ ...defaults, ...(initialValues || {}) }, isSosRaft(raft));
   });
-  const [showScanner, setShowScanner] = useState(false);
-  const [useCamera, setUseCamera] = useState(false);
-  const [scanQuery, setScanQuery] = useState("");
-  const [scanMessage, setScanMessage] = useState<{ text: string; type: "success" | "error" | "info" } | null>(null);
-  const [pendingReplacementFieldName, setPendingReplacementFieldName] = useState<string | null>(null);
-  const [suggestedReplacementFieldName, setSuggestedReplacementFieldName] = useState<string | null>(null);
-  const scannerRef = useRef<any>(null);
+  const [replacementFieldName, setReplacementFieldName] = useState<string | null>(null);
+  const [replacementItems, setReplacementItems] = useState<StockPickerItem[]>([]);
+  const [replacementLoading, setReplacementLoading] = useState(false);
+  const [replacementError, setReplacementError] = useState('');
+  const [expiryErrors, setExpiryErrors] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (stockItems) return;
+    let cancelled = false;
+    fetch('/api/stock?take=5000&includeFoto=true')
+      .then(response => response.ok ? response.json() : [])
+      .then(items => { if (!cancelled && Array.isArray(items)) setReplacementItems(items); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [stockItems]);
 
   const current = allFields[currentIndex] ?? null;
   const answered = allFields.filter((f) => values[f.name] !== undefined && values[f.name] !== "").length;
+  const nextInspection = resolveArticleNextInspection({ ...raft, dataInspecao: values.dataInspecao || raft.dataInspecao, dataProxInspecao: values.dataProxInspecao || raft.dataProxInspecao });
+
+  const saveChecklist = () => {
+    const errors = getBooleanArticleExpiryErrors(sections, values, nextInspection);
+    setExpiryErrors(errors);
+    if (!errors.length) onSave(withoutSosEquipment({ ...values, dataProxInspecao: nextInspection }, isSosRaft(raft)));
+  };
 
   const handleFieldChange = (name: string, value: any) => {
     setValues((prev) => ({ ...prev, [name]: value }));
@@ -48,179 +109,55 @@ export default function Checklist({ raft, initialValues, onSave, onItemAction, o
 
   const goNext = () => {
     if (currentIndex < total - 1) setCurrentIndex((i) => i + 1);
-    else onSave(values);
+    else saveChecklist();
   };
 
   const goPrev = () => {
     if (currentIndex > 0) setCurrentIndex((i) => i - 1);
   };
 
-  const jumpToField = (fieldName: string) => {
-    const idx = allFields.findIndex((f) => f.name === fieldName);
-    if (idx >= 0) setCurrentIndex(idx);
-  };
-
-  // --- scanner helpers ---
-  const findFieldByName = (fieldName: string) => allFields.find((f) => f.name === fieldName) ?? null;
-
-  const getFieldQueryScore = (field: any, cleanQuery: string) => {
-    const item = field?.packItem;
-    if (!item) return 0;
-    const refs = Array.isArray(item.stockReferences) ? item.stockReferences : [];
-    const normalizedRefs = refs.map((r: string) => String(r || "").trim().toUpperCase()).filter(Boolean);
-    const label = String(field?.label || "").toUpperCase();
-    const name = String(field?.name || "").toUpperCase();
-    let score = 0;
-    if (normalizedRefs.includes(cleanQuery)) score += 100;
-    if (normalizedRefs.some((ref: string) => ref.includes(cleanQuery) || cleanQuery.includes(ref))) score += 40;
-    if (label.includes(cleanQuery) || cleanQuery.includes(label)) score += 20;
-    if (name.includes(cleanQuery) || cleanQuery.includes(name)) score += 10;
-    return score;
-  };
-
-  const findBestMatchingField = (cleanQuery: string, excludeFieldName?: string) => {
-    let bestField: any = null;
-    let bestScore = 0;
-    for (const field of allFields) {
-      if (excludeFieldName && field.name === excludeFieldName) continue;
-      const score = getFieldQueryScore(field, cleanQuery);
-      if (score > bestScore) { bestScore = score; bestField = field; }
-    }
-    return bestScore > 0 ? bestField : null;
-  };
-
-  const fieldMatchesQuery = (field: any, cleanQuery: string) => {
-    const item = field?.packItem;
-    if (!item) return false;
-    const refs = Array.isArray(item.stockReferences) ? item.stockReferences : [];
-    const normalizedRefs = refs.map((r: string) => String(r || "").trim().toUpperCase()).filter(Boolean);
-    return (
-      normalizedRefs.includes(cleanQuery) ||
-      String(field?.label || "").toUpperCase().includes(cleanQuery) ||
-      String(field?.name || "").toUpperCase().includes(cleanQuery)
-    );
-  };
-
-  const closeScanner = () => {
-    setShowScanner(false);
-    setUseCamera(false);
-    setPendingReplacementFieldName(null);
-    setSuggestedReplacementFieldName(null);
-  };
-
-  const startReplacementScan = (fieldName: string) => {
-    setPendingReplacementFieldName(fieldName);
-    setSuggestedReplacementFieldName(null);
-    setScanQuery("");
-    setShowScanner(true);
-    setUseCamera(true);
-    setScanMessage({ text: "Aponte a c�mara ao c�digo do artigo de substitui��o.", type: "info" });
-  };
-
-  const applySuggestedReplacementTarget = () => {
-    if (!suggestedReplacementFieldName) return;
-    const f = findFieldByName(suggestedReplacementFieldName);
-    if (!f) return;
-    jumpToField(f.name);
-    setPendingReplacementFieldName(f.name);
-    setSuggestedReplacementFieldName(null);
-    setScanMessage({ text: `Sugest�o aplicada: ${f.label}. Leia novamente.`, type: "info" });
-  };
-
-  useEffect(() => {
-    if (useCamera) void startCamera();
-    else stopCamera();
-    return () => stopCamera();
-  }, [useCamera]);
-
-  const startCamera = async () => {
+  const openReplacementPicker = async (fieldName: string) => {
+    setReplacementFieldName(fieldName);
+    setReplacementError('');
+    if (stockItems) { setReplacementItems(stockItems); return; }
+    setReplacementItems([]);
+    setReplacementLoading(true);
     try {
-      const { Html5Qrcode } = await import("html5-qrcode");
-      const html5QrCode = new Html5Qrcode("reader");
-      scannerRef.current = html5QrCode;
-      await html5QrCode.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 250, height: 250 } },
-        (decodedText: string) => { handleBarcodeScan(decodedText); setUseCamera(false); },
-        () => {}
-      );
-    } catch (error) {
-      console.error("Camera error (Checklist):", error);
-      setScanMessage({ text: getCameraErrorMessage(error), type: "error" });
-      setUseCamera(false);
-    }
+      const response = await fetch('/api/stock?take=5000&includeFoto=true');
+      if (!response.ok) throw new Error('Falha ao carregar stock');
+      const items = await response.json();
+      setReplacementItems(Array.isArray(items) ? items : []);
+    } catch {
+      setReplacementError('Nao foi possivel carregar stock. Feche e tente novamente.');
+    } finally { setReplacementLoading(false); }
   };
 
-  const stopCamera = () => {
-    if (scannerRef.current) {
-      try { scannerRef.current.stop().catch(() => {}); scannerRef.current = null; } catch {}
-    }
+  const replacementField = allFields.find(field => field.name === replacementFieldName);
+  const validityFieldBySource: Record<string, string> = {
+    luz_exterior_bateria: 'validade_luzes_exteriores', luz_interior_bateria: 'validade_bateria', bateria_litio: 'validade_bateria',
+    pilhas_lanterna: 'validade_pilhas_lanterna', saco_agua: 'validade_agua', racoes_alimentares: 'validade_racoes', ambulancia: 'validade_farmacia',
+    comprimidos_enjoo: 'validade_comprimidos', foguetoes_paraquedas: 'validade_paraquedas', fachos_mao: 'validade_fachos_mao', potes_fumo: 'validade_potes_fumo',
   };
+  const replacementConfig = replacementField ? {
+    fieldLabel: replacementField.label,
+    stockReferences: replacementField.packItem?.stockReferences || [],
+    articleTokens: replacementField.packItem?.articleTokens || [],
+    validityFieldName: replacementField.packItem?.validityFieldName || validityFieldBySource[replacementField.name],
+    quantity: Math.max(1, Number(replacementField.packItem?.quantity || 1)),
+  } : null;
 
-  const handleBarcodeScan = async (query: string) => {
-    if (!query) return;
-    const cleanQuery = query.trim().toUpperCase();
-
-    if (pendingReplacementFieldName) {
-      const targetField = findFieldByName(pendingReplacementFieldName);
-      if (!targetField || !targetField.packItem) {
-        setScanMessage({ text: "N�o foi poss�vel identificar o item.", type: "error" });
-        setPendingReplacementFieldName(null);
-        setSuggestedReplacementFieldName(null);
-        return;
-      }
-      if (!fieldMatchesQuery(targetField, cleanQuery)) {
-        const suggestedField = findBestMatchingField(cleanQuery, targetField.name);
-        if (suggestedField) {
-          setSuggestedReplacementFieldName(suggestedField.name);
-          jumpToField(suggestedField.name);
-          setScanMessage({ text: `C�digo n�o corresponde a "${targetField.label}". Sugest�o: "${suggestedField.label}".`, type: "info" });
-          return;
-        }
-        setSuggestedReplacementFieldName(null);
-        setScanMessage({ text: `C�digo n�o corresponde ao item: ${targetField.label}`, type: "error" });
-        return;
-      }
-      setSuggestedReplacementFieldName(null);
-      handleFieldChange(targetField.name, false);
-      if (onItemAction) {
-        const stockItem = await onItemAction(targetField.name, "replace", targetField.packItem);
-        if (stockItem?.validade && targetField.packItem?.validityFieldName) {
-          const ym = normalizeMonthYearValue(String(stockItem.validade));
-          const valStr = ym ? `${ym}-01` : String(stockItem.validade);
-          handleFieldChange(targetField.packItem.validityFieldName, valStr);
-          setScanMessage({ text: `Substitu�do � validade ${valStr}`, type: "success" });
-        } else {
-          setScanMessage({ text: `Substitui��o registada: ${targetField.label}`, type: "success" });
-        }
-      }
-      setPendingReplacementFieldName(null);
-      setScanQuery("");
-      setTimeout(() => { closeScanner(); setScanMessage(null); }, 1200);
-      return;
-    }
-
-    const matchedField = allFields.find((f) => {
-      const item = f.packItem;
-      if (!item) return false;
-      const refs = (item.stockReferences || []) as string[];
-      return (
-        refs.some((r) => String(r).toUpperCase() === cleanQuery) ||
-        f.name.toUpperCase().includes(cleanQuery) ||
-        f.label.toUpperCase().includes(cleanQuery)
-      );
-    });
-
-    if (matchedField) {
-      setSuggestedReplacementFieldName(null);
-      handleFieldChange(matchedField.name, true);
-      jumpToField(matchedField.name);
-      setScanMessage({ text: `Identificado: ${matchedField.label}`, type: "success" });
-      setTimeout(() => { setScanMessage(null); setScanQuery(""); }, 2000);
-    } else {
-      setScanMessage({ text: "Equipamento n�o identificado.", type: "error" });
-      setTimeout(() => setScanMessage(null), 3000);
-    }
+  const confirmReplacement = async (item: StockPickerItem) => {
+    if (!replacementField || !replacementConfig || !getChecklistReplacementItems(replacementItems, replacementConfig).some(row => row.id === item.id)) return;
+    try {
+      if (onItemAction) await onItemAction(replacementField.name, 'replace', replacementField.packItem, item);
+      const validity = replacementConfig.validityFieldName;
+      const expiry = validity && item.validade ? toDateKey(item.validade) : '';
+      setValues(prev => ({ ...prev, [replacementField.name]: true,
+        [`${replacementField.name}_stockId`]: item.id,
+        ...(validity ? { [`${replacementField.name}_lote`]: item.lote || '', [validity]: expiry, [`${validity}_substituido`]: true } : {}),
+      }));
+      setReplacementFieldName(null);
+    } catch { setReplacementError('Nao foi possivel confirmar a substituicao.'); }
   };
 
   if (!current) return <div className="p-8 text-center text-slate-400">Checklist sem itens.</div>;
@@ -228,6 +165,11 @@ export default function Checklist({ raft, initialValues, onSave, onItemAction, o
   const currentValue = values[current.name];
   const isCheckbox = current.type === "checkbox";
   const isDate = current.type === "date";
+  const matchedArticle = current.packItem ? findMatchingArticleForPackItem(current.packItem, raft.artigos || []) : undefined;
+  const selectedStockId = values[`${current.packItem?.checklistName || current.name}_stockId`];
+  const catalogArticle = (stockItems || replacementItems).find(item => selectedStockId
+    ? String(item.id) === String(selectedStockId)
+    : matchedArticle?.referencia ? item.referencia === matchedArticle.referencia : (current.packItem?.stockReferences || []).includes(item.referencia || ''));
 
   // Section context
   const currentSectionIdx = sections.findIndex((s) => s.fields.some((f) => f.name === current.name));
@@ -254,9 +196,10 @@ export default function Checklist({ raft, initialValues, onSave, onItemAction, o
           <p className="text-[10px] text-slate-400 mt-0.5">{answered}/{total} itens respondidos</p>
         </div>
         <button
-          onClick={() => setShowScanner((s) => !s)}
-          className={`p-2 rounded-lg border transition-all ${showScanner ? "bg-sky-600 border-sky-600 text-white" : "border-slate-200 text-slate-500 hover:border-sky-300"}`}
-          title="Scanner"
+          onClick={() => void openReplacementPicker(current.packItem?.checklistName || current.name)}
+          disabled={!current.packItem}
+          className="p-2 rounded-lg border border-slate-200 text-slate-500 disabled:opacity-30"
+          title="Substituir do stock"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h2M4 10h2M4 14h2M8 4v16M16 4v16M20 6h-2M20 10h-2M20 14h-2" />
@@ -272,50 +215,9 @@ export default function Checklist({ raft, initialValues, onSave, onItemAction, o
         />
       </div>
 
-      {/* Scanner panel */}
-      {showScanner && (
-        <div className="bg-sky-50 border-b border-sky-200 p-4 shrink-0 space-y-3">
-          <div className="flex gap-2">
-            <input
-              autoFocus
-              type="text"
-              placeholder="Refer�ncia ou c�digo..."
-              value={scanQuery}
-              onKeyDown={(e) => e.key === "Enter" && handleBarcodeScan(scanQuery)}
-              onChange={(e) => setScanQuery(e.target.value)}
-              className="flex-1 bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-sky-500 font-mono text-sm"
-            />
-            <button
-              onClick={() => setUseCamera((c) => !c)}
-              className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wide transition-all ${useCamera ? "bg-amber-500 text-white" : "bg-white text-slate-700 border border-slate-300 hover:bg-slate-100"}`}
-            >
-              {useCamera ? "Parar" : "C�mera"}
-            </button>
-          </div>
-          {useCamera && (
-            <div className="w-full max-w-sm mx-auto aspect-square bg-black rounded-2xl overflow-hidden border border-white/10 relative">
-              <div id="reader" className="w-full h-full" />
-              <div className="absolute inset-x-8 top-1/2 -translate-y-1/2 h-0.5 bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.8)] animate-pulse" />
-            </div>
-          )}
-          {scanMessage && (
-            <div className={`px-4 py-2.5 rounded-xl text-xs font-bold text-center ${
-              scanMessage.type === "success" ? "bg-emerald-500 text-white" :
-              scanMessage.type === "error" ? "bg-rose-500 text-white" : "bg-sky-500 text-white"
-            }`}>
-              {scanMessage.text}
-              {suggestedReplacementFieldName && pendingReplacementFieldName && (
-                <button
-                  onClick={applySuggestedReplacementTarget}
-                  className="ml-3 rounded-lg bg-white/20 px-3 py-1 hover:bg-white/30"
-                >
-                  Usar sugest�o
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+      {replacementField && replacementConfig && !replacementLoading && <ChecklistReplacementPicker items={replacementItems} config={replacementConfig} onSelect={item => void confirmReplacement(item)} onClose={() => setReplacementFieldName(null)} />}
+      {replacementField && replacementLoading && <div role="status">A carregar stock... <button type="button" onClick={() => setReplacementFieldName(null)}>Cancelar</button></div>}
+      {replacementError && <p role="alert" className="p-3 text-sm text-red-700">{replacementError}</p>}
 
       {/* Main card � one item at a time */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 overflow-y-auto">
@@ -330,6 +232,7 @@ export default function Checklist({ raft, initialValues, onSave, onItemAction, o
 
           {/* Item name */}
           <div className="text-center space-y-1.5">
+            {(isCheckbox || current.packItem) && <div className="flex justify-center mb-3"><StockArticleThumbnail foto={catalogArticle?.foto} label={current.label} className="w-16 h-16" /></div>}
             <h2 className="text-[1.6rem] font-black text-slate-900 leading-tight">{current.label}</h2>
             {current.englishLabel && (
               <p className="text-sm text-slate-400 italic font-serif">{current.englishLabel}</p>
@@ -342,6 +245,9 @@ export default function Checklist({ raft, initialValues, onSave, onItemAction, o
           </div>
 
           {/* Checkbox � OK / Falha */}
+          {isCheckbox && currentValue !== true && currentValue !== false && (
+            <p className="text-center text-sm font-bold text-amber-700">Por verificar</p>
+          )}
           {isCheckbox && (
             <div className="flex gap-3 pt-2">
               <button
@@ -355,7 +261,7 @@ export default function Checklist({ raft, initialValues, onSave, onItemAction, o
                 ? OK
               </button>
               <button
-                onClick={() => { handleFieldChange(current.name, false); startReplacementScan(current.name); }}
+                onClick={() => handleFieldChange(current.name, false)}
                 className={`flex-1 py-6 rounded-2xl text-lg font-black uppercase tracking-wide transition-all active:scale-95 ${
                   currentValue === false
                     ? "bg-rose-500 text-white shadow-xl shadow-rose-500/25"
@@ -366,6 +272,22 @@ export default function Checklist({ raft, initialValues, onSave, onItemAction, o
               </button>
             </div>
           )}
+
+          {isCheckbox && currentValue === false && (
+            <div className="space-y-2">
+              <label htmlFor="checklist-justificacao" className="text-sm font-bold text-rose-800">Justificação de não substituição</label>
+              <textarea
+                id="checklist-justificacao"
+                value={String(values[`${current.name}_justificacaoNaoSubstituicao`] || '')}
+                onChange={(e) => handleFieldChange(`${current.name}_justificacaoNaoSubstituicao`, e.target.value)}
+                rows={3}
+                className="w-full rounded-xl border border-rose-300 px-3 py-2 text-sm"
+              />
+              <p className="text-xs text-rose-700">Obrigatória para concluir sem substituir. O item mantém a falha, sem declaração de conformidade.</p>
+            </div>
+          )}
+
+          {isCheckbox && <button type="button" onClick={() => void openReplacementPicker(current.name)} className="w-full rounded-xl border border-sky-300 py-3 text-sm font-bold text-sky-700">Substituir do stock</button>}
 
           {/* Date field */}
           {isDate && (
@@ -388,6 +310,7 @@ export default function Checklist({ raft, initialValues, onSave, onItemAction, o
           )}
 
           {/* Text / number field */}
+          {isDate && current.name.startsWith('validade_') && <ArticleExpiryResolution name={current.label} validade={String(currentValue || '')} nextInspection={nextInspection} replaced={values[`${current.name}_substituido`] === true} reason={String(values[`${current.name}_justificacaoNaoSubstituicao`] || '')} onReasonChange={value => handleFieldChange(`${current.name}_justificacaoNaoSubstituicao`, value)} />}
           {!isCheckbox && !isDate && (
             <div className="space-y-3">
               <input
@@ -441,6 +364,7 @@ export default function Checklist({ raft, initialValues, onSave, onItemAction, o
       </div>
 
       {/* Footer */}
+      {expiryErrors.length > 0 && <div role="alert" className="px-4 py-3 text-xs text-red-800 bg-red-50">{expiryErrors.map(error => <p key={error}>{error}</p>)}</div>}
       <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-white shrink-0">
         <button
           onClick={goPrev}
@@ -453,7 +377,7 @@ export default function Checklist({ raft, initialValues, onSave, onItemAction, o
           Anterior
         </button>
         <button
-          onClick={currentIndex >= total - 1 ? () => onSave(values) : goNext}
+          onClick={currentIndex >= total - 1 ? saveChecklist : goNext}
           className="flex items-center gap-1 px-6 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-black uppercase tracking-wide hover:bg-indigo-700 active:scale-95 transition-all"
         >
           {currentIndex >= total - 1 ? "Concluir" : "Pr�ximo"}

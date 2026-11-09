@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
 
     orders.forEach((o) => {
       const tecName = o.tecnico?.nome || o.tecnicoResponsavel || "Técnico Geral";
-      const stationName = o.serviceStation?.nome || "Orey Açores (Sede)";
+      const stationName = o.serviceStation?.nome || "Orey Tecnica- Serviços Navais, Lda (Sede)";
 
       const tot = Number(o.valorTotal || 0);
       const mo = Number(o.valorMaoObra || 0);

@@ -106,11 +106,11 @@ function setCellText(cell: XmlElement, text: string, bold = false): void {
   }
 }
 
-function setCellSingleParagraphText(cell: XmlElement, text: string): void {
+function setCellSingleParagraphText(cell: XmlElement, text: string, bold = false): void {
   let firstParagraph = true;
   for (const child of Array.from(cell.childNodes)) {
     if (!isW(child, "p")) continue;
-    setParagraphText(child as XmlElement, firstParagraph ? text : "");
+    setParagraphText(child as XmlElement, firstParagraph ? text : "", firstParagraph && bold);
     firstParagraph = false;
   }
 }
@@ -273,15 +273,12 @@ export async function generateDgrmDocx(
         setCellText(cells[2], data.ultimoCertificadoNumero || "", true);
     }
 
-    // Last row: owner name in all cells
+    // The template owner cell has Portuguese and English paragraphs. Write the
+    // value once, not into both paragraphs of the same merged cell.
     const lastRow = rows[rows.length - 1];
     const ownerText = data.ownerDisplay || data.owner || "";
     for (const cell of getRowCells(lastRow)) {
-      setCellSingleParagraphText(cell, ownerText);
-      // set bold on the text inside last row cells
-      for (const p of Array.from(cell.childNodes)) {
-        if (isW(p, "p")) setParagraphText(p as XmlElement, ownerText, true);
-      }
+      setCellSingleParagraphText(cell, ownerText, true);
     }
   }
 

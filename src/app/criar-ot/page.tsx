@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, Save, X, Search } from "lucide-react";
 import { toast } from "@/components/shared/Toast";
 import { performOfflineAwareJsonRequest } from "@/lib/offline-sync/client";
@@ -48,6 +48,7 @@ export default function CriarOtPage() {
   const jangadaIdParam = searchParams.get("jangadaId");
 
   const [saving, setSaving] = useState(false);
+  const saveLock = useRef(false);
   const [error, setError] = useState<string | null>(null);
 
   const [tipo, setTipo] = useState("inspecao");
@@ -65,6 +66,7 @@ export default function CriarOtPage() {
   const [navioJangadas, setNavioJangadas] = useState<JangadaOption[]>([]);
   const [selectedJangadaIds, setSelectedJangadaIds] = useState<Set<number>>(new Set());
   const [loadingJangadas, setLoadingJangadas] = useState(false);
+  const [loadedNavioId, setLoadedNavioId] = useState("");
 
   // Legacy search-by-serial
   const [searchJangada, setSearchJangada] = useState("");
@@ -79,63 +81,87 @@ export default function CriarOtPage() {
     if (!jangadaIdParam) return;
     const id = Number(jangadaIdParam);
     if (!id) return;
-    fetch(`/api/jangadas/${id}`)
-      .then(r => r.json())
+    const controller = new AbortController();
+    fetch(`/api/jangadas/${id}`, { signal: controller.signal })
+      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
       .then(data => {
+        if (controller.signal.aborted) return;
         if (data?.serial) {
           setSearchJangada(data.serial);
           setSelectedJangada({ id: data.id, serial: data.serial, brand: data.brand, model: data.model, navio: data.navio });
         }
       })
-      .catch(() => {});
+      .catch(() => { if (!controller.signal.aborted) setError("Erro ao carregar a jangada selecionada."); });
+    return () => controller.abort();
   }, [jangadaIdParam]);
 
   // Load client and navios
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- clear the cascade before loading a different customer.
+    setCliente(null);
+    setSelectedNavioId("");
+    setNavioJangadas([]);
+    setSelectedJangadaIds(new Set());
+    setLoadedNavioId("");
     if (!clienteIdParam) return;
     const id = Number(clienteIdParam);
     if (!id) return;
-    fetch(`/api/clientes/${id}`)
-      .then((r) => r.json())
-      .then((data) => setCliente(data))
-      .catch(() => toast.error("Erro ao carregar cliente", "Criar OT"));
+    const controller = new AbortController();
+    fetch(`/api/clientes/${id}`, { signal: controller.signal })
+      .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
+      .then((data) => { if (!controller.signal.aborted) setCliente(data); })
+      .catch(() => { if (!controller.signal.aborted) toast.error("Erro ao carregar cliente", "Criar OT"); });
+    return () => controller.abort();
   }, [clienteIdParam]);
 
   // Load jangadas when navio is selected
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset do estado das jangadas quando o navio selecionado muda.
-    if (!selectedNavioId) { setNavioJangadas([]); setSelectedJangadaIds(new Set()); return; }
+    setLoadedNavioId("");
+    setNavioJangadas([]);
+    setSelectedJangadaIds(new Set());
+    if (!selectedNavioId) { setLoadingJangadas(false); return; }
+    const controller = new AbortController();
     setLoadingJangadas(true);
-    fetch(`/api/jangadas?shipId=${selectedNavioId}`)
-      .then((r) => r.json())
+    fetch(`/api/jangadas?shipId=${selectedNavioId}`, { signal: controller.signal })
+      .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
       .then((data) => {
+        if (controller.signal.aborted) return;
         setNavioJangadas(Array.isArray(data) ? data : []);
+        setLoadedNavioId(selectedNavioId);
       })
-      .catch(() => toast.error("Erro ao carregar jangadas", "Criar OT"))
-      .finally(() => setLoadingJangadas(false));
+      .catch(() => { if (!controller.signal.aborted) toast.error("Erro ao carregar jangadas", "Criar OT"); })
+      .finally(() => { if (!controller.signal.aborted) setLoadingJangadas(false); });
+    return () => controller.abort();
   }, [selectedNavioId]);
 
   // Legacy search
   useEffect(() => {
     if (useCascade) return;
+    const controller = new AbortController();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Clear stale results before the next debounced request.
+    setJangadas([]);
+    setSearchingJangada(false);
     if (!searchJangada || searchJangada.length < 2) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset da lista de jangadas quando o termo de pesquisa é esvaziado.
-      setJangadas([]);
       return;
     }
     const timer = setTimeout(async () => {
       setSearchingJangada(true);
       try {
-        const r = await fetch(`/api/jangadas?serial=${encodeURIComponent(searchJangada)}`);
+        const r = await fetch(`/api/jangadas?serial=${encodeURIComponent(searchJangada)}`, { signal: controller.signal });
+        if (!r.ok) throw new Error();
         if (r.ok) {
           const data = await r.json();
+          if (controller.signal.aborted) return;
           setJangadas(Array.isArray(data) ? data : []);
         }
-      } catch { } finally {
-        setSearchingJangada(false);
+      } catch {
+        if (!controller.signal.aborted) setError("Erro ao pesquisar jangadas. Tente novamente.");
+      } finally {
+        if (!controller.signal.aborted) setSearchingJangada(false);
       }
     }, 300);
-    return () => clearTimeout(timer);
+    return () => { clearTimeout(timer); controller.abort(); };
   }, [searchJangada, useCascade]);
 
   const toggleJangada = (id: number) => {
@@ -148,15 +174,22 @@ export default function CriarOtPage() {
   };
 
   const handleSubmit = useCallback(async () => {
+    if (saveLock.current) return;
     if (useCascade) {
       if (!selectedNavioId) { toast.error("Seleciona um navio.", "Criar OT"); return; }
+      if (loadingJangadas || loadedNavioId !== selectedNavioId) { toast.error("Aguarda o carregamento das jangadas do navio.", "Criar OT"); return; }
       if (selectedJangadaIds.size === 0) { toast.error("Seleciona pelo menos uma jangada.", "Criar OT"); return; }
+      if ([...selectedJangadaIds].some((id) => !navioJangadas.some((jangada) => jangada.id === id))) {
+        toast.error("Confirma novamente as jangadas do navio selecionado.", "Criar OT"); return;
+      }
     } else {
       if (!selectedJangada) { toast.error("Seleciona uma jangada.", "Criar OT"); return; }
     }
 
+    saveLock.current = true;
     setSaving(true);
     setError(null);
+    let completed = false;
     try {
       const body: Record<string, unknown> = {
         tipo,
@@ -187,6 +220,7 @@ export default function CriarOtPage() {
       });
 
       if (r.queued) {
+        completed = true;
         toast.success("OT criada na fila offline; será enviada quando houver ligação.", "Offline");
         router.push("/ordens-servico");
         return;
@@ -199,15 +233,19 @@ export default function CriarOtPage() {
       }
       const label = useCascade ? `OT para ${selectedJangadaIds.size} jangada(s)` : `OT ${String((newOrder as { numeroOrdem?: unknown }).numeroOrdem || (newOrder as { id?: unknown }).id)}`;
       toast.success(`${label} criada.`, "Sucesso");
+      completed = true;
       router.push(`/ordens-servico/${String((newOrder as { id: unknown }).id)}`);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Erro ao criar OT.";
       setError(msg);
       toast.error(msg, "Criar OT");
     } finally {
-      setSaving(false);
+      if (!completed) {
+        saveLock.current = false;
+        setSaving(false);
+      }
     }
-  }, [useCascade, selectedNavioId, selectedJangadaIds, selectedJangada, tipo, prioridade, status, tecnicoResponsavel, slaHoras, dataPlaneadaInicio, dataPlaneadaFim, descricao, router]);
+  }, [useCascade, selectedNavioId, selectedJangadaIds, selectedJangada, loadingJangadas, loadedNavioId, navioJangadas, tipo, prioridade, status, tecnicoResponsavel, slaHoras, dataPlaneadaInicio, dataPlaneadaFim, descricao, router]);
 
   return (
     <div className="min-h-screen bg-slate-50 py-8">
@@ -239,7 +277,13 @@ export default function CriarOtPage() {
                   <label className="mb-1 block text-xs font-medium text-slate-600">Navio</label>
                   <select
                     value={selectedNavioId}
-                    onChange={(e) => setSelectedNavioId(e.target.value)}
+                    disabled={saving}
+                    onChange={(e) => {
+                      setNavioJangadas([]);
+                      setSelectedJangadaIds(new Set());
+                      setLoadedNavioId("");
+                      setSelectedNavioId(e.target.value);
+                    }}
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
                   >
                     <option value="">Selecionar navio...</option>
@@ -384,7 +428,7 @@ export default function CriarOtPage() {
           <button onClick={() => router.back()} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">
             Cancelar
           </button>
-          <button onClick={handleSubmit} disabled={saving} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
+          <button onClick={handleSubmit} disabled={saving || (useCascade && (loadingJangadas || loadedNavioId !== selectedNavioId))} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
             <Save size={16} />
             {saving ? "A criar..." : "Criar Ordem"}
           </button>

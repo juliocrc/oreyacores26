@@ -22,6 +22,7 @@ import { INSPECTION_STATUS_STYLES, type InspectionStatusColor } from "@/lib/insp
 import ClienteNaviosPanel from "./ClienteNaviosPanel";
 import ClienteJangadasPanel from "./ClienteJangadasPanel";
 import ClienteFichaPanel from "./ClienteFichaPanel";
+import { isSosDocumentRaft } from "@/lib/raft-document-rules";
 
 type SearchMode = "nif" | "codigo";
 
@@ -44,6 +45,7 @@ type JangadaEstado = {
   certificadoExternoNumero: string | null;
   certificadoExternoUrl: string | null;
   certificadoPdfUrl: string | null;
+  quadroPdfUrl: string | null;
   certificadoPdfPublicUrl?: string | null;
   hruReferencia: string | null;
   hruValidade: string | null;
@@ -78,6 +80,7 @@ type OrdemServicoResumo = {
 type FaturaResumo = {
   id: number;
   numeroFatura: string;
+  faturaPdfUrl: string;
   valorTotal: number;
   valorPago: number;
   pagamentoStatus: string;
@@ -110,6 +113,7 @@ type RespostaClienteAuth = {
     ilha: string | null;
   };
   navios: Array<{ id: number; nome: string; matricula?: string; ilha?: string; tipoPesca?: string }>;
+  coletes: Array<{ id: number; shipId: number | null; serial: string; marca: string | null; modelo: string | null; dataProxInspecao: string | null }>;
   jangadas: JangadaEstado[];
   ordensServico: OrdemServicoResumo[];
   faturas: FaturaResumo[];
@@ -145,6 +149,12 @@ export default function AreaClientePage() {
   const [pedidoMessage, setPedidoMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    if (status === "unauthenticated" && typeof window !== "undefined") {
+      window.location.replace("/area-cliente/login");
+    }
+  }, [status]);
+
+  useEffect(() => {
     if (status !== "authenticated") return;
     let cancelled = false;
     setLoading(true);
@@ -152,7 +162,11 @@ export default function AreaClientePage() {
     const query = previewClienteId ? `?previewClienteId=${encodeURIComponent(previewClienteId)}` : "";
     Promise.all([
       fetch(`/api/portal/me${query}`, { cache: "no-store" }).then(async (res) => {
-        const json = await res.json();
+        const json = await res.json().catch(() => ({}));
+        if (res.status === 401 || res.status === 403) {
+          await signOut({ callbackUrl: "/area-cliente/login" });
+          throw new Error(json.error || "Sessão expirada. A redirecionar para o login...");
+        }
         if (!res.ok) throw new Error(json.error || "Erro ao carregar a sua área.");
         return json;
       }),
@@ -209,7 +223,7 @@ export default function AreaClientePage() {
           </div>
           <h1 className="mt-4 text-xl font-extrabold text-slate-800">Área do Cliente</h1>
           <p className="mt-2 text-sm text-slate-500">
-             Inicie sessão com o seu email e código para consultar jangadas, certificados, serviços e faturas.
+             Inicie sessão com o seu NIF e código temporário para consultar jangadas, certificados, serviços e faturas.
           </p>
           <a
             href="/area-cliente/login"
@@ -245,7 +259,7 @@ export default function AreaClientePage() {
               <Anchor size={22} />
             </div>
             <div>
-              <p className="text-sm font-extrabold text-slate-800 leading-tight">Orey Açores</p>
+              <p className="text-sm font-extrabold text-slate-800 leading-tight">Orey Tecnica- Serviços Navais, Lda</p>
               <p className="text-xs text-slate-500 font-medium">Área do Cliente</p>
             </div>
           </div>
@@ -302,19 +316,19 @@ export default function AreaClientePage() {
               <p className="mt-1 text-xs font-semibold text-sky-700">ordens em acompanhamento</p>
             </div>
             <div className={`rounded-2xl border p-4 sm:p-5 ${totalEmDivida > 0 ? "border-rose-200 bg-rose-50" : "border-slate-200 bg-white"}`}>
-              <p className={`text-xs font-bold uppercase tracking-wide ${totalEmDivida > 0 ? "text-rose-700" : "text-slate-500"}`}>Conta corrente</p>
+              <p className={`text-xs font-bold uppercase tracking-wide ${totalEmDivida > 0 ? "text-rose-700" : "text-slate-500"}`}>Saldo das faturas apresentadas</p>
               <p className={`mt-2 text-xl sm:text-2xl font-black ${totalEmDivida > 0 ? "text-rose-950" : "text-slate-900"}`}>{totalEmDivida.toLocaleString("pt-PT", { style: "currency", currency: "EUR" })}</p>
-              <p className={`mt-1 text-xs font-semibold ${totalEmDivida > 0 ? "text-rose-700" : "text-slate-500"}`}>{totalEmDivida > 0 ? "valor em dívida" : "sem valores pendentes"}</p>
+              <p className={`mt-1 text-xs font-semibold ${totalEmDivida > 0 ? "text-rose-700" : "text-slate-500"}`}>Até 10 faturas oficiais recentes; não representa a conta corrente completa.</p>
             </div>
           </section>
         )}
 
         {resultado && !loading && (
-          <ClienteJangadasPanel navios={resultado.navios} jangadas={resultado.jangadas} />
+          <ClienteJangadasPanel navios={resultado.navios} jangadas={resultado.jangadas} previewClienteId={previewClienteId} />
         )}
 
         {resultado && !loading && (
-          <ClienteNaviosPanel navios={resultado.navios} />
+          <div id="navios-cliente" className="scroll-mt-6"><ClienteNaviosPanel navios={resultado.navios} coletes={resultado.coletes} /></div>
         )}
 
         {resultado && !loading && (
@@ -323,7 +337,7 @@ export default function AreaClientePage() {
 
         {resultado && !loading && (
           <section className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-4">
-            <form onSubmit={pedirAssistencia} className="rounded-3xl border border-indigo-100 bg-white p-6 sm:p-8 shadow-sm space-y-4">
+            <form id="pedido-assistencia" onSubmit={pedirAssistencia} className="scroll-mt-6 rounded-3xl border border-indigo-100 bg-white p-6 sm:p-8 shadow-sm space-y-4">
               <div>
                 <p className="text-xs font-bold uppercase tracking-wider text-indigo-600">Assistência</p>
                 <h2 className="mt-1 text-lg font-extrabold text-slate-800">Precisa de ajuda?</h2>
@@ -471,7 +485,7 @@ export default function AreaClientePage() {
                           )}
 
                           <div className="flex flex-wrap gap-1.5">
-                            {j.hruValidade && (
+                            {!isSosDocumentRaft(j) && j.hruValidade && (
                               <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-lg border ${j.diasHru !== null && j.diasHru < 0 ? "bg-red-50 border-red-200 text-red-700" : "bg-white border-slate-200 text-slate-600"}`}>
                                 HRU {j.hruValidade ? formatDate(j.hruValidade) : ""}
                                 {j.diasHru !== null && j.diasHru < 0 ? " · expirado" : ""}
@@ -526,10 +540,10 @@ export default function AreaClientePage() {
               </section>
             )}
             {resultado.faturas.length > 0 && (
-              <section className="bg-white rounded-3xl border border-slate-200/60 shadow-sm p-6 sm:p-8 space-y-4">
+              <section id="faturas" className="bg-white rounded-3xl border border-slate-200/60 shadow-sm p-6 sm:p-8 space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <h3 className="text-sm font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-2">
-                    <FileText size={16} className="text-slate-400" /> Faturas
+                    <FileText size={16} className="text-slate-400" /> Faturas oficiais recentes (até 10)
                   </h3>
                   <div className="flex flex-wrap gap-2 text-xs">
                     <span className="font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
@@ -546,9 +560,10 @@ export default function AreaClientePage() {
                 <div className="space-y-3">
                   {resultado.faturas.map((f) => (
                     <div key={f.id} className="rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-3">
-                      <div className="flex items-center justify-between gap-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="text-sm font-bold text-slate-700">{f.numeroFatura}</p>
+                          <p className="break-words text-sm font-bold text-slate-700">{f.numeroFatura}</p>
+                          {previewClienteId ? <p className="text-xs text-slate-500">Download disponível apenas na sessão do cliente.</p> : <a href={f.faturaPdfUrl} className="text-xs font-semibold text-indigo-700 underline">Descarregar PDF oficial Navision</a>}
                           <p className="text-xs text-slate-500 mt-0.5">
                             {f.dataEmissao ? formatDate(f.dataEmissao) : ""}
                             {f.ordemServicos[0]?.numeroOrdem ? ` · OS ${f.ordemServicos[0].numeroOrdem}` : ""}
@@ -578,7 +593,7 @@ export default function AreaClientePage() {
 
       <footer className="max-w-5xl mx-auto px-4 sm:px-6 pb-10 text-center">
         <p className="text-xs text-slate-400">
-          Orey Açores · Manutenção e inspeção de jangadas salva-vidas · Se não conseguir aceder, contacte a nossa oficina.
+          Orey Tecnica- Serviços Navais, Lda · Manutenção e inspeção de jangadas salva-vidas · Se não conseguir aceder, contacte a nossa oficina.
         </p>
       </footer>
     </div>

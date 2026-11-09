@@ -2,6 +2,9 @@
 
 import { useEffect, useState, use } from "react";
 import { Loader2, ShieldCheck, AlertCircle, CreditCard } from "lucide-react";
+import { persistedQuoteLines } from "@/app/orcamentos/quote-editor";
+import { roundQuoteMoney } from "@/lib/ordem-quote-input";
+import { getIvaRate } from "@/lib/iva";
 
 const PAGAMENTO_BADGE_CLASSES: Record<string, string> = {
   Pendente: "bg-amber-500/20 text-amber-300 border-amber-500/30",
@@ -72,12 +75,13 @@ export default function PublicOrcamentoPage({ params }: { params: Promise<{ id: 
   }
 
   const meta = (order.metadados && typeof order.metadados === "object" ? order.metadados : {}) as Record<string, any>;
-  const linhas = Array.isArray(meta.linhas) ? meta.linhas : [];
+  const linhas = persistedQuoteLines(order);
   const desconto = Number(order.valorDesconto || 0);
-  const subtotalLinhas = linhas.reduce((acc: number, l: any) => acc + (Number(l.total) || (Number(l.quantidade || 1) * Number(l.unitPrice || 0))), 0);
-  const subtotal = Math.max(0, subtotalLinhas - desconto);
-  const iva = order.isIsentoIva ? 0 : subtotal * 0.16;
-  const total = subtotal + iva;
+  const subtotalLinhas = linhas.reduce((acc, l) => acc + l.total, 0);
+  const maoObra = Number(order.valorMaoObra || 0);
+  const subtotal = roundQuoteMoney(Math.max(0, subtotalLinhas + maoObra - desconto));
+  const iva = order.isIsentoIva ? 0 : roundQuoteMoney(subtotal * getIvaRate());
+  const total = roundQuoteMoney(subtotal + iva);
 
   const pagamentoStatus = meta.pagamentoStatus || "Pendente";
 
@@ -127,41 +131,51 @@ export default function PublicOrcamentoPage({ params }: { params: Promise<{ id: 
         {/* Costs Table */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
           <h2 className="text-sm font-bold uppercase tracking-wider text-teal-400">Detalhe de Custos</h2>
-          <div className="border border-slate-800 rounded-xl overflow-hidden">
-            <table className="w-full text-left text-sm">
+          <div className="border border-slate-800 rounded-xl overflow-x-auto">
+            <table className="w-full min-w-[640px] text-left text-sm">
               <thead>
                 <tr className="bg-slate-800/80 text-xs font-semibold text-slate-200 uppercase">
+                  <th className="p-3">Ref.</th>
                   <th className="p-3">Descrição</th>
                   <th className="p-3 text-center">Qtd</th>
+                  <th className="p-3 text-right">Desconto (%)</th>
+                  <th className="p-3 text-right">Preço unitário</th>
                   <th className="p-3 text-right">Valor</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800 font-mono text-xs">
                 {linhas.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="p-4 text-center text-slate-400 font-sans">Sem linhas de orçamento registadas.</td>
+                    <td colSpan={6} className="p-4 text-center text-slate-400 font-sans">Sem linhas de orçamento registadas.</td>
                   </tr>
                 ) : (
-                  linhas.map((l: any, idx: number) => {
-                    const qtd = Number(l.quantidade || 1);
+                  linhas.map((l, idx) => {
+                    const qtd = Number(l.quantidade ?? 1);
                     const unit = Number(l.unitPrice || 0);
                     const tot = Number(l.total ?? (qtd * unit));
                     return (
                       <tr key={idx}>
+                        <td className="p-3 text-teal-300">{l.referencia || "—"}</td>
                         <td className="p-3 text-slate-200 font-sans">
-                          {l.referencia ? <span className="text-teal-300 font-mono mr-2">[{l.referencia}]</span> : null}
                           {l.descricao || "Artigo"}
                         </td>
                         <td className="p-3 text-center">{qtd}</td>
+                        <td className="p-3 text-right">{l.descontoPercentual ?? 0}%</td>
+                        <td className="p-3 text-right">€ {unit.toFixed(2)}</td>
                         <td className="p-3 text-right font-bold">€ {tot.toFixed(2)}</td>
                       </tr>
                     );
                   })
                 )}
+                {maoObra > 0 && (
+                  <tr>
+                    <td colSpan={5} className="p-3 font-sans">Mão de obra</td>
+                    <td className="p-3 text-right font-bold">€ {maoObra.toFixed(2)}</td>
+                  </tr>
+                )}
                 {desconto > 0 && (
                   <tr className="text-rose-400">
-                    <td className="p-3 font-sans">Desconto Comercial</td>
-                    <td className="p-3 text-center">1</td>
+                    <td colSpan={5} className="p-3 font-sans">Desconto Comercial</td>
                     <td className="p-3 text-right font-bold">- € {desconto.toFixed(2)}</td>
                   </tr>
                 )}
@@ -176,7 +190,7 @@ export default function PublicOrcamentoPage({ params }: { params: Promise<{ id: 
             </div>
             {!order.isIsentoIva && (
               <div className="flex justify-between w-64 text-slate-400 text-xs">
-                <span>IVA (16%):</span>
+                <span>IVA ({Math.round(getIvaRate() * 100)}%):</span>
                 <span>€ {iva.toFixed(2)}</span>
               </div>
             )}
@@ -206,7 +220,7 @@ export default function PublicOrcamentoPage({ params }: { params: Promise<{ id: 
               </div>
               <h2 className="text-base font-bold text-rose-300">Orçamento não aprovado</h2>
               <p className="text-sm text-slate-400">
-                Esta proposta não avançou. Se tiver dúvidas, contacte a Orey Açores.
+                Esta proposta não avançou. Se tiver dúvidas, contacte a Orey Tecnica- Serviços Navais, Lda.
               </p>
             </>
           ) : (

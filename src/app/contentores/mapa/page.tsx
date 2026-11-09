@@ -301,7 +301,7 @@ export default function MapaContentoresPage() {
               <Route size={28} />
             </div>
             <div>
-              <p className="text-xs font-extrabold uppercase tracking-widest text-indigo-600">Orey Acores · Mapa de Contentores</p>
+              <p className="text-xs font-extrabold uppercase tracking-widest text-indigo-600">Orey Tecnica- Serviços Navais, Lda · Mapa de Contentores</p>
               <h1 className="text-2xl sm:text-3xl font-black text-slate-800">Mapa e Cumprimento de Escalas</h1>
               <p className="text-sm text-slate-500 mt-0.5">Localização prevista dos navios e cumprimento do calendário de Outubro de 2026 (GS Lines / Mutualista Acoreana). Escalas de Ponta Delgada sincronizadas com a fonte oficial Portos dos Açores.</p>
             </div>

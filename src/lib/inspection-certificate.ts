@@ -1,4 +1,5 @@
 import jsPDF from "jspdf";
+import { isSosDocumentRaft, SOS_DOCUMENT_NOTICE } from './raft-document-rules';
 import { DRINKING_WATER_STOCK_REFERENCE, FOOD_RATIONS_STOCK_REFERENCE } from "./stock-reference-rules";
 
 export type InspectionCertificateInput = {
@@ -199,15 +200,20 @@ export function buildInspectionCertificateDoc(input: InspectionCertificateInput)
   drawRow(y, "Potes de Fumo", "Floating Smoke Signals", asChecked(checklist.potes_fumo), asString(checklist.ref_potes || "20500002"), formatValidityShort(checklist.validade_potes_fumo));
   y += 13;
 
-  drawSectionTitle(y, "Ensaios e Testes", "Tests");
-  y += 9;
-  drawHeaderCell(10, y, 46, 12, "P1 CORR. INF", asString(checklist.p1_corrigida_inferior || "—"));
-  drawHeaderCell(56, y, 46, 12, "P1 CORR. SUP", asString(checklist.p1_corrigida_superior || "—"));
-  drawHeaderCell(102, y, 46, 12, "QUEDA INF (%)", asString(checklist.queda_real_inferior || "—"));
-  drawHeaderCell(148, y, 52, 12, "QUEDA SUP (%)", asString(checklist.queda_real_superior || "—"));
-  y += 12;
-  drawHeaderCell(10, y, 130, 12, "RESULTADO WP", asString(checklist.aprovacao_wp || "—"));
-  drawHeaderCell(140, y, 60, 12, "DATA INSPEÇÃO", formatDateLabel(input.inspectionDate));
+  if (isSosDocumentRaft(input)) {
+    doc.setFontSize(8);
+    doc.text(SOS_DOCUMENT_NOTICE, 12, y + 9);
+  } else {
+    drawSectionTitle(y, "Ensaios e Testes", "Tests");
+    y += 9;
+    drawHeaderCell(10, y, 46, 12, "P1 CORR. INF", asString(checklist.p1_corrigida_inferior || "—"));
+    drawHeaderCell(56, y, 46, 12, "P1 CORR. SUP", asString(checklist.p1_corrigida_superior || "—"));
+    drawHeaderCell(102, y, 46, 12, "QUEDA INF (%)", asString(checklist.queda_real_inferior || "—"));
+    drawHeaderCell(148, y, 52, 12, "QUEDA SUP (%)", asString(checklist.queda_real_superior || "—"));
+    y += 12;
+    drawHeaderCell(10, y, 130, 12, "RESULTADO WP", asString(checklist.aprovacao_wp || "—"));
+    drawHeaderCell(140, y, 60, 12, "DATA INSPEÇÃO", formatDateLabel(input.inspectionDate));
+  }
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
@@ -336,7 +342,7 @@ export function buildInspectionCertificateDoc(input: InspectionCertificateInput)
       "Técnico de campo",
       "Field Technician",
       asString(input.technicianName || input.technician),
-      "Serviço OREY Açores",
+      "Serviço Orey Tecnica- Serviços Navais, Lda",
       asString(input.technicianSignature),
     );
     drawSignatureBox(

@@ -27,6 +27,15 @@ export async function POST(req: NextRequest) {
     const cliente = await prisma.cliente.findUnique({ where: { id: requestedClienteId } });
     const jangada = jangadaId ? await prisma.jangada.findUnique({ where: { id: Number(jangadaId) } }) : null;
     const navio = navioId ? await prisma.navio.findUnique({ where: { id: Number(navioId) } }) : null;
+    if (session.user.role !== "ADMIN") {
+      const jangadaNavio = jangada?.shipId
+        ? await prisma.navio.findUnique({ where: { id: jangada.shipId }, select: { clienteId: true } })
+        : null;
+      if ((navioId && (!navio || navio.clienteId !== sessionClienteId)) ||
+          (jangadaId && (!jangada || jangadaNavio?.clienteId !== sessionClienteId))) {
+        return NextResponse.json({ error: "Equipamento ou navio sem acesso." }, { status: 403 });
+      }
+    }
 
     const dataPreferidaNorm = String(dataPreferida || "").trim() || null;
 
@@ -60,10 +69,19 @@ export async function POST(req: NextRequest) {
 export async function GET() {
   const session = await getAuthSession();
   const clienteId = session?.user?.clienteId != null ? Number(session.user.clienteId) : null;
-  if (!clienteId) return NextResponse.json({ error: "Sessão de cliente obrigatória." }, { status: 403 });
-  const pedidos = await prisma.pedidoAssistencia.findMany({ orderBy: { createdAt: "desc" }, take: 20 });
+  if (!session?.user?.id || session.user.role !== "CLIENTE" || !clienteId || !Number.isSafeInteger(clienteId) || clienteId <= 0) return NextResponse.json({ error: "Sessão de cliente obrigatória." }, { status: 403 });
+  // Narrow candidates before applying the result limit; compare the parsed ID
+  // exactly so client 12 cannot see client 123's requests.
+  const pedidos = await prisma.pedidoAssistencia.findMany({
+    where: { OR: [
+      { metadados: { contains: `"clienteId":${clienteId}` } },
+      { metadados: { contains: `"clienteId": ${clienteId}` } },
+    ] },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, metadados: true, tipoAssistencia: true, descricao: true, dataPreferida: true, estado: true, createdAt: true },
+  });
   const mine = pedidos.filter((pedido) => {
     try { return Number(JSON.parse(pedido.metadados || "{}").clienteId) === clienteId; } catch { return false; }
   });
-  return NextResponse.json({ pedidos: mine.map((pedido) => ({ id: pedido.id, tipoAssistencia: pedido.tipoAssistencia, descricao: pedido.descricao, dataPreferida: pedido.dataPreferida, estado: pedido.estado, createdAt: pedido.createdAt })) });
+  return NextResponse.json({ pedidos: mine.slice(0, 20).map((pedido) => ({ id: pedido.id, tipoAssistencia: pedido.tipoAssistencia, descricao: pedido.descricao, dataPreferida: pedido.dataPreferida, estado: pedido.estado, createdAt: pedido.createdAt })) }, { headers: { "Cache-Control": "private, no-store" } });
 }

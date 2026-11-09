@@ -11,17 +11,82 @@ import {
   normalizeOrdemPrioridade,
   normalizeOrdemStatus,
   normalizeOrdemTipo,
+  normalizeWorkflowStatus,
   parseOrdemServicoMeta,
   replaceOrdemServicoJangadas,
   resolveWorkflowStatus,
   syncPedidoAssistenciaFromOrdem,
   toOrdemServicoMetaJson,
   generateNumeroOrdem,
-  type OrdemServicoMeta,
   type OrdemWorkflowStatus,
 } from "@/lib/ordens-servico";
 import { buildDatabaseErrorResponse } from "@/lib/database-errors";
 import { getAccessContext } from "@/lib/access-control";
+import { canonicalOrderNumber, syncOrderNumber, OrderNumberConflictError } from '@/lib/order-number';
+import { hasQuoteFinancialChange, normalizeQuoteLines, normalizeQuoteStatus, quoteNumber, QuoteInputError, roundQuoteMoney } from "@/lib/ordem-quote-input";
+
+function stationScope(access: NonNullable<Awaited<ReturnType<typeof getAccessContext>>>) {
+  if (access.isAdmin) return {};
+  if (access.allowedStationIds.length) return { serviceStationId: { in: access.allowedStationIds } };
+  return access.stationId ? { serviceStationId: access.stationId } : { serviceStationId: { in: [] } };
+}
+
+function quoteErrorResponse(error: unknown) {
+   if (error instanceof OrderNumberConflictError || (error as { code?: string })?.code === 'P2002') return NextResponse.json({ error: 'Conflito no numero de obra.' }, { status: 409 });
+   if ((error as { code?: string })?.code === 'P2034') return NextResponse.json({ error: 'A OT foi alterada. Recarregue e tente novamente.' }, { status: 409 });
+   if (error instanceof QuoteInputError || error instanceof SyntaxError) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error && typeof error === "object" && "code" in error && error.code === "P2025") {
+    return NextResponse.json({ error: "Esta OT foi alterada por outro utilizador. Recarregue a pagina e tente novamente." }, { status: 409 });
+  }
+  return null;
+}
+
+function prepareQuoteInput(body: Record<string, unknown>, before: Prisma.OrdemServicoGetPayload<object>) {
+  const previousMeta = parseOrdemServicoMeta(before.metadados);
+  if ("metadados" in body && (!body.metadados || typeof body.metadados !== "object" || Array.isArray(body.metadados))) {
+    throw new QuoteInputError("Metadados deve ser um objeto.");
+  }
+  const incoming = (body.metadados || {}) as Record<string, unknown>;
+  for (const field of ["faturaId", "faturaNumero", "faturaEmitidaEm", "faturaEmitidaPor", "pagamentoStatus"]) {
+    if (field in incoming && incoming[field] !== previousMeta[field as keyof typeof previousMeta]) {
+      throw new QuoteInputError("As referencias de faturacao so podem ser alteradas no modulo de faturacao.");
+    }
+  }
+  const meta = { ...previousMeta, ...incoming };
+  const changed = hasQuoteFinancialChange(body, before, previousMeta);
+  // An unchanged metadata snapshot must not rewrite legacy lines or invoice values.
+  const hasLines = ("linhas" in body || "linhas" in incoming) && changed;
+  if (hasLines) {
+    const lines = normalizeQuoteLines("linhas" in body ? body.linhas : incoming.linhas, previousMeta.linhas);
+    if ("linhas" in body && "linhas" in incoming && JSON.stringify(lines) !== JSON.stringify(normalizeQuoteLines(incoming.linhas, previousMeta.linhas))) {
+      throw new QuoteInputError("Linhas divergentes no pedido.");
+    }
+    meta.linhas = lines;
+  }
+  const valorPecas = hasLines
+    ? roundQuoteMoney(meta.linhas!.reduce((sum, line) => sum + (line.total || 0), 0))
+    : "valorPecas" in body ? roundQuoteMoney(quoteNumber(body.valorPecas)) : before.valorPecas;
+  const valorMaoObra = "valorMaoObra" in body ? roundQuoteMoney(quoteNumber(body.valorMaoObra)) : before.valorMaoObra;
+  const valorDesconto = "valorDesconto" in body ? roundQuoteMoney(quoteNumber(body.valorDesconto)) : before.valorDesconto;
+  for (const field of ["isIsentoIva", "isPesca"]) {
+    if (field in body && typeof body[field] !== "boolean") throw new QuoteInputError("Indicador fiscal invalido.");
+  }
+  const isPesca = "isPesca" in body ? body.isPesca as boolean : before.isPesca;
+  const isIsentoIva = "isIsentoIva" in body ? body.isIsentoIva as boolean : before.isIsentoIva;
+  const codigoIsencaoIva = "codigoIsencaoIva" in body ? String(body.codigoIsencaoIva ?? "").trim() || null : before.codigoIsencaoIva;
+  const subtotal = roundQuoteMoney(Math.max(0, valorPecas + valorMaoObra - valorDesconto));
+  const iva = isIsentoIva ? 0 : roundQuoteMoney(subtotal * getIvaRate());
+  const valorTotal = changed ? roundQuoteMoney(subtotal + iva) : before.valorTotal;
+  if (changed) meta.totais = { subtotal, iva, totalComIva: valorTotal };
+  else meta.totais = previousMeta.totais;
+  let updatedAt: Date | undefined;
+  if ("updatedAt" in body) {
+    updatedAt = new Date(String(body.updatedAt));
+    if (!Number.isFinite(updatedAt.getTime())) throw new QuoteInputError("updatedAt invalido.");
+  }
+  const orcamentoStatus = "orcamentoStatus" in body ? normalizeQuoteStatus(body.orcamentoStatus) : undefined;
+  return { meta, updatedAt, data: { valorPecas, valorMaoObra, valorDesconto, valorTotal, isPesca, isIsentoIva, codigoIsencaoIva: isIsentoIva ? codigoIsencaoIva : null, orcamentoStatus } };
+}
 
 const ORDEM_INCLUDE = {
   jangada: {
@@ -171,7 +236,7 @@ function parseIdFromRequest(req: NextRequest) {
   const segments = url.pathname.split("/").filter(Boolean);
   const rawId = segments[segments.length - 1];
   const id = Number(rawId);
-  return Number.isFinite(id) && id > 0 ? id : null;
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
 }
 
 async function findFaturaAtiva(ordemServicoId: number) {
@@ -180,31 +245,6 @@ async function findFaturaAtiva(ordemServicoId: number) {
     select: { fatura: { select: { id: true, numeroFatura: true } } },
   });
   return link?.fatura ?? null;
-}
-
-function detectInvoiceFieldsChange(
-  body: Record<string, unknown>,
-  before: { metadados: string | null; valorPecas: number; valorMaoObra: number; valorDesconto: number; isIsentoIva: boolean }
-) {
-  const previousMeta = parseOrdemServicoMeta(before.metadados);
-  const nextMeta = body.metadados && typeof body.metadados === "object"
-    ? { ...previousMeta, ...(body.metadados as Record<string, unknown>) }
-    : previousMeta;
-
-  const scalarChanged = [
-    { field: "valorPecas", current: before.valorPecas },
-    { field: "valorMaoObra", current: before.valorMaoObra },
-    { field: "valorDesconto", current: before.valorDesconto },
-    { field: "isIsentoIva", current: before.isIsentoIva },
-  ].some(({ field, current }) => Object.prototype.hasOwnProperty.call(body, field) && Number(body[field]) !== Number(current));
-  if (scalarChanged) return true;
-
-  const materialsChanged =
-    JSON.stringify(nextMeta.materials ?? null) !== JSON.stringify(previousMeta.materials ?? null);
-  const linhasChanged =
-    JSON.stringify(nextMeta.linhas ?? null) !== JSON.stringify(previousMeta.linhas ?? null);
-
-  return materialsChanged || linhasChanged;
 }
 
 function parseOptionalDate(value: unknown) {
@@ -525,6 +565,14 @@ function serializeOrder(row: OrdemServicoRow) {
     dataInicio: row.dataInicio?.toISOString() || null,
     dataConclusao: row.dataConclusao?.toISOString() || null,
     durationMinutes: row.durationMinutes || 0,
+    orcamentoStatus: row.orcamentoStatus,
+    isPesca: row.isPesca,
+    isIsentoIva: row.isIsentoIva,
+    codigoIsencaoIva: row.codigoIsencaoIva,
+    valorPecas: row.valorPecas,
+    valorMaoObra: row.valorMaoObra,
+    valorDesconto: row.valorDesconto,
+    valorTotal: row.valorTotal,
     metadados: meta,
     jangadaId: primaryJangada?.id || row.jangadaId,
     shipId: primaryJangada?.shipId ?? row.shipId ?? meta.shipId ?? null,
@@ -556,15 +604,18 @@ function serializeOrder(row: OrdemServicoRow) {
   };
 }
 
-async function fetchOrder(id: number) {
+async function fetchOrder(id: number, scope: ReturnType<typeof stationScope> = {}) {
   const row = await prisma.ordemServico.findUnique({
-    where: { id },
+    where: { ...scope, id },
     include: ORDEM_INCLUDE,
   });
 
   if (!row) return null;
 
   const serialized = serializeOrder(row);
+  serialized.numeroOrdem = await canonicalOrderNumber(prisma, row);
+  if (serialized.grupoNumeroOrdem === row.numeroOrdem) serialized.grupoNumeroOrdem = serialized.numeroOrdem;
+  if (serialized.metadados.grupoNumeroOrdem === row.numeroOrdem) serialized.metadados.grupoNumeroOrdem = serialized.numeroOrdem;
   const jangadaInspectionContext = await buildLatestInspectionContext(serialized.jangadas || []);
   return {
     ...serialized,
@@ -574,10 +625,12 @@ async function fetchOrder(id: number) {
 
 export async function GET(req: NextRequest) {
   try {
+    const access = await getAccessContext();
+    if (!access) return NextResponse.json({ error: "Sessao obrigatoria." }, { status: 401 });
     const id = parseIdFromRequest(req);
     if (!id) return NextResponse.json({ error: "ID inválido." }, { status: 400 });
 
-    const row = await fetchOrder(id);
+    const row = await fetchOrder(id, stationScope(access));
     if (!row) return NextResponse.json({ error: "Ordem de serviço não encontrada." }, { status: 404 });
 
     return NextResponse.json(row);
@@ -588,16 +641,23 @@ export async function GET(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
+    const access = await getAccessContext();
+    if (!access) return NextResponse.json({ error: "Sessao obrigatoria." }, { status: 401 });
     const id = parseIdFromRequest(req);
     if (!id) return NextResponse.json({ error: "ID inválido." }, { status: 400 });
 
-    const before = await prisma.ordemServico.findUnique({ where: { id } });
+    const before = await prisma.ordemServico.findUnique({ where: { id, ...stationScope(access) } });
     if (!before) return NextResponse.json({ error: "Ordem de serviço não encontrada." }, { status: 404 });
 
-    const body = (await req.json()) as Record<string, unknown>;
+    const body = (await req.json().catch(() => { throw new QuoteInputError("JSON invalido."); })) as Record<string, unknown>;
+    if (!body || typeof body !== "object" || Array.isArray(body)) throw new QuoteInputError("Pedido invalido.");
+    if (!access.isAdmin && (hasQuoteFinancialChange(body, before, parseOrdemServicoMeta(before.metadados)) || ("orcamentoStatus" in body && normalizeQuoteStatus(body.orcamentoStatus) !== before.orcamentoStatus))) {
+      return NextResponse.json({ error: "Sem permissao para alterar o orcamento." }, { status: 403 });
+    }
+    const quote = prepareQuoteInput(body, before);
 
     const faturaAtiva = await findFaturaAtiva(id);
-    if (faturaAtiva && detectInvoiceFieldsChange(body, before)) {
+    if (faturaAtiva && (hasQuoteFinancialChange(body, before, parseOrdemServicoMeta(before.metadados), true) || (quote.data.orcamentoStatus && quote.data.orcamentoStatus !== before.orcamentoStatus))) {
       return NextResponse.json(
         { error: `A OT já foi faturada (${faturaAtiva.numeroFatura}). Não é permitido alterar valores, materiais, linhas ou isenção de IVA após a faturação.` },
         { status: 400 }
@@ -607,8 +667,9 @@ export async function PUT(req: NextRequest) {
     // A análise e edição do orçamento (incluindo valores/materiais) é feita no
     // módulo de Orçamentos (/orcamentos); apenas a faturação ativa bloqueia alterações.
 
-    const previousMeta = parseOrdemServicoMeta(before.metadados);
     const nextStatus = Object.prototype.hasOwnProperty.call(body, "status") ? normalizeOrdemStatus(body.status) : before.status;
+    if ("status" in body && nextStatus === "pendente" && String(body.status).trim().toLowerCase() !== "pendente") throw new QuoteInputError("Estado da ordem invalido.");
+    if ("workflowStatus" in body && !normalizeWorkflowStatus(body.workflowStatus)) throw new QuoteInputError("Etapa operacional invalida.");
     const hasTecnicoPayload = Object.prototype.hasOwnProperty.call(body, "tecnicoId") || Object.prototype.hasOwnProperty.call(body, "tecnicoResponsavel");
     const resolvedTecnicoPayload = hasTecnicoPayload
       ? await resolveTecnicoPayload(body.tecnicoId, body.tecnicoResponsavel)
@@ -622,16 +683,11 @@ export async function PUT(req: NextRequest) {
     const nextTecnicoId = resolvedTecnicoPayload?.tecnicoId ?? null;
     const nextTecnico = resolvedTecnicoPayload?.tecnicoResponsavel ?? null;
 
-    let nextMeta = Object.prototype.hasOwnProperty.call(body, "metadados")
-      ? {
-          ...previousMeta,
-          ...(body.metadados && typeof body.metadados === "object" ? body.metadados as Record<string, unknown> : {}),
-        }
-      : previousMeta;
+    let nextMeta = quote.meta;
     const nextWorkflowStatus = resolveWorkflowStatus({
       meta: {
         ...nextMeta,
-        workflowStatus: Object.prototype.hasOwnProperty.call(body, "workflowStatus") ? (body.workflowStatus as OrdemWorkflowStatus | undefined) : (nextMeta.workflowStatus as OrdemWorkflowStatus | undefined),
+        workflowStatus: Object.prototype.hasOwnProperty.call(body, "workflowStatus") ? (body.workflowStatus as OrdemWorkflowStatus | undefined) : nextStatus !== before.status ? mapOrderStatusToWorkflowStatus(nextStatus) ?? undefined : nextMeta.workflowStatus,
       },
       orderStatus: nextStatus,
     }) || mapOrderStatusToWorkflowStatus(nextStatus) || "orcamento_em_preparacao";
@@ -661,7 +717,7 @@ export async function PUT(req: NextRequest) {
     let convertedNumberLog = null;
     if (Object.prototype.hasOwnProperty.call(body, "numeroOrdem") && String(body.numeroOrdem || "").trim()) {
       finalNumeroOrdem = String(body.numeroOrdem || "").trim();
-    } else if (before.numeroOrdem.startsWith("OS-") && nextStatus === "em_progresso") {
+    } else if (!before.inspecaoId && before.numeroOrdem.startsWith("OS-") && nextStatus === "em_progresso") {
       finalNumeroOrdem = await generateNumeroOrdem(before.dataPrevista || before.dataPlaneadaInicio || new Date());
       convertedNumberLog = `Número de ordem convertido de ${before.numeroOrdem} para ${finalNumeroOrdem} devido ao início da inspeção.`;
     }
@@ -685,26 +741,10 @@ export async function PUT(req: NextRequest) {
     const checklistProvided = Array.isArray((nextMeta as Record<string, unknown>).checklistItems);
     const nextJangadaIds = Array.isArray(body.jangadaIds) ? body.jangadaIds.map((value) => Number(value)) : null;
 
-    // Campos de orçamento
-    const orcamentoStatus = Object.prototype.hasOwnProperty.call(body, "orcamentoStatus") ? String(body.orcamentoStatus) : undefined;
-    const isPesca = Object.prototype.hasOwnProperty.call(body, "isPesca") ? Boolean(body.isPesca) : before.isPesca;
-    const isIsentoIva = Object.prototype.hasOwnProperty.call(body, "isIsentoIva") ? Boolean(body.isIsentoIva) : before.isIsentoIva;
-    const codigoIsencaoIva =
-      Object.prototype.hasOwnProperty.call(body, "codigoIsencaoIva")
-        ? body.codigoIsencaoIva
-          ? String(body.codigoIsencaoIva).trim() || null
-          : null
-        : before.codigoIsencaoIva ?? null;
-    const valorPecas = Object.prototype.hasOwnProperty.call(body, "valorPecas") ? Number(body.valorPecas) : before.valorPecas;
-    const valorMaoObra = Object.prototype.hasOwnProperty.call(body, "valorMaoObra") ? Number(body.valorMaoObra) : before.valorMaoObra;
-    const valorDesconto = Object.prototype.hasOwnProperty.call(body, "valorDesconto") ? Number(body.valorDesconto) : before.valorDesconto;
-
-    const subtotal = Math.max(0, (valorPecas || 0) + (valorMaoObra || 0) - (valorDesconto || 0));
-    const iva = isIsentoIva ? 0 : subtotal * getIvaRate();
-    const valorTotal = Math.round((subtotal + iva) * 100) / 100;
-
-
     const logRowsToCreate: Array<{ type: string; message: string; user: string }> = [];
+    if (quote.data.orcamentoStatus && quote.data.orcamentoStatus !== before.orcamentoStatus) {
+      logRowsToCreate.push({ type: "ORCAMENTO", message: `Orcamento: ${before.orcamentoStatus} -> ${quote.data.orcamentoStatus}.`, user: access.email });
+    }
     if (nextStatus !== before.status) {
       logRowsToCreate.push({
         type: "STATUS",
@@ -739,10 +779,17 @@ export async function PUT(req: NextRequest) {
         resolvedShipId = linkContext.shipId;
         resolvedPrimaryJangadaId = linkContext.primaryJangadaId || before.jangadaId;
         resolvedServiceStationId = linkContext.serviceStationId ?? before.serviceStationId;
+        if (!access.isAdmin && !(access.allowedStationIds.length ? access.allowedStationIds : access.stationId ? [access.stationId] : []).includes(resolvedServiceStationId as number)) throw new QuoteInputError('Sem acesso a estacao de destino.');
+        if (before.inspecaoId && resolvedPrimaryJangadaId !== before.jangadaId) throw new QuoteInputError('A jangada da inspecao ligada nao pode ser substituida.');
       }
 
+      const canonical = await canonicalOrderNumber(tx, { ...before, jangadaId: resolvedPrimaryJangadaId, shipId: resolvedShipId, serviceStationId: resolvedServiceStationId });
+      if ('numeroOrdem' in body && finalNumeroOrdem !== canonical && before.inspecaoId) throw new OrderNumberConflictError('A referencia deve coincidir com a inspecao ligada.');
+      if (before.inspecaoId) finalNumeroOrdem = canonical;
+      if (nextMeta.grupoNumeroOrdem === before.numeroOrdem) nextMeta.grupoNumeroOrdem = finalNumeroOrdem;
+
       const order = await tx.ordemServico.update({
-        where: { id },
+        where: { id, ...stationScope(access), updatedAt: quote.updatedAt ?? before.updatedAt },
         data: {
           numeroOrdem: finalNumeroOrdem,
           tipo: Object.prototype.hasOwnProperty.call(body, "tipo") ? normalizeOrdemTipo(body.tipo) : undefined,
@@ -761,14 +808,7 @@ export async function PUT(req: NextRequest) {
           serviceStationId: nextJangadaIds ? resolvedServiceStationId : undefined,
           jangadaId: nextJangadaIds ? resolvedPrimaryJangadaId : undefined,
                     shipId: nextJangadaIds ? resolvedShipId : undefined,
-          orcamentoStatus: orcamentoStatus,
-          isPesca: isPesca,
-          isIsentoIva: isIsentoIva,
-          codigoIsencaoIva: isIsentoIva ? codigoIsencaoIva : null,
-          valorPecas: valorPecas,
-          valorMaoObra: valorMaoObra,
-          valorDesconto: valorDesconto,
-          valorTotal: valorTotal,
+          ...quote.data,
           metadados: toOrdemServicoMetaJson(nextMeta),
         },
       });
@@ -844,6 +884,8 @@ export async function PUT(req: NextRequest) {
     const row = await fetchOrder(id);
     return NextResponse.json(row);
   } catch (error) {
+    const response = quoteErrorResponse(error);
+    if (response) return response;
     console.error("[PUT /api/ordens-servico]", error);
     return buildDatabaseErrorResponse(error, "Erro ao atualizar ordem de serviço.");
   }
@@ -884,98 +926,47 @@ export async function DELETE(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
+    const access = await getAccessContext();
+    if (!access) return NextResponse.json({ error: "Sessao obrigatoria." }, { status: 401 });
     const id = parseIdFromRequest(req);
     if (!id) return NextResponse.json({ error: "ID inválido." }, { status: 400 });
 
-    const before = await prisma.ordemServico.findUnique({ where: { id } });
+    const before = await prisma.ordemServico.findUnique({ where: { id, ...stationScope(access) } });
     if (!before) return NextResponse.json({ error: "Ordem de serviço não encontrada." }, { status: 404 });
 
-    const body = (await req.json()) as Record<string, unknown>;
+    const body = (await req.json().catch(() => { throw new QuoteInputError("JSON invalido."); })) as Record<string, unknown>;
+    if (!body || typeof body !== "object" || Array.isArray(body)) throw new QuoteInputError("Pedido invalido.");
+    if (!access.isAdmin) return NextResponse.json({ error: "Sem permissao para alterar o orcamento." }, { status: 403 });
+    const quote = prepareQuoteInput(body, before);
 
     const faturaAtiva = await findFaturaAtiva(id);
-    if (faturaAtiva && detectInvoiceFieldsChange(body, before)) {
+    if (faturaAtiva && (hasQuoteFinancialChange(body, before, parseOrdemServicoMeta(before.metadados), true) || (quote.data.orcamentoStatus && quote.data.orcamentoStatus !== before.orcamentoStatus))) {
       return NextResponse.json(
         { error: `A OT já foi faturada (${faturaAtiva.numeroFatura}). Não é permitido alterar valores, materiais, linhas ou isenção de IVA após a faturação.` },
         { status: 400 }
       );
     }
 
-    // Locking concorrente: se o cliente enviar updatedAt, verificar que não foi alterado por outro utilizador
-    if (body.updatedAt) {
-      const clientUpdatedAt = new Date(String(body.updatedAt));
-      if (Number.isFinite(clientUpdatedAt.getTime()) && before.updatedAt.getTime() !== clientUpdatedAt.getTime()) {
-        return NextResponse.json(
-          { error: "Esta OT foi alterada por outro utilizador. Recarregue a página e tente novamente.", serverUpdatedAt: before.updatedAt.toISOString() },
-          { status: 409 }
-        );
+    const updated = await prisma.$transaction(async (tx) => {
+      const order = await tx.ordemServico.update({
+        where: { id, ...stationScope(access), updatedAt: quote.updatedAt ?? before.updatedAt },
+        data: { ...quote.data, metadados: toOrdemServicoMetaJson(quote.meta) },
+      });
+      if (quote.data.orcamentoStatus && quote.data.orcamentoStatus !== before.orcamentoStatus) {
+        await tx.ordemServicoLog.create({ data: {
+          ordemServicoId: id, type: "ORCAMENTO",
+          message: `Orcamento: ${before.orcamentoStatus} -> ${quote.data.orcamentoStatus}.`,
+          user: access.email,
+        } });
       }
-    }
-
-    const isPesca = Object.prototype.hasOwnProperty.call(body, "isPesca") ? Boolean(body.isPesca) : before.isPesca;
-    const isIsentoIva = Object.prototype.hasOwnProperty.call(body, "isIsentoIva") ? Boolean(body.isIsentoIva) : before.isIsentoIva;
-    const codigoIsencaoIva = Object.prototype.hasOwnProperty.call(body, "codigoIsencaoIva")
-      ? body.codigoIsencaoIva
-        ? String(body.codigoIsencaoIva).trim() || null
-        : null
-      : before.codigoIsencaoIva ?? null;
-
-    const hasLinhas = Object.prototype.hasOwnProperty.call(body, "linhas");
-    const rawLinhas = Array.isArray(body.linhas)
-      ? body.linhas
-          .filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === "object")
-          .map((row) => ({
-            referencia: String(row.referencia || "").trim() || undefined,
-            descricao: String(row.descricao || "").trim() || undefined,
-            quantidade: Number.isFinite(Number(row.quantidade)) ? Math.max(0, Number(row.quantidade)) : undefined,
-            unitPrice: Number.isFinite(Number(row.unitPrice)) ? Math.max(0, Number(row.unitPrice)) : undefined,
-            total: Number.isFinite(Number(row.total)) ? Math.max(0, Number(row.total)) : undefined,
-            source: String(row.source || "").trim() || undefined,
-          }))
-      : [];
-
-    const valorPecas = hasLinhas
-      ? rawLinhas.reduce((acc, row) => acc + (row.total ?? (row.quantidade || 0) * (row.unitPrice || 0)), 0)
-      : Object.prototype.hasOwnProperty.call(body, "valorPecas")
-        ? Number(body.valorPecas)
-        : before.valorPecas;
-
-    const valorMaoObra = Object.prototype.hasOwnProperty.call(body, "valorMaoObra") ? Number(body.valorMaoObra) : before.valorMaoObra;
-    const valorDesconto = Object.prototype.hasOwnProperty.call(body, "valorDesconto") ? Number(body.valorDesconto) : before.valorDesconto;
-
-    const subtotal = Math.max(0, (valorPecas || 0) + (valorMaoObra || 0) - (valorDesconto || 0));
-    const iva = isIsentoIva ? 0 : subtotal * getIvaRate();
-    const valorTotal = Math.round((subtotal + iva) * 100) / 100;
-
-    const meta = parseOrdemServicoMeta(before.metadados);
-    const nextMeta: OrdemServicoMeta = {
-      ...meta,
-      totais: {
-        subtotal: Math.max(0, subtotal),
-        iva: Math.max(0, iva),
-        totalComIva: Math.max(0, valorTotal),
-      },
-    };
-    if (hasLinhas) {
-      nextMeta.linhas = rawLinhas;
-    }
-
-    const updated = await prisma.ordemServico.update({
-      where: { id },
-      data: {
-        orcamentoStatus: Object.prototype.hasOwnProperty.call(body, "orcamentoStatus") ? String(body.orcamentoStatus) : undefined,
-        isPesca,
-        isIsentoIva,
-        codigoIsencaoIva: isIsentoIva ? codigoIsencaoIva : null,
-        valorPecas,
-        valorMaoObra,
-        valorDesconto,
-        valorTotal,
-        metadados: toOrdemServicoMetaJson(nextMeta),
-      },
+      const number = await syncOrderNumber(tx, id);
+      return { ...order, numeroOrdem: number.numeroOrdem };
     });
 
-    return NextResponse.json(updated);
+    return NextResponse.json({ ...updated, metadados: parseOrdemServicoMeta(updated.metadados) });
   } catch (error) {
+    const response = quoteErrorResponse(error);
+    if (response) return response;
     return buildDatabaseErrorResponse(error, "Erro ao atualizar ordem de serviço (PATCH).");
   }
 }

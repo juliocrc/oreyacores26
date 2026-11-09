@@ -10,14 +10,12 @@ async function main() {
 
   // Seed dos artigos do checklist na tabela Stock
   for (const [i, name] of QUADRO_ARTIGOS_BASE.entries()) {
-    await prisma.stock.upsert({
-      where: { referencia: `CHK${i + 1}` },
-      update: {
-        descricao: name,
-        categoria: "Checklist",
-        associavelJangada: true,
-      },
-      create: {
+    const matches = await prisma.stock.findMany({ where: { referencia: `CHK${i + 1}`, serviceStationId: null, OR: [{ lote: "" }, { lote: null }] } });
+    if (matches.length > 1) throw new Error("Ambiguous legacy stock; seed requires an explicit Stock ID.");
+    const existing = matches[0];
+    if (existing) continue;
+    await prisma.stock.create({
+      data: {
         referencia: `CHK${i + 1}`,
         descricao: name,
         categoria: "Checklist",

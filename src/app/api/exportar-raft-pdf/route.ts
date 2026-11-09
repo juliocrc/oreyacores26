@@ -1,12 +1,18 @@
 import { NextResponse } from 'next/server';
 import { buildQuadroPDFArtifacts } from '@/lib/quadro-pdf-template';
 import { saveQuadroToNavioFolder } from '@/lib/certificados-organizados';
+import { resolveSavedInspectionDocument, buildSavedInspectionPayload, InspectionDocumentError } from '@/lib/saved-inspection-documents';
+import { isSosDocumentRaft, SOS_DOCUMENT_NOTICE } from '@/lib/raft-document-rules';
 
 export const runtime = 'nodejs';
 
 export async function POST(request: Request) {
   try {
-    const payload = await request.json();
+    const raw = await request.json();
+    const payload = raw.inspecaoId != null
+      ? buildSavedInspectionPayload(await resolveSavedInspectionDocument(raw)).quadro
+       : raw;
+    if (isSosDocumentRaft(payload)) throw new InspectionDocumentError(SOS_DOCUMENT_NOTICE, 400);
     const { buffer, fileName } = await buildQuadroPDFArtifacts(payload);
 
     // Gravação no servidor é OPCIONAL (só quando CERTIFICADOS_SAVE_TO_PUBLIC=true)
@@ -36,6 +42,7 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
+    if (error instanceof InspectionDocumentError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error('Erro ao gerar quadro PDF:', error);
     return NextResponse.json(
       { error: 'Não foi possível gerar o quadro PDF.' },

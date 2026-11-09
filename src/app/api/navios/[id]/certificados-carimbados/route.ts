@@ -4,6 +4,7 @@ import { getAccessContext } from "@/lib/access-control";
 import { buildCarimbadoCertificatePdf } from "@/lib/certificate-carimbado-pdf";
 import { syncEmittedDocumentToOneDrive } from "@/lib/onedrive-sync";
 import { logAuditoria } from "@/lib/auditoria";
+import { resolveSavedInspectionDocument, InspectionDocumentError } from '@/lib/saved-inspection-documents';
 
 export const runtime = "nodejs";
 
@@ -30,6 +31,7 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
       where: { id },
       select: {
         id: true,
+        serviceStationId: true,
         nome: true,
         bandeira: true,
         imo: true,
@@ -39,6 +41,9 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
       },
     });
     if (!navio) return NextResponse.json({ error: "Navio não encontrado." }, { status: 404 });
+    if (!access.isAdmin && !access.allowedStationIds.includes(Number(navio.serviceStationId || 0))) {
+      return NextResponse.json({ error: 'Sem acesso à estação deste navio.' }, { status: 403 });
+    }
 
     const jangadas = await prisma.jangada.findMany({
       where: { shipId: id },
@@ -54,25 +59,26 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
     }
 
     const shipName = navio.nome || "";
-    const station = navio.serviceStation || null;
     const seen = new Set<string>();
     const files: Array<{ filename: string; base64: string }> = [];
 
+    // Validate every saved source before emitting or syncing any file.
+    const sources = [];
     for (const jangada of jangadas) {
       const lastInspecao = await prisma.inspecao.findFirst({
         where: { jangadaId: jangada.id },
-        orderBy: { dataInspecao: "desc" },
+        orderBy: [{ dataInspecao: "desc" }, { id: 'desc' }],
         include: { artigos: true },
       });
 
-      const { buffer, fileName: baseFileName } = await buildCarimbadoCertificatePdf({
-        jangada,
-        lastInspecao,
-        ship: navio,
-        shipName,
-        ownerName: navio.cliente?.nome || jangada.owner || "",
-        station,
-      });
+      if (!lastInspecao) {
+        throw new InspectionDocumentError(`Guarde a inspeção da jangada ${jangada.serial || jangada.id} antes de emitir os certificados.`, 409);
+      }
+      sources.push({ jangada, source: await resolveSavedInspectionDocument({ jangadaId: jangada.id, inspecaoId: lastInspecao.id }) });
+    }
+
+    for (const { jangada, source } of sources) {
+      const { buffer, fileName: baseFileName } = await buildCarimbadoCertificatePdf(source);
 
       let filename = baseFileName;
       if (seen.has(filename)) {
@@ -107,6 +113,7 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
 
     return NextResponse.json({ shipName, files });
   } catch (error) {
+    if (error instanceof InspectionDocumentError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("[POST /api/navios/[id]/certificados-carimbados]", error);
     return NextResponse.json({ error: "Não foi possível gerar os certificados." }, { status: 500 });
   }

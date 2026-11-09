@@ -195,7 +195,7 @@ function buildEmailHtml(alerts: AlertSummary): string {
     </tbody>
   </table>
   <p>Por favor, contacte-nos para agendar as inspeções/renovações necessárias.</p>
-  <p style="margin-top:24px;">Cumprimentos,<br/><strong>Orey Açores — Estação de Serviço</strong></p>
+  <p style="margin-top:24px;">Cumprimentos,<br/><strong>Orey Tecnica- Serviços Navais, Lda — Estação de Serviço</strong></p>
   <hr style="margin-top:32px;border:none;border-top:1px solid #ddd;"/>
   <p style="font-size:12px;color:#888;">Esta é uma mensagem automática gerada pelo sistema Gestor Naval. Não responda diretamente a este e-mail.</p>
 </body>
@@ -448,7 +448,7 @@ export async function GET(request: Request) {
           await transporter.sendMail({
             from:
               process.env.SMTP_FROM ||
-              `"Orey Açores - Gestor Naval" <${process.env.SMTP_USER}>`,
+              `"Orey Tecnica- Serviços Navais, Lda - Gestor Naval" <${process.env.SMTP_USER}>`,
             to: recipients,
             subject: `${subjectUrgency} — Certificados a expirar (${summary.itens.length} equipamento${summary.itens.length > 1 ? "s" : ""}) — ${summary.clienteNome}`,
             html: buildEmailHtml(summary),

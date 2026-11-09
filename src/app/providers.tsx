@@ -153,19 +153,20 @@ export default function Providers({ children, session }: { children: React.React
   }), [themeName]);
 
   return (
-    <SessionProvider session={session} refetchOnWindowFocus={false} refetchInterval={60}>
-      <SessionPresenceHeartbeat />
-      <SessionIdleTimeout />
-      <SessionSingleWatcher />
-      <OfflineSyncBootstrap />
-      <ThemeControllerContext.Provider value={controller}>
-        <ThemeProvider theme={muiTheme}>
-          <CssBaseline />
-          <QueryClientProvider client={queryClient}>
-            {children}
-          </QueryClientProvider>
-        </ThemeProvider>
-      </ThemeControllerContext.Provider>
+    <SessionProvider session={session} refetchOnWindowFocus={false} refetchInterval={60} refetchWhenOffline={false}>
+      <SessionSingleWatcher>
+        <SessionPresenceHeartbeat />
+        <SessionIdleTimeout />
+        <OfflineSyncBootstrap />
+        <ThemeControllerContext.Provider value={controller}>
+          <ThemeProvider theme={muiTheme}>
+            <CssBaseline />
+            <QueryClientProvider client={queryClient}>
+              {children}
+            </QueryClientProvider>
+          </ThemeProvider>
+        </ThemeControllerContext.Provider>
+      </SessionSingleWatcher>
     </SessionProvider>
   );
 }

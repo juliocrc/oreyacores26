@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { createStockRows } from "@/lib/stock-utils";
+import { resolveActiveServiceStationId } from "@/lib/station-selection";
 import prisma from "@/lib/prisma";
 import { getAccessContext } from "@/lib/access-control";
 import { canEditPath, canViewPath } from "@/lib/user-permissions";
@@ -321,21 +324,7 @@ export async function POST(req: Request) {
     for (const item of items) {
       try {
         if (action === "create_missing") {
-          const existing = await prisma.stock.findFirst({
-            where: { referencia: normalizeRef(item.packReference) },
-          });
-
-          if (existing) {
-            results.push({
-              reference: item.packReference,
-              status: "skipped",
-              message: `Artigo já existe no stock (ID: ${existing.id})`,
-            });
-            continue;
-          }
-
-          const newStock = await prisma.stock.create({
-            data: {
+          const [newStock] = await createStockRows([{
               referencia: normalizeRef(item.packReference),
               descricao: item.packLabel || item.packReference,
               categoria: item.category || null,
@@ -344,8 +333,7 @@ export async function POST(req: Request) {
               associavelJangada: true,
               precoVenda: 0,
               estadoArtigo: "ATIVO",
-            },
-          });
+          }], resolveActiveServiceStationId(new NextRequest(req.url, { headers: req.headers }), access));
 
           results.push({
             reference: item.packReference,

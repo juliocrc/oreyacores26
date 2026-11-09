@@ -1,8 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Anchor, Check, Clock, Copy, FileCheck2, Ship } from "lucide-react";
 import { formatDate, formatDateTime } from "@/lib/date-utils";
+import DeclaracoesIvaPanel from "./DeclaracoesIvaPanel";
+import { isSosDocumentRaft, SOS_DOCUMENT_NOTICE } from '@/lib/raft-document-rules';
 
 type WorkflowStatus = {
   state: "SEM_ESTADO" | "RECEIONADA" | "EM_INSPECAO" | "FINALIZADA" | "OUTRO";
@@ -10,6 +12,25 @@ type WorkflowStatus = {
   dataHora?: string | null;
   queueStatus?: string | null;
 };
+
+type AndroidPdfBridge = {
+  openPdf?: (dataUrl: string, fileName: string) => void;
+};
+
+function androidPdfBridge(): AndroidPdfBridge | null {
+  if (typeof window === "undefined") return null;
+  const bridge = (window as unknown as { OreyAndroid?: AndroidPdfBridge }).OreyAndroid;
+  return bridge && typeof bridge.openPdf === "function" ? bridge : null;
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(new Error("Falha ao ler o PDF."));
+    reader.readAsDataURL(blob);
+  });
+}
 
 type Jangada = {
   id: number;
@@ -27,6 +48,9 @@ type Jangada = {
   diasParaProxima: number | null;
   ultimoCertificadoNumero: string | null;
   certificadoPdfUrl: string | null;
+  quadroPdfUrl?: string | null;
+  quadroInspecaoId?: number | null;
+  quadroInspecaoData?: string | null;
   certificadoPdfPublicUrl?: string | null;
   hruReferencia?: string | null;
   hruValidade?: string | null;
@@ -55,8 +79,47 @@ const STATE_STYLE: Record<string, string> = {
   SEM_ESTADO: "border-slate-200 bg-slate-50 text-slate-600",
 };
 
-export default function ClienteJangadasPanel({ navios, jangadas }: { navios: Navio[]; jangadas: Jangada[] }) {
+export default function ClienteJangadasPanel({ navios, jangadas, previewClienteId }: { navios: Navio[]; jangadas: Jangada[]; previewClienteId?: string | null }) {
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [documentError, setDocumentError] = useState<{ id: number; message: string } | null>(null);
+  const [loadingDocument, setLoadingDocument] = useState<number | null>(null);
+  const [preview, setPreview] = useState<{ url: string; label: string } | null>(null);
+  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview.url); }, [preview]);
+
+  async function openQuadro(j: Jangada) {
+    if (isSosDocumentRaft(j) || !j.quadroPdfUrl || loadingDocument !== null) return;
+    setLoadingDocument(j.id);
+    setDocumentError(null);
+    setPreview(null);
+    try {
+      const response = await fetch(`${j.quadroPdfUrl}${previewClienteId ? `&previewClienteId=${encodeURIComponent(previewClienteId)}` : ''}`, { cache: 'no-store' });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error || 'Nao e possivel gerar o quadro. Contacte a estacao para recuperar o arquivo desta inspecao.');
+      }
+      const id = response.headers.get('X-Inspection-Id') || new URL(j.quadroPdfUrl, window.location.origin).searchParams.get('inspecaoId');
+      const date = response.headers.get('X-Inspection-Date');
+      const blob = await response.blob();
+
+      // Na app Android, abrir no leitor de PDF nativo em vez do iframe.
+      const nativePdf = androidPdfBridge();
+      if (nativePdf?.openPdf) {
+        try {
+          const dataUrl = await blobToDataUrl(blob);
+          nativePdf.openPdf(dataUrl, `quadro-${j.serial}-${id || 'inspecao'}.pdf`);
+          return;
+        } catch {
+          // Se a ponte falhar, mantém a pré-visualização web.
+        }
+      }
+
+      setPreview({ url: URL.createObjectURL(blob), label: `Quadro | Inspecao #${id} | ${date ? formatDate(date) : 'Sem data'} | ${j.serial}` });
+    } catch (error) {
+      setDocumentError({ id: j.id, message: error instanceof Error ? error.message : 'Nao e possivel gerar o quadro.' });
+    } finally {
+      setLoadingDocument(null);
+    }
+  }
 
   const copyShareLink = async (j: Jangada) => {
     if (!j.certificadoPdfPublicUrl) return;
@@ -107,6 +170,7 @@ export default function ClienteJangadasPanel({ navios, jangadas }: { navios: Nav
             </div>
 
             <div className="space-y-3">
+              {group.navio && <DeclaracoesIvaPanel key={group.navio.id} navioId={group.navio.id} />}
               {group.items.map((j) => {
                 const gs = determineGlobalState(j);
                 const wfDataHora = gs.dataHora || j.workflowStatus?.dataHora ? formatDateTime(gs.dataHora || j.workflowStatus?.dataHora) : null;
@@ -119,7 +183,7 @@ export default function ClienteJangadasPanel({ navios, jangadas }: { navios: Nav
                         </p>
                         <p className="mt-1 text-xs text-slate-500">
                           Capacidade: {j.capacity} · {j.navioNome || "—"}
-                          {j.hruReferencia && <span className="ml-2">· HRU Ref: {j.hruReferencia} {j.hruValidade ? `(Val: ${formatDate(j.hruValidade)})` : ""}</span>}
+                          {!isSosDocumentRaft(j) && j.hruReferencia && <span className="ml-2">· HRU Ref: {j.hruReferencia} {j.hruValidade ? `(Val: ${formatDate(j.hruValidade)})` : ""}</span>}
                         </p>
                       </div>
                       <span className={`rounded-full border px-3 py-1 text-xs font-bold ${STATE_STYLE[gs.state] || STATE_STYLE.SEM_ESTADO}`}>
@@ -162,6 +226,11 @@ export default function ClienteJangadasPanel({ navios, jangadas }: { navios: Nav
                         <a href={j.certificadoPdfUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-white">
                           <FileCheck2 size={14} /> Ver certificado PDF
                         </a>
+                        {!isSosDocumentRaft(j) && j.quadroPdfUrl && (
+                          <a href={`${j.quadroPdfUrl}${previewClienteId ? `&previewClienteId=${encodeURIComponent(previewClienteId)}` : ""}`} onClick={event => { event.preventDefault(); void openQuadro(j); }} aria-disabled={loadingDocument !== null} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-white">
+                            <FileCheck2 size={14} /> Ver quadro de inspeção PDF
+                          </a>
+                        )}
                         {j.certificadoPdfPublicUrl && (
                           <button
                             type="button"
@@ -174,6 +243,10 @@ export default function ClienteJangadasPanel({ navios, jangadas }: { navios: Nav
                         )}
                       </div>
                     )}
+                    {loadingDocument === j.id && <p role="status" className="mt-3 text-sm">A preparar quadro da inspecao guardada...</p>}
+                    {isSosDocumentRaft(j) && <p className="mt-2 text-xs text-slate-500">{SOS_DOCUMENT_NOTICE}</p>}
+                    {!isSosDocumentRaft(j) && j.quadroPdfUrl && j.quadroInspecaoId && <p className="mt-2 text-xs text-slate-500">Quadro da inspecao #{j.quadroInspecaoId} | {j.quadroInspecaoData ? formatDate(j.quadroInspecaoData) : 'Sem data'}. A data pode coincidir com outros registos; o documento usa este ID exato.</p>}
+                    {documentError?.id === j.id && <p role="alert" className="mt-3 text-sm text-red-700">{documentError.message}</p>}
                   </div>
                 );
               })}
@@ -181,6 +254,13 @@ export default function ClienteJangadasPanel({ navios, jangadas }: { navios: Nav
           </div>
         ))}
       </div>
+      {preview && <div className="mt-4 rounded-xl border border-slate-200 p-3">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm font-bold">{preview.label}</p>
+          <button type="button" onClick={() => setPreview(null)} className="text-sm font-bold">Fechar quadro</button>
+        </div>
+        <iframe title={preview.label} src={preview.url} className="h-[70vh] min-h-80 w-full border" />
+      </div>}
     </section>
   );
 }

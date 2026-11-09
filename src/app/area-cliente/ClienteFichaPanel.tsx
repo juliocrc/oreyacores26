@@ -75,7 +75,7 @@ export default function ClienteFichaPanel({ cliente }: { cliente: ClienteFicha }
   };
 
   return (
-    <section className="rounded-3xl border border-slate-200/60 bg-white p-6 sm:p-8 shadow-sm">
+    <section id="dados-cliente" className="scroll-mt-6 rounded-3xl border border-slate-200/60 bg-white p-6 sm:p-8 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-bold uppercase tracking-wider text-indigo-600">Os meus dados</p>

@@ -1,20 +1,24 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getAccessContext } from "@/lib/access-control";
-import { buildCertificatePdfBuffer, certificatePdfFileName } from "@/lib/certificate-pdf";
 import { buildCarimbadoCertificatePdf } from "@/lib/certificate-carimbado-pdf";
 import { buildQuadroPDFArtifacts } from "@/lib/quadro-pdf-template";
 import type { QuadroTemplateInput } from "@/lib/quadro-template";
-import { sendEmail, type EmailAttachment } from "@/lib/email-sender";
+import { getEmailSenderAccounts, isEmailConfigured, sendEmail, type EmailAttachment } from "@/lib/email-sender";
 import { sendWhatsAppApi, sendWhatsAppDocument } from "@/lib/whatsapp-provider";
 import { buildWhatsAppUrl } from "@/lib/communications";
 import type { InspectionCertificateInput } from "@/lib/inspection-certificate";
+import { isOpenwaSelected } from "@/lib/openwa";
+import { canUseEmailSenderProfiles } from "@/lib/email-sender-access";
+import { InspectionDocumentError, resolveSavedInspectionDocument, buildSavedInspectionPayload } from "@/lib/saved-inspection-documents";
+import { isSosDocumentRaft, SOS_DOCUMENT_NOTICE } from '@/lib/raft-document-rules';
 
 export const runtime = "nodejs";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type EnviarBody = {
+  senderAccount?: "julio" | "tecnica";
   channel?: "email" | "whatsapp";
   to?: string;
   phone?: string;
@@ -26,10 +30,17 @@ type EnviarBody = {
   includeQuadro?: boolean;
   clienteId?: number;
   jangadaId?: number;
+  inspecaoId?: number;
   refId?: number;
   /** Id de um registo da fila "por enviar" que passa a "enviado"/"falhou". */
   pendingId?: number;
 };
+
+export async function GET() {
+  const access = await getAccessContext();
+  if (!access) return NextResponse.json({ error: "Sessao obrigatoria." }, { status: 401 });
+  return NextResponse.json({ emailConfigured: isEmailConfigured(), emailAccounts: canUseEmailSenderProfiles(access.email) ? getEmailSenderAccounts().map(({ id, email, label, configured }) => ({ id, email, label, configured })) : [] }, { headers: { "Cache-Control": "no-store" } });
+}
 
 export async function POST(request: Request) {
   let comunicacaoId: number | null = null;
@@ -38,14 +49,27 @@ export async function POST(request: Request) {
     if (!access) return NextResponse.json({ error: "Sessão obrigatória." }, { status: 401 });
 
     const body = (await request.json().catch(() => ({}))) as EnviarBody;
+    const senderAccount = body?.senderAccount;
+    if (senderAccount !== undefined && !canUseEmailSenderProfiles(access.email)) {
+      return NextResponse.json({ error: "Sem permissao para usar contas de envio." }, { status: 403 });
+    }
+    if (senderAccount !== undefined && senderAccount !== "julio" && senderAccount !== "tecnica") {
+      return NextResponse.json({ error: "Conta de envio invalida." }, { status: 400 });
+    }
 
     const channel = body?.channel === "whatsapp" ? "whatsapp" : "email";
+    if (channel === "whatsapp" && isOpenwaSelected()) {
+      return NextResponse.json({ error: "Envio de documentos OpenWA indisponivel. Nenhum documento ou texto alternativo foi enviado.", code: "OPENWA_DOCUMENT_UNSUPPORTED" }, { status: 501 });
+    }
     const to = String(body?.to || "").trim();
     const phone = String(body?.phone || "").trim();
     const subject = String(body?.subject || "").trim();
     const message = String(body?.message || "").trim();
     const includeCertificate = body?.includeCertificate !== false;
     const includeQuadro = body?.includeQuadro === true;
+    if (includeCertificate && body?.inspecaoId == null) {
+      throw new InspectionDocumentError('Guarde a inspeção antes de emitir ou enviar o certificado.', 400);
+    }
 
     if (!message) {
       return NextResponse.json({ error: "A mensagem não pode estar vazia." }, { status: 400 });
@@ -61,6 +85,23 @@ export async function POST(request: Request) {
     }
     if (!includeCertificate && !includeQuadro) {
       return NextResponse.json({ error: "Selecione pelo menos um documento para enviar." }, { status: 400 });
+    }
+    if (channel === "email" && !isEmailConfigured(senderAccount)) {
+      return NextResponse.json({ error: "Conta de email nao configurada. Contacte a administracao.", code: "EMAIL_NOT_CONFIGURED" }, { status: 503 });
+    }
+    const savedSource = body.inspecaoId != null ? await resolveSavedInspectionDocument(body) : null;
+    if (includeQuadro) {
+      const raft = savedSource?.jangada ?? (body.jangadaId ? await prisma.jangada.findUnique({ where: { id: body.jangadaId } }) : null);
+      if ((raft && isSosDocumentRaft(raft)) || isSosDocumentRaft(body.certificate || {}) || isSosDocumentRaft(body.quadro || {})) {
+        throw new InspectionDocumentError(SOS_DOCUMENT_NOTICE, 400);
+      }
+    }
+    const quadroInput = includeQuadro && savedSource ? buildSavedInspectionPayload(savedSource).quadro : body.quadro;
+    if (includeQuadro && !quadroInput) {
+      return NextResponse.json({ error: "Quadro indisponivel. Nenhum documento foi enviado." }, { status: 400 });
+    }
+    if (includeCertificate && !savedSource && !body.certificate && !body.jangadaId) {
+      return NextResponse.json({ error: "Certificado indisponivel. Nenhum documento foi enviado." }, { status: 400 });
     }
 
     const operador = await prisma.user.findUnique({
@@ -79,54 +120,13 @@ export async function POST(request: Request) {
     const attachments: EmailAttachment[] = [];
 
     if (includeCertificate) {
-      let certName = certificatePdfFileName(body.certificate || {});
-      let certPdf: Buffer | null = body.certificate ? buildCertificatePdfBuffer(body.certificate) : null;
-
-      if (jangadaId) {
-        const jangada = await prisma.jangada.findUnique({
-          where: { id: jangadaId },
-          include: { artigos: true, serviceStation: { select: { codigo: true, nome: true } } },
-        });
-        if (jangada) {
-          const lastInspecao = await prisma.inspecao.findFirst({
-            where: { jangadaId: jangada.id },
-            orderBy: { dataInspecao: "desc" },
-            include: { artigos: true },
-          });
-          const navio = jangada.shipId
-            ? await prisma.navio.findUnique({
-                where: { id: jangada.shipId },
-                select: {
-                  nome: true,
-                  bandeira: true,
-                  imo: true,
-                  callSignal: true,
-                  cliente: { select: { nome: true } },
-                  serviceStation: { select: { codigo: true, nome: true } },
-                },
-              })
-            : null;
-          const station = jangada.serviceStation || navio?.serviceStation || null;
-          const built = await buildCarimbadoCertificatePdf({
-            jangada,
-            lastInspecao,
-            ship: navio,
-            shipName: jangada.shipNameManual || navio?.nome || "",
-            ownerName: navio?.cliente?.nome || jangada.owner || "",
-            station,
-          });
-          certPdf = built.buffer;
-          certName = built.fileName;
-        }
-      }
-
-      if (certPdf) {
-        attachments.push({ filename: certName, content: certPdf, contentType: "application/pdf" });
-      }
+      if (!savedSource) throw new InspectionDocumentError('Guarde a inspeção antes de emitir ou enviar o certificado.', 400);
+      const built = await buildCarimbadoCertificatePdf(savedSource);
+      attachments.push({ filename: built.fileName, content: built.buffer, contentType: "application/pdf" });
     }
 
-    if (includeQuadro && body.quadro) {
-      const quadro = await buildQuadroPDFArtifacts(body.quadro);
+    if (includeQuadro && quadroInput) {
+      const quadro = await buildQuadroPDFArtifacts(quadroInput);
       attachments.push({
         filename: quadro.fileName,
         content: quadro.buffer,
@@ -156,6 +156,7 @@ export async function POST(request: Request) {
         subject,
         text: message,
         attachments,
+        ...(senderAccount !== undefined ? { senderAccount } : {}),
       });
       ok = result.ok;
       erro = result.error;
@@ -177,7 +178,7 @@ export async function POST(request: Request) {
       } else {
         ok = true;
         canal = "whatsapp-api";
-        const caption = subject || "Certificado de Inspeção — Orey Açores";
+        const caption = subject || "Certificado de Inspeção — Orey Tecnica- Serviços Navais, Lda";
         for (const att of attachments) {
           const docRes = await sendWhatsAppDocument(destinatario, {
             filename: att.filename,
@@ -217,7 +218,7 @@ export async function POST(request: Request) {
     const pendingId = Number.isFinite(body?.pendingId) ? Number(body.pendingId) : null;
     if (pendingId) {
       const updated = await prisma.comunicacao.updateMany({
-        where: { id: pendingId, status: "por_enviar" },
+        where: { id: pendingId, jangadaId, status: "por_enviar" },
         data: { ...comunicacaoData, enviadoEm: new Date() },
       });
       if (updated.count > 0) comunicacaoId = pendingId;
@@ -247,6 +248,9 @@ export async function POST(request: Request) {
       files: attachments.map((a) => a.filename),
     });
   } catch (error) {
+    if (error instanceof InspectionDocumentError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error("[POST /api/certificados/enviar]", error);
     return NextResponse.json(
       { error: "Erro ao enviar o certificado.", comunicacaoId },

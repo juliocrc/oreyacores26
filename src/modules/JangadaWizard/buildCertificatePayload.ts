@@ -1,5 +1,10 @@
 import type { InspectionData } from "./types";
+import { resolveFiringHeadDesignation } from '@/lib/firing-head';
 import { getMandatoryPackItemsForRaft } from "../rafts/mandatoryPack";
+import { buildArticleExpirySnapshot } from './articleExpiry';
+import { isSosRaft } from '@/lib/raft-model-rules';
+import { withoutSosEquipment } from './sosRules';
+import { installedHruDue } from '@/lib/hammar-h20';
 
 /**
  * Construção do payload partilhado de emissão do certificado e do quadro de
@@ -11,6 +16,8 @@ export function buildCertificatePayload(
   jangadaId?: string | number | null,
   inspecaoId?: string | number | null,
 ) {
+  const sos = isSosRaft(inspectionData);
+  inspectionData = withoutSosEquipment(inspectionData);
   const testes = inspectionData.testes || {};
   const mandatoryItems = getMandatoryPackItemsForRaft({
     brand: inspectionData.brand,
@@ -25,6 +32,7 @@ export function buildCertificatePayload(
       const mand = mandatoryItems.find((m: any) => m.checklistName === item.checklistName);
       return {
         stockId: item.stockId || null,
+        lote: item.lote || null,
         referencia: item.referencia,
         descricao: item.descricao || item.name || mand?.label || item.checklistName || 'Artigo',
         quantidade: item.quantidade,
@@ -36,16 +44,18 @@ export function buildCertificatePayload(
   const buildQuadroChecklist = () => {
     const checklist: Record<string, any> = {
       ...(inspectionData.checklist || {}),
-      ...(inspectionData.testes || {})
+      ...(inspectionData.testes || {}),
+      _articleExpiry: buildArticleExpirySnapshot(inspectionData),
     };
 
     const normalizeText = (text: string) => {
       return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
     };
 
-    const findPackItem = (tokens: string[]) => {
+    const findPackItem = (tokens: string[], excludeTokens: string[] = []) => {
       return Object.values(inspectionData.packItems || {}).find((item: any) => {
         const nameNorm = normalizeText(item.descricao || item.name || '');
+        if (excludeTokens.some((token) => nameNorm.includes(normalizeText(token)))) return false;
         return tokens.every(token => nameNorm.includes(normalizeText(token)));
       });
     };
@@ -57,8 +67,8 @@ export function buildCertificatePayload(
       });
     };
 
-    const mapItem = (tokens: string[], refKey?: string, valKey?: string, qtyKey?: string, statusKey?: string, explicitReplacementKey?: string) => {
-      const packItem = findPackItem(tokens);
+    const mapItem = (tokens: string[], refKey?: string, valKey?: string, qtyKey?: string, statusKey?: string, explicitReplacementKey?: string, excludeTokens: string[] = []) => {
+      const packItem = findPackItem(tokens, excludeTokens);
       const mandItem = findMandatoryItem(tokens);
 
       // Só conta como substituído um artigo com substituição registada (quantidade > 0).
@@ -77,9 +87,9 @@ export function buildCertificatePayload(
           checklist[valKey] = valStr;
         }
       }
-      if (quantidade > 0 && qtyKey) checklist[qtyKey] = quantidade;
-      if (statusKey) checklist[statusKey] = 'YES';
-      if (explicitReplacementKey && quantidade > 0) {
+      if (packItem && qtyKey) checklist[qtyKey] = quantidade;
+      if (statusKey && packItem && checklist[statusKey] == null && !packItem.justificacaoNaoSubstituicao?.trim()) checklist[statusKey] = 'YES';
+      if (explicitReplacementKey && packItem) {
         checklist[explicitReplacementKey] = quantidade;
       }
     };
@@ -89,11 +99,12 @@ export function buildCertificatePayload(
     if (!checklist.ref_farmacia) mapItem(['first', 'aid'], 'ref_farmacia', 'validade_farmacia', 'qtd_farmacia', 'ambulancia', 'substituicao_explicita__farmacia');
     if (!checklist.ref_farmacia) mapItem(['socorros'], 'ref_farmacia', 'validade_farmacia', 'qtd_farmacia', 'ambulancia', 'substituicao_explicita__farmacia');
 
-    mapItem(['comprimido'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'substituicao_explicita__comprimidos_p_enjoo');
-    if (!checklist.ref_comprimidos) mapItem(['pastilha'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'substituicao_explicita__comprimidos_p_enjoo');
-    if (!checklist.ref_comprimidos) mapItem(['enjoo'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'substituicao_explicita__comprimidos_p_enjoo');
-    if (!checklist.ref_comprimidos) mapItem(['seasick'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'substituicao_explicita__comprimidos_p_enjoo');
-    if (!checklist.ref_comprimidos) mapItem(['tables'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'substituicao_explicita__comprimidos_p_enjoo');
+    const SICKNESS_BAG_EXCLUDE = ['saco', 'bag'];
+    mapItem(['comprimido'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'substituicao_explicita__comprimidos_p_enjoo', SICKNESS_BAG_EXCLUDE);
+    if (!checklist.ref_comprimidos) mapItem(['pastilha'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'substituicao_explicita__comprimidos_p_enjoo', SICKNESS_BAG_EXCLUDE);
+    if (!checklist.ref_comprimidos) mapItem(['enjoo'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'substituicao_explicita__comprimidos_p_enjoo', SICKNESS_BAG_EXCLUDE);
+    if (!checklist.ref_comprimidos) mapItem(['seasick'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'substituicao_explicita__comprimidos_p_enjoo', SICKNESS_BAG_EXCLUDE);
+    if (!checklist.ref_comprimidos) mapItem(['tables'], 'ref_comprimidos', 'validade_comprimidos', 'qtd_comprimidos', 'comprimidos_enjoo', 'substituicao_explicita__comprimidos_p_enjoo', SICKNESS_BAG_EXCLUDE);
 
     mapItem(['paraquedas'], 'ref_paraquedas', 'validade_paraquedas', 'qtd_paraquedas', 'foguetoes_paraquedas', 'substituicao_explicita__foguetes_paraquedas');
     if (!checklist.ref_paraquedas) mapItem(['parachute'], 'ref_paraquedas', 'validade_paraquedas', 'qtd_paraquedas', 'foguetoes_paraquedas', 'substituicao_explicita__foguetes_paraquedas');
@@ -114,9 +125,12 @@ export function buildCertificatePayload(
     mapItem(['pilha'], 'ref_bateria', 'validade_pilhas_lanterna', 'qtd_pilhas_lanterna', 'pilhas_lanterna', 'substituicao_explicita__pilhas_para_lanterna');
     if (!checklist.ref_bateria) mapItem(['torch', 'batter'], 'ref_bateria', 'validade_pilhas_lanterna', 'qtd_pilhas_lanterna', 'pilhas_lanterna', 'substituicao_explicita__pilhas_para_lanterna');
 
-    mapItem(['bateria', 'litio'], 'ref_bateria_litio', 'validade_bateria', 'qtd_bateria_litio', 'bateria_litio');
-    if (!checklist.ref_bateria_litio) mapItem(['bateria', 'lítio'], 'ref_bateria_litio', 'validade_bateria', 'qtd_bateria_litio', 'bateria_litio');
-    if (!checklist.ref_bateria_litio) mapItem(['bateria', 'lithium'], 'ref_bateria_litio', 'validade_bateria', 'qtd_bateria_litio', 'bateria_litio');
+    mapItem(['bateria', 'litio'], 'ref_bateria_litio', 'validade_bateria', 'qtd_bateria_litio');
+    if (!checklist.ref_bateria_litio) mapItem(['bateria', 'lítio'], 'ref_bateria_litio', 'validade_bateria', 'qtd_bateria_litio');
+    if (!checklist.ref_bateria_litio) mapItem(['bateria', 'lithium'], 'ref_bateria_litio', 'validade_bateria', 'qtd_bateria_litio');
+    // E24 ("Bateria de lítio") só é marcada quando a jangada tem mesmo bateria.
+    const temBateriaLitio = Boolean(findPackItem(['bateria', 'litio']) || findMandatoryItem(['bateria', 'litio']));
+    if (temBateriaLitio && checklist.bateria_litio == null && !findPackItem(['bateria', 'litio'])?.justificacaoNaoSubstituicao?.trim()) checklist.bateria_litio = 'YES';
 
     mapItem(['cinta', 'fecho'], 'ref_cinta_fecho', undefined, 'qtd_cinta_fecho', 'cinta_fecho');
     if (!checklist.ref_cinta_fecho) mapItem(['bursting', 'band'], 'ref_cinta_fecho', undefined, 'qtd_cinta_fecho', 'cinta_fecho');
@@ -140,6 +154,11 @@ export function buildCertificatePayload(
     if (!checklist.ref_racoes) mapItem(['food'], 'ref_racoes', 'validade_racoes', undefined, 'racoes_alimentares');
 
     if (inspectionData.hruSerial) checklist.hru_serial = String(inspectionData.hruSerial);
+    checklist.cabeca_disparo = resolveFiringHeadDesignation({
+      cylinderCabecaDisparoRef: inspectionData.cylinderCabecaDisparoRef,
+      cylinderCabecaDisparoDescricao: inspectionData.cylinderCabecaDisparoDescricao,
+      cylinderSistema: inspectionData.cylinder?.sistema || inspectionData.cylinderSistema,
+    }, checklist.cabeca_disparo);
 
     return checklist;
   };
@@ -208,11 +227,14 @@ export function buildCertificatePayload(
     }
   }
 
-  return {
+  return withoutSosEquipment({
     id: jangadaId,
     inspectionId: inspecaoId,
+    // A raft alone must never select its previous inspection for a draft.
+    ...(inspecaoId != null ? { jangadaId, inspecaoId } : {}),
     certNumber: inspectionData.certificadoNumero || '',
     numeroObra: inspectionData.numeroObra || '',
+    technician: inspectionData.responsavel || '',
     inspectionDate: inspectionData.dataInspecao || new Date().toISOString().slice(0, 10),
     nextInspectionDate: inspectionData.dataProxInspecao || '',
     shipName: inspectionData.shipName || inspectionData.shipNameManual || 'Sem navio',
@@ -234,7 +256,7 @@ export function buildCertificatePayload(
     cylinderHydroTestDate: inspectionData.cylinder?.dataTeste || '',
     hruReference: inspectionData.hruReference || '',
     hruSerial: inspectionData.hruSerial || '',
-    hruExpiry: inspectionData.hruExpiry || '',
+    hruExpiry: installedHruDue(inspectionData.hruReference, inspectionData.hruDataInstalacao),
     radarReflector: inspectionData.radarReflector || '',
     radarReflectorExpiry: inspectionData.radarReflectorExpiry || '',
 
@@ -262,14 +284,14 @@ export function buildCertificatePayload(
     wpLowerDrop,
     wpLowerDropPercent,
 
-    napTestDone: inspectionData.testes?.teste_nap || testes.testeNAP || 'NAO',
-    fsTestDone: inspectionData.testes?.teste_fs || testes.testeFS || 'NAO',
-    giTestDone: inspectionData.testes?.teste_gi || testes.testeGI || 'NAO',
-    loadTestDone: inspectionData.testes?.teste_dl || testes.testeDL || 'NAO',
+    napTestDone: testes.testeNAP || testes.teste_nap || '',
+    fsTestDone: testes.testeFS || testes.teste_fs || '',
+    giTestDone: testes.testeGI || testes.teste_gi || '',
+    loadTestDone: testes.testeDL || testes.teste_dl || '',
 
     status: 'Concluída',
-    checklist: buildQuadroChecklist(),
+    checklist: sos ? {} : buildQuadroChecklist(),
     artigosSubstituidos,
     substituicoes: artigosSubstituidos,
-  };
+  }, sos);
 }

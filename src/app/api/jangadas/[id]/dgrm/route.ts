@@ -43,7 +43,7 @@ export async function GET(
       emitidoEm: new Date().toISOString(),
       estacaoServico: {
         codigo: jangada.serviceStation?.codigo || "AZORES-01",
-        nome: jangada.serviceStation?.nome || "Orey Azores Lda.",
+        nome: jangada.serviceStation?.nome || "Orey Tecnica- Serviços Navais, Lda",
         territorio: jangada.serviceStation?.territorioTipo || "AZORES",
       },
       navio: {

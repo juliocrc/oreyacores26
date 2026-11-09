@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { getInspectionStatus } from "@/lib/inspection-status";
 import { getAuthSession } from "@/auth";
 import { signCertificatePdfToken } from "@/lib/certificate-pdf-token";
+import { invoiceDisplay } from '@/lib/invoice-official';
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,6 +25,9 @@ export async function GET(req: NextRequest) {
     const sessionClienteId = session.user.role === "CLIENTE" && session.user.clienteId
       ? Number(session.user.clienteId)
       : null;
+    if (session.user.role === "CLIENTE" && !sessionClienteId) {
+      return NextResponse.json({ error: "Conta sem cliente associado." }, { status: 403 });
+    }
     const cliente = sessionClienteId
       ? await prisma.cliente.findUnique({ where: { id: sessionClienteId }, select: {
           id: true, nome: true, nif: true, numeroCliente: true, morada: true, ilha: true,
@@ -52,10 +56,7 @@ export async function GET(req: NextRequest) {
 
     const jangadas = await prisma.jangada.findMany({
       where: {
-        OR: [
-          { owner: { equals: cliente.nome } },
-          ...(navioIds.length > 0 ? [{ shipId: { in: navioIds } }] : []),
-        ],
+        shipId: { in: navioIds },
       },
     });
 
@@ -123,10 +124,9 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    const faturas = await prisma.fatura.findMany({
+    const invoiceRecords = await prisma.fatura.findMany({
       where: { clienteId: cliente.id },
       orderBy: { dataEmissao: "desc" },
-      take: 10,
       include: {
         notaCredito: true,
         recibos: { orderBy: { dataEmissao: "desc" } },
@@ -144,9 +144,13 @@ export async function GET(req: NextRequest) {
       },
     });
 
+    const faturas = invoiceRecords.filter(f => {
+      const display = invoiceDisplay(f);
+      return display.numeroFaturaOficial && display.pdfOficial;
+    }).slice(0, 10);
     const faturasFormatadas = faturas.map((f) => ({
       id: f.id,
-      numeroFatura: f.numeroFatura,
+      numeroFatura: invoiceDisplay(f).numeroFaturaOficial!,
       valorTotal: Number(f.valorTotal || 0),
       valorPago: f.recibos.reduce((acc, r) => acc + Number(r.valorPago || 0), 0),
       pagamentoStatus: f.pagamentoStatus,
@@ -155,7 +159,7 @@ export async function GET(req: NextRequest) {
       motivoCancelamento: f.motivoCancelamento,
       numeroNotaCredito: f.notaCredito?.numeroNotaCredito || null,
       numeroRecibo: f.recibos[0]?.numeroRecibo || null,
-      faturaPdfUrl: `/api/ordens-servico/${f.ordemServicos[0]?.ordemServicoId || 1}/fatura-pdf`,
+      faturaPdfUrl: `/api/portal/faturas/${f.id}/oficial`,
       ordemServicos: f.ordemServicos.map((os) => ({
         id: os.ordemServico.id,
         numeroOrdem: os.ordemServico.numeroOrdem || `#${os.ordemServico.id}`,

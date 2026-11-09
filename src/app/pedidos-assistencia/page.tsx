@@ -121,6 +121,7 @@ function origemLabel(origem: string | null | undefined) {
   const key = String(origem || "").trim().toLowerCase();
   if (key === "zapier") return "Formulário (Zapier)";
   if (key === "interno") return "Interno";
+  if (key === "portal_acesso") return "Portal: pedido de acesso";
   return key || "—";
 }
 

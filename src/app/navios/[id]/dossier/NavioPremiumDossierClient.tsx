@@ -3,11 +3,12 @@
 import React, { useState, useEffect } from 'react';
 import { AlertCircle, Loader2, Printer, Ship, LifeBuoy, ShieldAlert, Navigation, Flame } from 'lucide-react';
 import Link from 'next/link';
+import QRCode from 'react-qr-code';
 
 type DossierJangada = {
   id: number;
-  marca: string | null;
-  modelo: string | null;
+  brand: string | null;
+  model: string | null;
   serial: string;
   capacity: number | null;
   dataInspecao: string | null;
@@ -77,6 +78,17 @@ export default function NavioPremiumDossierClient({ navioId }: { navioId: number
   const [data, setData] = useState<DossierNavio | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [printMode, setPrintMode] = useState<'compacto' | 'detalhado'>('compacto');
+  const [issuedAt, setIssuedAt] = useState('');
+  const [pageUrl, setPageUrl] = useState('');
+
+  useEffect(() => {
+    setIssuedAt(new Date().toLocaleString('pt-PT', { dateStyle: 'short', timeStyle: 'short' }));
+    setPageUrl(`${window.location.origin}/navios/${encodeURIComponent(String(navioId))}`);
+    const updateTime = () => setIssuedAt(new Date().toLocaleString('pt-PT', { dateStyle: 'short', timeStyle: 'short' }));
+    window.addEventListener('beforeprint', updateTime);
+    return () => window.removeEventListener('beforeprint', updateTime);
+  }, [navioId]);
 
   useEffect(() => {
     async function fetchData() {
@@ -121,6 +133,24 @@ export default function NavioPremiumDossierClient({ navioId }: { navioId: number
   }
 
   const { jangadas = [], coletes = [], epirbs = [], extintores = [], cliente } = data;
+  const dates = [
+    ...jangadas.map(item => item.dataProxInspecao),
+    ...coletes.map(item => item.dataProxInspecao),
+    ...epirbs.flatMap(item => [item.dataValidadeBateria || item.validadeBateria, item.validadeHydro]),
+    ...extintores.flatMap(item => [item.dataProxRecarga, item.dataProxTesteHidraulico]),
+  ];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = dates.map(value => {
+    if (!value) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    date.setHours(0, 0, 0, 0);
+    return Math.round((date.getTime() - today.getTime()) / 86400000);
+  });
+  const expired = days.filter(day => day !== null && day < 0).length;
+  const upcoming = days.filter(day => day !== null && day >= 0 && day <= 30).length;
+  const unknown = days.filter(day => day === null).length;
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return "-";
@@ -141,7 +171,34 @@ export default function NavioPremiumDossierClient({ navioId }: { navioId: number
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl border border-slate-200/60 overflow-hidden print:shadow-none print:border-none">
+    <div className={`dossier-print ${printMode === 'compacto' ? 'print-compact' : 'print-detailed'} bg-white rounded-2xl shadow-xl border border-slate-200/60 overflow-hidden print:shadow-none print:border-none`}>
+      <style>{`
+        @media print {
+          @page { size: A4 portrait; margin: 8mm; }
+          body * { visibility: hidden; }
+          .dossier-print, .dossier-print * { visibility: visible; }
+          .dossier-print {
+            position: absolute; top: 0; left: 0; width: 100%;
+            overflow: visible !important; border-radius: 0; font-size: 9pt;
+          }
+          .dossier-print > div:first-of-type { padding: 0 0 3mm !important; margin: 0 0 3mm !important; }
+          .dossier-print h2 { font-size: 18pt; line-height: 1.1; }
+          .dossier-print > div:nth-of-type(2) { padding: 0 !important; }
+          .dossier-print > div:nth-of-type(2) > * + * { margin-top: 3mm !important; }
+          .dossier-print .grid { grid-template-columns: 1fr 1fr !important; gap: 5mm !important; }
+          .dossier-print h3 { font-size: 10pt; line-height: 1.2; margin-bottom: 1mm !important; padding: 0 0 1mm !important; }
+          .dossier-print p { font-size: 8pt; line-height: 1.2; }
+          .dossier-print .space-y-3 > * + * { margin-top: 1mm !important; }
+          .dossier-print table { font-size: 8pt; width: 100%; }
+          .dossier-print th, .dossier-print td { padding: 1mm 1.5mm !important; overflow-wrap: anywhere; }
+          .dossier-print td span { padding: 0 !important; font-size: 8pt; }
+          .dossier-print .overflow-x-auto { overflow: visible !important; }
+          .dossier-print tr { break-inside: avoid; }
+          .dossier-print .print-hidden { display: none !important; }
+          .print-compact .equipment-detail { display: none !important; }
+          .print-compact .compact-summary { display: block !important; }
+        }
+      `}</style>
       {/* Header Cover */}
       <div className="bg-gradient-to-r from-sky-800 to-indigo-900 p-8 text-white relative overflow-hidden print:bg-white print:text-black print:p-0 print:border-b-2 print:border-sky-900 print:pb-4 print:mb-6">
         <div className="absolute top-0 right-0 opacity-10 print:hidden">
@@ -151,7 +208,7 @@ export default function NavioPremiumDossierClient({ navioId }: { navioId: number
           <div>
             <div className="flex items-center gap-3 mb-2">
               <span className="bg-sky-400/20 text-sky-100 border border-sky-400/30 px-3 py-1 rounded-full text-xs font-semibold tracking-wide print:hidden">DOSSIER FROTA</span>
-              <span className="text-sky-200 text-sm font-medium print:text-gray-500">Impresso a {new Date().toLocaleDateString('pt-PT')}</span>
+              <span className="text-sky-200 text-sm font-medium print:text-gray-500">Emitido: {issuedAt || '—'}</span>
             </div>
             <h2 className="text-4xl font-extrabold tracking-tight mb-1">{data.nome}</h2>
             <div className="flex items-center gap-4 text-sky-100 text-sm print:text-gray-700">
@@ -161,10 +218,19 @@ export default function NavioPremiumDossierClient({ navioId }: { navioId: number
             </div>
           </div>
           <div className="flex flex-col gap-2 print:hidden">
+            <label htmlFor="dossier-print-mode" className="text-xs font-semibold">Formato de impressão</label>
+            <select id="dossier-print-mode" value={printMode} onChange={event => setPrintMode(event.target.value as 'compacto' | 'detalhado')} className="rounded-lg px-3 py-2 text-sm text-slate-900">
+              <option value="compacto">Resumo compacto — A4</option>
+              <option value="detalhado">Detalhado — todas as linhas</option>
+            </select>
             <button onClick={() => window.print()} className="bg-white text-sky-900 hover:bg-sky-50 px-4 py-2 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-2">
               <Printer className="w-4 h-4" />
-              Imprimir Ficha
+              Pré-visualizar e imprimir
             </button>
+            <Link href={`/jangadas?shipId=${encodeURIComponent(String(navioId))}`} className="bg-slate-600 hover:bg-slate-500 text-white px-4 py-2 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-2">
+              <LifeBuoy className="w-4 h-4" />
+              Registar jangada
+            </Link>
             <a href={`/api/navios/${navioId}/dossier/proposta`} className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-2">
               <Printer className="w-4 h-4" />
               Proposta Comercial (Excel)
@@ -178,6 +244,15 @@ export default function NavioPremiumDossierClient({ navioId }: { navioId: number
       </div>
 
       <div className="p-8 print:p-0 space-y-8">
+        <div className="rounded-lg border border-slate-200 p-3 text-sm">
+          <strong>Resumo de validades:</strong> {expired} expiradas · {upcoming} nos próximos 30 dias · {unknown} sem data válida
+          <p>Contagem por prazo, não por equipamento. Confirme as datas antes de agir.</p>
+        </div>
+        {pageUrl && <div className="flex items-center gap-3 text-xs"><QRCode value={pageUrl} size={64} /><span>Ficha atualizada do navio (requer acesso autorizado)<br />{pageUrl}</span></div>}
+        <div className="compact-summary hidden text-sm">
+          <strong>Equipamentos:</strong> {jangadas.length} jangadas · {coletes.length} coletes · {epirbs.length} EPIRBs · {extintores.length} extintores.
+          <p>Resumo compacto: consulte a ficha digital ou imprima o formato detalhado para ver todas as linhas.</p>
+        </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div>
@@ -202,7 +277,7 @@ export default function NavioPremiumDossierClient({ navioId }: { navioId: number
         </div>
 
         {/* JANGADAS */}
-        <div>
+        <div className="equipment-detail">
           <h3 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2 bg-slate-50 p-3 rounded-lg border border-slate-100 print:bg-transparent print:border-none print:p-0 print:border-b-2 print:border-slate-800">
             <LifeBuoy className="w-5 h-5 text-orange-500" />
             Jangadas a Bordo ({jangadas.length})
@@ -222,7 +297,7 @@ export default function NavioPremiumDossierClient({ navioId }: { navioId: number
                 <tbody className="divide-y divide-slate-100">
                   {jangadas.map((j) => (
                     <tr key={j.id} className="hover:bg-slate-50/50">
-                      <td className="p-3 font-medium text-slate-800">{j.marca} / {j.modelo}</td>
+                      <td className="p-3 font-medium text-slate-800">{[j.brand, j.model].filter(Boolean).join(' / ') || '—'}</td>
                       <td className="p-3">{j.serial}</td>
                       <td className="p-3">{j.capacity} PAX</td>
                       <td className="p-3">{formatDate(j.dataInspecao)}</td>
@@ -242,7 +317,7 @@ export default function NavioPremiumDossierClient({ navioId }: { navioId: number
         </div>
 
         {/* COLETES */}
-        <div>
+        <div className="equipment-detail">
           <h3 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2 bg-slate-50 p-3 rounded-lg border border-slate-100 print:bg-transparent print:border-none print:p-0 print:border-b-2 print:border-slate-800">
             <ShieldAlert className="w-5 h-5 text-sky-500" />
             Coletes a Bordo ({coletes.length})
@@ -282,7 +357,7 @@ export default function NavioPremiumDossierClient({ navioId }: { navioId: number
         </div>
 
         {/* EPIRBs */}
-        <div>
+        <div className="equipment-detail">
           <h3 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2 bg-slate-50 p-3 rounded-lg border border-slate-100 print:bg-transparent print:border-none print:p-0 print:border-b-2 print:border-slate-800">
             <Navigation className="w-5 h-5 text-indigo-500" />
             Rádio Balizas / EPIRBs ({epirbs.length})
@@ -326,7 +401,7 @@ export default function NavioPremiumDossierClient({ navioId }: { navioId: number
         </div>
 
         {/* EXTINTORES */}
-        <div>
+        <div className="equipment-detail">
           <h3 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2 bg-slate-50 p-3 rounded-lg border border-slate-100 print:bg-transparent print:border-none print:p-0 print:border-b-2 print:border-slate-800">
             <Flame className="w-5 h-5 text-orange-600" />
             Extintores a Bordo ({extintores.length})

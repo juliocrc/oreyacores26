@@ -25,6 +25,7 @@ import JSZip from "jszip";
 import { getIsencaoIvaInfo } from "@/lib/iva-isencao-codes";
 import { formatarAtcud, type AtcudSeries } from "@/lib/declaracao-isencao-iva";
 import { loadTemplateBufferIfExists } from "@/lib/template-loader";
+import { ivaDeclarationText } from "@/lib/iva-declaration-text";
 
 const EMPRESA_NOME = "OREY TÉCNICA SERVIÇOS NAVAIS, LDA.";
 const EMPRESA_NIF = "501 117 334";
@@ -50,6 +51,10 @@ const TEMPLATE_CANDIDATES = [
 ];
 
 export type DeclaracaoIsencaoIvaDocxInput = {
+  version?: 1 | 2;
+  clienteMorada?: string;
+  tipoPesca?: string;
+  isencaoInfo?: NonNullable<ReturnType<typeof getIsencaoIvaInfo>>;
   /** Número completo da requisição, "0007/2026". */
   numeroCompleto: string;
   ano: number;
@@ -171,6 +176,7 @@ function dataLonga(data: Date): string {
     day: "2-digit",
     month: "long",
     year: "numeric",
+    timeZone: "Europe/Lisbon",
   });
 }
 
@@ -229,7 +235,7 @@ function blocoCabecalho(
 }
 
 function blocoDados(input: DeclaracaoIsencaoIvaDocxInput): string {
-  const info = getIsencaoIvaInfo(input.codigoIsencaoIva);
+  const info = input.isencaoInfo ?? getIsencaoIvaInfo(input.codigoIsencaoIva);
   const local = input.localEmissao || "Cabouco";
   const [l1, l2, l3, l4] = GRELHA_DADOS;
 
@@ -267,6 +273,15 @@ function blocoDados(input: DeclaracaoIsencaoIvaDocxInput): string {
     );
   }
 
+  if (input.version === 2) {
+    linhas.push(
+      linha([celulaRotulo("Morada do cliente", l1 + l2 + l3 + l4, 4)]),
+      linha([celulaValor(input.clienteMorada || "", l1 + l2 + l3 + l4, 4)]),
+      linha([celulaRotulo("Tipo / Atividade", l1 + l2 + l3 + l4, 4)]),
+      linha([celulaValor(input.tipoPesca || "", l1 + l2 + l3 + l4, 4)]),
+    );
+  }
+
   const motivo = info
     ? `${info.code} — ${info.mencao} (${info.norma})`
     : input.codigoIsencaoIva || "";
@@ -281,8 +296,9 @@ function blocoDados(input: DeclaracaoIsencaoIvaDocxInput): string {
 }
 
 function textoDeclaracao(input: DeclaracaoIsencaoIvaDocxInput): string {
-  const info = getIsencaoIvaInfo(input.codigoIsencaoIva);
+  const info = input.isencaoInfo ?? getIsencaoIvaInfo(input.codigoIsencaoIva);
   const fundamento = info ? info.norma : "o motivo de isenção indicado";
+  if (input.version === 2) return ivaDeclarationText(fundamento);
   return (
     `Declara-se, para os efeitos do artigo 7.º do Decreto-Lei n.º 28/2019, de 15 de fevereiro, ` +
     `que a operação identificada nesta declaração está isenta de IVA nos termos de ${fundamento}.\n\n` +

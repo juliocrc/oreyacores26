@@ -268,7 +268,7 @@ export function InspecaoDetalhesDialog({
       const res = await fetch(`/api/inspecoes?id=${inspecao.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ numeroObra: editNumeroObra.trim() || null }),
+        body: JSON.stringify({ numeroObra: editNumeroObra.trim() || null, expectedUpdatedAt: inspecao.updatedAt ?? null }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -292,6 +292,9 @@ export function InspecaoDetalhesDialog({
   const buildHistoricalChecklistPayload = () => {
     return buildQuadroChecklistPayload({
       inspectionChecklistValues: snapshot?.inspectionChecklistValues || {},
+      cylinderCabecaDisparoRef: snapshot?.cylinderCabecaDisparoRef,
+      cylinderCabecaDisparoDescricao: snapshot?.cylinderCabecaDisparoDescricao,
+      cylinderSistema: snapshot?.cylinderSistema,
       artigos: snapshot?.artigos || inspecao.artigos || [],
       prevArtigos: prevSnapshot?.artigos || snapshot?.artigos || inspecao.artigos || [],
       testeWP: snapshot?.testeWP || inspecao.testeWP,
@@ -318,6 +321,8 @@ export function InspecaoDetalhesDialog({
       }
 
       const payload = {
+        jangadaId: Number(inspecao.jangadaId ?? snapshot.id),
+        inspecaoId: Number(inspecao.id),
         certNumber: inspecao.certificadoNumero || '',
         inspectionDate: inspecao.dataInspecao || '',
         nextInspectionDate: inspecao.dataProxInspecao || '',

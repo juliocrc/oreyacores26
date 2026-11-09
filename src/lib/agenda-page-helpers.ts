@@ -132,3 +132,10 @@ export function computeOperationalEnd(start: Date, durationMinutes: number) {
   }
   return end;
 }
+
+export function computeOperationalDuration(start: Date, end: Date) {
+  const lunchStart = setMinutesOfDay(start, LUNCH_START_MINUTES);
+  const lunchEnd = setMinutesOfDay(start, LUNCH_END_MINUTES);
+  const lunchOverlap = Math.max(0, Math.min(end.getTime(), lunchEnd.getTime()) - Math.max(start.getTime(), lunchStart.getTime()));
+  return Math.max(1, Math.round((end.getTime() - start.getTime() - lunchOverlap) / 60000));
+}

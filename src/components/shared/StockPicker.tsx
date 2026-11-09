@@ -1,9 +1,13 @@
 "use client";
 import React, { useMemo, useState } from "react";
 import { Search, Tag } from "lucide-react";
+import StockArticleThumbnail from './StockArticleThumbnail';
 import {
   filterStockItems,
   formatStockOptionLabel,
+  getStockSelectionError,
+  sortStockCandidates,
+  getAvailableStock,
   type StockPickerItem,
 } from "@/lib/stock-picker";
 
@@ -18,6 +22,9 @@ export interface StockPickerSelectProps<T extends StockPickerItem> {
   emptyMessage?: string;
   showValidade?: boolean;
   showQuantity?: boolean;
+  requiredQuantity?: number;
+  nextInspection?: string | null;
+  allowDeficit?: boolean;
   disabled?: boolean;
   autoFocusSearch?: boolean;
   className?: string;
@@ -43,6 +50,9 @@ export function StockPickerSelect<T extends StockPickerItem>({
   emptyMessage = DEFAULT_EMPTY_MESSAGE,
   showValidade = false,
   showQuantity = true,
+  requiredQuantity = 1,
+  nextInspection,
+  allowDeficit = false,
   disabled = false,
   autoFocusSearch = false,
   className = "",
@@ -51,7 +61,10 @@ export function StockPickerSelect<T extends StockPickerItem>({
   id,
 }: StockPickerSelectProps<T>) {
   const [query, setQuery] = useState("");
-  const filtered = useMemo(() => filterStockItems(items, query), [items, query]);
+  const [error, setError] = useState<string | null>(null);
+  const filtered = useMemo(() => sortStockCandidates(filterStockItems(items, query), { showValidade, requiredQuantity, nextInspection, allowDeficit }), [items, query, showValidade, requiredQuantity, nextInspection, allowDeficit]);
+  const selected = items.find(item => String(item.id) === String(value));
+  const selectedError = selected ? getStockSelectionError(selected, { showValidade, requiredQuantity, nextInspection, allowDeficit }) : null;
 
   if (items.length === 0) {
     return (
@@ -103,6 +116,10 @@ export function StockPickerSelect<T extends StockPickerItem>({
             onChange={(e) => {
               const item = items.find((candidate) => String(candidate.id) === e.target.value);
               if (item) {
+                const reason = getStockSelectionError(item, { showValidade, requiredQuantity, nextInspection, allowDeficit });
+                if (reason) { setError(reason); return; }
+                if (allowDeficit && getAvailableStock(item) < requiredQuantity && !window.confirm(`Stock disponível: ${getAvailableStock(item)}; quantidade necessária: ${requiredQuantity}. A gravação pode deixar esta linha com saldo negativo. Confirma que pretende selecionar esta linha?`)) return;
+                setError(null);
                 onSelect(item);
                 setQuery("");
               }
@@ -112,12 +129,33 @@ export function StockPickerSelect<T extends StockPickerItem>({
             <option value="">{placeholder}</option>
             {filtered.map((item) => (
               <option key={item.id} value={String(item.id)}>
-                {formatStockOptionLabel(item, { showValidade, showQuantity })}
+                 {formatStockOptionLabel(item, { showValidade, showQuantity })}
+                  {getStockSelectionError(item, { showValidade, requiredQuantity, nextInspection, allowDeficit }) ? ' - ATENCAO: indisponivel para este pedido' : allowDeficit && getAvailableStock(item) < requiredQuantity ? ' - stock insuficiente; requer confirmação' : ''}
               </option>
             ))}
           </select>
         </div>
       )}
+      {selected && <div className="flex items-center gap-3 text-xs text-slate-600">
+        <StockArticleThumbnail foto={selected.foto} label={String(selected.referencia || selected.descricao || selected.id)} />
+        <span>{formatStockOptionLabel(selected, { showValidade, showQuantity })}</span>
+      </div>}
+      {filtered.length > 0 && <details className="text-xs text-slate-600">
+        <summary className="cursor-pointer py-1">Ver artigos com fotos</summary>
+        <div className="max-h-56 overflow-y-auto space-y-1 mt-1">
+          {filtered.map(item => <button key={item.id} type="button" disabled={disabled} onClick={() => {
+            const reason = getStockSelectionError(item, { showValidade, requiredQuantity, nextInspection });
+            if (reason) { setError(reason); return; }
+            setError(null);
+            onSelect(item);
+            setQuery("");
+          }} className="w-full flex items-center gap-3 rounded-lg border border-slate-200 p-2 text-left hover:bg-slate-50 disabled:opacity-50">
+            <StockArticleThumbnail foto={item.foto} label={String(item.referencia || item.descricao || item.id)} />
+            <span className="min-w-0 break-words">{formatStockOptionLabel(item, { showValidade, showQuantity })}</span>
+          </button>)}
+        </div>
+      </details>}
+      {(error || selectedError) && <p role="alert" className="text-xs font-semibold text-red-700">{error || selectedError}</p>}
     </div>
   );
 }

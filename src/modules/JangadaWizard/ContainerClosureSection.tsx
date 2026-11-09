@@ -10,6 +10,8 @@ import {
 } from './containerClosure';
 import { StockPickerSelect } from '@/components/shared/StockPicker';
 import { isClosureStockItem } from '@/lib/stock-picker';
+import { isSosRaft } from '@/lib/raft-model-rules';
+import { isHruItem } from './sosRules';
 
 const formatPrice = (value: number) =>
   new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(value || 0);
@@ -41,11 +43,11 @@ export function ContainerClosureSection({
 
   const suggestionKeys = useMemo(() => new Set(suggestions.map((s) => s.key)), [suggestions]);
   const manualItems = useMemo(
-    () => selected.filter((s) => !suggestionKeys.has(s.key)),
-    [selected, suggestionKeys],
+    () => selected.filter((s) => !suggestionKeys.has(s.key) && (!isSosRaft(inspectionData) || !isHruItem(s))),
+    [selected, suggestionKeys, inspectionData],
   );
 
-  const closureStock = useMemo(() => globalStock.filter(isClosureStockItem), [globalStock]);
+  const closureStock = useMemo(() => globalStock.filter(item => isClosureStockItem(item) && (!isSosRaft(inspectionData) || !isHruItem(item))), [globalStock, inspectionData]);
 
   const selectedByKey = new Map(selected.map((s) => [s.key, s]));
 
@@ -276,6 +278,7 @@ export function ContainerClosureSection({
             <Link2 size={13} /> Adicionar do Armazém (cintas, autocolantes, saco de vácuo, fita)
           </div>
           <StockPickerSelect
+            allowDeficit
             items={closureStock}
             onSelect={addFromStock}
             placeholder="Escolher artigo do stock..."

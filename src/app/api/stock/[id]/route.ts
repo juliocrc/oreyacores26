@@ -3,8 +3,8 @@ import prisma from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { normalizeStockValidityValue, stockItemSupportsValidity } from "@/lib/stock-validity";
-import { findConflictingValidityStock } from "@/lib/stock-utils";
-import { isFoodRationsLike, normalizeStockReferenceByRule } from "@/lib/stock-reference-rules";
+import { validateStockLot, stockTransaction, stockWriteStatus, StockWriteError } from "@/lib/stock-utils";
+import { isFoodRationsLike, normalizeStockReferenceByRule, isServiceResourceReference } from "@/lib/stock-reference-rules";
 import { normalizeStockCategory } from "@/lib/stock-categories";
 import { normalizeStockUnit } from "@/lib/stock-unit";
 import { getAccessContext } from "@/lib/access-control";
@@ -58,36 +58,35 @@ function hasOwn(input: Record<string, unknown>, key: string) {
   return Object.prototype.hasOwnProperty.call(input || {}, key);
 }
 
-function normalizePartialStockPayload(input: Record<string, unknown>, currentObservacoes?: string | null) {
+function normalizePartialStockPayload(input: Record<string, unknown>, current: Record<string, unknown>) {
   const data: Record<string, unknown> = {};
   const nome = hasOwn(input, "nome") || hasOwn(input, "descricao")
     ? String(input?.nome || input?.descricao || "").trim()
     : undefined;
   const categoriaOriginal = hasOwn(input, "categoria") ? input?.categoria : undefined;
   const categoriaNormalizada = hasOwn(input, "categoria") ? normalizeStockCategory(input?.categoria, nome || input?.descricao) : undefined;
-  const referenciaNormalizada = normalizeStockReferenceByRule(
+  const referenciaNormalizada = hasOwn(input, "referencia") && String(input.referencia || "").trim() === current.referencia
+    ? String(current.referencia)
+    : normalizeStockReferenceByRule(
     hasOwn(input, "referencia") ? input?.referencia : undefined,
     nome,
     hasOwn(input, "descricao") ? input?.descricao : undefined,
     categoriaOriginal,
     hasOwn(input, "observacoes") ? input?.observacoes : undefined
   );
-  const observacoesForMeta = hasOwn(input, "observacoes") ? input?.observacoes : currentObservacoes;
+  const observacoesForMeta = hasOwn(input, "observacoes") ? input?.observacoes : current.observacoes;
   const validadeManualInput = parseStockValidityManualInput(input?.validadeAplicavelManual ?? input?.validadeAplicavel);
   const observacoesComMeta = upsertStockMetadataInObservacoes(observacoesForMeta, {
     validadeAplicavel: validadeManualInput,
     aplicavelTipos: hasOwn(input, "aplicavelTipos") ? input?.aplicavelTipos : undefined,
   });
-  const validadeManual = parseStockValidityManualInput(input?.validadeAplicavelManual ?? input?.validadeAplicavel);
   const supportsValidity = stockItemSupportsValidity({
-    nome,
-    descricao: hasOwn(input, "descricao") ? input?.descricao : undefined,
-    categoria: categoriaOriginal,
-    codigoFabricante: hasOwn(input, "codigoFabricante") ? input?.codigoFabricante : undefined,
-    referencia: referenciaNormalizada,
+    ...current,
+    ...input,
+    ...(nome === undefined ? {} : { nome }),
+    referencia: hasOwn(input, "referencia") ? referenciaNormalizada : current.referencia,
     observacoes: observacoesComMeta,
   });
-  const supportsValidityFinal = validadeManual == null ? supportsValidity : validadeManual;
 
   if (hasOwn(input, "nome") || hasOwn(input, "descricao")) {
     data.descricao = nome || "Item sem descrição";
@@ -115,7 +114,9 @@ function normalizePartialStockPayload(input: Record<string, unknown>, currentObs
   if (hasOwn(input, "codigoFabricante")) data.codigoFabricante = input?.codigoFabricante ? String(input.codigoFabricante) : null;
   if (hasOwn(input, "inventario")) data.inventario = input?.inventario ? String(input.inventario) : null;
   if (hasOwn(input, "lote")) data.lote = input?.lote ? String(input.lote) : null;
-  if (hasOwn(input, "validade")) data.validade = supportsValidityFinal ? normalizeStockValidityValue(input?.validade) : null;
+  if (hasOwn(input, "validade") || (!supportsValidity && ["validadeAplicavelManual", "validadeAplicavel", "observacoes"].some(key => hasOwn(input, key)))) {
+    data.validade = supportsValidity ? normalizeStockValidityValue(input?.validade) : null;
+  }
   if (hasOwn(input, "testeHidraulico")) data.testeHidraulico = input?.testeHidraulico ? String(input.testeHidraulico) : null;
   if (hasOwn(input, "estadoCargaCilindro")) data.estadoCargaCilindro = input?.estadoCargaCilindro ? String(input.estadoCargaCilindro).toUpperCase() : null;
   if (hasOwn(input, "precoVenda")) data.precoVenda = Number(input?.precoVenda ?? 0);
@@ -195,6 +196,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
         localizacao: true,
         observacoes: true,
         foto: true,
+        codigoBarras: true,
         serviceStationId: true,
       },
     });
@@ -204,7 +206,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
     }
 
     const activeStationId = resolveActiveServiceStationId(req, access);
-    if (activeStationId && item.serviceStationId && item.serviceStationId !== activeStationId) {
+    if (item.serviceStationId && (activeStationId ? item.serviceStationId !== activeStationId : !access.isAdmin && !access.allowedStationIds.includes(item.serviceStationId))) {
       return NextResponse.json({ error: 'Artigo pertence a outra estação.' }, { status: 403 });
     }
 
@@ -232,7 +234,8 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
     }
 
     const clientIp = String(req.headers.get("x-forwarded-for") || "").split(",")[0]?.trim() || "unknown";
-    const rate = checkRateLimit(`stock-put:${id}:${clientIp}`, 90, 60_000);
+    const rate = await checkRateLimit(`stock-put:${id}:${clientIp}`, 90, 60_000);
+    if (rate.status === 503) return NextResponse.json({ error: "Servico temporariamente indisponivel." }, { status: 503 });
     if (!rate.allowed) {
       return NextResponse.json(
         { error: "Demasiados pedidos para este artigo. Aguarde alguns segundos e tente novamente.", retryAfterMs: rate.retryAfterMs },
@@ -243,7 +246,6 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
     // Buscar record atual para validar estacao
     const current = await prisma.stock.findUnique({
       where: { id },
-      select: { observacoes: true, serviceStationId: true, quantidade: true, quantidadeReservada: true, referencia: true, validade: true, estadoCargaCilindro: true },
     });
 
     if (!current) {
@@ -251,13 +253,16 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
     }
 
     const activeStationId = resolveActiveServiceStationId(req, access);
-    if (activeStationId && current.serviceStationId && current.serviceStationId !== activeStationId) {
+    if (current.serviceStationId && (activeStationId ? current.serviceStationId !== activeStationId : !access.isAdmin && !access.allowedStationIds.includes(current.serviceStationId))) {
       return NextResponse.json({ error: 'Artigo pertence a outra estação.' }, { status: 403 });
     }
 
     const body = await req.json();
 
     if (body?.operacao === "entrada" || body?.operacao === "saida") {
+      if (isServiceResourceReference(current.referencia)) {
+        return NextResponse.json({ error: 'Recursos de servico nao permitem movimentos de stock.' }, { status: 400 });
+      }
       const valorRaw = Number(body?.valor ?? 1);
       if (!Number.isFinite(valorRaw) || valorRaw <= 0) {
         return NextResponse.json({ error: 'A quantidade tem de ser maior que zero.' }, { status: 400 });
@@ -308,13 +313,11 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
         }
       }
 
-      const quantidadeDepois = body.operacao === "entrada"
-        ? quantidadeAntes + valor
-        : quantidadeAntes - valor;
-
       // Atualizar stock e criar movimentação em transação
-      const [updatedByOperation] = await prisma.$transaction([
-        prisma.stock.update({
+      const updatedByOperation = await stockTransaction(async tx => {
+        const fresh = await tx.stock.findUniqueOrThrow({ where: { id } });
+        if (body.operacao === "saida" && valor > fresh.quantidade - fresh.quantidadeReservada) throw new StockWriteError("Stock disponivel insuficiente.");
+        const updated = await tx.stock.update({
           where: { id },
           data: {
             quantidade: body.operacao === "entrada"
@@ -324,19 +327,20 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
               ? { estadoCargaCilindro: body?.estadoCargaCilindro ? String(body.estadoCargaCilindro).toUpperCase() : null }
               : {}),
           },
-        }),
-        prisma.movimentacaoStock.create({
+        });
+        await tx.movimentacaoStock.create({
           data: {
             stockId: id,
             tipo: body.operacao,
             quantidade: valor,
-            quantidadeAntes,
-            quantidadeDepois,
+            quantidadeAntes: fresh.quantidade,
+            quantidadeDepois: updated.quantidade,
             motivo: body.motivo || null,
-            usuario: body.usuario || null,
+            usuario: `${access.userId}:${access.email}`,
           },
-        }),
-      ]);
+        });
+        return updated;
+      });
 
       stockOperationCache.set(operationCacheKey, {
         response: updatedByOperation,
@@ -346,7 +350,8 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
       return NextResponse.json(updatedByOperation);
     }
 
-    const data = normalizePartialStockPayload(body, current.observacoes ?? null);
+    const data = normalizePartialStockPayload(body, current);
+    if (hasOwn(body, "codigoBarras")) data.codigoBarras = String(body.codigoBarras || "").trim() || null;
     if (Object.keys(data).length === 0) {
       return NextResponse.json({ error: 'Nenhum campo válido para atualizar stock' }, { status: 400 });
     }
@@ -355,37 +360,19 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
       return NextResponse.json({ error: 'A quantidade não pode ser negativa.' }, { status: 400 });
     }
 
-    if (data.referencia || data.validade) {
-      const validadeNovo = typeof data.validade === 'string' && data.validade ? data.validade : (current.validade || null);
-      const referenciaFinal = typeof data.referencia === 'string' && data.referencia ? data.referencia : current.referencia;
-      if (validadeNovo && referenciaFinal) {
-        const conflito = await findConflictingValidityStock({
-          referencia: referenciaFinal,
-          validade: validadeNovo,
-        });
-        if (conflito && conflito.id !== id) {
-          return NextResponse.json(
-            {
-              error: `Conflito de validades para a referência ${referenciaFinal}: outro registo (ID ${conflito.id}) tem validade ${conflito.validade} e este tem ${validadeNovo}. Corrija a validade ou unifique as quantidades.`,
-              duplicateId: conflito.id,
-              existingValidade: conflito.validade,
-            },
-            { status: 409 }
-          );
-        }
-      }
-    }
-
     const quantidadeAntes = current.quantidade;
     const novaQuantidade = typeof data.quantidade === "number" ? data.quantidade : undefined;
     const quantidadeMudou = novaQuantidade !== undefined && novaQuantidade !== quantidadeAntes;
 
     // Trilho de auditoria: qualquer alteração direta de quantidade gera uma
     // movimentação de "ajuste" com o motivo (default transparente), em transação.
-    const updated = await prisma.$transaction(async (tx) => {
+    const updated = await stockTransaction(async (tx) => {
+      const fresh = await tx.stock.findUniqueOrThrow({ where: { id } });
+      if (fresh.updatedAt.getTime() !== current.updatedAt.getTime()) throw Object.assign(new Error("Stock alterado entretanto. Recarregue."), { code: "P2034" });
+      const validated = await validateStockLot(tx, { ...fresh, ...data } as Prisma.StockUncheckedCreateInput, fresh);
       const updatedRecord = await tx.stock.update({
         where: { id },
-        data: data as Prisma.StockUpdateInput,
+        data: { ...data, lote: validated.lote, validade: validated.validade } as Prisma.StockUpdateInput,
       });
       if (quantidadeMudou) {
         await tx.movimentacaoStock.create({
@@ -396,15 +383,16 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
             quantidadeAntes,
             quantidadeDepois: novaQuantidade,
             motivo: String(body?.motivo || "Correção de quantidade (ajuste manual)").slice(0, 300),
-            usuario: body?.usuario ? String(body.usuario).slice(0, 120) : null,
+            usuario: `${access.userId}:${access.email}`,
           },
         });
       }
       return updatedRecord;
     });
     return NextResponse.json(mapStockItemResponse(updated));
-  } catch {
-    return NextResponse.json({ error: 'Erro ao atualizar stock' }, { status: 500 });
+  } catch (error) {
+    const status = stockWriteStatus(error);
+    return NextResponse.json({ error: status && error instanceof Error ? error.message : 'Erro ao atualizar stock' }, { status: status || 500 });
   }
 }
 
@@ -420,7 +408,8 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
     }
 
     const clientIp = String(req.headers.get("x-forwarded-for") || "").split(",")[0]?.trim() || "unknown";
-    const rate = checkRateLimit(`stock-del:${clientIp}`, 30, 60_000);
+    const rate = await checkRateLimit(`stock-del:${clientIp}`, 30, 60_000);
+    if (rate.status === 503) return NextResponse.json({ error: "Servico temporariamente indisponivel." }, { status: 503 });
     if (!rate.allowed) {
       return NextResponse.json(
         { error: "Demasiados pedidos de remoção. Aguarde alguns segundos e tente novamente.", retryAfterMs: rate.retryAfterMs },
@@ -444,7 +433,7 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
     }
 
     const activeStationId = resolveActiveServiceStationId(req, access);
-    if (activeStationId && current.serviceStationId && current.serviceStationId !== activeStationId) {
+    if (current.serviceStationId && (activeStationId ? current.serviceStationId !== activeStationId : !access.isAdmin && !access.allowedStationIds.includes(current.serviceStationId))) {
       return NextResponse.json({ error: 'Artigo pertence a outra estação.' }, { status: 403 });
     }
 

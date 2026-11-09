@@ -1,6 +1,9 @@
 import prisma from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 import { parseFlexibleDate } from "@/lib/agenda-sync";
 import { stockItemSupportsValidity } from "@/lib/stock-validity";
+import { isServiceResourceReference } from '@/lib/stock-reference-rules';
+import { canonicalOrderNumber } from '@/lib/order-number';
 
 export type OrdemServicoStatus = "pendente" | "agendada" | "confirmada" | "em_progresso" | "pausada" | "concluida" | "cancelada";
 export type OrdemServicoTipo = "inspecao" | "manutencao" | "reparacao" | "fato_imersao" | "colete" | "outro";
@@ -41,6 +44,7 @@ export type OrdemServicoMeta = {
   materials?: Array<{
     id?: string;
     stockId?: number;
+    lote?: string | null;
     referencia?: string;
     descricao?: string;
     quantidadePrevista?: number;
@@ -48,6 +52,7 @@ export type OrdemServicoMeta = {
     precoUnitario?: number;
     disponibilidade?: number;
     reservado?: boolean;
+    quantidadeReservada?: number;
     consumido?: boolean;
   }>;
   checklistItems?: Array<{
@@ -76,6 +81,8 @@ export type OrdemServicoMeta = {
     descricao?: string;
     quantidade?: number;
     unitPrice?: number;
+    precoUnitario?: number;
+    descontoPercentual?: number;
     total?: number;
     source?: string;
   }>;
@@ -142,6 +149,43 @@ export function normalizeUniquePositiveInts(values: Array<unknown>) {
         .map((value) => Math.floor(value))
     )
   );
+}
+
+// References identify products, not lots. Only legacy, unambiguous non-dated
+// products may be resolved without the concrete stock row selected by the user.
+export async function resolveLotStock(
+  db: Pick<Prisma.TransactionClient, "stock">,
+  item: { stockId?: unknown; referencia?: string | null },
+  serviceStationId: number | null,
+  historical = false,
+) {
+  if (isServiceResourceReference(item.referencia)) return null;
+  const explicit = item.stockId != null && item.stockId !== "";
+  const id = Number(item.stockId);
+  if (explicit && (!Number.isInteger(id) || id <= 0)) throw new Error("stockId invalido.");
+  if (!explicit && !item.referencia) return null;
+  const rows = await db.stock.findMany({
+    where: {
+      ...(serviceStationId === null
+        ? { serviceStationId: null }
+        : { OR: [{ serviceStationId }, { serviceStationId: null }] }),
+      ...(explicit ? { id } : { referencia: item.referencia! }),
+    },
+  });
+  if (explicit) {
+    if (!rows[0]) {
+      // Historical IDs must never be rebound to a different lot by reference.
+      const existing = await db.stock.findUnique({ where: { id } });
+      if (existing || !historical) throw new Error("stockId nao encontrado na estacao.");
+      return null;
+    }
+    if (item.referencia && rows[0].referencia !== item.referencia) throw new Error("stockId e referencia incompatíveis.");
+    return isServiceResourceReference(rows[0].referencia) ? null : rows[0];
+  }
+  if (rows.length > 1 || rows.some((s) => Boolean(s.lote?.trim()) || Boolean(s.validade) || stockItemSupportsValidity({ nome: s.descricao, referencia: s.referencia, codigoFabricante: s.codigoFabricante }))) {
+    throw new Error("Selecione um stockId concreto para o lote datado ou referencia ambigua.");
+  }
+  return rows[0] ?? null;
 }
 
 export function normalizeOrdemStatus(value: unknown): OrdemServicoStatus {
@@ -680,22 +724,15 @@ export async function ensureOrderForServiceStation(params: {
 }) {
   const jangadaContext = await resolveOrderJangadasContext([params.jangadaId]);
   const shipId = jangadaContext.shipId;
-  const active = shipId
-    ? await prisma.ordemServico.findFirst({
-        where: {
-          shipId,
-          serviceStationId: jangadaContext.serviceStationId,
-          status: { notIn: ["concluida", "cancelada"] },
-        },
-        orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
-      })
-    : await prisma.ordemServico.findFirst({
+  const raft = await prisma.jangada.findUnique({ where: { id: params.jangadaId }, select: { ultimoCertificadoNumero: true } });
+  const active = await prisma.ordemServico.findFirst({
         where: {
           OR: [
             { jangadaId: params.jangadaId },
             { ordemJangadas: { some: { jangadaId: params.jangadaId } } },
           ],
           serviceStationId: jangadaContext.serviceStationId,
+          AND: [{ OR: [{ inspecaoId: null }, { inspecao: { certificadoNumero: raft?.ultimoCertificadoNumero || '' } }] }],
           status: { notIn: ["concluida", "cancelada"] },
         },
         orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
@@ -712,12 +749,13 @@ export async function ensureOrderForServiceStation(params: {
     const meta = parseOrdemServicoMeta(active.metadados);
     let finalNumeroOrdem = active.numeroOrdem;
     let transitionMessage = "";
-    if (active.numeroOrdem.startsWith("OS-") && nextStatus === "em_progresso") {
+    if (!active.inspecaoId && active.numeroOrdem.startsWith("OS-") && nextStatus === "em_progresso") {
       finalNumeroOrdem = await generateNumeroOrdem(active.dataPrevista || expectedDate || new Date());
       transitionMessage = `Número de ordem convertido de ${active.numeroOrdem} para ${finalNumeroOrdem} devido ao início da inspeção.`;
     }
 
     const updated = await prisma.$transaction(async (tx) => {
+      if (active.inspecaoId) finalNumeroOrdem = await canonicalOrderNumber(tx, active);
       await replaceOrdemServicoJangadas(tx as typeof prisma, active.id, [
         params.jangadaId,
         ...(active.jangadaId != null ? [active.jangadaId] : []),
@@ -888,10 +926,12 @@ export async function autoGenerateDraftMaterialsForJangadas(
         descricao: true,
         precoVenda: true,
         quantidade: true,
+        serviceStationId: true,
+        lote: true,
+        validade: true,
       },
     });
 
-    const stockMapByRef = new Map(stockItems.map((s) => [s.referencia, s]));
     const stockMapById = new Map(stockItems.map((s) => [s.id, s]));
 
     const materials: NonNullable<OrdemServicoMeta["materials"]> = [];
@@ -902,6 +942,7 @@ export async function autoGenerateDraftMaterialsForJangadas(
     const expirationThreshold = new Date(now.getFullYear() + 1, now.getMonth(), now.getDate());
 
     for (const j of jangadas) {
+      const stockMapByRef = new Map(stockItems.filter(s => s.serviceStationId === j.serviceStationId && !s.lote && !s.validade && stockItems.filter(other => other.serviceStationId === j.serviceStationId && other.referencia === s.referencia).length === 1).map(s => [s.referencia, s]));
       // A) Serviço L-JD (Inspeção de Jangada)
       const stockLJD = stockMapByRef.get("L-JD");
       materials.push({
@@ -936,10 +977,7 @@ export async function autoGenerateDraftMaterialsForJangadas(
             let strapStock = stockMapByRef.get(strapRef);
             if (!strapStock) {
               strapStock =
-                (await prisma.stock.findFirst({
-                  where: { referencia: strapRef },
-                  select: { id: true, referencia: true, descricao: true, precoVenda: true, quantidade: true },
-                })) || undefined;
+                (await resolveLotStock(prisma, { referencia: strapRef }, j.serviceStationId)) || undefined;
             }
             materials.push({
               id: `auto-strap-${j.id}-${strapRef}`,
@@ -978,18 +1016,14 @@ export async function autoGenerateDraftMaterialsForJangadas(
 
           if (isExpiring) {
             let stock = artigo.stockId ? stockMapById.get(artigo.stockId) : undefined;
-            if (!stock && artigo.referencia) {
+            if (stock && stock.serviceStationId !== j.serviceStationId) stock = undefined;
+            if (!stock && !artigo.stockId && artigo.referencia) {
               stock = stockMapByRef.get(artigo.referencia);
-            }
-            if (!stock && artigo.name) {
-              stock = stockItems.find(
-                (s) => String(s.descricao || "").toLowerCase() === String(artigo.name || "").toLowerCase()
-              );
             }
 
             materials.push({
               id: `auto-artigo-${j.id}-${artigo.id}`,
-              stockId: stock?.id || artigo.stockId || undefined,
+              stockId: stock?.id,
               referencia: artigo.referencia || stock?.referencia || "SEM-REF",
               descricao: artigo.name || stock?.descricao || "Artigo Substituição",
               quantidadePrevista: artigo.quantidade || 1,

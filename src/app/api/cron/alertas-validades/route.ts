@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
         armador: j.owner || "Armador",
         contacto: "Sem contacto na ficha",
         diasRestantes,
-        mensagem: `Aviso Orey Açores: A sua jangada (S/N ${j.serial}) expira a inspeção em ${diasRestantes} dias (${new Date(j.dataProxInspecao!).toLocaleDateString("pt-PT")}). Agende a revisão connosco.`,
+        mensagem: `Aviso Orey Tecnica- Serviços Navais, Lda: A sua jangada (S/N ${j.serial}) expira a inspeção em ${diasRestantes} dias (${new Date(j.dataProxInspecao!).toLocaleDateString("pt-PT")}). Agende a revisão connosco.`,
       };
     });
 

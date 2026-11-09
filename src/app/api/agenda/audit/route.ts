@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getAccessContext } from "@/lib/access-control";
 import { resolveActiveServiceStationId } from "@/lib/station-selection";
-import { normalizeEventStatus, normalizeInspectionType } from "@/types/agenda";
+import { normalizeEventStatus, normalizeInspectionType, resolveAgendaDuration } from "@/types/agenda";
 
 export async function GET(req: NextRequest) {
   const access = await getAccessContext();
@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
       responsavel: row.responsavel || "",
       status: normalizeEventStatus(row.status),
       inspectionType: normalizeInspectionType(row.inspectionType),
-      durationMinutes: row.durationMinutes,
+      durationMinutes: resolveAgendaDuration(row),
       bufferBeforeMinutes: row.bufferBeforeMinutes,
       bufferAfterMinutes: row.bufferAfterMinutes,
     },

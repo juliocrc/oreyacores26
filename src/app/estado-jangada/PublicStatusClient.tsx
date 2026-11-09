@@ -134,7 +134,7 @@ export default function PublicStatusClient({ initialSerial }: { initialSerial: s
               <Anchor size={22} />
             </div>
             <div>
-              <p className="text-sm font-extrabold text-slate-800 leading-tight">Orey Açores</p>
+              <p className="text-sm font-extrabold text-slate-800 leading-tight">Orey Tecnica- Serviços Navais, Lda</p>
               <p className="text-xs text-slate-500 font-medium">Estado da jangada salva-vidas</p>
             </div>
           </div>
@@ -301,7 +301,7 @@ export default function PublicStatusClient({ initialSerial }: { initialSerial: s
         )}
 
         <p className="text-[11px] text-slate-400 text-center">
-          Orey Açores · Manutenção e inspeção de jangadas salva-vidas · Se tiver dúvidas, contacte a nossa oficina.
+          Orey Tecnica- Serviços Navais, Lda · Manutenção e inspeção de jangadas salva-vidas · Se tiver dúvidas, contacte a nossa oficina.
         </p>
       </main>
     </div>

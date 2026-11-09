@@ -1,32 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { buildVerificacaoPayload, computeNextServiceDate } from "@/lib/fatos-imersao-service";
+import { buildVerificacaoPayload } from "@/lib/fatos-imersao-service";
 
 async function syncInspectionCycle(
   fatoImersaoId: number,
-  opts?: { dataProxInspecao?: string; intervaloServicoMeses?: number; dataVerificacao?: Date }
+  opts?: { dataProxInspecao?: string; intervaloServicoMeses?: number; verificacaoId?: number }
 ) {
-  const fato = await prisma.fatoImersao.findUnique({
-    where: { id: fatoImersaoId },
-    select: { dataFabrico: true, intervaloServicoMeses: true },
-  });
-
   const latest = await prisma.verificacaoFatoImersao.findFirst({
     where: { fatoImersaoId },
     orderBy: [{ dataVerificacao: "desc" }, { id: "desc" }],
-    select: { dataVerificacao: true, resultadoGeral: true, codigoBER: true },
+    select: { id: true, dataVerificacao: true, resultadoGeral: true, codigoBER: true },
   });
-  if (!latest?.dataVerificacao) return;
+  if (!latest?.dataVerificacao || latest.id !== opts?.verificacaoId) return;
 
   const dataInspecaoIso = latest.dataVerificacao.toISOString().slice(0, 10);
-  let dataProx = opts?.dataProxInspecao;
-  let meses = opts?.intervaloServicoMeses ?? fato?.intervaloServicoMeses ?? undefined;
-
-  if (!dataProx) {
-    const computed = computeNextServiceDate(dataInspecaoIso, fato?.dataFabrico, false, meses);
-    dataProx = computed.dataProx;
-    meses = computed.meses;
-  }
+  const dataProx = opts?.dataProxInspecao;
+  const meses = opts?.intervaloServicoMeses;
 
   const estado =
     latest.codigoBER || latest.resultadoGeral === "BER"
@@ -39,7 +28,7 @@ async function syncInspectionCycle(
     where: { id: fatoImersaoId },
     data: {
       dataInspecao: dataInspecaoIso,
-      dataProxInspecao: dataProx,
+      ...(dataProx ? { dataProxInspecao: dataProx } : {}),
       ...(meses ? { intervaloServicoMeses: meses } : {}),
       ...(estado ? { estado } : {}),
     },
@@ -105,6 +94,12 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
       dataVerificacao: body.dataVerificacao,
       inspectorNome: body.inspectorNome,
       observacoes: body.observacoes,
+      trace: body.trace && typeof body.trace === "object" ? {
+        manualReferencia: String(body.trace.manualReferencia || "").slice(0, 500),
+        manualRevisao: String(body.trace.manualRevisao || "").slice(0, 500),
+        equipamentoEnsaio: String(body.trace.equipamentoEnsaio || "").slice(0, 500),
+        reparacoes: String(body.trace.reparacoes || "").slice(0, 5000),
+      } : undefined,
     }) as ReturnType<typeof buildVerificacaoPayload> & Record<string, string | null>;
 
     const dataVerificacao = body.dataVerificacao ? new Date(body.dataVerificacao) : new Date();
@@ -144,7 +139,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     await syncInspectionCycle(fatoImersaoId, {
       dataProxInspecao: body.dataProxInspecao,
       intervaloServicoMeses: body.intervaloServicoMeses,
-      dataVerificacao,
+      verificacaoId: verificacao.id,
     });
 
     return NextResponse.json(verificacao, { status: 201 });

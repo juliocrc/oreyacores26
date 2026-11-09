@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Cores do modo escuro -->
+    <color name="orey_primary">#9F7AEA</color>
+    <color name="orey_primary_dark">#7C3AED</color>
+    <color name="orey_background">#0F172A</color>
+    <color name="orey_text_primary">#F1F5F9</color>
+    <color name="orey_text_secondary">#CBD5E1</color>
+    <color name="orey_white">#FFFFFF</color>
+    <color name="orey_black">#000000</color>
+</resources>

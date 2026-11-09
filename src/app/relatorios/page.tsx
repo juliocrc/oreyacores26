@@ -11,10 +11,10 @@ import { PACK_TEMPLATES, normalizarPackType } from "@/config/packTemplates";
 
 import type { Inspection, Raft, Navio, StockItem, ServiceOrder, ObraFormState, PricingState, InspectionReportRow, ObraPreviewLine } from "@/types/relatorios-page";
 import { SERVICE_STOCK_ITEMS, FIXED_ARTICLE_PRICES, RAFT_RELATED_STOCK_KEYWORDS } from "@/types/relatorios-page";
-import { normalizeList, safeReadJson, formatDate, normalizeText, splitApplicability, getApplicabilityBadge, getRaftKeywordScore, getShipDisplayName, getShipOptionLabel, buildSuggestedObraNumber, toNumber, formatCurrency, isOrderClosed, isOrderLate, getPriorityWeight, resolveArticleUnitPrice, formatDateLongPt } from "@/lib/relatorios-page-helpers";
+import { normalizeList, safeReadJson, formatDate, normalizeText, splitApplicability, getApplicabilityBadge, getRaftKeywordScore, getShipDisplayName, getShipOptionLabel, buildSuggestedObraNumber, toNumber, formatCurrency, isOrderClosed, isOrderLate, getPriorityWeight, resolveArticleUnitPrice } from "@/lib/relatorios-page-helpers";
 import { IVA_ISENCAO_CODES } from "@/lib/iva-isencao-codes";
-import { buildAddressLine } from "@/lib/client-address";
-import { saveShipDocument, toastSavedPathIfPresent } from "@/lib/ship-downloads";
+import DeclaracoesIvaPanel from "@/app/area-cliente/DeclaracoesIvaPanel";
+import { toastSavedPathIfPresent } from "@/lib/ship-downloads";
 
 export default function RelatoriosPage() {
   return (
@@ -710,91 +710,6 @@ function RelatoriosContent() {
     };
   }, [selectedObraPreviewLines, isIvaExempt, hasIvaDeclaration]);
 
-  const handleGenerateIvaDeclaration = async () => {
-    if (!selectedNavio) {
-      alert("Selecione primeiro o navio para gerar a declaração.");
-      return;
-    }
-
-    const clienteNomeDeclarante = String(selectedNavio.cliente?.nome || "").trim() || "[Nome do cliente]";
-    const clienteNifDeclarante = String(selectedNavio.cliente?.nif || "").trim() || "[NIF do cliente]";
-    const clienteMorada = buildAddressLine({
-      morada: selectedNavio.cliente?.morada,
-      codigoPostal: selectedNavio.cliente?.codigoPostal,
-      localidade: selectedNavio.cliente?.localidade,
-    });
-
-    const ivaCodeInfo = IVA_ISENCAO_CODES.find(c => c.code === declarationIvaCode);
-    const ivaCodeDisplay = ivaCodeInfo ? `${ivaCodeInfo.code} — ${ivaCodeInfo.mencao}` : "M05 — Isento artigo 14.º do CIVA";
-    const ivaCodeNorma = ivaCodeInfo?.norma || "Artigo 14.º do CIVA";
-
-    const htmlString = `
-      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-      <head>
-        <title>Declaração de Isenção de IVA</title>
-        <style>
-          body { font-family: 'Arial', sans-serif; font-size: 11pt; line-height: 1.5; padding: 2cm; }
-          h1 { font-size: 14pt; font-weight: bold; text-align: center; margin-bottom: 24pt; }
-          h2 { font-size: 12pt; font-weight: bold; margin-top: 18pt; margin-bottom: 6pt; border-bottom: 1px solid #ddd; padding-bottom: 3pt; }
-          p { margin-bottom: 12pt; text-align: justify; }
-          .footer { margin-top: 40pt; }
-          .signature-line { margin-top: 40pt; border-top: 1px solid #000; width: 250px; }
-        </style>
-      </head>
-      <body>
-        <h1>DECLARAÇÃO DE ISENÇÃO DE IVA</h1>
-        
-        <h2>Identificação do Declarante</h2>
-        <p>
-          Eu, <strong>\${clienteNomeDeclarante}</strong>, com o NIF <strong>\${clienteNifDeclarante}</strong>, 
-          residente/sediado em <strong>\${clienteMorada}</strong>, associado ao navio denominado <strong>\${selectedNavio.nome || "[Nome da Embarcação]"}</strong>, 
-          com a matrícula <strong>\${selectedNavio.matricula || "[Matrícula]"}</strong>, registada no Porto <strong>\${selectedNavio.portoRegisto || "[Porto de Registo]"}</strong>, 
-          venho por este meio declarar que:
-        </p>
-
-        <h2>Atividade da Embarcação</h2>
-        <p>
-          A referida embarcação exerce atividade no setor da pesca marítima (CAE 03110), dedicando-se à pesca profissional.
-        </p>
-
-        <h2>Finalidade dos Serviços</h2>
-        <p>
-          Os serviços de inspeção de jangada e salvamento, adquiridos à empresa Orey Técnica Serviço Navais, Lda, com NIF 501117334, destinam-se à manutenção ou equipamento da citada embarcação.
-        </p>
-
-        <h2>Fundamento Legal</h2>
-        <p>
-          Pelo exposto, solicito a aplicação da isenção de IVA, nos termos da \${ivaCodeDisplay} (\${ivaCodeNorma}), por se tratar de operações isentas relativas a embarcações de pesca.
-        </p>
-
-        <h2>Declaração de Responsabilidade</h2>
-        <p>
-          Estou ciente das obrigações declarativas e da responsabilidade pela veracidade destas informações, conforme disposto no Código do IVA.
-        </p>
-
-        <p class="footer">
-          Lagoa, \${formatDateLongPt()}.
-        </p>
-
-        <div style="margin-top: 50px;">
-          <p>Assinatura do Armador / Representante Legal:</p>
-          <br/><br/>
-          <div class="signature-line" style="border-top: 1px solid #000; width: 250px;"></div>
-          <p style="margin-top: 5px;">\${clienteNomeDeclarante}</p>
-        </div>
-      </body>
-      </html>
-    `;
-
-    const blob = new Blob(['\ufeff' + htmlString], { type: 'application/msword' });
-    await saveShipDocument({
-      shipName: selectedNavio.nome || "embarcacao",
-      category: 'Declarações IVA',
-      filename: `declaracao_isencao_iva_${String(selectedNavio.nome || "embarcacao").replace(/\s+/g, "_")}.doc`,
-      blob,
-    });
-  };
-
   const handleCreateObra = async () => {
     if (!selectedNavio?.id) {
       alert("Selecione um navio para criar a OT.");
@@ -1327,13 +1242,6 @@ function RelatoriosContent() {
                     <option key={c.code} value={c.code}>{c.code} — {c.mencao}</option>
                   ))}
                 </select>
-                <button
-                  type="button"
-                  onClick={handleGenerateIvaDeclaration}
-                  className="rounded border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 transition"
-                >
-                  Gerar Declaração de Isenção de IVA (Word)
-                </button>
               </div>
             )}
             <button
@@ -1352,6 +1260,7 @@ function RelatoriosContent() {
             </button>
           </div>
 
+          {selectedNavio?.id && <DeclaracoesIvaPanel key={selectedNavio.id} navioId={selectedNavio.id} codigoIsencaoIva={declarationIvaCode} origem="relatorios" format="docx" />}
           <div className="border border-slate-200 rounded-lg overflow-auto bg-white">
             <table className="min-w-full text-sm">
               <thead className="bg-slate-100">

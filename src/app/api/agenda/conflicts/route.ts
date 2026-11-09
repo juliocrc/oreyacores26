@@ -4,6 +4,8 @@ import { getAccessContext } from "@/lib/access-control";
 import { resolveActiveServiceStationId } from "@/lib/station-selection";
 import { getTechnicianKeyByName } from "@/lib/agenda-technicians";
 import { canonicalizeAzoresIsland } from "@/lib/azores-islands";
+import { resolveAgendaDuration } from "@/types/agenda";
+import { computeOperationalEnd } from "@/lib/agenda-page-helpers";
 
 export async function GET(req: NextRequest) {
   const access = await getAccessContext();
@@ -169,9 +171,9 @@ export async function GET(req: NextRequest) {
       }
 
       const aStart = new Date(a.date.getTime() - a.bufferBeforeMinutes * 60_000);
-      const aEnd = new Date(a.date.getTime() + (a.durationMinutes + a.bufferAfterMinutes) * 60_000);
+      const aEnd = new Date(computeOperationalEnd(a.date, resolveAgendaDuration(a)).getTime() + a.bufferAfterMinutes * 60_000);
       const bStart = new Date(b.date.getTime() - b.bufferBeforeMinutes * 60_000);
-      const bEnd = new Date(b.date.getTime() + (b.durationMinutes + b.bufferAfterMinutes) * 60_000);
+      const bEnd = new Date(computeOperationalEnd(b.date, resolveAgendaDuration(b)).getTime() + b.bufferAfterMinutes * 60_000);
 
       if (aStart < bEnd && bStart < aEnd) {
         const overlapMs = Math.min(aEnd.getTime(), bEnd.getTime()) - Math.max(aStart.getTime(), bStart.getTime());

@@ -450,7 +450,7 @@ export async function POST(req: NextRequest) {
       const mensagemAviso = [
         `Pedido de assistência #${pedido.id} convertido em ${primaryOrder ? `OT ${primaryOrder.numeroOrdem}` : "Ordem de Serviço"}.`,
         "Entraremos em contacto para agendar a data da intervenção.",
-        "Orey Azores",
+        "Orey Tecnica- Serviços Navais, Lda",
       ].join("\n");
       await registarComunicacaoManual({
         tipo: "WHATSAPP",

@@ -1,4 +1,18 @@
 import { STOCK_LIST_COLUMNS, type StockListColumnKey } from "@/types/stock-page";
+import type { ItemStock, StockCatalogKind } from "@/types/stock-page";
+import { isServiceResourceReference } from "@/lib/stock-reference-rules";
+
+export function isPhysicalStockItem(item: { referencia?: string | null }): boolean {
+  return !isServiceResourceReference(item.referencia);
+}
+
+export function matchesStockCatalogKind(item: { referencia?: string | null }, kind: StockCatalogKind): boolean {
+  return kind === "all" || isPhysicalStockItem(item) === (kind === "parts");
+}
+
+export function isLowPhysicalStock(item: Pick<ItemStock, "referencia" | "quantidade" | "quantidadeMinima">): boolean {
+  return isPhysicalStockItem(item) && item.quantidadeMinima != null && item.quantidade <= item.quantidadeMinima;
+}
 
 export function buildDefaultStockListColumns(): Record<StockListColumnKey, boolean> {
   return STOCK_LIST_COLUMNS.reduce((acc, col) => {

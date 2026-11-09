@@ -19,7 +19,7 @@ export function PushNotificationToggle() {
     if (granted) {
       setEnabled(true);
       appToast.success("Notificações Push ativadas com sucesso!");
-      showBrowserNotification("Orey Açores", {
+      showBrowserNotification("Orey Tecnica- Serviços Navais, Lda", {
         body: "Alerta de inspeções e prazos ativado no seu dispositivo.",
       });
     } else {

@@ -11,7 +11,8 @@ export type ItemStock = {
   precoVenda?: number;
   codigoFabricante?: string;
   inventario?: string;
-  lote?: string;
+  lote?: string | null;
+  codigoBarras?: string | null;
   validade?: string;
   associavelJangada?: boolean;
   categoria?: string;
@@ -56,7 +57,8 @@ export type NeedsSummary = {
   necessidadesMensaisTotais: MonthlyNeed[];
 };
 
-export type StockPriorityGroupKey = "validade" | "jangadas" | "restantes";
+export type StockCatalogKind = "all" | "parts" | "resources";
+export type StockPriorityGroupKey = "validade" | "jangadas" | "restantes" | "recursos";
 export type StockScope = "all" | "jangadas-ocean";
 
 export type StockPrioritySection = {

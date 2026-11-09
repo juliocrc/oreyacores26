@@ -19,18 +19,21 @@ model ArtigoJangada {
 }
 
 model Artigo {
-  id         Int      @id @default(autoincrement())
-  name       String
-  descricao  String?
-  referencia String?
-  unit       String?  @default("un")
-  stock      Int      @default(0)
-  minStock   Int      @default(1)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id                Int      @id @default(autoincrement())
+  name              String
+  descricao         String?
+  referencia        String?
+  codigoFabricante  String?
+  modelosAplicaveis String?
+  unit              String?  @default("un")
+  stock             Int      @default(0)
+  minStock          Int      @default(1)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   @@index([name])
   @@index([referencia])
+  @@index([codigoFabricante])
 }
 
 model Colete {
@@ -376,12 +379,15 @@ model Cliente {
   users                   User[]
   verificationCode        String?
   verificationCodeExpires DateTime?
+  portalAtivo          Boolean         @default(true)
+  portalSessionVersion Int             @default(0)
 
   @@index([serviceStationId])
   @@index([ilha])
   @@index([nome])
   @@index([nif])
   @@index([codigoPostal])
+  @@index([portalAtivo])
 }
 
 model ContactoInterno {
@@ -532,7 +538,7 @@ model AgendaEvento {
   status              String          @default("scheduled")
   type                String          @default("Inspeção")
   inspectionType      String          @default("outro")
-  durationMinutes     Int             @default(210)
+  durationMinutes     Int             @default(180)
   bufferBeforeMinutes Int             @default(15)
   bufferAfterMinutes  Int             @default(15)
   createdAt           DateTime        @default(now())
@@ -813,7 +819,7 @@ model Stock {
   pedidoReposicaoLinhas  PedidoReposicaoLinha[]
   ordensCompraLinha      OrdemCompraLinha[]
 
-  @@unique([referencia, serviceStationId])
+  @@unique([referencia, serviceStationId, lote])
   @@index([categoria])
   @@index([associavelJangada])
   @@index([aplicavelMarcaJangada])
@@ -861,6 +867,9 @@ model CustomPackTypeItem {
 }
 
 model MovimentacaoStock {
+  reversaoDeId      Int?             @unique
+  reversaoDe        MovimentacaoStock? @relation("StockReversal", fields: [reversaoDeId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  estorno           MovimentacaoStock? @relation("StockReversal")
   id                Int              @id @default(autoincrement())
   stockId           Int
   stock             Stock            @relation(fields: [stockId], references: [id], onDelete: Cascade)
@@ -1507,6 +1516,11 @@ model Comunicacao {
 }
 
 model DeclaracaoIsencaoIva {
+  clienteId        Int?
+  navioId          Int?
+  snapshotJson     String?
+  pdfAssinadoMeta  String?
+  idempotencyKey   String? @unique
   id               Int      @id @default(autoincrement())
   numeroSequencial Int // sequência do ano (1, 2, 3, ...)
   ano              Int
@@ -1524,6 +1538,9 @@ model DeclaracaoIsencaoIva {
 
   @@index([ano])
   @@index([numeroSequencial])
+  @@unique([ano, numeroSequencial])
+  @@index([clienteId, dataEmissao])
+  @@index([navioId, dataEmissao])
 }
 
 model PortoEscala {

@@ -1,17 +1,34 @@
 name: CI / Deploy to Vercel
 
 on:
-  push:
-    branches: [ main ]
+  workflow_run:
+    workflows: ["CI & E2E Verification"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: true
 
 jobs:
   build-and-deploy:
+    # workflow_run has access to secrets: never deploy PR/fork code or a failed CI.
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
     env:
       NODE_ENV: production
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Use Node.js
         uses: actions/setup-node@v4
@@ -27,6 +44,6 @@ jobs:
           working-directory: ./
           vercel-args: '--prod'
 
-      - name: Post-deploy smoke test
+      - name: Post-deploy verification reminder
         run: |
-          echo "Deployment finished. You can run smoke tests here (optional)."
+          echo "Deployment finished. Approved authenticated smoke tests remain required before release acceptance."

@@ -13,24 +13,11 @@ import {
   Typography,
 } from "@mui/material";
 import { signIn, useSession } from "next-auth/react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { APP_CONFIG } from "@/lib/app-config";
 import { markAppSessionOpen } from "@/app/session-idle-timeout";
-
-function resolveCallbackUrl(rawCallbackUrl: string | null) {
-  if (!rawCallbackUrl) return "/";
-  const decodedCallbackUrl = decodeURIComponent(rawCallbackUrl);
-  const normalizedCallbackUrl = decodedCallbackUrl.toLowerCase();
-  if (
-    normalizedCallbackUrl === "/" ||
-    normalizedCallbackUrl === "/login" ||
-    normalizedCallbackUrl.startsWith("/login?")
-  ) {
-    return "/";
-  }
-  return decodedCallbackUrl;
-}
+import { resolveLoginCallback } from "@/lib/login-callback";
 
 export default function LoginPage() {
   return (
@@ -41,7 +28,8 @@ export default function LoginPage() {
 }
 
 function LoginPageContent() {
-  const router = useRouter();
+  const navigating = React.useRef(false);
+  const submitting = React.useRef(false);
   const searchParams = useSearchParams();
   const { status, data: session } = useSession();
 
@@ -52,22 +40,25 @@ function LoginPageContent() {
   const [teamError, setTeamError] = React.useState<string | null>(null);
   const [teamMode, setTeamMode] = React.useState<"select" | "password">("select");
 
-  const callbackUrl = React.useMemo(() => resolveCallbackUrl(searchParams.get("callbackUrl")), [searchParams]);
+  const callbackUrl = resolveLoginCallback(searchParams.get("callbackUrl"));
   const authError = searchParams.get("error");
 
   React.useEffect(() => {
-    if (status === "authenticated") {
+    if (status === "authenticated" && !submitting.current && !navigating.current) {
+      navigating.current = true;
       markAppSessionOpen();
       if (session?.user?.role === "CLIENTE") {
-        router.replace("/area-cliente");
+        window.location.replace("/area-cliente");
       } else {
-        router.replace(callbackUrl);
+        window.location.replace(callbackUrl);
       }
     }
-  }, [callbackUrl, router, status, session]);
+  }, [callbackUrl, status, session]);
 
   const handleTeamPasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting.current || navigating.current) return;
+    submitting.current = true;
     setTeamError(null);
     setIsSubmitting(true);
     try {
@@ -77,15 +68,17 @@ function LoginPageContent() {
         callbackUrl,
         redirect: false,
       });
-      if (result?.error) {
+      if (!result?.ok || result.error) {
         setTeamError("Email ou palavra-passe incorretos.");
         return;
       }
       markAppSessionOpen();
-      window.location.href = callbackUrl;
+      navigating.current = true;
+      window.location.replace(callbackUrl);
     } catch {
       setTeamError("Erro de rede. Tente novamente.");
     } finally {
+      submitting.current = false;
       setIsSubmitting(false);
     }
   };

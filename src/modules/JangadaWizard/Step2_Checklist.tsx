@@ -24,8 +24,15 @@ import {
 import { ABATE_MOTIVOS, ABATE_TIPOS_BARCO, getAbateMotivoCodes } from '@/lib/abate-constants';
 import { appToast } from '@/lib/app-toast';
 import * as XLSX from 'xlsx';
+import { downloadAbateReportXlsx } from '@/lib/abate-report-xlsx';
+import { buildAbateReportDoc } from '@/lib/abate-report-pdf';
+import { abateReportFilename } from '@/lib/abate-report-xlsx';
 import { getStepNumberByKey } from './steps';
 import { formatMonthPt, toMonthYearString } from '@/lib/date-utils';
+import { isChecklistUnassessed, markUnassessedChecklistOk } from './checklistValidation';
+import { ReplacementStockPicker, ReplacementStockSelect } from '@/components/shared/ReplacementStockPicker';
+import { filterStockItems, isLightStockItem } from '@/lib/stock-picker';
+import StockArticleThumbnail from '@/components/shared/StockArticleThumbnail';
 
 const CHECKLIST_GROUPS = [
   {
@@ -110,7 +117,7 @@ function ExpandGroupsButton({ onClick, icon, label }: { onClick: () => void; ico
     <button
       type="button"
       onClick={onClick}
-      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-600 bg-white border border-slate-300 hover:bg-slate-100 transition-colors"
+      className="flex items-center gap-1.5 px-2.5 py-1.5 md:px-3 md:py-2 2xl:px-2.5 2xl:py-1.5 rounded-xl text-xs md:text-sm 2xl:text-xs font-bold text-slate-600 bg-white border border-slate-300 hover:bg-slate-100 transition-colors"
     >
       {icon}
       {label}
@@ -128,6 +135,7 @@ export default function Step2_Checklist() {
   const [activeTab, setActiveTab] = useState<ChecklistTab>('all');
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [quickMode, setQuickMode] = useState(false);
+  const [replacementItemId, setReplacementItemId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(CHECKLIST_GROUPS.map((g) => [g.title, true]))
   );
@@ -162,23 +170,7 @@ export default function Step2_Checklist() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- apenas na montagem do passo
   }, []);
 
-  // Initialize checklist object if undefined (gera os itens em falta como OK)
   const checklist = inspectionData.checklist || {};
-
-  useEffect(() => {
-    const updatedChecklist = { ...checklist };
-    let changed = false;
-    CHECKLIST_GROUPS.forEach((group) => {
-      group.items.forEach((item) => {
-        if (!updatedChecklist[item.id] || !updatedChecklist[item.id].status) {
-          updatedChecklist[item.id] = { ...(updatedChecklist[item.id] || {}), status: 'OK' };
-          changed = true;
-        }
-      });
-    });
-    if (changed) setInspectionData({ checklist: updatedChecklist });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- apenas na montagem do passo
-  }, []);
 
   const handleTecnicoChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const id = e.target.value;
@@ -188,6 +180,10 @@ export default function Step2_Checklist() {
   };
 
   const handleStatusChange = (itemId: string, status: string) => {
+    if (status === 'SUBSTITUIDO') {
+      setReplacementItemId(itemId);
+      return;
+    }
     setInspectionData({
       checklist: {
         ...checklist,
@@ -197,7 +193,7 @@ export default function Step2_Checklist() {
   };
 
   const cycleStatus = (itemId: string) => {
-    const current = checklist[itemId]?.status || 'OK';
+    const current = checklist[itemId]?.status;
     const idx = CYCLE_ORDER.indexOf(current as (typeof CYCLE_ORDER)[number]);
     const next = CYCLE_ORDER[(idx + 1) % CYCLE_ORDER.length];
     handleStatusChange(itemId, next);
@@ -214,18 +210,31 @@ export default function Step2_Checklist() {
 
   const handleItemStockSelect = (itemId: string, stockId: string) => {
     const stockItem = (inspectionData.globalStock || []).find((s: any) => String(s.id) === String(stockId));
+    if (!stockItem) return;
     const current = checklist[itemId] || {};
     setInspectionData({
       checklist: {
         ...checklist,
         [itemId]: {
           ...current,
-          stockId: stockId || null,
-          referencia: stockItem?.referencia || current.referencia || '',
+          stockId: stockItem.id,
+          status: 'SUBSTITUIDO',
+          referencia: stockItem.referencia,
+          lote: itemId.includes('luz_') ? stockItem.lote || '' : '',
+          validade: itemId.includes('luz_') ? toMonthYearString(stockItem.validade) : '',
           notes: stockItem ? `${stockItem.referencia ? stockItem.referencia + ' - ' : ''}${stockItem.descricao}` : current.notes,
         }
       }
     });
+  };
+
+  const getItemStock = (itemId: string) => {
+    const stock = inspectionData.globalStock || [];
+    if (itemId.includes('luz_')) return stock.filter(isLightStockItem);
+    if (itemId === 'tubo_identificacao') return stock.filter(s => /tubo|identifica|etiqueta/i.test(s.descricao));
+    const label = CHECKLIST_GROUPS.flatMap(group => group.items).find(item => item.id === itemId)?.label || '';
+    const words = label.split(/\s+/).filter(word => word.length >= 4);
+    return stock.filter(s => words.some(word => filterStockItems([s], word).length > 0));
   };
 
   const handleItemRefChange = (itemId: string, referencia: string) => {
@@ -255,7 +264,7 @@ export default function Step2_Checklist() {
         setInspectionData({
           checklist: {
             ...checklist,
-            [itemId]: { ...current, status: current.status || 'OK', fotos: [...fotos, fileUrl] }
+            [itemId]: { ...current, fotos: [...fotos, fileUrl] }
           }
         });
         appToast.success("Foto de evidência adicionada.");
@@ -279,13 +288,9 @@ export default function Step2_Checklist() {
   };
 
   const setAllToOk = (groupItems: { id: string }[]) => {
-    const updatedChecklist = { ...checklist };
-    groupItems.forEach(item => {
-      if (!updatedChecklist[item.id]) updatedChecklist[item.id] = {};
-      updatedChecklist[item.id].status = 'OK';
-    });
-    setInspectionData({ checklist: updatedChecklist });
-    appToast.success(`${groupItems.length} item(s) marcados como Bom Estado.`);
+    const result = markUnassessedChecklistOk(checklist, groupItems);
+    setInspectionData({ checklist: result.checklist });
+    appToast.success(`${result.changed} item(s) marcados como Bom Estado.`);
   };
 
   const setEverythingToOk = () => {
@@ -297,12 +302,13 @@ export default function Step2_Checklist() {
     CHECKLIST_GROUPS.forEach((group) => {
       group.items.forEach((item) => {
         const entry = checklist[item.id] || {};
-        const statusLabel = STATUS_OPTIONS.find((s) => s.value === entry.status)?.label || '—';
+        const statusLabel = STATUS_OPTIONS.find((s) => s.value === entry.status)?.label || 'Por verificar';
         rows.push({
           Grupo: group.title,
           Item: item.label,
           Estado: statusLabel,
-          Observações: entry.notes || '',
+           Observações: entry.notes || '',
+           'Justificação de não substituição': entry.justificacaoNaoSubstituicao || '',
           'Evidências (fotos)': Array.isArray(entry.fotos) ? entry.fotos.length : 0,
         });
       });
@@ -339,7 +345,7 @@ export default function Step2_Checklist() {
 
   const isPending = (itemId: string) => {
     const s = checklist[itemId]?.status;
-    return s !== 'OK' && s !== 'NA';
+    return s !== 'OK' && s !== 'NA' && s !== 'SUBSTITUIDO';
   };
 
   const matchesActiveTab = (itemId: string) => {
@@ -376,8 +382,8 @@ export default function Step2_Checklist() {
 
   const allSummary = groupSummary(CHECKLIST_GROUPS.flatMap((g) => g.items));
   const totalItems = CHECKLIST_GROUPS.flatMap((g) => g.items).length;
-  const totalPending = totalItems - allSummary.OK - allSummary.NA;
-  const overallPct = totalItems > 0 ? Math.round(((allSummary.OK + allSummary.NA) / totalItems) * 100) : 0;
+  const totalPending = totalItems - allSummary.OK - allSummary.NA - allSummary.SUBSTITUIDO;
+  const overallPct = totalItems > 0 ? Math.round(((totalItems - totalPending) / totalItems) * 100) : 0;
 
   const tabs: { key: ChecklistTab; count: number }[] = [
     { key: 'all', count: totalItems },
@@ -392,7 +398,7 @@ export default function Step2_Checklist() {
   const handleRowKeyDown = (item: { id: string; label: string }) => (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const target = e.target as HTMLElement;
-    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') return;
+    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.tagName === 'BUTTON') return;
 
     const statusByKey: Record<string, string> = { 1: 'OK', 2: 'SUBSTITUIDO', 3: 'REPROVADO', 4: 'NA' };
     if (statusByKey[e.key]) {
@@ -431,6 +437,18 @@ export default function Step2_Checklist() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
+      <div className="flex flex-wrap justify-end gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            if (!window.confirm("Cancelar esta inspeção e descartar os dados não guardados?")) return;
+            window.location.href = "/jangadas";
+          }}
+          className="rounded-xl border border-red-300 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100"
+        >
+          Cancelar inspeção
+        </button>
+      </div>
       <div>
         <h2 className="text-2xl font-bold text-slate-800">{stepNo > 0 ? `${stepNo}. ` : ''}Checklist Visual</h2>
         <p className="text-slate-600 mt-1">
@@ -446,15 +464,15 @@ export default function Step2_Checklist() {
       </div>
 
       {/* Toolbar única — controlos globais */}
-      <div className="sticky top-0 z-20 bg-white/95 backdrop-blur border border-slate-200 rounded-2xl shadow-sm p-3 sm:p-4 space-y-3">
-        <div className="flex flex-col lg:flex-row gap-3 items-stretch">
+      <div className="z-20 bg-white/95 backdrop-blur border border-slate-200 rounded-2xl shadow-sm p-3 sm:p-4 space-y-3 2xl:sticky 2xl:top-0">
+        <div className="flex flex-col 2xl:flex-row gap-3 items-stretch">
           <div className="relative flex-1 min-w-0">
             <input
               type="text"
               placeholder="Pesquisar item (ex: cobertura, luz...)"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-9 py-2 border border-slate-200 rounded-xl text-sm bg-slate-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-100 font-medium text-slate-700"
+              className="w-full pl-9 pr-9 py-2 md:py-2.5 border border-slate-200 rounded-xl text-sm md:text-base 2xl:text-sm bg-slate-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-100 font-medium text-slate-700"
             />
             <Search size={15} className="absolute left-3 top-2.5 text-slate-400" />
             {searchQuery && (
@@ -488,7 +506,7 @@ export default function Step2_Checklist() {
               type="button"
               onClick={() => setQuickMode(!quickMode)}
               title="Modo rápido: navegação por teclado e ciclos de estado"
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold border flex items-center gap-1.5 transition-all ${
+              className={`px-3 py-1.5 md:px-3.5 md:py-2 2xl:px-3 2xl:py-1.5 rounded-xl text-xs md:text-sm 2xl:text-xs font-bold border flex items-center gap-1.5 transition-all ${
                 quickMode
                   ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
                   : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100'
@@ -501,7 +519,7 @@ export default function Step2_Checklist() {
             <button
               type="button"
               onClick={exportChecklistExcel}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 md:px-3.5 md:py-2 2xl:px-3 2xl:py-1.5 rounded-xl text-xs md:text-sm 2xl:text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-colors"
               title="Descarregar o checklist como folha de cálculo (registo de estação)"
             >
               <Download size={14} />
@@ -511,8 +529,8 @@ export default function Step2_Checklist() {
             <button
               type="button"
               onClick={setEverythingToOk}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors"
-              title="Marca todos os itens do checklist como Bom Estado"
+              className="flex items-center gap-1.5 px-3 py-1.5 md:px-3.5 md:py-2 2xl:px-3 2xl:py-1.5 rounded-xl text-xs md:text-sm 2xl:text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors"
+              title="Marca apenas os itens por verificar como Bom Estado"
             >
               <CheckCheck size={14} />
               OK tudo
@@ -556,7 +574,7 @@ export default function Step2_Checklist() {
           </div>
 
           {/* Tabs com contadores */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+          <div className="flex flex-wrap items-center gap-1.5 pb-0.5 2xl:flex-nowrap 2xl:overflow-x-auto">
             {tabs.map((tab) => {
               const isActive = activeTab === tab.key;
               const tone =
@@ -569,7 +587,7 @@ export default function Step2_Checklist() {
                   key={tab.key}
                   type="button"
                   onClick={() => setActiveTab(tab.key)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 md:px-4 md:py-2 rounded-xl text-xs md:text-sm 2xl:px-3 2xl:py-1.5 2xl:text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
                     isActive
                       ? 'bg-indigo-600 text-white shadow-sm'
                       : `${tone} hover:bg-slate-200`
@@ -600,7 +618,7 @@ export default function Step2_Checklist() {
         {CHECKLIST_GROUPS.map((group) => {
           const counts = groupSummary(group.items);
           const groupTotal = group.items.length;
-          const doneInGroup = counts.OK + counts.NA;
+          const doneInGroup = counts.OK + counts.NA + counts.SUBSTITUIDO;
           const groupPct = groupTotal > 0 ? Math.round((doneInGroup / groupTotal) * 100) : 0;
           const isExpanded = expanded[group.title] !== false;
           const hasReprovado = counts.REPROVADO > 0;
@@ -615,7 +633,7 @@ export default function Step2_Checklist() {
                 hasReprovado ? 'border-red-200' : 'border-slate-200'
               }`}
             >
-              <div className="flex items-center gap-4 px-4 sm:px-6 py-4 hover:bg-slate-50 transition-colors">
+              <div className="flex items-center gap-4 px-4 sm:px-6 py-4 md:py-5 2xl:py-4 hover:bg-slate-50 transition-colors">
                 <button
                   type="button"
                   onClick={() => toggleGroup(group.title)}
@@ -638,7 +656,7 @@ export default function Step2_Checklist() {
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="text-base sm:text-lg font-bold text-slate-800">{group.title}</h3>
+                      <h3 className="text-lg sm:text-xl 2xl:text-lg font-bold text-slate-800">{group.title}</h3>
                       <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
                         {doneInGroup}/{groupTotal} verificados
                       </span>
@@ -674,7 +692,7 @@ export default function Step2_Checklist() {
                     <button
                       type="button"
                       onClick={() => { setAllToOk(group.items); }}
-                      className="text-[11px] font-bold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 px-2.5 py-1 rounded-lg transition-colors"
+                      className="text-[11px] md:text-xs font-bold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 px-2.5 py-1 md:px-3 md:py-1.5 rounded-lg transition-colors"
                     >
                       OK grupo
                     </button>
@@ -683,7 +701,7 @@ export default function Step2_Checklist() {
                     type="button"
                     onClick={() => toggleGroup(group.title)}
                     aria-label={isExpanded ? 'Recolher grupo' : 'Expandir grupo'}
-                    className="p-1.5 rounded-lg hover:bg-slate-200 transition-colors"
+                    className="p-2 md:p-2.5 2xl:p-1.5 rounded-lg hover:bg-slate-200 transition-colors"
                   >
                     <ChevronDown
                       size={20}
@@ -700,6 +718,7 @@ export default function Step2_Checklist() {
                   ) : (
                     visibleItems.map((item) => {
                       const currentStatus = checklist[item.id]?.status;
+                      const selectedStock = (inspectionData.globalStock || []).find(stock => String(stock.id) === String(checklist[item.id]?.stockId));
                       const currentNotes = checklist[item.id]?.notes || '';
                       const itemFotos = Array.isArray(checklist[item.id]?.fotos) ? (checklist[item.id]?.fotos as string[]) : [];
                       const isUploading = uploadingId === item.id;
@@ -714,10 +733,10 @@ export default function Step2_Checklist() {
                           onKeyDown={handleRowKeyDown(item)}
                           className="focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-400 outline-none"
                         >
-                          <div className="px-4 sm:px-6 py-3 flex flex-col lg:flex-row lg:items-center gap-3">
+                          <div className="px-4 sm:px-6 py-3.5 flex flex-col gap-3 xl:flex-row xl:items-center xl:py-3">
                             <div className="flex-1 min-w-0 flex items-start gap-2.5">
                               <span
-                                className={`mt-1 w-2.5 h-2.5 rounded-full shrink-0 ${
+                                className={`mt-1.5 w-3 h-3 2xl:mt-1 2xl:w-2.5 2xl:h-2.5 rounded-full shrink-0 ${
                                   currentStatus === 'OK' ? 'bg-emerald-500'
                                   : currentStatus === 'SUBSTITUIDO' ? 'bg-blue-500'
                                   : currentStatus === 'REPROVADO' ? 'bg-red-500'
@@ -725,49 +744,52 @@ export default function Step2_Checklist() {
                                 }`}
                               />
                               <div className="min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <p className="text-sm font-semibold text-slate-800 leading-snug">{item.label}</p>
-                                  {!currentStatus && (
-                                    <span className="px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold rounded-full animate-pulse">
-                                      Por avaliar
+                                {selectedStock && <div className="flex items-center gap-2 mb-1.5 text-xs text-slate-500"><StockArticleThumbnail foto={selectedStock.foto} label={selectedStock.referencia || selectedStock.descricao} /><span>{selectedStock.referencia}</span></div>}
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <p className="text-base 2xl:text-sm font-semibold text-slate-800 leading-snug">{item.label}</p>
+                                  {isChecklistUnassessed(currentStatus) && (
+                                    <span className="px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] md:text-[11px] font-bold rounded-full animate-pulse">
+                                      Por verificar
                                     </span>
                                   )}
                                 </div>
                                 {quickMode && (
-                                  <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
+                                  <p className="text-[10px] md:text-[11px] text-slate-400 font-semibold mt-0.5">
                                     1·2·3·4 estado · N notas · Espaço cicla
                                   </p>
                                 )}
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-1.5 flex-wrap shrink-0">
-                              {STATUS_OPTIONS.map((opt) => {
-                                const isSelected = currentStatus === opt.value;
-                                return (
-                                  <button
-                                    key={opt.value}
-                                    type="button"
-                                    onClick={() => handleStatusChange(item.id, opt.value)}
-                                    title={`${opt.label} (tecla ${opt.value === 'OK' ? '1' : opt.value === 'SUBSTITUIDO' ? '2' : opt.value === 'REPROVADO' ? '3' : '4'})`}
-                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
-                                      isSelected
-                                        ? opt.active
-                                        : `${opt.color}`
-                                    }`}
-                                  >
-                                    <opt.icon size={14} />
-                                    {opt.label}
-                                  </button>
-                                );
-                              })}
+                            <div className="flex w-full flex-col gap-2 xl:w-auto xl:flex-row xl:items-center">
+                              <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 xl:flex xl:items-center xl:gap-1.5">
+                                {STATUS_OPTIONS.map((opt) => {
+                                  const isSelected = currentStatus === opt.value;
+                                  return (
+                                    <button
+                                      key={opt.value}
+                                      type="button"
+                                      onClick={() => handleStatusChange(item.id, opt.value)}
+                                      title={`${opt.label} (tecla ${opt.value === 'OK' ? '1' : opt.value === 'SUBSTITUIDO' ? '2' : opt.value === 'REPROVADO' ? '3' : '4'})`}
+                                      className={`flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border px-2 py-2 text-sm font-bold transition-all 2xl:min-h-0 2xl:rounded-lg 2xl:px-3 2xl:py-1.5 2xl:text-xs ${
+                                        isSelected
+                                          ? opt.active
+                                          : `${opt.color}`
+                                      }`}
+                                    >
+                                      <opt.icon size={16} className="shrink-0 2xl:h-3.5 2xl:w-3.5" />
+                                      {opt.label}
+                                    </button>
+                                  );
+                                })}
+                              </div>
                               <button
                                 type="button"
                                 onClick={() => toggleRowDetails(item.id)}
-                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors"
+                                className="flex min-h-[44px] w-full xl:w-auto items-center justify-center gap-1.5 rounded-xl bg-slate-100 px-3 py-2 text-sm font-bold text-slate-500 transition-colors hover:bg-slate-200 2xl:min-h-0 2xl:rounded-lg 2xl:px-2.5 2xl:py-1.5 2xl:text-[11px]"
                                 title={showDetails ? 'Recolher detalhes' : 'Observações / fotos'}
                               >
-                                <ListChecks size={13} />
+                                <ListChecks size={15} className="shrink-0 2xl:h-3.5 2xl:w-3.5" />
                                 {currentNotes ? 'Notas' : 'Detalhes'}
                               </button>
                             </div>
@@ -786,7 +808,7 @@ export default function Step2_Checklist() {
                                      placeholder="Observações (opcional)"
                                      value={currentNotes}
                                      onChange={(e) => handleNotesChange(item.id, e.target.value)}
-                                     className={`w-full text-sm border-slate-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-100 transition-colors ${needsEvidence ? 'border-red-300 bg-red-50' : ''}`}
+                                     className={`w-full text-sm md:text-base 2xl:text-sm border-slate-200 rounded-lg px-3 py-2 md:py-2.5 2xl:py-2 bg-white focus:ring-2 focus:ring-indigo-100 transition-colors ${needsEvidence ? 'border-red-300 bg-red-50' : ''}`}
                                    />
                                    <div className="flex flex-wrap gap-1.5">
                                      {COMMON_DEFECTS.map((defect) => {
@@ -796,7 +818,7 @@ export default function Step2_Checklist() {
                                            key={defect}
                                            type="button"
                                            onClick={() => appendDefect(item.id, defect)}
-                                           className={`px-2 py-0.5 rounded-full text-[10px] font-bold border transition-colors ${
+                                           className={`px-2.5 py-1 rounded-full text-[11px] md:text-xs 2xl:px-2 2xl:py-0.5 2xl:text-[10px] font-bold border transition-colors ${
                                              active
                                                ? 'bg-indigo-100 text-indigo-700 border-indigo-300'
                                                : 'bg-white text-slate-500 border-slate-200 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200'
@@ -809,31 +831,35 @@ export default function Step2_Checklist() {
                                    </div>
                                  </div>
 
-                                 {item.id === 'tubo_identificacao' && currentStatus === 'SUBSTITUIDO' && (
+                                  {currentStatus === 'REPROVADO' && (
+                                    <div className="col-span-full space-y-1.5">
+                                      <label htmlFor={`justificacao-${item.id}`} className="text-xs font-bold text-red-800">
+                                        Justificação de não substituição
+                                      </label>
+                                      <textarea
+                                        id={`justificacao-${item.id}`}
+                                        value={checklist[item.id]?.justificacaoNaoSubstituicao || ''}
+                                        onChange={(e) => setInspectionData({ checklist: { ...checklist, [item.id]: { ...checklist[item.id], justificacaoNaoSubstituicao: e.target.value } } })}
+                                        placeholder="Indique por que motivo este item não foi substituído."
+                                        rows={3}
+                                        className="w-full text-sm md:text-base 2xl:text-sm border border-red-300 rounded-lg px-3 py-2 md:py-2.5 2xl:py-2 bg-white"
+                                      />
+                                      <p className="text-xs text-red-700">Obrigatória para concluir sem substituir. O item permanece reprovado; a justificação não declara conformidade.</p>
+                                    </div>
+                                  )}
+
+                                  {item.id === 'tubo_identificacao' && currentStatus === 'SUBSTITUIDO' && (
                                    <div className="col-span-full grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200">
                                      <div className="space-y-1">
                                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Artigo de Stock (Tubo de Identificação)</label>
-                                       <select
-                                         value={checklist[item.id]?.stockId || ''}
-                                         onChange={(e) => handleItemStockSelect(item.id, e.target.value)}
-                                         className="w-full text-sm border-slate-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-100 transition-colors"
-                                       >
-                                         <option value="">Selecionar artigo do stock...</option>
-                                         {((inspectionData.globalStock || []).filter((s: any) => {
-                                           const d = String(s.descricao || "").toLowerCase();
-                                           return d.includes("tubo") || d.includes("identifica") || d.includes("etiqueta");
-                                         }).length > 0
-                                           ? (inspectionData.globalStock || []).filter((s: any) => {
-                                               const d = String(s.descricao || "").toLowerCase();
-                                               return d.includes("tubo") || d.includes("identifica") || d.includes("etiqueta");
-                                             })
-                                           : (inspectionData.globalStock || [])
-                                         ).map((s: any) => (
-                                           <option key={s.id} value={s.id}>
-                                             {s.referencia ? `${s.referencia} - ` : ''}{s.descricao} {s.quantidade > 0 ? `(Qtd: ${s.quantidade})` : ''}
-                                           </option>
-                                         ))}
-                                       </select>
+                                        <ReplacementStockSelect
+                                          allowDeficit
+                                          items={getItemStock(item.id)}
+                                          showValidade={false}
+                                          value={checklist[item.id]?.stockId || ''}
+                                          onSelect={s => handleItemStockSelect(item.id, String(s.id))}
+                                          className="w-full text-sm md:text-base 2xl:text-sm border-slate-200 rounded-lg px-3 py-2 md:py-2.5 2xl:py-2 bg-white focus:ring-2 focus:ring-indigo-100 transition-colors"
+                                        />
                                      </div>
                                      <div className="space-y-1">
                                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Referência (P/N)</label>
@@ -842,7 +868,7 @@ export default function Step2_Checklist() {
                                          placeholder="Ex: REF-TUBO-01"
                                          value={checklist[item.id]?.referencia || ''}
                                          onChange={(e) => handleItemRefChange(item.id, e.target.value)}
-                                         className="w-full text-sm border-slate-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-100 transition-colors"
+                                         className="w-full text-sm md:text-base 2xl:text-sm border-slate-200 rounded-lg px-3 py-2 md:py-2.5 2xl:py-2 bg-white focus:ring-2 focus:ring-indigo-100 transition-colors"
                                        />
                                      </div>
                                    </div>
@@ -853,20 +879,20 @@ export default function Step2_Checklist() {
                                     Evidências (fotos)
                                     {needsEvidence && <span className="text-red-600 ml-1.5">· exigida</span>}
                                   </label>
-                                  <div className="flex flex-wrap items-center gap-2">
+                                  <div className="flex flex-wrap items-center gap-2 md:gap-3">
                                     {itemFotos.map((url: string, i: number) => (
                                       <div key={i} className="relative group">
                                         {/* eslint-disable-next-line @next/next/no-img-element */}
                                         <img
                                           src={url}
                                           alt={`Evidência ${i + 1}`}
-                                          className="w-14 h-14 rounded-lg object-cover border border-slate-200 shadow-sm"
+                                          className="w-16 h-16 md:w-20 md:h-20 2xl:w-14 2xl:h-14 rounded-lg object-cover border border-slate-200 shadow-sm"
                                         />
                                         <button
                                           type="button"
                                           onClick={() => removePhoto(item.id, url)}
                                           title="Remover foto"
-                                          className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center shadow opacity-0 group-hover:opacity-100 transition-opacity"
+                                          className="absolute -top-1.5 -right-1.5 w-6 h-6 md:w-7 md:h-7 2xl:w-5 2xl:h-5 rounded-full bg-red-500 text-white flex items-center justify-center shadow opacity-0 group-hover:opacity-100 transition-opacity"
                                         >
                                           <Trash2 size={10} />
                                         </button>
@@ -874,7 +900,7 @@ export default function Step2_Checklist() {
                                     ))}
                                     {needsEvidence && (
                                       <label
-                                        className={`w-14 h-14 rounded-lg border-2 border-dashed flex items-center justify-center cursor-pointer transition-colors ${
+                                        className={`w-16 h-16 md:w-20 md:h-20 2xl:w-14 2xl:h-14 rounded-lg border-2 border-dashed flex items-center justify-center cursor-pointer transition-colors ${
                                           currentStatus === 'REPROVADO' ? 'border-red-300 hover:border-red-400 bg-red-50/40' : 'border-slate-300 hover:border-indigo-400 bg-white hover:bg-indigo-50/40'
                                         }`}
                                       >
@@ -883,7 +909,7 @@ export default function Step2_Checklist() {
                                         ) : (
                                           <span className="flex flex-col items-center text-slate-400">
                                             <Camera size={15} />
-                                            <span className="text-[8px] font-bold uppercase mt-0.5">Foto</span>
+                                            <span className="text-[8px] md:text-[9px] font-bold uppercase mt-0.5">Foto</span>
                                           </span>
                                         )}
                                         <input
@@ -897,7 +923,7 @@ export default function Step2_Checklist() {
                                       </label>
                                     )}
                                     {itemFotos.length === 0 && needsEvidence && (
-                                      <span className="text-[10px] font-bold text-red-600">Sem evidência ainda</span>
+                                      <span className="text-[10px] md:text-xs font-bold text-red-600">Sem evidência ainda</span>
                                     )}
                                   </div>
                                 </div>
@@ -914,6 +940,15 @@ export default function Step2_Checklist() {
           );
         })}
       </div>
+
+      {replacementItemId && <ReplacementStockPicker
+        allowDeficit
+        items={getItemStock(replacementItemId)}
+        showValidade={replacementItemId.includes('luz_')}
+        articleLabel={CHECKLIST_GROUPS.flatMap(group => group.items).find(item => item.id === replacementItemId)?.label || ''}
+        onClose={() => setReplacementItemId(null)}
+        onSelect={stock => { handleItemStockSelect(replacementItemId, String(stock.id)); setReplacementItemId(null); }}
+      />}
 
       {/* Abate de Jangada — Ficha de Abate (IM.049/00) */}
       <div className={`border rounded-2xl overflow-hidden bg-white shadow-sm transition-colors ${abate.ativo ? 'border-red-300 ring-2 ring-red-100' : 'border-slate-200'}`}>
@@ -939,13 +974,13 @@ export default function Step2_Checklist() {
         </div>
 
         {abate.ativo && (
-          <div className="border-t border-slate-100 px-6 py-5 grid grid-cols-1 lg:grid-cols-2 gap-5 bg-red-50/30">
+          <div className="border-t border-slate-100 px-6 py-5 grid grid-cols-1 xl:grid-cols-2 gap-5 bg-red-50/30">
             <div className="space-y-1.5">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Motivos de Abate (código 13–27) — pode escolher vários</label>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5 border border-slate-200 rounded-xl bg-white p-2">
                 {ABATE_MOTIVOS.map((m) => {
                   const selected = getAbateMotivoCodes(abate.motivo).includes(m.codigo);
-                  return (
+  return (
                     <label
                       key={m.codigo}
                       className={`flex items-start gap-2 px-2.5 py-1.5 rounded-lg border cursor-pointer text-xs transition-all ${
@@ -989,15 +1024,83 @@ export default function Step2_Checklist() {
               </select>
             </div>
 
-            <div className="space-y-1.5 lg:col-span-2">
+            <div className="space-y-1.5 xl:col-span-2">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Campo 28 — Detalhes do Abate</label>
               <textarea
                 value={abate.detalhes}
                 onChange={(e) => setAbate({ detalhes: e.target.value })}
                 rows={3}
-                placeholder="Ex: Jangada abatida de acordo com o SB 18/08 Ver.2 — inspeção reforçada das costuras adesivas reprovada."
+                placeholder="Descreva os detalhes relevantes do abate."
                 className="w-full border-slate-200 rounded-xl px-3 py-2 bg-white text-sm focus:ring-2 focus:ring-red-200 font-medium text-slate-700"
               />
+            </div>
+            {String(inspectionData.brand || '').trim().toUpperCase() === 'VIKING' && (
+              <div className="xl:col-span-2 rounded-xl border border-red-200 bg-red-50 p-4 text-xs text-slate-800 space-y-2">
+                <p className="font-bold text-red-700">VIKING — procedimento de abate/condenação (secção 2.1.5)</p>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>Remover todos os rótulos de aprovação e IDs da jangada.</li>
+                  <li>Preencher o <strong>formulário de condenação</strong> via portal de serviço, indicado a causa da condenação; submeter — a informação é automaticamente arquivada na VIKING Denmark.</li>
+                  <li>O cliente deve declarar se quer que a estação de serviço destrua funcionalmente a jangada ou se quer que seja devolvida.</li>
+                  <li>A estação de serviço deve guardar a cópia do formulário de condenação assinado pelo cliente e documentação (fotos, log card) durante 5 anos.</li>
+                  <li>Escrever <strong>CONDEMNED</strong> em 3 locais diferentes na tenda (prescrição de 40 mm). Pode ser escrito no fundo no caso de jangada DKR.</li>
+                  <li>Remover pirotecnia e kit de primeiros socorros do conjunto de emergência; desmontar e esvaziar os cilindros de CO₂. Devolver pirotecnia, kit de primeiros socorros e cilindros vazios em caixa de cartão ao navio.</li>
+                  <li>Embalar a jangada e restante equipamento de emergência para que não restem dúvidas de que está não operacional.</li>
+                </ul>
+              </div>
+            )}
+            <div className="xl:col-span-2 flex flex-wrap gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() =>
+                  downloadAbateReportXlsx({
+                    brand: inspectionData.brand,
+                    model: inspectionData.model,
+                    serial: inspectionData.serial,
+                    capacity: inspectionData.capacity,
+                    dataFabrico: inspectionData.dataFabrico,
+                    dataInspecao: inspectionData.dataInspecao,
+                    shipName: inspectionData.shipName || inspectionData.shipNameManual,
+                    owner: inspectionData.owner,
+                    shipFlag: inspectionData.shipFlag,
+                    shipImo: inspectionData.shipImo,
+                    shipCallSign: inspectionData.shipCallSign,
+                    tipoBarco: abate.tipoBarco,
+                    motivo: abate.motivo,
+                    detalhes: abate.detalhes,
+                    responsavel: inspectionData.responsavel,
+                  })
+                }
+                className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+              >
+                Emitir ficha de abate (Excel)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const input = {
+                    brand: inspectionData.brand,
+                    model: inspectionData.model,
+                    serial: inspectionData.serial,
+                    capacity: inspectionData.capacity,
+                    dataFabrico: inspectionData.dataFabrico,
+                    dataInspecao: inspectionData.dataInspecao,
+                    shipName: inspectionData.shipName || inspectionData.shipNameManual,
+                    owner: inspectionData.owner,
+                    shipFlag: inspectionData.shipFlag,
+                    shipImo: inspectionData.shipImo,
+                    shipCallSign: inspectionData.shipCallSign,
+                    tipoBarco: abate.tipoBarco,
+                    motivo: abate.motivo,
+                    detalhes: abate.detalhes,
+                    responsavel: inspectionData.responsavel,
+                  };
+                  const doc = buildAbateReportDoc(input);
+                  doc.save(abateReportFilename(input).replace(/\.xlsx$/i, '.pdf'));
+                }}
+                className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+              >
+                Emitir ficha de abate (PDF)
+              </button>
             </div>
           </div>
         )}

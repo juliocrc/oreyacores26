@@ -327,7 +327,7 @@ export default function ColeteDetailPageClient({ coleteId }: { coleteId: number 
         </head>
         <body onload="window.print(); window.close();">
           <div class="label">
-            <div class="title">OREY AZORES</div>
+            <div class="title">Orey Tecnica- Serviços Navais, Lda</div>
             <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(window.location.href)}" width="150" height="150" />
             <div class="serial">${data.serial}</div>
             <div class="model">${data.marca || ''} ${data.modelo || ''}</div>

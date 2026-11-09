@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { WorkOrdersList } from '@/modules/WorkOrdersWorkspace';
 
-export default function OrdensServicoRedirect() {
-  redirect("/portal/ordens-servico");
+export default function OrdensServicoPage() {
+  return <WorkOrdersList />;
 }

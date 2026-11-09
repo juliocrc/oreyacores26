@@ -91,6 +91,9 @@ export function canonicalizeRaftModel(value: unknown, brand?: unknown, packType?
   const signature = stripDiacritics(upper).replace(/[^A-Z0-9]/g, "");
   const rfdSignature = signature.replace(/^RFD/, "");
 
+  // Only the confirmed spelling variants of this exact DSB model; keep LR05L/DL distinct.
+  if (upperBrand === "DSB" && /^(?:DSB)?LR05$/.test(signature)) return "LR05";
+
   if (upperBrand.includes("SEA-SAFE") && (signature === "SEASAFEKHYJF6" || signature === "KHYJF6")) {
     return "KHYJF-6";
   }

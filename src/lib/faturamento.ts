@@ -12,11 +12,15 @@ import {
   type OrdemServicoMeta,
 } from "@/lib/ordens-servico";
 import { logAuditoria } from "@/lib/auditoria";
+import { billingRecipient } from "@/lib/billing-recipient";
+import { invoiceNumberFromWork, invoiceWorkReferences } from "@/lib/invoice-number";
+import { invoiceDisplay } from "@/lib/invoice-official";
 
 export type OrdemFaturavel = {
   id: number;
   numeroOrdem: string;
   status: string;
+  orcamentoStatus: string;
   clienteId: number | null;
   shipId: number | null;
   isIsentoIva: boolean;
@@ -33,6 +37,7 @@ const ORDEM_FATURAVEL_SELECT = {
   id: true,
   numeroOrdem: true,
   status: true,
+  orcamentoStatus: true,
   clienteId: true,
   shipId: true,
   isIsentoIva: true,
@@ -41,6 +46,7 @@ const ORDEM_FATURAVEL_SELECT = {
   valorMaoObra: true,
   valorDesconto: true,
   metadados: true,
+  updatedAt: true,
 } as const;
 
 const ORDEM_DOCUMENTO_INCLUDE = {
@@ -119,10 +125,14 @@ export type OrdemDocumento = Awaited<ReturnType<typeof carregarFaturaPorOrdemSer
 
 export function resumoFatura(fatura: FaturaComOrdens) {
   const fat = fatura?.fatura ?? null;
-  const ordens = fat?.ordemServicos?.map((l) => l.ordemServico) ?? [];
+  const frozen = fat?.metadados ? JSON.parse(fat.metadados) : {};
+  const ordens = fat?.ordemServicos?.map((l) => {
+    const snapshot = frozen.ordensSnapshot?.find((order: { id: number }) => order.id === l.ordemServico.id);
+    return snapshot ? { ...l.ordemServico, ...snapshot } as typeof l.ordemServico : l.ordemServico;
+  }) ?? [];
   const primary = ordens[0] ?? null;
 
-  const cliente = fat?.cliente ?? primary?.cliente ?? null;
+  const cliente = frozen.destinatario ? { ...fat?.cliente, ...frozen.destinatario } : fat?.cliente ?? primary?.cliente ?? null;
   const jangada = primary?.jangada ?? null;
   const clienteNome = cliente?.nome || jangada?.owner || "Cliente particular";
   const navio = jangada?.shipNameManual || "—";
@@ -145,6 +155,8 @@ export function resumoFatura(fatura: FaturaComOrdens) {
     issuer,
     emissao,
     numeroFatura,
+    ...(fat ? invoiceDisplay(fat) : {}),
+    ...invoiceWorkReferences(fat?.metadados),
     dataTrabalho,
     tecnico,
     subtotal: Number(fat?.valorSubtotal ?? 0),
@@ -159,14 +171,44 @@ export function resumoFatura(fatura: FaturaComOrdens) {
   };
 }
 
-export type EmitirFaturaResultado =
+export type EmitirFaturaResultado = ReturnType<typeof invoiceWorkReferences> & (
   | { fatura: unknown; alreadyEmitted: true; numeroFatura: string }
-  | { fatura: unknown; alreadyEmitted: false; numeroFatura: string };
+  | { fatura: unknown; alreadyEmitted: false; numeroFatura: string });
+
+export function validarPagamentoStatus(value: string) {
+  const status = value.trim();
+  if (!["Pendente", "Pago Parcialmente", "Pago", "Vencido"].includes(status)) {
+    throw new FaturamentoError("Estado de pagamento inválido.", 400);
+  }
+  return status;
+}
+
+export function calcularSaldoFatura(fatura: { valorTotal: number; cancelada: boolean; pagamentoStatus?: string; recibos: Array<{ valorPago: number }> }) {
+  const totalCentimos = Math.round(Number(fatura.valorTotal) * 100);
+  const pagoCentimos = fatura.recibos.reduce((sum, r) => sum + Math.round(Number(r.valorPago) * 100), 0);
+  if (!Number.isSafeInteger(totalCentimos) || totalCentimos < 0 || !Number.isSafeInteger(pagoCentimos) ||
+    fatura.recibos.some(recibo => !Number.isFinite(Number(recibo.valorPago)) || Number(recibo.valorPago) < 0)) {
+    throw new FaturamentoError("Valores financeiros inválidos. É necessária reconciliação.", 409);
+  }
+  const valorPago = pagoCentimos / 100;
+  // Legacy issuance could persist Pago without a receipt. Do not collect it again.
+  const pagamentoHistoricoSemRecibo = fatura.pagamentoStatus === "Pago" &&
+    pagoCentimos < totalCentimos;
+  return { valorPago, valorPendente: fatura.cancelada || pagamentoHistoricoSemRecibo ? 0 : Math.max(0, totalCentimos - pagoCentimos) / 100, pagamentoHistoricoSemRecibo };
+}
+
+function conflitoFinanceiro(error: unknown): never {
+  if (error && typeof error === "object" && "code" in error && (error.code === "P2034" || error.code === "P2002")) {
+    throw new FaturamentoError("Conflito na operação financeira. Consulte o estado atual antes de voltar a submeter.", 409);
+  }
+  throw error;
+}
 
 export async function emitirFatura(input: {
   ordemServicoIds: number[];
   pagamentoStatus?: string;
   emitidaPor: string;
+  updatedAt?: string;
 }): Promise<EmitirFaturaResultado> {
   const ids = [...new Set(input.ordemServicoIds)]
     .filter((id) => Number.isFinite(id) && id > 0)
@@ -176,65 +218,116 @@ export async function emitirFatura(input: {
     throw new FaturamentoError("Nenhuma ordem de serviço indicada para faturação.", 400);
   }
 
-  const pagamentoStatus = input.pagamentoStatus && input.pagamentoStatus.trim()
-    ? input.pagamentoStatus.trim()
-    : "Pendente";
-
-  const ordens = await prisma.ordemServico.findMany({
-    where: { id: { in: ids } },
-    select: ORDEM_FATURAVEL_SELECT,
-  });
-
-  if (ordens.length !== ids.length) {
-    throw new FaturamentoError("Algumas ordens de serviço não foram encontradas.", 404);
+  const pagamentoStatus = validarPagamentoStatus(input.pagamentoStatus ?? "Pendente");
+  if (pagamentoStatus === "Pago Parcialmente") {
+    throw new FaturamentoError("Emita a fatura pendente e registe um pagamento parcial com valor explícito.", 400);
   }
 
-  const agrupado = ordens.length > 1;
-  const ordensAindaNaoFaturadas = ordens;
+  const resultado = await prisma.$transaction(async (tx) => {
+    const ordens = await tx.ordemServico.findMany({
+      where: { id: { in: ids } },
+      select: ORDEM_FATURAVEL_SELECT,
+    });
 
-  const linkExistente = await prisma.faturaOrdemServico.findFirst({
-    where: { ordemServicoId: { in: ids } },
-    include: { fatura: true },
-  });
-  if (linkExistente) {
-    return { fatura: linkExistente.fatura, alreadyEmitted: true, numeroFatura: linkExistente.fatura.numeroFatura };
-  }
+    if (ordens.length !== ids.length) {
+      throw new FaturamentoError("Algumas ordens de serviço não foram encontradas.", 404);
+    }
 
-  const naoConcluidas = ordensAindaNaoFaturadas.filter((o) => o.status !== "concluida");
-  if (naoConcluidas.length > 0) {
-    const lista = naoConcluidas.map((o) => o.numeroOrdem || `#${o.id}`).join(", ");
-    throw new FaturamentoError(`Apenas ordens concluídas podem ser faturadas. Faltam concluir: ${lista}.`, 400);
-  }
+    const agrupado = ordens.length > 1;
+    const ordensAindaNaoFaturadas = ordens;
 
-  const clienteIds = [...new Set(ordensAindaNaoFaturadas.map((o) => o.clienteId))];
-  if (clienteIds.length > 1) {
-    throw new FaturamentoError("As ordens selecionadas pertencem a clientes diferentes.", 400);
-  }
-  const clienteId = clienteIds[0] ?? null;
+    const linksExistentes = await tx.faturaOrdemServico.findMany({
+      where: { ordemServicoId: { in: ids } },
+      include: { fatura: { include: { ordemServicos: true } } },
+    });
+    if (linksExistentes.length > 0) {
+      const existing = linksExistentes[0].fatura;
+      if (existing.cancelada || linksExistentes.length !== ids.length ||
+        linksExistentes.some((link) => link.faturaId !== existing.id) ||
+        existing.ordemServicos.length !== ids.length ||
+        existing.ordemServicos.some((link) => !ids.includes(link.ordemServicoId))) {
+        throw new FaturamentoError("A seleção contém ordens já faturadas noutra composição ou fatura cancelada.", 409);
+      }
+      return { fatura: existing, alreadyEmitted: true, numeroFatura: existing.numeroFatura, ...invoiceWorkReferences(existing.metadados) };
+    }
 
-  let subtotalTotal = 0;
-  let ivaTotal = 0;
-  let valorTotal = 0;
-  for (const o of ordensAindaNaoFaturadas) {
-    const { subtotal, iva, total } = calcularTotaisOrdem(o);
-    subtotalTotal += subtotal;
-    ivaTotal += iva;
-    valorTotal += total;
-  }
+    if (ordens.some((order) => order.orcamentoStatus !== "Aprovado")) {
+      throw new FaturamentoError("Apenas ordens com orçamento aprovado podem ser faturadas.", 400);
+    }
+    if (input.updatedAt && (ordens.length !== 1 ||
+      !Number.isFinite(new Date(input.updatedAt).getTime()) || ordens[0].updatedAt.getTime() !== new Date(input.updatedAt).getTime())) {
+      throw new FaturamentoError("A ordem foi alterada. Atualize antes de registar a fatura.", 409);
+    }
 
-  if (!Number.isFinite(valorTotal) || valorTotal < 0) {
-    throw new FaturamentoError("Valores das ordens inválidos para faturação.", 400);
-  }
+    const naoConcluidas = ordensAindaNaoFaturadas.filter((o) => o.status !== "concluida");
+    if (naoConcluidas.length > 0) {
+      const lista = naoConcluidas.map((o) => o.numeroOrdem || `#${o.id}`).join(", ");
+      throw new FaturamentoError(`Apenas ordens concluídas podem ser faturadas. Faltam concluir: ${lista}.`, 400);
+    }
 
-  const emitidaPor = input.emitidaPor || "sistema";
-  const numeroFatura = await generateNumeroFatura();
-  const shipId = ordensAindaNaoFaturadas[0]?.shipId ?? null;
+    const clienteIds = [...new Set(ordensAindaNaoFaturadas.map((o) => o.clienteId))];
+    if (clienteIds.length > 1) {
+      throw new FaturamentoError("As ordens selecionadas pertencem a clientes diferentes.", 400);
+    }
+    const clienteId = clienteIds[0] ?? null;
+    if (agrupado && clienteId === null) {
+      throw new FaturamentoError("A faturação agrupada exige um cliente identificado.", 400);
+    }
+    const primeiraOrdem = ordensAindaNaoFaturadas[0];
+    const cliente = clienteId ? await tx.cliente.findUnique({ where: { id: clienteId } }) : null;
+    const destinatarios = ordensAindaNaoFaturadas.map(order => billingRecipient(cliente,
+      (parseOrdemServicoMeta(order.metadados) as { destinatarioFaturacao?: unknown }).destinatarioFaturacao));
+    if (destinatarios.some(value => !value.nome || !value.nif || !value.morada)) {
+      throw new FaturamentoError("Preencha nome, NIF e morada do destinatario antes de registar a fatura.", 400);
+    }
+    for (const order of ordensAindaNaoFaturadas) {
+      const lines = parseOrdemServicoMeta(order.metadados).linhas;
+      if (Array.isArray(lines) && (!lines.length || lines.some(line => !line.descricao?.trim() ||
+        !Number.isFinite(line.quantidade) || Number(line.quantidade) <= 0 ||
+        !Number.isFinite(line.unitPrice) || Number(line.unitPrice) < 0))) {
+        throw new FaturamentoError("Artigos invalidos: indique descricao, quantidade positiva e preco valido.", 400);
+      }
+    }
+    if (agrupado && destinatarios.some(value => JSON.stringify(value) !== JSON.stringify(destinatarios[0]))) {
+      throw new FaturamentoError("As ordens agrupadas devem ter o mesmo destinatario de faturacao.", 400);
+    }
+    if (agrupado && ordensAindaNaoFaturadas.some((order) =>
+      order.isIsentoIva !== primeiraOrdem.isIsentoIva ||
+      (order.codigoIsencaoIva ?? null) !== (primeiraOrdem.codigoIsencaoIva ?? null))) {
+      throw new FaturamentoError("As ordens agrupadas devem ter o mesmo regime e código de isenção de IVA.", 400);
+    }
 
-  const clienteNumero = clienteId ? await ensureClienteNumero(clienteId) : null;
+    let subtotalTotal = 0;
+    let ivaTotal = 0;
+    let valorTotal = 0;
+    for (const o of ordensAindaNaoFaturadas) {
+      const { subtotal, iva, total } = calcularTotaisOrdem(o);
+      subtotalTotal += subtotal;
+      ivaTotal += iva;
+      valorTotal += total;
+    }
+    subtotalTotal = Math.round(subtotalTotal * 100) / 100;
+    ivaTotal = Math.round(ivaTotal * 100) / 100;
+    valorTotal = Math.round(valorTotal * 100) / 100;
 
-  const dataEmissao = new Date();
+    if (!Number.isFinite(valorTotal) || valorTotal < 0) {
+      throw new FaturamentoError("Valores das ordens inválidos para faturação.", 400);
+    }
 
-  const fatura = await prisma.$transaction(async (tx) => {
+    const emitidaPor = input.emitidaPor || "sistema";
+    const numerosObra = [...new Set(ordensAindaNaoFaturadas.map(order => order.numeroOrdem.trim().toUpperCase()).filter(Boolean))].sort();
+    const numeroObra = numerosObra.length === 1 ? numerosObra[0] : null;
+    // Distinct grouped works have no stable primary: retain the generic series.
+    const numeroDerivado = numeroObra && ordensAindaNaoFaturadas.every(order => order.numeroOrdem.trim().toUpperCase() === numeroObra)
+      ? invoiceNumberFromWork(numeroObra) : null;
+    const numeroFatura = numeroDerivado ?? await generateNumeroFatura();
+    if (numeroDerivado && await tx.fatura.findUnique({ where: { numeroFatura } })) {
+      throw new FaturamentoError(`O numero ${numeroFatura} ja foi emitido, mesmo que anulado. Nao pode ser reutilizado.`, 409);
+    }
+    const shipId = ordensAindaNaoFaturadas[0]?.shipId ?? null;
+
+    const dataEmissao = new Date();
+
     const created = await tx.fatura.create({
       data: {
         numeroFatura,
@@ -249,10 +342,23 @@ export async function emitirFatura(input: {
         dataEmissao,
         emitidaPor,
         metadados: JSON.stringify({
+          numeroObra,
+          numerosObra,
           numeroOrdens: ordensAindaNaoFaturadas.map((o) => o.numeroOrdem || `#${o.id}`),
+          destinatario: destinatarios[0],
+          ordensSnapshot: ordensAindaNaoFaturadas.map(order => ({ id: order.id, numeroOrdem: order.numeroOrdem,
+            numeroObra: order.numeroOrdem.trim().toUpperCase(), metadados: order.metadados,
+            valorPecas: order.valorPecas, valorMaoObra: order.valorMaoObra, valorDesconto: order.valorDesconto })),
         }),
       },
     });
+
+    if (pagamentoStatus === "Pago") {
+      if (Math.round(valorTotal * 100) <= 0) throw new FaturamentoError("Não é possível registar um pagamento de valor zero.", 400);
+      await tx.recibo.create({
+        data: { numeroRecibo: await generateNumeroRecibo(), faturaId: created.id, valorPago: valorTotal, pagamentoStatus: "Pago", dataEmissao, emitidaPor },
+      });
+    }
 
     for (const order of ordensAindaNaoFaturadas) {
       await tx.faturaOrdemServico.create({
@@ -297,31 +403,32 @@ export async function emitirFatura(input: {
       });
     }
 
-    return created;
-  });
+    return { fatura: created, alreadyEmitted: false, numeroFatura, numeroObra, numerosObra };
+  }, { isolationLevel: "Serializable" }).catch(conflitoFinanceiro);
 
+  if (resultado.alreadyEmitted) return resultado;
+  const fatura = resultado.fatura;
   await logAuditoria({
     tabela: "Fatura",
     tipoOperacao: "CREATE",
     idRegisto: fatura.id,
-    descricao: agrupado
-      ? `Emissão da fatura agrupada ${numeroFatura} (${ordensAindaNaoFaturadas.length} OT) total €${valorTotal.toFixed(2)}`
-      : `Emissão da fatura ${numeroFatura} para a OT ${ordensAindaNaoFaturadas[0]?.numeroOrdem} (total €${valorTotal.toFixed(2)})`,
-    usuario: emitidaPor,
+    descricao: `Emissão da fatura ${resultado.numeroFatura} (total €${Number(fatura.valorTotal).toFixed(2)})`,
+    usuario: input.emitidaPor,
     dadosDepois: fatura,
   });
 
-  if (clienteNumero && clienteId) {
+  const clienteNumero = fatura.clienteId ? await ensureClienteNumero(fatura.clienteId) : null;
+  if (clienteNumero && fatura.clienteId) {
     await logAuditoria({
       tabela: "Cliente",
       tipoOperacao: "UPDATE",
-      idRegisto: clienteId,
-      descricao: `Nº de cliente atribuído automaticamente (${clienteNumero}) na emissão da fatura ${numeroFatura}.`,
-      usuario: emitidaPor,
+      idRegisto: fatura.clienteId,
+      descricao: `Nº de cliente atribuído automaticamente (${clienteNumero}) na emissão da fatura ${resultado.numeroFatura}.`,
+      usuario: input.emitidaPor,
     });
   }
 
-  return { fatura, alreadyEmitted: false, numeroFatura };
+  return resultado;
 }
 
 export class FaturamentoError extends Error {
@@ -340,54 +447,71 @@ export async function atualizarPagamentoStatusFatura(input: {
   emitidaPor: string;
 }) {
   const { faturaId, pagamentoStatus, emitidaPor } = input;
-  const valorPago = Number(input.valorPago);
-  const valorPagoFinite = Number.isFinite(valorPago) && valorPago > 0 ? valorPago : null;
-
-  const fatura = await prisma.fatura.findUnique({
-    where: { id: faturaId },
-    include: { ordemServicos: { include: { ordemServico: { select: { id: true, numeroOrdem: true, metadados: true } } } } },
-  });
-  if (!fatura) {
-    throw new FaturamentoError("Fatura não encontrada.", 404);
+  const novoStatus = validarPagamentoStatus(pagamentoStatus);
+  // valorPago is an incremental receipt amount, never a replacement total.
+  const valorPago = input.valorPago;
+  if (valorPago !== undefined && (!Number.isFinite(valorPago) || Math.round(valorPago * 100) <= 0)) {
+    throw new FaturamentoError("O valor do pagamento deve ser positivo.", 400);
   }
-  if (fatura.cancelada) {
-    throw new FaturamentoError("Fatura cancelada não pode ser atualizada.", 400);
-  }
-
-  const novoStatus = pagamentoStatus.trim();
-  const ordens = fatura.ordemServicos.map((l) => l.ordemServico);
-  const dataEmissao = new Date();
 
   const result = await prisma.$transaction(async (tx) => {
+    const fatura = await tx.fatura.findUnique({
+      where: { id: faturaId },
+      include: { recibos: { orderBy: { dataEmissao: "desc" } }, ordemServicos: { include: { ordemServico: { select: { id: true, numeroOrdem: true, metadados: true } } } } },
+    });
+    if (!fatura) {
+      throw new FaturamentoError("Fatura não encontrada.", 404);
+    }
+    if (fatura.cancelada) {
+      throw new FaturamentoError("Fatura cancelada não pode ser atualizada.", 400);
+    }
+
+    const ordens = fatura.ordemServicos.map((l) => l.ordemServico);
+    const dataEmissao = new Date();
+    const saldo = calcularSaldoFatura(fatura);
+    if (saldo.valorPago > Number(fatura.valorTotal)) {
+      throw new FaturamentoError("Os recibos existentes excedem o total da fatura. É necessária reconciliação.", 409);
+    }
+    if (saldo.pagamentoHistoricoSemRecibo) {
+      if (novoStatus === "Pago" && valorPago === undefined) {
+        return { ...fatura, ...saldo, numeroRecibo: fatura.recibos[0]?.numeroRecibo ?? null };
+      }
+      throw new FaturamentoError("Fatura historicamente paga com recibos em falta. É necessária reconciliação antes de alterar pagamentos.", 409);
+    }
+    if (novoStatus === "Pago" && saldo.valorPago > 0 && saldo.valorPendente === 0 && valorPago === undefined) {
+      return { ...fatura, ...saldo, numeroRecibo: fatura.recibos[0]?.numeroRecibo ?? null };
+    }
+    if (novoStatus === "Pago Parcialmente" && valorPago === undefined) {
+      throw new FaturamentoError("Indique o valor incremental do pagamento parcial.", 400);
+    }
+    if (valorPago !== undefined && novoStatus !== "Pago" && novoStatus !== "Pago Parcialmente") {
+      throw new FaturamentoError("Este estado não permite registar pagamentos.", 400);
+    }
+    const montante = novoStatus === "Pago" ? (valorPago ?? saldo.valorPendente) : (valorPago ?? 0);
+    const centimos = Math.round(montante * 100);
+    const pendenteCentimos = Math.round(saldo.valorPendente * 100);
+    if (centimos > pendenteCentimos || (novoStatus === "Pago" && (centimos <= 0 || centimos !== pendenteCentimos)) ||
+      (novoStatus === "Pago Parcialmente" && centimos >= pendenteCentimos)) {
+      throw new FaturamentoError("Valor incompatível com o saldo pendente da fatura.", 400);
+    }
+    if ((novoStatus === "Pendente" && saldo.valorPago > 0) || (novoStatus === "Vencido" && saldo.valorPendente === 0)) {
+      throw new FaturamentoError("Estado incompatível com os recibos existentes.", 400);
+    }
+
     const updated = await tx.fatura.update({
       where: { id: faturaId },
       data: { pagamentoStatus: novoStatus },
     });
 
-    if (novoStatus === "Pago") {
-      const jaExisteReciboPago = await tx.recibo.findFirst({
-        where: { faturaId, pagamentoStatus: "Pago" },
-      });
-      if (!jaExisteReciboPago) {
-        const numeroRecibo = await generateNumeroRecibo();
-        await tx.recibo.create({
-          data: {
-            numeroRecibo,
-            faturaId,
-            valorPago: Number(fatura.valorTotal),
-            pagamentoStatus: "Pago",
-            dataEmissao,
-            emitidaPor,
-          },
-        });
-      }
-    } else if (novoStatus === "Pago Parcialmente" && valorPagoFinite !== null) {
+    let numeroRecibo = fatura.recibos[0]?.numeroRecibo ?? null;
+    if (centimos > 0) {
+      numeroRecibo = await generateNumeroRecibo();
       await tx.recibo.create({
         data: {
-          numeroRecibo: await generateNumeroRecibo(),
+          numeroRecibo,
           faturaId,
-          valorPago: valorPagoFinite,
-          pagamentoStatus: "Pago Parcialmente",
+          valorPago: centimos / 100,
+          pagamentoStatus: novoStatus,
           dataEmissao,
           emitidaPor,
         },
@@ -419,14 +543,14 @@ export async function atualizarPagamentoStatusFatura(input: {
       });
     }
 
-    return updated;
-  });
+    return { ...updated, numeroRecibo, valorPago: Math.round((saldo.valorPago + centimos / 100) * 100) / 100, valorPendente: (pendenteCentimos - centimos) / 100, pagamentoHistoricoSemRecibo: false };
+  }, { isolationLevel: "Serializable" }).catch(conflitoFinanceiro);
 
   await logAuditoria({
     tabela: "Fatura",
     tipoOperacao: "UPDATE",
-    idRegisto: fatura.id,
-    descricao: `Estado de pagamento da fatura ${fatura.numeroFatura} alterado para "${novoStatus}".`,
+    idRegisto: result.id,
+    descricao: `Estado de pagamento da fatura ${result.numeroFatura} alterado para "${novoStatus}".`,
     usuario: emitidaPor,
     dadosDepois: result,
   });
@@ -441,23 +565,23 @@ export async function cancelarFatura(input: {
 }) {
   const { faturaId, motivo, emitidaPor } = input;
 
-  const fatura = await prisma.fatura.findUnique({
-    where: { id: faturaId },
-    include: { ordemServicos: { include: { ordemServico: { select: { id: true, numeroOrdem: true, metadados: true } } } } },
-  });
-  if (!fatura) {
-    throw new FaturamentoError("Fatura não encontrada.", 404);
-  }
-  if (fatura.cancelada) {
-    return { fatura, notaCredito: await prisma.notaCredito.findFirst({ where: { faturaId } }), alreadyCancelled: true };
-  }
-
-  const ordens = fatura.ordemServicos.map((l) => l.ordemServico);
-  const numeroNotaCredito = await generateNumeroNotaCredito();
-  const dataEmissao = new Date();
-  const motivoFinal = (motivo || "").trim() || "Anulação da fatura de referência";
-
   const result = await prisma.$transaction(async (tx) => {
+    const fatura = await tx.fatura.findUnique({
+      where: { id: faturaId },
+      include: { notaCredito: true, recibos: true, ordemServicos: { include: { ordemServico: { select: { id: true, numeroOrdem: true, metadados: true } } } } },
+    });
+    if (!fatura) {
+      throw new FaturamentoError("Fatura não encontrada.", 404);
+    }
+    if (fatura.cancelada) {
+      return { fatura, notaCredito: fatura.notaCredito, alreadyCancelled: true, ...calcularSaldoFatura(fatura) };
+    }
+
+    const ordens = fatura.ordemServicos.map((l) => l.ordemServico);
+    const numeroNotaCredito = await generateNumeroNotaCredito();
+    const dataEmissao = new Date();
+    const motivoFinal = (motivo || "").trim() || "Anulação da fatura de referência";
+
     const updated = await tx.fatura.update({
       where: { id: faturaId },
       data: {
@@ -504,25 +628,27 @@ export async function cancelarFatura(input: {
       });
     }
 
-    return { updated, notaCredito };
-  });
+    return { fatura: updated, notaCredito, alreadyCancelled: false, ...calcularSaldoFatura({ ...fatura, cancelada: true }) };
+  }, { isolationLevel: "Serializable" }).catch(conflitoFinanceiro);
+
+  if (result.alreadyCancelled) return result;
 
   await logAuditoria({
     tabela: "Fatura",
     tipoOperacao: "UPDATE",
-    idRegisto: fatura.id,
-    descricao: `Anulação da fatura ${fatura.numeroFatura}${motivoFinal ? ` (${motivoFinal})` : ""}.`,
+    idRegisto: result.fatura.id,
+    descricao: `Anulação da fatura ${result.fatura.numeroFatura}.`,
     usuario: emitidaPor,
-    dadosDepois: result.updated,
+    dadosDepois: result.fatura,
   });
   await logAuditoria({
     tabela: "NotaCredito",
     tipoOperacao: "CREATE",
-    idRegisto: result.notaCredito.id,
-    descricao: `Nota de crédito ${numeroNotaCredito} emitida para a fatura ${fatura.numeroFatura} (€${Number(fatura.valorTotal).toFixed(2)}).`,
+    idRegisto: result.notaCredito!.id,
+    descricao: `Nota de crédito ${result.notaCredito!.numeroNotaCredito} emitida para a fatura ${result.fatura.numeroFatura} (€${Number(result.fatura.valorTotal).toFixed(2)}).`,
     usuario: emitidaPor,
     dadosDepois: result.notaCredito,
   });
 
-  return { fatura: result.updated, notaCredito: result.notaCredito, alreadyCancelled: false };
+  return result;
 }

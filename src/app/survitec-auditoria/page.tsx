@@ -25,7 +25,7 @@ type SurvitecAuditInfo = {
 };
 
 const SURVITEC_AUDIT_DATA: SurvitecAuditInfo = {
-  stationName: "Orey Açores — Estação de Serviço Principal",
+  stationName: "Orey Tecnica- Serviços Navais, Lda — Estação de Serviço Principal",
   stationCode: "AZO-SURV-01",
   lastAuditDate: "2025-11-15",
   expiryDate: "2028-11-15",

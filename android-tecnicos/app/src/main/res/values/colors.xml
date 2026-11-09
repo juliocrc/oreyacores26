@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Cores padrão (modo claro) -->
+    <color name="orey_primary">#6D28D9</color>
+    <color name="orey_primary_dark">#5B21B6</color>
+    <color name="orey_background">#F1F5F9</color>
+    <color name="orey_text_primary">#0F172A</color>
+    <color name="orey_text_secondary">#475569</color>
+    <color name="orey_white">#FFFFFF</color>
+    <color name="orey_black">#000000</color>
+</resources>

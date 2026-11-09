@@ -1,15 +1,16 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { Calendar, dateFnsLocalizer } from "react-big-calendar";
 import withDragAndDrop from "react-big-calendar/lib/addons/dragAndDrop";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
 import { format, parse, startOfWeek, getDay } from "date-fns";
 import { pt } from "date-fns/locale/pt";
-import { EVENT_STATUS_COLORS, normalizeEventStatus, type InspectionType } from "@/types/agenda";
+import { EVENT_STATUS_COLORS, normalizeEventStatus, resolveAgendaDuration, type InspectionType } from "@/types/agenda";
 import type { StaffTechnician } from "@/types/agenda-page";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { agendaWallDate, parseAgendaDateTime, wallDateTime, agendaOperationalEnd } from './Agenda/agenda-ui-dates';
 
 const locales = { pt: pt };
 const localizer = dateFnsLocalizer({
@@ -31,6 +32,7 @@ export type InspectionEvent = {
   responsavel?: string;
   inspectionType?: InspectionType;
   type?: string;
+  durationMinutes?: number;
 };
 
 type CalendarMutationPayload = {
@@ -41,6 +43,10 @@ type CalendarMutationPayload = {
 };
 
 type InspectionCalendarProps = {
+  date: Date;
+  view: 'month' | 'week' | 'day';
+  onDateChange: (date: Date) => void;
+  onViewChange: (view: 'month' | 'week' | 'day') => void;
   events: InspectionEvent[];
   onSchedule: (event: InspectionEvent) => void;
   onEventResize?: (data: CalendarMutationPayload) => void;
@@ -116,13 +122,13 @@ const CustomToolbar = (toolbar: any) => {
   return (
     <div className="flex flex-wrap items-center justify-between mb-4 gap-4 bg-slate-50 p-2 rounded-2xl border border-slate-200">
       <div className="flex items-center gap-1">
-        <button onClick={goToBack} className="p-2 hover:bg-white rounded-lg transition-colors border border-transparent hover:border-slate-300 hover:shadow-sm text-slate-600">
+        <button aria-label="Período anterior" onClick={goToBack} className="p-2 hover:bg-white rounded-lg transition-colors border border-transparent hover:border-slate-300 hover:shadow-sm text-slate-600">
           <ChevronLeft size={18} />
         </button>
         <button onClick={goToCurrent} className="px-4 py-2 font-semibold text-sm hover:bg-white rounded-lg transition-colors border border-transparent hover:border-slate-300 hover:shadow-sm text-slate-700">
           Hoje
         </button>
-        <button onClick={goToNext} className="p-2 hover:bg-white rounded-lg transition-colors border border-transparent hover:border-slate-300 hover:shadow-sm text-slate-600">
+        <button aria-label="Período seguinte" onClick={goToNext} className="p-2 hover:bg-white rounded-lg transition-colors border border-transparent hover:border-slate-300 hover:shadow-sm text-slate-600">
           <ChevronRight size={18} />
         </button>
         <span className="ml-4 font-bold text-slate-800 text-lg capitalize">{toolbar.label}</span>
@@ -135,7 +141,7 @@ const CustomToolbar = (toolbar: any) => {
             onClick={() => toolbar.onView(v)}
             className={`px-4 py-1.5 text-sm font-semibold rounded-lg transition-all ${toolbar.view === v ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
           >
-            {v === 'month' ? 'Mês' : v === 'week' ? 'Semana' : 'Dia'}
+            {v === 'month' ? 'Mês' : v === 'week' ? 'Semana' : 'Dia por técnico'}
           </button>
         ))}
       </div>
@@ -144,6 +150,10 @@ const CustomToolbar = (toolbar: any) => {
 };
 
 export default function InspectionCalendar({
+  date,
+  view,
+  onDateChange,
+  onViewChange,
   events,
   onSchedule,
   onEventResize,
@@ -154,21 +164,21 @@ export default function InspectionCalendar({
   onEditEvent,
   technicians = [],
 }: InspectionCalendarProps) {
-  const [view, setView] = useState<"month" | "week" | "day">("week");
-  const [date, setDate] = useState(new Date());
 
   const rosterNames = useMemo(() => technicians.map((t) => t.nome), [technicians]);
 
   const resourceMap = useMemo(() => {
     return [
-      ...rosterNames.map((name) => ({ resourceId: name, resourceTitle: name })),
+      ...Array.from(new Set([...rosterNames, ...events.map(event => event.responsavel).filter((name): name is string => Boolean(name))])).map((name) => ({ resourceId: name, resourceTitle: name })),
       { resourceId: 'Sem Responsável', resourceTitle: 'Sem Responsável' }
     ];
-  }, [rosterNames]);
+  }, [rosterNames, events]);
 
   const mappedEvents = useMemo(() => {
     return events.map(e => ({
       ...e,
+      start: agendaWallDate(e.start),
+      end: agendaWallDate(e.end),
       resourceId: e.responsavel || 'Sem Responsável'
     }));
   }, [events]);
@@ -294,20 +304,18 @@ export default function InspectionCalendar({
     };
   };
 
-  const onDropFromOutside = ({ start }: { start: string | Date }) => {
+  const onDropFromOutside = ({ start, resourceId }: { start: string | Date; resourceId?: string }) => {
     if (!externalDragEvent) return;
-    const startDate = new Date(start);
-    const durationMs = externalDragEvent?.end && externalDragEvent?.start
-      ? Math.max(60 * 60 * 1000, new Date(externalDragEvent.end).getTime() - new Date(externalDragEvent.start).getTime())
-      : 60 * 60 * 1000;
-    const endDate = new Date(startDate.getTime() + durationMs);
-    onSchedule({ ...externalDragEvent, start: startDate, end: endDate });
+    const startDate = parseAgendaDateTime(wallDateTime(new Date(start)));
+    const endDate = agendaOperationalEnd(startDate, resolveAgendaDuration(externalDragEvent));
+    onSchedule({ ...externalDragEvent, start: startDate, end: endDate,
+      responsavel: resourceId === undefined ? externalDragEvent.responsavel : resourceId === 'Sem Responsável' ? '' : resourceId });
     if (onExternalEventConsumed) onExternalEventConsumed();
   };
 
   return (
-    <div className="flex h-full min-h-[700px] flex-col gap-4 rounded-3xl bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
-      <div className="flex items-center justify-between">
+    <div className="flex h-full min-h-[700px] min-w-0 flex-col gap-4 rounded-3xl bg-white p-3 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
+      <div className="flex flex-wrap gap-3 items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-slate-800">Planeamento de Inspeções</h2>
           <p className="text-sm text-slate-500 mt-1">Gere a agenda da equipa desta estação</p>
@@ -328,7 +336,7 @@ export default function InspectionCalendar({
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden h-[700px]">
+      <div className="flex-1 overflow-x-auto h-[700px]">
         {/* react-big-calendar typings can be tricky with addons */}
         <DnDCalendar
           key={view === 'day' ? 'with-resources' : 'no-resources'}
@@ -339,10 +347,11 @@ export default function InspectionCalendar({
           resourceTitleAccessor="resourceTitle"
           date={date}
           view={view}
-          onNavigate={(newDate: Date) => setDate(newDate)}
-          onView={(newView: "month" | "week" | "day") => setView(newView)}
-          onEventDrop={(args: any) => onEventDrop?.(args)}
-          onEventResize={(args: any) => onEventResize?.(args)}
+          onNavigate={(newDate: Date, _view: string, action: string) => onDateChange(action === 'TODAY' ? agendaWallDate(new Date()) : newDate)}
+          onView={onViewChange}
+          getNow={() => agendaWallDate(new Date())}
+          onEventDrop={(args: CalendarMutationPayload) => onEventDrop?.({ ...args, event: events.find(event => String(event.id) === String(args.event?.id)), start: args.start ? parseAgendaDateTime(wallDateTime(new Date(args.start))) : undefined, end: args.end ? parseAgendaDateTime(wallDateTime(new Date(args.end))) : undefined })}
+          onEventResize={(args: CalendarMutationPayload) => onEventResize?.({ ...args, event: events.find(event => String(event.id) === String(args.event?.id)), start: args.start ? parseAgendaDateTime(wallDateTime(new Date(args.start))) : undefined, end: args.end ? parseAgendaDateTime(wallDateTime(new Date(args.end))) : undefined })}
           resizable
           selectable
           draggableAccessor={(ev: any) => String(ev?.id || "").startsWith("expiracao-") ? false : true}
@@ -368,7 +377,7 @@ export default function InspectionCalendar({
                return;
              }
               if (onEditEvent) {
-                onEditEvent(event as InspectionEvent);
+                 onEditEvent(events.find(item => String(item.id) === String(event.id))!);
               } else if (window.confirm("Desejas cancelar este agendamento?\n\nClica OK para DESMARCAR o agendamento.\nClica Cancelar para o manter.")) {
                 if (onDeleteEvent) onDeleteEvent(event as InspectionEvent);
               }
@@ -376,7 +385,7 @@ export default function InspectionCalendar({
           dragFromOutsideItem={externalDragEvent ? () => externalDragEvent : undefined}
           onDropFromOutside={onDropFromOutside}
           className="font-sans"
-          style={{ height: '100%', minHeight: '600px' }}
+           style={{ height: '100%', minHeight: '600px', minWidth: view === 'day' ? Math.max(600, resourceMap.length * 150) : 600 }}
           components={{
             event: CustomEvent,
             month: { event: CustomMonthEvent },

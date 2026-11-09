@@ -1,6 +1,7 @@
 import prisma from "@/lib/prisma";
 import { logAuditoria } from "@/lib/auditoria";
 import { getIvaRate } from "@/lib/iva";
+import { canonicalOrderNumber, syncOrderNumber } from '@/lib/order-number';
 import {
   appendOrdemServicoLog,
   appendWorkflowTransition,
@@ -8,6 +9,7 @@ import {
   toOrdemServicoMetaJson,
   resolveClienteIdForJangada,
   resolveClienteIdForShipId,
+  resolveLotStock,
   type OrdemServicoMeta,
 } from "@/lib/ordens-servico";
 
@@ -16,6 +18,7 @@ export type SyncReplacementItem = {
   referencia?: string | null;
   quantidade?: number | null;
   stockId?: number | null;
+  lote?: string | null;
   precoUnitario?: number | null;
 };
 
@@ -23,6 +26,7 @@ export type SyncOrcamentoPayload = {
   linhas?: Array<{
     id?: string;
     stockId?: number | string | null;
+    lote?: string | null;
     referencia?: string | null;
     descricao?: string | null;
     quantidade?: number | null;
@@ -78,6 +82,7 @@ const TEST_LABELS: Record<string, string> = {
 type SyncMaterial = {
   id?: string;
   stockId?: number;
+  lote?: string | null;
   referencia?: string;
   descricao?: string;
   quantidadePrevista?: number;
@@ -94,29 +99,13 @@ async function buildMaterialsFromReplacements(
   inspecao: { certificadoNumero: string },
   artigosSubstituidos: SyncReplacementItem[],
 ) {
-  const stockRefs = artigosSubstituidos
-    .map((a) => a.referencia)
-    .filter(Boolean) as string[];
-  const stockItems =
-    stockRefs.length > 0
-      ? await prisma.stock.findMany({
-          where: { referencia: { in: stockRefs } },
-          select: {
-            id: true,
-            referencia: true,
-            descricao: true,
-            precoVenda: true,
-            quantidade: true,
-          },
-        })
-      : [];
-  const stockMap = new Map(stockItems.map((s) => [s.referencia, s]));
-
-  return artigosSubstituidos.map((item) => {
-    const stock = item.referencia ? stockMap.get(item.referencia) : null;
+  const raft = await prisma.jangada.findUnique({ where: { id: jangadaId }, select: { serviceStationId: true } });
+  return Promise.all(artigosSubstituidos.map(async (item, index) => {
+    const stock = await resolveLotStock(prisma, item, raft?.serviceStationId ?? null, true);
     return {
-      id: `inspection-${inspecao.certificadoNumero}-${item.referencia || item.name}`,
+      id: `inspection-${inspecao.certificadoNumero}-${item.stockId || item.referencia || item.name}-${index}`,
       stockId: item.stockId || stock?.id || undefined,
+      lote: item.lote ?? stock?.lote ?? null,
       referencia: item.referencia || "SEM-REF",
       descricao: item.name || stock?.descricao || "Consumível inspeção",
       quantidadePrevista: item.quantidade || 1,
@@ -127,7 +116,7 @@ async function buildMaterialsFromReplacements(
       consumido: true,
       origem: "inspecao" as const,
     };
-  });
+  }));
 }
 
 function calcValorTotal(
@@ -189,6 +178,7 @@ export async function syncInspectionToOrdemServico(
       dataInspecao: true,
       navioNome: true,
       jangadaId: true,
+      checklistSnapshot: true,
     },
   });
   if (!inspecao) {
@@ -211,6 +201,11 @@ export async function syncInspectionToOrdemServico(
   if (!jangada) {
     throw new Error("Jangada não encontrada.");
   }
+  const savedLots = (inspecao.checklistSnapshot as { _articleExpiry?: { replacements?: SyncReplacementItem[] } } | null)?._articleExpiry?.replacements || [];
+  for (const item of artigosSubstituidos) {
+    item.lote = item.lote ?? savedLots.find(row => row.stockId === item.stockId)?.lote;
+  }
+  if (inspecao.jangadaId !== jangadaId) throw new Error("Inspecao e jangada incompatíveis.");
 
   const hasFailedTests = testesReprovados.length > 0;
   const hasReplacements = artigosSubstituidos.length > 0;
@@ -219,16 +214,20 @@ export async function syncInspectionToOrdemServico(
   const duplicateOS = await prisma.ordemServico.findFirst({
     where: {
       inspecaoId,
+      jangadaId,
+      serviceStationId: jangada.serviceStationId,
       status: { notIn: ["concluida", "cancelada"] },
     },
     select: { id: true, numeroOrdem: true },
   });
   if (duplicateOS) {
+    const number = await prisma.$transaction(tx => syncOrderNumber(tx, duplicateOS.id));
     return {
       synced: false,
       action: "skipped" as const,
       message: `Já existe a OT ${duplicateOS.numeroOrdem} associada a esta inspeção.`,
       ordemServicoId: duplicateOS.id,
+      numeroOrdem: number.numeroOrdem,
     };
   }
 
@@ -239,7 +238,8 @@ export async function syncInspectionToOrdemServico(
     const activeJangadaOrders = await prisma.ordemServico.findMany({
       where: {
         jangadaId,
-        inspecaoId: { not: inspecaoId },
+        inspecaoId: null,
+        serviceStationId: jangada.serviceStationId,
         status: { in: ["pendente", "em_progresso"] },
       },
       select: { id: true, numeroOrdem: true, orcamentoStatus: true, inspecaoId: true },
@@ -248,18 +248,21 @@ export async function syncInspectionToOrdemServico(
     });
     if (activeJangadaOrders[0]) {
       const active = activeJangadaOrders[0];
+      let reusedNumber = active.numeroOrdem;
       // Reaproveitar a OT ativa associando-a a esta inspeção (quando ainda não tem nenhuma)
       if (!active.inspecaoId) {
-        await prisma.ordemServico.update({
-          where: { id: active.id },
-          data: { inspecaoId },
+        const result = await prisma.$transaction(async tx => {
+          await tx.ordemServico.update({ where: { id: active.id, inspecaoId: null }, data: { inspecaoId } });
+          return syncOrderNumber(tx, active.id);
         });
+        reusedNumber = result.numeroOrdem;
       }
       return {
         synced: false,
         action: "reusing" as const,
         message: `Já existe a OT ativa ${active.numeroOrdem} para esta jangada. Reutilizada em vez de criar duplicada.`,
         ordemServicoId: active.id,
+        numeroOrdem: reusedNumber,
       };
     }
   }
@@ -290,11 +293,13 @@ export async function syncInspectionToOrdemServico(
   let isIsentoIva = false;
 
   if (orcamento) {
-    inspectionMaterials = (orcamento.linhas || []).map((linha, index) => {
+    inspectionMaterials = await Promise.all((orcamento.linhas || []).map(async (linha, index) => {
+      const stock = await resolveLotStock(prisma, linha, jangada.serviceStationId, true);
       const stockIdNum = linha.stockId != null && linha.stockId !== "" ? Number(linha.stockId) : null;
       return {
         id: linha.id || `orcamento-${index}`,
-        stockId: Number.isFinite(stockIdNum ?? NaN) ? (stockIdNum ?? undefined) : undefined,
+        stockId: Number.isFinite(stockIdNum ?? NaN) ? (stockIdNum ?? undefined) : stock?.id,
+        lote: linha.lote ?? savedLots.find(row => row.stockId === stockIdNum)?.lote ?? stock?.lote ?? null,
         referencia: linha.referencia || "SEM-REF",
         descricao: linha.descricao || "Artigo",
         quantidadePrevista: Number(linha.quantidade) || 0,
@@ -305,7 +310,7 @@ export async function syncInspectionToOrdemServico(
         consumido: true,
         origem: "orcamento" as const,
       };
-    });
+    }));
     valorDesconto = Number(orcamento.valorDesconto) || 0;
     isIsentoIva = Boolean(orcamento.isIsentoIva);
   } else {
@@ -329,8 +334,9 @@ export async function syncInspectionToOrdemServico(
   const durationMinutes = hasFailedTests ? 240 : hasReplacements ? 210 : 180;
 
   const created = await prisma.$transaction(async (tx) => {
+    const canonicalNumber = await canonicalOrderNumber(tx, { numeroOrdem, inspecaoId, jangadaId, shipId, serviceStationId: jangada.serviceStationId });
     const baseMeta = {
-      grupoNumeroOrdem: numeroOrdem,
+      grupoNumeroOrdem: canonicalNumber,
       origem: "auto_sync_inspecao",
       shipId: jangada.shipId ?? undefined,
       shipName: jangada.shipNameManual || undefined,
@@ -363,7 +369,7 @@ export async function syncInspectionToOrdemServico(
 
     const order = await tx.ordemServico.create({
       data: {
-        numeroOrdem,
+        numeroOrdem: canonicalNumber,
         serviceStationId: jangada.serviceStationId,
         jangadaId,
         shipId,
@@ -506,7 +512,7 @@ export async function syncInspectionToOrdemServico(
     tabela: "OrdemServico",
     tipoOperacao: "CREATE",
     idRegisto: created.id,
-    descricao: `OT ${numeroOrdem} criada a partir da inspeção ${inspecao.certificadoNumero}. Testes reprovados: ${testesReprovados.length}. Artigos substituídos: ${artigosSubstituidos.length}.`,
+    descricao: `OT ${created.numeroOrdem} criada a partir da inspeção ${inspecao.certificadoNumero}. Testes reprovados: ${testesReprovados.length}. Artigos substituídos: ${artigosSubstituidos.length}.`,
   });
 
   // Sincronização bidirecional: artigos substituídos na inspeção → jangada
@@ -521,7 +527,7 @@ export async function syncInspectionToOrdemServico(
 
         if (ref) {
           const existente = await prisma.artigoJangada.findFirst({
-            where: { jangadaId, referencia: ref },
+            where: { jangadaId, inspecaoId: null, referencia: ref, stockId: artigo.stockId || null },
             select: { id: true, quantidade: true },
           });
           if (existente) {

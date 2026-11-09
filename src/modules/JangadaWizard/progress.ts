@@ -1,5 +1,7 @@
 import type { InspectionData } from './types';
 import { getWizardSteps } from './steps';
+import { ALL_CHECKLIST_IDS, getChecklistCompletionErrors } from './checklistValidation';
+import { getMandatoryPackItemsForRaft } from '../rafts/mandatoryPack';
 
 export type StepProgress = {
   step: string;
@@ -30,7 +32,6 @@ export function getStepProgress(data: InspectionData, opts?: { hideOrcamento?: b
     artigos: stepArtigosSubstituidosPercent(data),
     resumo: step8Percent(data),
     certificados: step9Percent(data),
-    historico: step10Percent(data),
   };
   return steps.map((s) => makeStep(s.key, results[s.key] || { percent: 0, missing: [] }));
 }
@@ -58,21 +59,12 @@ function step1Percent(d: InspectionData) {
   return { percent: Math.round((filled / fields) * 100), missing };
 }
 
-const ALL_CHECKLIST_IDS = [
-  'cobertura_exterior', 'saida_antena', 'refletores', 'tubo_identificacao', 'costuras_juntas', 'camara_fundos', 'sistema_endireitar', 'bolsas_estabilizacao', 'luz_exterior_bateria', 'escada_borda', 'grinalda_espelhos', 'weak_link_painter',
-  'escada_entrada', 'grinalda_interior', 'anel_linha', 'faca_seguranca', 'cobertura_interior', 'fecho_cobertura', 'colectores_agua', 'manual_instrucoes', 'tecido_camara_fundo', 'luz_interior_bateria',
-  'container_estado', 'fitas_fecho', 'selo_hermetico', 'humidade_interior', 'etiqueta_servico', 'painter_reserva'
-];
-
 function step2Percent(d: InspectionData) {
   const checklist = d.checklist || {};
   const total = ALL_CHECKLIST_IDS.length;
-  const answered = ALL_CHECKLIST_IDS.filter((id) => has(checklist[id]?.status)).length;
-  const reprovados = ALL_CHECKLIST_IDS.filter((id) => checklist[id]?.status === 'REPROVADO').length;
-  const missing: string[] = [];
-  const unverified = total - answered;
-  if (unverified > 0) missing.push(`${unverified} item(s) sem estado`);
-  if (reprovados > 0) missing.push(`${reprovados} reprovado(s) — usar Passo Resumo`);
+  const answered = ALL_CHECKLIST_IDS.filter((id) => ['OK', 'NA', 'SUBSTITUIDO'].includes(checklist[id]?.status || '') ||
+    (checklist[id]?.status === 'REPROVADO' && checklist[id].justificacaoNaoSubstituicao?.trim())).length;
+  const missing = getChecklistCompletionErrors(d);
   return { percent: Math.round((answered / total) * 100), missing };
 }
 
@@ -92,23 +84,23 @@ function step3Percent(d: InspectionData) {
 }
 
 function step4Percent(d: InspectionData) {
-  const items = Object.values(d.packItems || {});
-  if (items.length === 0) return { percent: 0, missing: ['Pack por preencher'] };
-  const substituidos = items.filter((i: any) => Number(i.quantidade) > 0);
-  let answered = items.length;
+  const definitions = getMandatoryPackItemsForRaft({ brand: d.brand, model: d.model, packType: d.packType, capacity: d.capacity as number });
+  if (!definitions.length) return { percent: 0, missing: ['Lista de equipamento por confirmar'] };
+  const items = definitions.map(definition => [definition.checklistName, (d.packItems || {})[definition.checklistName]] as const);
+  const byKey = new Map(definitions.map(item => [item.checklistName, item]));
   const missing: string[] = [];
-  const susSemValidade = substituidos.filter((i: any) => !has(i.validade)).length;
-  if (susSemValidade > 0) {
-    answered -= susSemValidade;
-    missing.push(`${susSemValidade} substituído(s) sem nova validade`);
-  }
-  for (const item of items) {
-    if (!has(item.quantidadeVerificada) && !has(item.quantidade)) {
-      answered -= 1;
-      missing.push('Verificar quantidades do pack');
-      break;
-    }
-  }
+  const answered = items.filter(([key, item]) => {
+    const definition = byKey.get(key)!;
+    const label = item?.name || definition.label || key;
+    const quantity = item?.quantidadeVerificada;
+    const absent = quantity == null || String(quantity).trim() === '' || !Number.isFinite(Number(quantity));
+    const insufficient = !absent && Number(quantity) < Number(definition.quantity);
+    const missingValidity = definition.validityFieldName && Number(item?.quantidade) > 0 && !has(item?.validade);
+    if (absent) missing.push(`${label}: quantidade verificada em falta`);
+    else if (insufficient) missing.push(`${label}: quantidade verificada ${quantity}; necessária ${definition.quantity}`);
+    if (missingValidity) missing.push(`${label}: validade da substituição em falta`);
+    return !absent && !insufficient && !missingValidity;
+  }).length;
   return {
     percent: items.length ? Math.round((answered / items.length) * 100) : 100,
     missing,
@@ -197,8 +189,4 @@ function step8Percent(d: InspectionData) {
 
 function step9Percent(d: InspectionData) {
   return { percent: has(d.certificadoNumero) || d._certGenerated ? 100 : 0, missing: [] };
-}
-
-function step10Percent(_d: InspectionData) {
-  return { percent: 100, missing: [] };
 }

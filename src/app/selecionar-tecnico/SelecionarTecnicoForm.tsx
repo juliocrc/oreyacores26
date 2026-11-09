@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
-import { useRouter } from "next/navigation";
+import { resolveLoginCallback } from "@/lib/login-callback";
 import { ArrowRight, Loader2, MapPin } from "lucide-react";
 import { selecionarTecnico, type SelecaoState } from "./actions";
 
@@ -122,7 +122,7 @@ export function SelecionarTecnicoForm({
   callbackUrl: string;
 }) {
   const [estado, formAction] = useActionState<SelecaoState, FormData>(selecionarTecnico, {});
-  const router = useRouter();
+  const navigating = React.useRef(false);
   const [selectedId, setSelectedId] = React.useState<number | null>(null);
   const [estacaoId, setEstacaoId] = React.useState<EstacaoEscolhida>(estacaoInicialId ?? "todas");
 
@@ -133,10 +133,11 @@ export function SelecionarTecnicoForm({
   );
 
   React.useEffect(() => {
-    if (!estado.ok) return;
-    router.replace(callbackUrl);
-    router.refresh();
-  }, [estado.ok, callbackUrl, router]);
+    if (!estado.ok || navigating.current) return;
+    navigating.current = true;
+    // Remount SessionProvider from the cookies written by the server action.
+    window.location.replace(resolveLoginCallback(callbackUrl));
+  }, [estado.ok, callbackUrl]);
 
   const visiveis = React.useMemo(
     () => (estacaoId === "todas" ? tecnicos : tecnicos.filter((t) => t.estacaoId === estacaoId)),

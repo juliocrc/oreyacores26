@@ -3,7 +3,7 @@ import { APP_CONFIG } from './lib/app-config';
 
 export type AppThemeName = 'azores' | 'altoContraste';
 
-export const DEFAULT_APP_THEME: AppThemeName = 'azores';
+export const DEFAULT_APP_THEME: AppThemeName = 'altoContraste';
 
 type ThemePreset = {
   label: string;

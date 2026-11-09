@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthSession } from "@/auth";
+import prisma from "@/lib/prisma";
 import { buildPortalClienteData } from "@/lib/portal-cliente";
 
 export const runtime = "nodejs";
@@ -24,6 +25,20 @@ export async function GET(request: Request) {
         { error: "Esta conta não está associada a nenhum cliente." },
         { status: 403 },
       );
+    }
+
+    // O JWT já valida isto, mas mantemos uma segunda barreira para o portal.
+    if (user.role !== "ADMIN") {
+      const access = await prisma.cliente.findUnique({
+        where: { id: clienteId },
+        select: { portalAtivo: true },
+      });
+      if (!access || !access.portalAtivo) {
+        return NextResponse.json(
+          { error: "O acesso ao portal está suspenso. Contacte a Orey Técnica." },
+          { status: 403 },
+        );
+      }
     }
 
     const data = await buildPortalClienteData(clienteId);

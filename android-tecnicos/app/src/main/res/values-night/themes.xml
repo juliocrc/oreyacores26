@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.OreyTecnicos" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:windowBackground">@color/orey_background</item>
+        <item name="android:statusBarColor">@color/orey_primary_dark</item>
+        <item name="android:navigationBarColor">@color/orey_primary_dark</item>
+        <item name="android:colorAccent">@color/orey_primary</item>
+        <item name="android:textColorPrimary">@color/orey_text_primary</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+
+    <style name="Theme.OreyTecnicos.HighContrast" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:windowBackground">@color/orey_black</item>
+        <item name="android:statusBarColor">@color/orey_black</item>
+        <item name="android:navigationBarColor">@color/orey_black</item>
+        <item name="android:colorAccent">@color/orey_white</item>
+        <item name="android:textColorPrimary">@color/orey_white</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+</resources>

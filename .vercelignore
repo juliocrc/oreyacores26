@@ -9,6 +9,7 @@ Maritime_Vessel_Tracking-main/
 # Bases SQLite locais: em producao a app usa PostgreSQL (Supabase). Sem isto o
 # deploy carregava ~54 MB de backups e uma copia da base de dados.
 /backups/
+/faturas oficiais/
 prisma/local.db*
 supabase/.temp/
 .agents/
@@ -25,3 +26,129 @@ supabase/.temp/
 /genealogy/
 /navios de contentores/
 /carimbooreyazores.jpg
+
+# Segredos e dados locais tambem excluidos pelo Git.
+.vercel-env-inspect
+.vercel.env.*
+.rclone-crypt-pass.txt
+*.pem
+*.log
+*.bak
+prisma/local_*.db*
+prisma/dev.db*
+prisma/instances/
+prisma/backups/
+prisma/logs/
+/.opencode/
+/bin/
+/terminal_logs/
+/auditorias_documentos/
+/cruzeirocanal26/
+/cruzeiroilhas24/
+/CERTIFICADOS 2026/
+/manuais/
+/documentacao/
+/public/NAVIOS ACORES/
+/public/NAVIOS AÇORES/
+/public/certificados-organizados/
+/public/navios/Nanci Maria/
+/public/navios/Seaweed/
+/src/seed-admin-user.cjs
+scripts/set-password.ts
+scripts/_alexis_debug.cjs
+scripts/_cruzeiro_das_ilhas_*.cjs
+scripts/_diag_*.cjs
+scripts/_diagnostico_iris.cjs
+scripts/_diff_jangadas.cjs
+scripts/_div_*.cjs
+scripts/_divergencias_supabase.cjs
+scripts/_probe_*.cjs
+scripts/_sync_navios_clientes.cjs
+scripts/associar_iris.cjs
+scripts/check_all.cjs
+scripts/check_constraints.cjs
+scripts/check_counts.cjs
+scripts/check_serial.cjs
+scripts/criar_iris_mar.cjs
+scripts/cruzar_dados.cjs
+scripts/datas_fabrico_iris.cjs
+scripts/drop_fk.cjs
+scripts/fix_seq.cjs
+scripts/forcar_associacao_iris.cjs
+scripts/import_fast*.cjs
+scripts/limpar_orfandade.cjs
+scripts/preview-supabase-import.ps1
+scripts/show-supabase-summary.cjs
+scripts/sync_faltantes_supabase.cjs
+scripts/sync_jangadas_exact.cjs
+
+# Historico local de clientes/estacoes; nao usado pela app nem pelo build.
+/cruzeiroilhas23/
+/instances/
+/marinha/
+/docs/
+
+# Relatorios de testes, caches e metadados de ferramentas locais.
+/coverage/
+/scripts/e2e/
+/e2e/
+/test-results/
+/playwright-report/
+__pycache__/
+*.pyc
+*.tsbuildinfo
+.cache/
+/.git/
+/.vercel/
+/.github/
+/opencode.json
+/skills-lock.json
+
+# Dumps e resultados de operacoes manuais (manter scripts de build/runtime).
+/scripts/jangadas_result.json
+/scripts/_*.json
+/scripts/_*.jsonl
+/scripts/_eliminar_nao_pt_log.txt
+/scripts/_tmp_*
+/scripts/tmp-*
+/scripts/_saida_*
+/_merge_ships.cjs
+/fix_schema*.js
+/clean_pkg.js
+
+# Documentos privados/originais sem leitura em runtime. Nao ignorar PDFs/XLSX
+# globalmente: templates/, public/ e o PDF de contactos usado pela API ficam.
+/certificate_of_approval_50937.pdf
+/Ocean ISO Service Manual 2020.pdf
+/Service Station Spares 2021.pdf
+/Factura Proforma PRV200169.pdf
+/FF 2026008 - MARGARETHE.pdf
+/OREY AZORES MAR 17 AUDIT.pdf
+/OREY AZORES FEV 17 RFD Spares form fev 2017.xlsx
+/OREY AZORES FEV17 DSB Spares Form FEV 2017.xlsx
+/Manuten??o de ar comprimido v.2.xlsx
+/Ficha de Abate de Jangadas PT.doc
+/CERTIFICADODGMR2.jpg
+/CERTIFICADODGRM1.jpg
+/extintoresgoraz.jpg
+/pontos_pesca_costa_norte_sao_miguel.*
+
+# Arranque/empacotamento de estacoes locais e deploys alternativos.
+/*.bat
+/*.ps1
+/*.lnk
+/app_icon.ico
+/GESTOR_NAVAL.ico
+/deploy/
+/deploy-google-cloudrun.sh
+/deploy-oracle.sh
+/docker-entrypoint*.sh
+/Dockerfile*
+/docker-compose.yml
+/render.yaml
+
+# Projetos Android e APKs por estacao: nao fazem parte do site.
+# stations/stations.json fica porque o modulo /aplicacoes o le no build.
+/dist/
+/android-tecnicos/
+/android-clientes/

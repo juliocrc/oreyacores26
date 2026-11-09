@@ -6,7 +6,6 @@ import {
   Mail,
   MessageSquare,
   MessageSquareText,
-  Phone,
   X,
   Loader2,
   Flame,
@@ -114,7 +113,7 @@ function buildMessage(a: Alerta): string {
   const saudacao = nome ? `Olá ${nome},` : "Olá,";
   const navio = (a.navioNome || "").trim();
   const data = a.data ? formatDateAuto(a.data) : "—";
-  const assinatura = "\n\nCom os melhores cumprimentos,\nOrey Azores";
+  const assinatura = "\n\nCom os melhores cumprimentos,\nOrey Tecnica- Serviços Navais, Lda";
 
   if (a.tipo === "assistencia") {
     return `${saudacao}\n\nRecebemos o seu pedido de assistência${navio ? ` relativo à embarcação "${navio}"` : ""} (${a.referencia}). Vamos analisar o pedido e entrar em contacto para agendar a intervenção.${assinatura}`;
@@ -169,27 +168,25 @@ export default function AlertasPage() {
   const [isNotifying, setIsNotifying] = useState(false);
   const [selectedAlert, setSelectedAlert] = useState<Alerta | null>(null);
   const [contactInfo, setContactInfo] = useState<{ name: string; email: string; phone: string } | null>(null);
-  const [canal, setCanal] = useState<"whatsapp" | "sms" | "email" | "chamada">("whatsapp");
+  const [canal, setCanal] = useState<"whatsapp" | "sms" | "email">("whatsapp");
   const [messageText, setMessageText] = useState("");
   const [emailSubject, setEmailSubject] = useState("");
   const [sendingSms, setSendingSms] = useState(false);
   const [sendStatus, setSendStatus] = useState<{ ok: boolean; text: string } | null>(null);
 
-  const CANAIS: { key: "whatsapp" | "sms" | "email" | "chamada"; label: string; icon: React.ElementType }[] = [
+  const CANAIS: { key: "whatsapp" | "sms" | "email"; label: string; icon: React.ElementType }[] = [
     { key: "whatsapp", label: "WhatsApp", icon: MessageSquare },
     { key: "sms", label: "SMS", icon: MessageSquareText },
     { key: "email", label: "E-mail", icon: Mail },
-    { key: "chamada", label: "Chamada", icon: Phone },
   ];
 
-  const canalNeedsPhone = canal === "whatsapp" || canal === "sms" || canal === "chamada";
+  const canalNeedsPhone = canal === "whatsapp" || canal === "sms";
   const canalDisabled = canalNeedsPhone ? !contactInfo?.phone : !contactInfo?.email;
 
   const canalHint = () => {
     if (!contactInfo) return "";
     if (canal === "whatsapp") return `Será aberto no WhatsApp para ${contactInfo.phone || "telemóvel não indicado"}.`;
     if (canal === "sms") return `Enviado por SMS (gateway) para ${contactInfo.phone || "telemóvel não indicado"}.`;
-    if (canal === "chamada") return `Ligação telefónica para ${contactInfo.phone || "telemóvel não indicado"}.`;
     return `Enviado a partir do seu cliente de e-mail para ${contactInfo.email || "endereço não indicado"}.`;
   };
 
@@ -245,31 +242,6 @@ export default function AlertasPage() {
 
     if (canal === "sms") {
       await handleSendSms();
-      return;
-    }
-
-    if (canal === "chamada" && number) {
-      setSendStatus({ ok: true, text: `A disparar chamada VoIP automática para ${contactInfo.phone}...` });
-      try {
-        const res = await fetch("/api/comunicacoes/voip-call", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              clienteNome: contactInfo.name || "Exmo. Cliente",
-              telefone: `+${number}`,
-              jangadaModel: selectedAlert?.referencia || "Jangada Salva-vidas",
-              capacidade: "12",
-              serial: selectedAlert?.referencia || "S/N",
-              navioNome: selectedAlert?.navioNome || "Embarcação",
-              dataValidade: selectedAlert?.data || "22/10/2026",
-            }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Falha na chamada VoIP.");
-        setSendStatus({ ok: true, text: `Chamada VoIP IA iniciada com sucesso para ${contactInfo.phone}!` });
-      } catch (err: any) {
-        setSendStatus({ ok: false, text: err?.message || "Erro ao iniciar chamada VoIP." });
-      }
       return;
     }
 
@@ -654,7 +626,7 @@ export default function AlertasPage() {
 
               <div>
                 <label className="block text-xs font-bold uppercase text-slate-400 mb-1">Meio de Notificação</label>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   {CANAIS.map((c) => {
                     const Icon = c.icon;
                     const ativo = canal === c.key;
@@ -696,7 +668,7 @@ export default function AlertasPage() {
 
               <div>
                 <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
-                  {canal === "chamada" ? "Mensagem (guião da chamada)" : "Corpo da Mensagem"}
+                  Corpo da Mensagem
                 </label>
                 <textarea
                   rows={6}
@@ -723,8 +695,6 @@ export default function AlertasPage() {
                     ? "bg-emerald-600 hover:bg-emerald-700"
                     : canal === "sms"
                     ? "bg-amber-600 hover:bg-amber-700"
-                    : canal === "chamada"
-                    ? "bg-indigo-600 hover:bg-indigo-700"
                     : "bg-blue-600 hover:bg-blue-700"
                 }`}
               >
@@ -742,8 +712,6 @@ export default function AlertasPage() {
                   ? "Enviar WhatsApp"
                   : canal === "sms"
                   ? "Enviar SMS"
-                  : canal === "chamada"
-                  ? "Iniciar Chamada"
                   : "Abrir E-mail"}
               </button>
               <button

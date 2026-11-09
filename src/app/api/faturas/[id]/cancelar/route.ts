@@ -11,8 +11,9 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     }
 
     const { id: rawId } = await context.params;
+    if (!access.isAdmin) return NextResponse.json({ error: "Acesso reservado a administradores." }, { status: 403 });
     const faturaId = Number(rawId);
-    if (!Number.isFinite(faturaId) || faturaId <= 0) {
+    if (!Number.isSafeInteger(faturaId) || faturaId <= 0) {
       return NextResponse.json({ error: "ID inválido." }, { status: 400 });
     }
 

@@ -11,7 +11,8 @@ import {
   getGoogleCalendarConfig,
   saveGoogleCalendarConfig,
 } from "@/lib/google-calendar-config";
-import { parseAgendaDateFlexible } from "@/lib/agenda-page-helpers";
+import { parseAgendaDateFlexible, computeOperationalEnd } from "@/lib/agenda-page-helpers";
+import { resolveAgendaDuration } from "@/types/agenda";
 
 const MAP_PATH = path.join(process.cwd(), "_meta", "google-calendar-map.json");
 
@@ -382,11 +383,11 @@ export async function syncAgendaToGoogleCalendar(): Promise<GoogleCalendarSyncRe
         if (status === "completed" || status === "no_show") continue;
 
         const start = ev.date;
-        const end = new Date(start.getTime() + (ev.durationMinutes || 210) * 60 * 1000);
+        const end = computeOperationalEnd(start, resolveAgendaDuration(ev));
         const eventKind = String(ev.type || "").trim() === "Entrega" ? "Entrega" : "Inspeção";
         const summary = `${eventKind} ${ev.raftSerial} — ${ev.title}`;
         const description = [
-          "App Orey Açores — Agenda",
+          "App Orey Tecnica- Serviços Navais, Lda — Agenda",
           `Jangada: ${ev.raftSerial}`,
           `Responsável: ${ev.responsavel || "—"}`,
           `Tipo: ${ev.inspectionType || "outro"}`,
@@ -460,7 +461,7 @@ export async function syncAgendaToGoogleCalendar(): Promise<GoogleCalendarSyncRe
         const summary = `⚠ Caduca hoje — ${r.serial}`;
         const due = r.dataProxInspecao ? parseAgendaDateFlexible(r.dataProxInspecao) : null;
         const description = [
-          "App Orey Açores — Caducidade de inspeção",
+          "App Orey Tecnica- Serviços Navais, Lda — Caducidade de inspeção",
           `Jangada: ${r.serial}`,
           r.model && String(r.model).trim() ? `Modelo: ${String(r.model).trim()}` : "",
           r.shipNameManual && r.shipNameManual.trim() ? `Navio: ${r.shipNameManual.trim()}` : "",

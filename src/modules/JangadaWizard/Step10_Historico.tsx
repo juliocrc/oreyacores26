@@ -5,8 +5,8 @@ import { History, Calendar, User, FileCheck, ArrowLeft, Search, FileText, Refres
 import { useRouter } from 'next/navigation';
 import { formatDateDisplay } from '@/lib/date-display';
 
-export default function Step10_Historico() {
-  const { jangadaId, inspecoes, setInspecoes, setStep } = useJangadaWizardStore();
+export default function Step10_Historico({ onClose }: { onClose: () => void }) {
+  const { jangadaId, inspecoes, setInspecoes } = useJangadaWizardStore();
   const router = useRouter();
   const [busca, setBusca] = useState('');
   const [anoFiltro, setAnoFiltro] = useState('');
@@ -63,7 +63,7 @@ export default function Step10_Historico() {
   };
 
   const downloadDossierPdf = (inspId: number) => {
-    window.open(`/api/certificados/pdf?inspecaoId=${inspId}`, '_blank');
+    window.open(`/api/certificados/pdf?inspecaoId=${inspId}&jangadaId=${jangadaId}`, '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -185,11 +185,11 @@ export default function Step10_Historico() {
 
       <div className="flex flex-wrap items-center justify-between gap-3 pt-6 border-t border-slate-200">
         <button
-          onClick={() => setStep(1)}
+          onClick={onClose}
           className="px-6 py-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-bold flex items-center gap-2 transition-colors"
         >
           <ArrowLeft size={20} />
-          Voltar ao Resumo
+          Voltar à inspeção
         </button>
         <button
           onClick={() => router.refresh()}

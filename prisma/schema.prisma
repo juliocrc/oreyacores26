@@ -379,12 +379,39 @@ model Cliente {
   users                   User[]
   verificationCode        String?
   verificationCodeExpires DateTime?
+  portalAtivo          Boolean         @default(true)
+  portalSessionVersion Int             @default(0)
+  portalDevices        PortalDevice[]
 
   @@index([serviceStationId])
   @@index([ilha])
   @@index([nome])
   @@index([nif])
   @@index([codigoPostal])
+  @@index([portalAtivo])
+}
+
+/// Dispositivo registado no portal do cliente (app Android). Permite listar
+/// as sessões ativas e revogar apenas um dispositivo sem suspender o cliente.
+model PortalDevice {
+  id               Int       @id @default(autoincrement())
+  clienteId        Int
+  deviceId         String
+  sessionVersion   Int       @default(0)
+  app              String?
+  modelo           String?
+  osVersion        String?
+  appVersion       String?
+  serviceStationId Int?
+  ultimoAcesso     DateTime  @default(now())
+  revogado         Boolean   @default(false)
+  revogadoEm       DateTime?
+  criadoEm         DateTime  @default(now())
+  cliente          Cliente   @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@unique([clienteId, deviceId])
+  @@index([clienteId, revogado])
+  @@index([deviceId])
 }
 
 model ContactoInterno {
@@ -535,7 +562,7 @@ model AgendaEvento {
   status              String          @default("scheduled")
   type                String          @default("Inspeção")
   inspectionType      String          @default("outro")
-  durationMinutes     Int             @default(210)
+  durationMinutes     Int             @default(180)
   bufferBeforeMinutes Int             @default(15)
   bufferAfterMinutes  Int             @default(15)
   createdAt           DateTime        @default(now())
@@ -816,7 +843,7 @@ model Stock {
   pedidoReposicaoLinhas  PedidoReposicaoLinha[]
   ordensCompraLinha      OrdemCompraLinha[]
 
-  @@unique([referencia, serviceStationId])
+  @@unique([referencia, serviceStationId, lote])
   @@index([categoria])
   @@index([associavelJangada])
   @@index([aplicavelMarcaJangada])
@@ -864,6 +891,9 @@ model CustomPackTypeItem {
 }
 
 model MovimentacaoStock {
+  reversaoDeId      Int?             @unique
+  reversaoDe        MovimentacaoStock? @relation("StockReversal", fields: [reversaoDeId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  estorno           MovimentacaoStock? @relation("StockReversal")
   id                Int              @id @default(autoincrement())
   stockId           Int
   stock             Stock            @relation(fields: [stockId], references: [id], onDelete: Cascade)
@@ -1510,6 +1540,11 @@ model Comunicacao {
 }
 
 model DeclaracaoIsencaoIva {
+  clienteId        Int?
+  navioId          Int?
+  snapshotJson     String?
+  pdfAssinadoMeta  String?
+  idempotencyKey   String? @unique
   id               Int      @id @default(autoincrement())
   numeroSequencial Int // sequência do ano (1, 2, 3, ...)
   ano              Int
@@ -1527,6 +1562,9 @@ model DeclaracaoIsencaoIva {
 
   @@index([ano])
   @@index([numeroSequencial])
+  @@unique([ano, numeroSequencial])
+  @@index([clienteId, dataEmissao])
+  @@index([navioId, dataEmissao])
 }
 
 model PortoEscala {

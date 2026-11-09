@@ -29,6 +29,7 @@ export async function buildCarimbadoCertificatePdf(params: {
   shipName?: string | null;
   ownerName?: string | null;
   station?: CarimbadoStation;
+  preserveSavedChecklist?: boolean;
 }): Promise<{ buffer: Buffer; input: InspectionCertificateInput; fileName: string }> {
   const { jangada, lastInspecao, ship, shipName, ownerName, station } = params;
 
@@ -39,6 +40,7 @@ export async function buildCarimbadoCertificatePdf(params: {
       shipName: shipName ?? undefined,
       ownerName: ownerName ?? undefined,
       stampStationCode: station?.codigo ?? null,
+      preserveSavedChecklist: params.preserveSavedChecklist,
     }),
   );
 

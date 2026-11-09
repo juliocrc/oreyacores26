@@ -3,7 +3,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { useFatoImersaoWizardStore } from "./store/useFatoImersaoWizardStore";
-import { computeNextServiceDate } from "@/lib/fatos-imersao-checklist";
 import { toDisplayDate, normalizeDateInput } from "@/lib/fato-date-utils";
 
 type Props = { onNext: () => void };
@@ -19,20 +18,6 @@ export default function Step1_Identificacao({ onNext }: Props) {
       .catch(() => {});
   }, []);
 
-  useEffect(() => {
-    if (!inspectionData.dataInspecao) return;
-    const { dataProx, meses } = computeNextServiceDate(
-      inspectionData.dataInspecao,
-      inspectionData.dataFabrico,
-      inspectionData.usoRegular,
-      inspectionData.intervaloServicoMeses
-    );
-    if (inspectionData.dataProxInspecao !== dataProx) {
-      setInspectionData({ dataProxInspecao: dataProx, intervaloServicoMeses: meses });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inspectionData.dataInspecao, inspectionData.dataFabrico, inspectionData.usoRegular]);
-
   const marcas = Array.from(new Set(catalog.map((c) => c.marca).filter(Boolean)));
   const modelos = catalog
     .filter((c) => !inspectionData.brand || c.marca === inspectionData.brand)
@@ -46,6 +31,7 @@ export default function Step1_Identificacao({ onNext }: Props) {
         <p className="text-slate-600 dark:text-slate-400 mt-1">
           Dados do fato (Crewsaver / Viking / Lalizas) e ciclo de serviço.
         </p>
+        <p className="mt-2 text-sm text-amber-800">Confirme a próxima inspeção segundo o fabricante, a utilização, a aprovação e o manual vigente. Uma data já registada não é automaticamente recalculada.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -149,9 +135,7 @@ export default function Step1_Identificacao({ onNext }: Props) {
             className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50"
             placeholder="dd/mm/aaaa"
           />
-          <span className="text-xs text-slate-400">
-            Auto: {inspectionData.usoRegular ? "anual (uso regular)" : "3 anos / 1 ano se ≥10 anos"}
-          </span>
+          <span className="text-xs text-slate-400">Introduza e confirme a data aplicável.</span>
         </label>
         <label className="text-sm">
           <span className="font-semibold text-slate-600">Inspetor</span>
@@ -168,7 +152,7 @@ export default function Step1_Identificacao({ onNext }: Props) {
             onChange={(e) => setInspectionData({ usoRegular: e.target.checked })}
             className="rounded"
           />
-          <span className="font-semibold text-slate-700">Uso regular (serviço anual Viking)</span>
+          <span className="font-semibold text-slate-700">Uso regular (confirmar requisitos aplicáveis)</span>
         </label>
         <label className="text-sm md:col-span-2">
           <span className="font-semibold text-slate-600">Navio</span>

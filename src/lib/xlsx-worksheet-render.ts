@@ -36,6 +36,10 @@ export type WorksheetLayout = {
 };
 
 export type RenderWorksheetOptions = {
+  /** Optional PDF-only placement within a page, instead of worksheet margins. */
+  contentBox?: { x: number; y: number; width: number; height: number };
+  /** Fit every value inside its cell without truncation. */
+  fitCellText?: boolean;
   pageWidthMm?: number;
   pageHeightMm?: number;
   maxScale?: number;
@@ -180,8 +184,8 @@ export function computeWorksheetLayout(
   const contentHeight = cursorY;
 
   const margins = getPageMarginsMm(worksheet);
-  const printableW = pageWidthMm - margins.left - margins.right;
-  const printableH = pageHeightMm - margins.top - margins.bottom;
+  const printableW = options.contentBox?.width ?? pageWidthMm - margins.left - margins.right;
+  const printableH = options.contentBox?.height ?? pageHeightMm - margins.top - margins.bottom;
   const scale = Math.min(
     maxScale,
     contentWidth > 0 ? printableW / contentWidth : maxScale,
@@ -192,9 +196,9 @@ export function computeWorksheetLayout(
   const scaledWidth = contentWidth * scale;
   const scaledHeight = contentHeight * scale;
   const offsetX =
-    margins.left + (setup.horizontalCentered ? Math.max(0, (printableW - scaledWidth) / 2) : 0);
+    (options.contentBox?.x ?? margins.left) + (setup.horizontalCentered ? Math.max(0, (printableW - scaledWidth) / 2) : 0);
   const offsetY =
-    margins.top + (setup.verticalCentered ? Math.max(0, (printableH - scaledHeight) / 2) : 0);
+    (options.contentBox?.y ?? margins.top) + (setup.verticalCentered ? Math.max(0, (printableH - scaledHeight) / 2) : 0);
 
   const cellRect = (top: number, left: number, bottom: number, right: number) => {
     const x = offsetX + (colLeft.get(left) ?? 0) * scale;
@@ -316,7 +320,7 @@ export function renderWorksheetToPdf(
 
       const tlCol = (range.tl.nativeCol ?? 0) + 1;
       const tlRow = (range.tl.nativeRow ?? 0) + 1;
-      const tl = layout.cellRect(tlCol, tlRow, tlCol, tlRow);
+       const tl = layout.cellRect(tlRow, tlCol, tlRow, tlCol);
       const x = tl.x + ((range.tl.nativeColOff ?? 0) / EMU_PER_MM) * scale;
       const y = tl.y + ((range.tl.nativeRowOff ?? 0) / EMU_PER_MM) * scale;
 
@@ -331,7 +335,7 @@ export function renderWorksheetToPdf(
       } else if (range.br) {
         const brCol = (range.br.nativeCol ?? 0) + 1;
         const brRow = (range.br.nativeRow ?? 0) + 1;
-        const br = layout.cellRect(brCol, brRow, brCol, brRow);
+         const br = layout.cellRect(brRow, brCol, brRow, brCol);
         const right = br.x + ((range.br.nativeColOff ?? 0) / EMU_PER_MM) * scale;
         const bottom = br.y + ((range.br.nativeRowOff ?? 0) / EMU_PER_MM) * scale;
         width = Math.max(1, right - x);
@@ -397,14 +401,26 @@ export function renderWorksheetToPdf(
       const rect = layout.cellRect(region.top, region.left, region.bottom, region.right);
 
       const font = cell.font || {};
-      const sizePt = (typeof font.size === "number" ? font.size : 10) * scale;
+      if (text === '☑' || text === '☐') {
+        const side = Math.min(2.2, rect.h * 0.65);
+        const x = rect.x + rect.w / 2 - side / 2;
+        const y = rect.y + rect.h / 2 - side / 2;
+        doc.setDrawColor(0, 0, 0);
+        doc.rect(x, y, side, side);
+        if (text === '☑') {
+          doc.line(x + side * 0.15, y + side * 0.5, x + side * 0.4, y + side * 0.8);
+          doc.line(x + side * 0.4, y + side * 0.8, x + side * 0.9, y + side * 0.15);
+        }
+        continue;
+      }
+      let sizePt = (typeof font.size === "number" ? font.size : 10) * scale;
       const style = font.bold && font.italic ? "bolditalic" : font.bold ? "bold" : font.italic ? "italic" : "normal";
       doc.setFont("helvetica", style);
       doc.setFontSize(sizePt);
       const [r, g, b] = parseColor(font.color, [0, 0, 0]);
       doc.setTextColor(r, g, b);
 
-      const padding = 0.6 + (cell.alignment?.indent || 0) * 1.5;
+      const padding = (0.6 + (cell.alignment?.indent || 0) * 1.5) * (options.fitCellText ? scale : 1);
       const horizontal = cell.alignment?.horizontal || "left";
       const maxWidth = Math.max(1, rect.w - padding * 2);
       const normalized = text.replace(/\r\n/g, "\n");
@@ -412,6 +428,14 @@ export function renderWorksheetToPdf(
         ? doc.splitTextToSize(normalized, maxWidth)
         : normalized.split("\n");
       const lines = Array.isArray(wrapped) ? wrapped : [String(wrapped)];
+      if (options.fitCellText || (cell.alignment?.shrinkToFit && typeof cell.value === 'string')) {
+        // Keep the existing wrapping, fitting both long lines and multiline blocks.
+        const widest = Math.max(...lines.map((line: string) => doc.getTextWidth(line)));
+        const height = lines.length * sizePt * (25.4 / 72) * 1.12;
+        const fit = Math.min(1, maxWidth / (widest || 1), Math.max(0.1, rect.h - 0.4) / height);
+        sizePt *= fit;
+        doc.setFontSize(sizePt);
+      }
       const lineMm = sizePt * (25.4 / 72) * 1.12;
 
       const blockHeight = lines.length * lineMm;

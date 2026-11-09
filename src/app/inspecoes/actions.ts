@@ -1,20 +1,26 @@
 "use server";
 
 import prisma from "@/lib/prisma";
+import { assertEditVersion, expectedVersion, nextEditVersion, EditConflictError } from '@/lib/edit-conflict';
 import { Prisma } from "@prisma/client";
 import { logAuditoria } from "@/lib/auditoria";
-import { parseOrdemServicoMeta, toOrdemServicoMetaJson } from "@/lib/ordens-servico";
+import { parseOrdemServicoMeta, toOrdemServicoMetaJson, resolveLotStock } from "@/lib/ordens-servico";
 import { toCanonicalDateStr } from "@/lib/date-display";
 import { getIvaRate } from "@/lib/iva";
-import { stampInspectionWithDigest } from "@/lib/integrity-stamp";
+import { computeInspectionDigest, INTEGRITY_VERSION } from "@/lib/integrity-stamp";
 import { reverterMovimentosInspecao } from "@/lib/stock/inspecao-sync";
 import { saveInspectionSchema } from "@/lib/validation/inspecao-payload";
 import { getAccessContext } from "@/lib/access-control";
 import { evaluateInspectionEdit, isInspectionLocked, InspectionLockedError } from "@/lib/inspecao-lock";
 import { resolveStationPrefix } from "@/lib/service-station-input";
+import { isServiceResourceReference } from '@/lib/stock-reference-rules';
+import { syncRaftChecklistDrivenArtigos } from '@/lib/checklist-sync';
+import { resolveOrderNumber, syncOrderNumber } from '@/lib/order-number';
+import { isHammarH20RReference, validateHammarH20R } from '@/lib/hammar-h20';
 
 type SaveInspectionReplacementItem = {
   stockId?: number | null;
+  lote?: string | null;
   referencia?: string | null;
   descricao?: string | null;
   quantidade?: number | null;
@@ -25,6 +31,8 @@ type SaveInspectionReplacementItem = {
 };
 
 type SaveInspectionPayload = {
+  expectedUpdatedAt?: string;
+  expectedRaftUpdatedAt?: string;
   id?: string | number;
   shipId?: string | number | null;
   raftId?: string | number | null;
@@ -60,6 +68,7 @@ orcamento?: {
       linhas?: Array<{
         id?: string;
         stockId?: number | string | null;
+        lote?: string | null;
         referencia?: string | null;
         descricao?: string | null;
         quantidade?: number | null;
@@ -200,6 +209,42 @@ export async function generateNextObraNumber(referenceDate?: string | Date | nul
   return candidate;
 }
 
+/**
+ * Obra de uma jangada: usa o número da ordem de serviço ativa (FO10xxxxxx),
+ * que é o número oficial da obra. Só quando não existe OS ativa é que se
+ * recorre ao número OBR-AAAAMMDD-NNN gerado a partir da data da inspeção.
+ */
+export async function resolveObraNumberForRaft(params: { raftId?: number | null; serial?: string | null }) {
+  const requestedId = Number(params.raftId);
+  let raftId = Number.isFinite(requestedId) && requestedId > 0 ? requestedId : null;
+  const serial = String(params.serial || "").trim();
+
+  if (!raftId && serial) {
+    const raft = await prisma.jangada.findFirst({
+      where: { serial: { equals: serial } },
+      select: { id: true },
+    });
+    raftId = raft?.id ?? null;
+  }
+  if (!raftId) return null;
+
+  const ordem = await prisma.ordemServico.findFirst({
+    where: {
+      OR: [
+        { jangadaId: raftId },
+        { ordemJangadas: { some: { jangadaId: raftId } } },
+      ],
+      status: { notIn: ["concluida", "cancelada"] },
+      numeroOrdem: { startsWith: "FO" },
+    },
+    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+    select: { numeroOrdem: true },
+  });
+
+  const numero = String(ordem?.numeroOrdem || "").trim();
+  return numero || null;
+}
+
 function normalizeMonthYearToDate(value: unknown): Date | null {
   const raw = String(value ?? "").trim();
   if (!raw) return null;
@@ -222,6 +267,7 @@ function normalizeMonthYearToDate(value: unknown): Date | null {
 function normalizeReplacements(input: unknown) {
   if (!Array.isArray(input)) return [] as Array<{
     stockId: number | null;
+    lote: string | null;
     referencia: string | null;
     codigoFabricante: string | null;
     name: string;
@@ -241,6 +287,7 @@ function normalizeReplacements(input: unknown) {
       if (!name) return null;
       return {
         stockId: Number.isFinite(Number(row.stockId)) && Number(row.stockId) > 0 ? Number(row.stockId) : null,
+        lote: row.lote == null ? null : String(row.lote).trim(),
         referencia,
         codigoFabricante,
         name,
@@ -251,6 +298,7 @@ function normalizeReplacements(input: unknown) {
     })
     .filter((row): row is {
       stockId: number | null;
+      lote: string | null;
       referencia: string | null;
       codigoFabricante: string | null;
       name: string;
@@ -267,6 +315,8 @@ async function normalizeCertificadoNumero(payload: SaveInspectionPayload, statio
 }
 
 export async function saveInspection(payload: SaveInspectionPayload) {
+  const expected = expectedVersion(payload?.expectedUpdatedAt);
+  const expectedRaft = expectedVersion(payload?.expectedRaftUpdatedAt);
   const validated = saveInspectionSchema.safeParse(payload ?? {});
   if (!validated.success) {
     const details = validated.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
@@ -281,14 +331,33 @@ export async function saveInspection(payload: SaveInspectionPayload) {
   const dataProxInspecao = toCanonicalDateStr(String(payload.dataProxInspecao || "").trim()) || null;
   const applyStockMovements = payload.applyStockMovements === true;
 
+  // Check the same H20 R decision at the server boundary, not only in the UI.
+  const hru = payload as SaveInspectionPayload & Record<string, unknown>;
+  const finalInspection = applyStockMovements || /^(?:conclu[ií]da|condenada)$/i.test(String(payload.status || '').trim());
+  if (finalInspection && hru.hruSubstituido === true && isHammarH20RReference(hru.hruReference)) {
+    const issue = validateHammarH20R({ verified: hru.hruHammarVerified, installation: hru.hruDataInstalacao, expiry: hru.hruExpiry || hru.hruValidade, inspectionDate: dataInspecao });
+    if (issue) throw new Error(`Hammar H20 R: ${issue}`);
+    const stockId = Number(hru.hruStockId);
+    if (!Number.isSafeInteger(stockId) || stockId <= 0) throw new Error('Hammar H20 R: selecione a linha de stock.');
+    const stock = await prisma.stock.findUnique({ where: { id: stockId }, select: { referencia: true } });
+    if (!stock || !isHammarH20RReference(stock.referencia)) throw new Error('Hammar H20 R: a linha de stock selecionada não corresponde à referência confirmada.');
+  }
+
   if (!dataInspecao) {
     throw new Error("Data da inspeção é obrigatória.");
   }
 
   const inspectionId = Number(payload.id);
+  if (payload.id != null && (!Number.isInteger(inspectionId) || inspectionId <= 0)) throw new EditConflictError();
+  if (expected && !(inspectionId > 0)) throw new EditConflictError();
   const navioId = Number(payload.shipId);
   const jangadaId = Number(payload.raftId);
   const coleteId = Number(payload.coleteId);
+
+  if (expectedRaft && Number.isFinite(jangadaId) && jangadaId > 0) {
+    const raft = await prisma.jangada.findUnique({ where: { id: jangadaId }, select: { updatedAt: true } });
+    assertEditVersion(raft?.updatedAt, expectedRaft);
+  }
 
   // Inspecao ja finalizada = documento legal carimbado. Nao se altera sem
   // reabertura explicita, com justificacao e por quem tem permissao.
@@ -303,16 +372,19 @@ export async function saveInspection(payload: SaveInspectionPayload) {
         integrityHash: true,
         integrityTimestamp: true,
         integrityVersion: true,
+        updatedAt: true,
       },
     });
 
+    if (!existente) throw new EditConflictError();
     if (existente) {
+      assertEditVersion(existente.updatedAt, expected);
       const acesso = await getAccessContext();
       const decisao = evaluateInspectionEdit({
         bloqueada: isInspectionLocked(existente),
         reabrir: payload.reabrir,
         justificacao: payload.reaberturaJustificacao,
-        isAdmin: Boolean(acesso?.email),
+        isAdmin: Boolean(acesso?.isAdmin),
         certificadoNumero: existente.certificadoNumero,
       });
 
@@ -362,9 +434,10 @@ export async function saveInspection(payload: SaveInspectionPayload) {
     : null;
 
   const finalJangadaId = resolvedJangadaId || jangadaBySerial?.id || null;
+  if (expectedRaft && !finalJangadaId) throw new EditConflictError();
   const finalColeteId = resolvedColeteId || coleteBySerial?.id || null;
-  const existingInspection = Number.isFinite(inspectionId) && inspectionId > 0
-    ? await prisma.inspecao.findUnique({ where: { id: inspectionId }, select: { id: true, certificadoNumero: true } })
+  let existingInspection = Number.isFinite(inspectionId) && inspectionId > 0
+    ? await prisma.inspecao.findUnique({ where: { id: inspectionId }, select: { id: true, certificadoNumero: true, checklistSnapshot: true } })
     : null;
   const certificadoNumero = await normalizeCertificadoNumero(
     {
@@ -399,8 +472,31 @@ export async function saveInspection(payload: SaveInspectionPayload) {
   }
 
   const stockWarnings: string[] = [];
+  let raftUpdatedAt: Date | undefined;
+  let historicalSnapshot: { certificate: string; raft: any } | undefined;
 
   const saved = await prisma.$transaction(async (tx) => {
+    // Acquire all version claims before stock, articles, audit or external effects.
+    if (finalJangadaId && expectedRaft) {
+      const claimed = await tx.jangada.updateMany({ where: { id: finalJangadaId, updatedAt: expectedRaft }, data: { updatedAt: nextEditVersion(expectedRaft) } });
+      if (claimed.count !== 1) throw new EditConflictError();
+    }
+    if (Number.isFinite(inspectionId) && inspectionId > 0) {
+      const current = await tx.inspecao.findUnique({ where: { id: inspectionId } });
+      if (!current) throw new EditConflictError();
+      assertEditVersion(current?.updatedAt, expected);
+      existingInspection = current;
+      if (current) {
+        const acesso = await getAccessContext();
+        const decisao = evaluateInspectionEdit({ bloqueada: isInspectionLocked(current), reabrir: payload.reabrir, justificacao: payload.reaberturaJustificacao, isAdmin: Boolean(acesso?.isAdmin), certificadoNumero: current.certificadoNumero });
+        if (!decisao.permitido) throw new InspectionLockedError(decisao.mensagem, decisao.motivo);
+        if (decisao.reabertura) reaberturaPendente = { justificadaPor: acesso?.email || 'sistema', hashAnterior: current.integrityHash, certificado: current.certificadoNumero };
+      }
+      if (expected) {
+        const claimed = await tx.inspecao.updateMany({ where: { id: inspectionId, updatedAt: expected }, data: { updatedAt: nextEditVersion(expected) } });
+        if (claimed.count !== 1) throw new EditConflictError();
+      }
+    }
     let resolvedStrapRef: string | null = null;
     let strapQuantity = 0;
     let strapDescription = "";
@@ -457,13 +553,11 @@ export async function saveInspection(payload: SaveInspectionPayload) {
     if (resolvedStrapRef) {
       const exists = replacements.some(r => r.referencia === resolvedStrapRef);
       if (!exists) {
-        const strapStock = await tx.stock.findFirst({
-          where: { referencia: resolvedStrapRef },
-          select: { id: true, descricao: true }
-        });
+        const strapStock = await resolveLotStock(tx, { referencia: resolvedStrapRef }, oldRaft?.serviceStationId ?? null);
 
         replacements.push({
           stockId: strapStock?.id || null,
+          lote: strapStock?.lote ?? null,
           referencia: resolvedStrapRef,
           name: strapStock?.descricao || strapDescription,
           quantidade: strapQuantity,
@@ -473,6 +567,36 @@ export async function saveInspection(payload: SaveInspectionPayload) {
         });
       }
     }
+
+    const stationId = oldRaft?.serviceStationId ?? null;
+    const savedExpiry = (existingInspection?.checklistSnapshot as { _articleExpiry?: { replacements?: Array<{ stockId?: number; lote?: string | null }> } } | null)?._articleExpiry;
+    for (const item of replacements) {
+      const stock = await resolveLotStock(tx, item, stationId, !applyStockMovements);
+      if (stock) {
+        item.stockId = stock.id;
+        item.lote = item.lote ?? savedExpiry?.replacements?.find(row => row.stockId === item.stockId)?.lote ?? stock.lote;
+      }
+    }
+    for (const linha of payload.orcamento?.linhas || []) {
+      if (isServiceResourceReference(linha.referencia)) {
+        linha.stockId = null;
+        linha.lote = null;
+        continue;
+      }
+      const stock = await resolveLotStock(tx, linha, stationId, !applyStockMovements);
+      if (stock) {
+        linha.stockId = stock.id;
+        linha.lote = linha.lote ?? stock.lote;
+      }
+    }
+    const previousSnapshot = (existingInspection?.checklistSnapshot || {}) as Record<string, unknown>;
+    const checklistSnapshot = { ...previousSnapshot, ...payload.checklistSnapshot };
+    if (payload.responsavel?.trim()) checklistSnapshot.responsavel = payload.responsavel.trim();
+    const expirySnapshot = { ...((previousSnapshot._articleExpiry || {}) as Record<string, unknown>), ...((checklistSnapshot._articleExpiry || {}) as Record<string, unknown>) };
+    if (Array.isArray(payload.artigosSubstituidos)) {
+      expirySnapshot.replacements = replacements.map(item => ({ ...item, validade: item.validade?.toISOString() ?? null }));
+    }
+    checklistSnapshot._articleExpiry = expirySnapshot;
 
     const getField = (key: string) => {
       const snapVal = payload.checklistSnapshot && payload.checklistSnapshot[key];
@@ -485,7 +609,11 @@ export async function saveInspection(payload: SaveInspectionPayload) {
       return oldRaft ? String((oldRaft as any)[key] || "") : null;
     };
 
-    const numeroObra = getField("numeroObra") || (applyStockMovements ? await generateNextObraNumber(dataInspecao) : "");
+    const currentInspection = existingInspection as { numeroObra?: string | null } | null;
+    const explicitNumber = String(payload.numeroObra || payload.checklistSnapshot?.numeroObra || '').trim();
+    const sameRaftInspection = oldRaft?.ultimoCertificadoNumero === certificadoNumero;
+    const persistedNumber = resolveOrderNumber({ numeroOrdem: currentInspection?.numeroObra || '', raftNumber: oldRaft?.numeroObra, sameInspection: true, currentInspection: sameRaftInspection });
+    const numeroObra = explicitNumber || persistedNumber || (sameRaftInspection ? oldRaft?.numeroObra : '') || (applyStockMovements ? await generateNextObraNumber(dataInspecao) : "");
 
     const inspectionData = {
       certificadoNumero,
@@ -528,10 +656,7 @@ export async function saveInspection(payload: SaveInspectionPayload) {
       oficinaHumidade: getField("oficinaHumidade"),
 
       orcamento: payload.orcamento || Prisma.DbNull,
-      checklistSnapshot:
-        payload.checklistSnapshot && Object.keys(payload.checklistSnapshot).length > 0
-          ? (payload.checklistSnapshot as Prisma.InputJsonValue)
-          : Prisma.DbNull,
+      checklistSnapshot: checklistSnapshot as Prisma.InputJsonValue,
     };
 
     const inspecao = existingInspection
@@ -542,17 +667,10 @@ export async function saveInspection(payload: SaveInspectionPayload) {
             // O carimbo cai dentro da transação, não antes dela: se a gravação
             // falhar, a inspeção continua selada e sem vestígio de edição.
             ...(reaberturaPendente ? { integrityHash: null, integrityTimestamp: null } : {}),
-            updatedAt: new Date(),
+            updatedAt: expected ? nextEditVersion(expected) : new Date(),
           },
         })
-      : await tx.inspecao.upsert({
-          where: { certificadoNumero },
-          create: inspectionData,
-          update: {
-            ...inspectionData,
-            updatedAt: new Date(),
-          },
-        });
+      : await tx.inspecao.create({ data: inspectionData });
 
     if (finalJangadaId && oldRaft) {
       // 1. Archive the previous inspection if oldRaft has an inspection certificate that is not yet in the Inspecao table
@@ -611,8 +729,7 @@ export async function saveInspection(payload: SaveInspectionPayload) {
           });
 
           // Also archive the snapshot of the old liferaft state directly from memory
-          const { writeInspectionSnapshot } = require("@/lib/inspection-snapshots");
-          await writeInspectionSnapshot(oldRaft.ultimoCertificadoNumero, oldRaft);
+          historicalSnapshot = { certificate: oldRaft.ultimoCertificadoNumero, raft: oldRaft };
         }
       }
 
@@ -622,7 +739,7 @@ export async function saveInspection(payload: SaveInspectionPayload) {
         dataProxInspecao,
         ultimoCertificadoNumero: certificadoNumero,
         numeroObra: numeroObra || payload.numeroObra || null,
-        updatedAt: new Date(),
+        updatedAt: expectedRaft ? nextEditVersion(expectedRaft) : new Date(),
       };
 
       if (payload.cylinderSerial !== undefined) updateRaftData.cylinderSerial = payload.cylinderSerial;
@@ -699,10 +816,11 @@ export async function saveInspection(payload: SaveInspectionPayload) {
         }
       }
 
-      await tx.jangada.update({
+      const updatedRaft = await tx.jangada.update({
         where: { id: finalJangadaId },
         data: updateRaftData,
       });
+      raftUpdatedAt = updatedRaft.updatedAt;
     }
 
     // Só substituir/apagar os artigos históricos da inspeção quando a checklist
@@ -717,7 +835,7 @@ export async function saveInspection(payload: SaveInspectionPayload) {
     const usarOrcamento = Boolean(payload.orcamento?.usarOrcamento);
     const hasExplicitOrcamento = !!payload.orcamento && Array.isArray(payload.orcamento.linhas) && payload.orcamento.linhas.length > 0;
 
-    if (applyStockMovements) {
+    if (applyStockMovements && (hasExplicitArtigosSubstituidos || hasExplicitOrcamento)) {
       // Reversão prévia: garante idempotência numa re-gravação (nunca duplica stock).
       await reverterMovimentosInspecao(tx, inspecao.id, {
         certificadoNumero,
@@ -731,7 +849,7 @@ export async function saveInspection(payload: SaveInspectionPayload) {
           const sid = linha.stockId != null && linha.stockId !== "" ? Number(linha.stockId) : null;
           if (!Number.isFinite(sid ?? NaN) || (sid ?? 0) <= 0) return false;
           const ref = String(linha.referencia || "");
-          if (/^L-/.test(ref)) return false;
+          if (isServiceResourceReference(ref)) return false;
           return true;
         });
 
@@ -750,6 +868,7 @@ export async function saveInspection(payload: SaveInspectionPayload) {
           }
 
           const rotulo = stock.referencia || linha.referencia || stock.descricao || `artigo ${stockId}`;
+          if (isServiceResourceReference(stock.referencia)) continue;
           const reservada = stock.quantidadeReservada || 0;
           const disponivelAntes = stock.quantidade - reservada;
 
@@ -804,6 +923,7 @@ export async function saveInspection(payload: SaveInspectionPayload) {
         }
       } else {
         for (const item of replacements) {
+          if (isServiceResourceReference(item.referencia)) continue;
           if (!item.stockId) {
             stockWarnings.push(
               `${item.referencia || item.name} não está ligado ao stock — artigo gravado na inspeção sem baixa de stock.`,
@@ -822,6 +942,7 @@ export async function saveInspection(payload: SaveInspectionPayload) {
           }
 
           const rotulo = stock.referencia || item.referencia || item.name;
+          if (isServiceResourceReference(stock.referencia)) continue;
           if (stock.quantidade < item.quantidade) {
             stockWarnings.push(
               `Stock insuficiente para ${rotulo}: disponível ${stock.quantidade}, pedido ${item.quantidade}. Inspeção gravada e stock ficou deficitário.`,
@@ -857,6 +978,7 @@ export async function saveInspection(payload: SaveInspectionPayload) {
         data: replacements.map((item) => ({
           inspecaoId: inspecao.id,
           jangadaId: finalJangadaId,
+          stockId: item.stockId,
           name: item.name,
           quantidade: item.quantidade,
           validade: item.validade,
@@ -867,12 +989,13 @@ export async function saveInspection(payload: SaveInspectionPayload) {
 
       // 2. Atualizar ou criar os correspondentes artigos ativos da jangada (inspecaoId = null)
       for (const item of replacements) {
-        // Procuramos por um artigo ativo existente com a mesma referência ou mesmo nome
+        // A referencia nao identifica o lote: nunca juntar stockIds diferentes.
         const nameMatch = Prisma.sql`LOWER("name") = LOWER(${item.name})`;
         const activeItem = (await tx.$queryRaw<Array<{ id: number }>>`
           SELECT id FROM "ArtigoJangada"
           WHERE "jangadaId" = ${finalJangadaId}
             AND "inspecaoId" IS NULL
+            AND ${item.stockId ? Prisma.sql`"stockId" = ${item.stockId}` : Prisma.sql`"stockId" IS NULL`}
             AND (
               ${item.referencia ? Prisma.sql`"referencia" = ${item.referencia} OR ` : Prisma.empty}
               ${nameMatch}
@@ -884,6 +1007,7 @@ export async function saveInspection(payload: SaveInspectionPayload) {
           await tx.artigoJangada.update({
             where: { id: activeItem.id },
             data: {
+              stockId: item.stockId,
               quantidade: item.quantidade,
               validade: item.validade,
               codigoFabricante: item.codigoFabricante,
@@ -895,6 +1019,7 @@ export async function saveInspection(payload: SaveInspectionPayload) {
             data: {
               jangadaId: finalJangadaId,
               inspecaoId: null,
+              stockId: item.stockId,
               name: item.name,
               quantidade: item.quantidade,
               validade: item.validade,
@@ -911,6 +1036,8 @@ export async function saveInspection(payload: SaveInspectionPayload) {
       const activeOrdem = await tx.ordemServico.findFirst({
         where: {
           jangadaId: finalJangadaId,
+          OR: [{ inspecaoId: inspecao.id }, { inspecaoId: null }],
+          serviceStationId: stationId,
           status: { in: ["pendente", "em_progresso"] }
         },
         select: {
@@ -947,6 +1074,7 @@ export async function saveInspection(payload: SaveInspectionPayload) {
             return {
               id: linha.id || `orcamento-${index}`,
               stockId: Number.isFinite(stockIdNum) ? stockIdNum : null,
+              lote: linha.lote ?? null,
               referencia: linha.referencia || "SEM-REF",
               descricao: linha.descricao || "Artigo",
               quantidadePrevista: Number(linha.quantidade) || 0,
@@ -1023,10 +1151,16 @@ export async function saveInspection(payload: SaveInspectionPayload) {
         }
 
         const stockItems = await tx.stock.findMany({
-          where: { referencia: { in: refsToFetch } },
+          where: {
+            ...(stationId === null
+              ? { serviceStationId: null }
+              : { OR: [{ serviceStationId: stationId }, { serviceStationId: null }] }),
+            AND: [{ OR: [{ referencia: { in: refsToFetch } }, { id: { in: replacements.flatMap(r => r.stockId ? [r.stockId] : []) } }] }],
+          },
           select: { id: true, referencia: true, descricao: true, precoVenda: true, quantidade: true }
         });
-        const stockMap = new Map(stockItems.map(item => [item.referencia, item]));
+        const stockMap = new Map(stockItems.filter(item => stockItems.filter(other => other.referencia === item.referencia).length === 1).map(item => [item.referencia, item]));
+        const stockById = new Map(stockItems.map(item => [item.id, item]));
 
         const inspectionMaterials: any[] = [];
 
@@ -1054,10 +1188,11 @@ export async function saveInspection(payload: SaveInspectionPayload) {
         }
 
         for (const r of replacements) {
-          const stock = r.referencia ? stockMap.get(r.referencia) : null;
+          const stock = r.stockId ? stockById.get(r.stockId) : null;
           inspectionMaterials.push({
-            id: `replacement-${r.referencia || r.name}`,
-            stockId: r.stockId || stock?.id || null,
+            id: `replacement-${r.stockId || r.referencia || r.name}`,
+            stockId: r.stockId,
+            lote: r.lote,
             referencia: r.referencia || "SEM-REF",
             descricao: r.name || stock?.descricao || "Consumível",
             quantidadePrevista: r.quantidade,
@@ -1071,13 +1206,14 @@ export async function saveInspection(payload: SaveInspectionPayload) {
 
         const currentMaterials = Array.isArray(orderMeta.materials) ? orderMeta.materials : [];
 
-        const newRefs = new Set(inspectionMaterials.map(m => m.referencia));
+        const materialKey = (m: { stockId?: number | string | null; referencia?: string }) => m.stockId ? `stock-${m.stockId}` : `ref-${m.referencia}`;
+        const newKeys = new Set(inspectionMaterials.map(materialKey));
         const filteredCurrent = currentMaterials.filter((m: any) => 
           m && m.id &&
           !m.id.startsWith("service-") && 
           !m.id.startsWith("strap-") && 
           !m.id.startsWith("replacement-") && 
-          !newRefs.has(m.referencia)
+          !newKeys.has(materialKey(m))
         );
 
         const nextMaterials = [...filteredCurrent, ...inspectionMaterials];
@@ -1104,25 +1240,40 @@ export async function saveInspection(payload: SaveInspectionPayload) {
           }
         });
         }
+        await syncOrderNumber(tx, activeOrdem.id);
       }
     }
 
+    if (applyStockMovements && finalJangadaId && payload.checklistSnapshot) {
+      await syncRaftChecklistDrivenArtigos(finalJangadaId, { checklistSnapshot: payload.checklistSnapshot as Record<string, string | number | boolean> }, tx);
+    }
+    // Return versions belonging to this commit, never a later writer's reread.
+    if (finalJangadaId && expectedRaft) {
+      const raft = await tx.jangada.update({ where: { id: finalJangadaId }, data: { updatedAt: nextEditVersion(expectedRaft) } });
+      raftUpdatedAt = raft.updatedAt;
+    }
+    if (inspectionData.status === 'Concluída') {
+      const articles = await tx.artigoJangada.findMany({ where: { inspecaoId: inspecao.id } });
+      return tx.inspecao.update({ where: { id: inspecao.id }, data: {
+        integrityHash: computeInspectionDigest(inspecao, articles),
+        integrityTimestamp: new Date(),
+        integrityVersion: INTEGRITY_VERSION,
+        updatedAt: nextEditVersion(inspecao.updatedAt),
+      } });
+    }
     return inspecao;
-  }, { timeout: 60000, maxWait: 10000 });
+  }, { timeout: 60000, maxWait: 10000, isolationLevel: "Serializable" }).catch(error => {
+    if (error?.code === 'P2002' && String(error?.meta?.target).includes('certificadoNumero')) throw new EditConflictError();
+    throw error;
+  });
+  if (historicalSnapshot) {
+    const { writeInspectionSnapshot } = require('@/lib/inspection-snapshots');
+    await writeInspectionSnapshot(historicalSnapshot.certificate, historicalSnapshot.raft);
+  }
 
   if (finalJangadaId) {
     const { saveInspectionSnapshot } = require("@/lib/inspection-snapshots");
     await saveInspectionSnapshot(certificadoNumero, finalJangadaId);
-  }
-
-  // 4.5 CARIMBO TEMPORAL: aplicar selo de integridade quando a inspeção é finalizada
-  const resolvedFinalStatus = String(payload.status || "Concluída").trim() || "Concluída";
-  if (resolvedFinalStatus === "Concluída") {
-    try {
-      await stampInspectionWithDigest(saved.id);
-    } catch (stampError) {
-      console.error("Erro ao aplicar carimbo temporal:", stampError);
-    }
   }
 
   // 5. SYNC AUTOMÁTICO: Criar OS apenas quando a inspeção é FINALIZADA (não em rascunhos parciais)
@@ -1139,6 +1290,7 @@ export async function saveInspection(payload: SaveInspectionPayload) {
       referencia: r.referencia,
       quantidade: r.quantidade,
       stockId: r.stockId,
+      lote: r.lote,
       precoUnitario: undefined,
     }));
 
@@ -1222,8 +1374,10 @@ export async function saveInspection(payload: SaveInspectionPayload) {
 
   return {
     id: saved.id,
+    updatedAt: saved.updatedAt,
     certificadoNumero,
     artigosSubstituidosCount: replacements.length,
     stockWarnings,
+    raftUpdatedAt,
   };
 }

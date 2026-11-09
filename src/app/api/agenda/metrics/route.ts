@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getAccessContext } from "@/lib/access-control";
 import { resolveActiveServiceStationId } from "@/lib/station-selection";
-import { normalizeInspectionType, normalizeEventStatus } from "@/types/agenda";
+import { normalizeInspectionType, normalizeEventStatus, resolveAgendaDuration } from "@/types/agenda";
 
 export async function GET(req: NextRequest) {
   const access = await getAccessContext();
@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
       byResponsavel[ev.responsavel] = (byResponsavel[ev.responsavel] || 0) + 1;
     }
 
-    totalDuration += ev.durationMinutes;
+    totalDuration += resolveAgendaDuration(ev);
 
     if (ev.date >= now && ev.date <= next7 && (st === "scheduled" || st === "confirmed")) {
       upcomingNext7Days++;
