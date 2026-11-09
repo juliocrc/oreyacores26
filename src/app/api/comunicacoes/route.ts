@@ -99,6 +99,26 @@ export async function POST(req: NextRequest) {
     if (!mensagem) {
       return NextResponse.json({ error: "A mensagem não pode estar vazia." }, { status: 400 });
     }
+
+    // Scheduled communications always remain drafts: an operator must explicitly
+    // reopen and approve them from the communications centre before any delivery.
+    if (body?.guardarParaAprovacao === true) {
+      const agendadaPara = new Date(String(body?.agendadaPara || ""));
+      if (Number.isNaN(agendadaPara.getTime()) || agendadaPara.getTime() <= Date.now()) {
+        return NextResponse.json({ error: "Indique uma data e hora futura para o lembrete." }, { status: 400 });
+      }
+      const draft = await prisma.comunicacao.create({ data: {
+        tipo,
+        canal: "approval",
+        destinatario: destinatario || null,
+        assunto: assunto || null,
+        mensagem,
+        status: "rascunho",
+        proximaTentativa: agendadaPara,
+        enviadoPor: access.email || null,
+      } });
+      return NextResponse.json({ ok: true, draftId: draft.id, status: "rascunho" });
+    }
     if (tipo === "EMAIL" && senderAccount !== undefined && !isEmailConfigured(senderAccount)) {
       return NextResponse.json({ error: "Conta de email nao configurada. Contacte a administracao.", code: "EMAIL_NOT_CONFIGURED" }, { status: 503 });
     }

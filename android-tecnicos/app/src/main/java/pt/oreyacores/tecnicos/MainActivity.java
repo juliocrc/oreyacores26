@@ -7,6 +7,9 @@ import android.content.ActivityNotFoundException;
 import android.content.ClipData;
 import android.content.Context;
 import android.content.Intent;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
+import android.provider.ContactsContract;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
@@ -69,6 +72,7 @@ import com.google.mlkit.vision.text.TextRecognition;
 import com.google.mlkit.vision.text.TextRecognizer;
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.File;
@@ -112,6 +116,8 @@ public class MainActivity extends FragmentActivity {
     private static final int REQ_CAMERA_PERMISSION = 102;
     private static final int REQ_MEDIA_PERMISSIONS = 103;
     private static final int REQ_SPEECH_PERMISSION = 104;
+    private static final int REQ_BLUETOOTH_PERMISSION = 105;
+    private static final int REQ_CONTACTS_PERMISSION = 106;
 
     /**
      * Preenche a Web Speech API dentro do WebView. O WebView do Android não
@@ -1412,6 +1418,88 @@ public class MainActivity extends FragmentActivity {
                     toast("Não foi possível abrir as definições da aplicação.");
                 }
             });
+        }
+
+        @JavascriptInterface
+        public void openBluetoothSettings() {
+            runOnUiThread(() -> {
+                try { startActivity(new Intent(Settings.ACTION_BLUETOOTH_SETTINGS)); }
+                catch (Exception error) { toast("Não foi possível abrir as definições Bluetooth."); }
+            });
+        }
+
+        @JavascriptInterface
+        public void requestBluetoothAccess() {
+            runOnUiThread(() -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                    requestPermissions(new String[]{Manifest.permission.BLUETOOTH_CONNECT}, REQ_BLUETOOTH_PERMISSION);
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public String pairedBluetoothDevices() {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) return "PERMISSION_REQUIRED";
+                BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
+                if (adapter == null) return "[]";
+                JSONArray devices = new JSONArray();
+                for (BluetoothDevice device : adapter.getBondedDevices()) {
+                    JSONObject item = new JSONObject();
+                    item.put("name", device.getName());
+                    item.put("address", device.getAddress());
+                    devices.put(item);
+                }
+                return devices.toString();
+            } catch (Exception error) { return "[]"; }
+        }
+
+        @JavascriptInterface
+        public void openDialer(String rawPhone) {
+            runOnUiThread(() -> {
+                String phone = rawPhone == null ? "" : rawPhone.replaceAll("[^0-9+]", "");
+                if (phone.replace("+", "").length() < 6) { toast("Número de telefone inválido."); return; }
+                try { startActivity(new Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + phone))); }
+                catch (Exception error) { toast("Não foi possível abrir o marcador."); }
+            });
+        }
+
+        @JavascriptInterface
+        public void composeSms(String rawPhone, String body) {
+            runOnUiThread(() -> {
+                String phone = rawPhone == null ? "" : rawPhone.replaceAll("[^0-9+]", "");
+                if (phone.replace("+", "").length() < 6) { toast("Número de telefone inválido."); return; }
+                try {
+                    Intent intent = new Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:" + phone));
+                    intent.putExtra("sms_body", body == null ? "" : body);
+                    startActivity(intent);
+                } catch (Exception error) { toast("Não foi possível abrir as SMS."); }
+            });
+        }
+
+        @JavascriptInterface
+        public void requestContactsAccess() {
+            runOnUiThread(() -> {
+                if (checkSelfPermission(Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
+                    requestPermissions(new String[]{Manifest.permission.READ_CONTACTS}, REQ_CONTACTS_PERMISSION);
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public String getContactsForImport() {
+            if (checkSelfPermission(Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) return "PERMISSION_REQUIRED";
+            JSONArray contacts = new JSONArray();
+            String[] projection = {ContactsContract.CommonDataKinds.Phone.CONTACT_ID, ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME, ContactsContract.CommonDataKinds.Phone.NUMBER};
+            try (android.database.Cursor cursor = getContentResolver().query(ContactsContract.CommonDataKinds.Phone.CONTENT_URI, projection, null, null, ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " ASC")) {
+                if (cursor == null) return "[]";
+                while (cursor.moveToNext() && contacts.length() < 500) {
+                    JSONObject item = new JSONObject();
+                    item.put("id", cursor.getString(0)); item.put("name", cursor.getString(1)); item.put("phone", cursor.getString(2));
+                    contacts.put(item);
+                }
+            } catch (Exception ignored) { }
+            return contacts.toString();
         }
     }
 

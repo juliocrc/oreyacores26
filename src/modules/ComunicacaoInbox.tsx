@@ -13,6 +13,7 @@ import EmailSenderSelect, { type SenderAccount, type SenderAccountStatus } from 
 import LocalOutlookCompose from '@/components/shared/LocalOutlookCompose';
 import WhatsAppPdfSend from '@/components/shared/WhatsAppPdfSend';
 import OpenWaConnection, { type OpenWaStatus } from "@/components/shared/OpenWaConnection";
+import AndroidContactSync from "@/components/shared/AndroidContactSync";
 import {
   audioFailureIsDefinitive, createDraft, groupConversations, matchesConversation, matchesLocalDraft, phoneIdentity, replyReference, validRecipient,
   type Channel, type Conversation, type HistoryChannel, type InboxDraft, type InboxFilter, type InboxMessage,
@@ -48,6 +49,22 @@ const buttonClass = "inline-flex min-h-10 items-center justify-center gap-2 roun
 
 function channelIcon(channel: HistoryChannel, size = 15) {
   return channel === "CHAMADA" ? <PhoneCall size={size} /> : channel === "EMAIL" ? <Mail size={size} /> : channel === "WHATSAPP" ? <MessageCircle size={size} /> : <Smartphone size={size} />;
+}
+
+function NativePhoneActions({ phone, message }: { phone: string; message: string }) {
+  const cleanPhone = phone.replace(/[^+\d]/g, "");
+  const call = () => {
+    const native = (window as Window & { OreyAndroid?: { openDialer?: (number: string) => void } }).OreyAndroid;
+    if (native?.openDialer) native.openDialer(cleanPhone);
+    else window.location.assign(`tel:${cleanPhone}`);
+  };
+  const sms = () => {
+    const native = (window as Window & { OreyAndroid?: { composeSms?: (number: string, text: string) => void } }).OreyAndroid;
+    if (native?.composeSms) native.composeSms(cleanPhone, message);
+    else window.location.assign(`sms:${cleanPhone}?body=${encodeURIComponent(message)}`);
+  };
+  if (cleanPhone.replace(/\D/g, "").length < 6) return null;
+  return <div className="flex flex-wrap gap-2"><button type="button" onClick={call} className={buttonClass}><PhoneCall size={14} />Ligar pelo telemóvel</button><button type="button" onClick={sms} className={buttonClass}><Smartphone size={14} />Abrir SMS nativa</button></div>;
 }
 
 function dateLabel(value: string, full = false) {
@@ -112,6 +129,7 @@ export default function ComunicacaoInbox({
   const [audioConfirmed, setAudioConfirmed] = useState(false);
   const [uncertainAudio, setUncertainAudio] = useState<Record<string, boolean>>({});
   const [uncertainSms, setUncertainSms] = useState<Record<string, boolean>>({});
+  const [approvalDate, setApprovalDate] = useState("");
   const previewRequest = useRef<AbortController | null>(null);
   const previewUrl = useRef<string | null>(null);
 
@@ -377,6 +395,37 @@ export default function ComunicacaoInbox({
     }
   }
 
+  async function saveForApproval() {
+    if (sendLock.current || !valid || !approvalDate) {
+      appToast.warning("Indique uma data e hora futura para guardar este lembrete.");
+      return;
+    }
+    setSending(true);
+    try {
+      const response = await fetch("/api/comunicacoes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tipo: draft.channel,
+          destinatario: draft.recipient.trim(),
+          assunto: draft.channel === "EMAIL" ? draft.subject.trim() || undefined : undefined,
+          mensagem: draft.body,
+          agendadaPara: new Date(approvalDate).toISOString(),
+          guardarParaAprovacao: true,
+        }),
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error || "Não foi possível guardar o lembrete.");
+      appToast.success("Lembrete guardado para aprovação manual. Nenhuma mensagem foi enviada.");
+      setApprovalDate("");
+      setRefresh((value) => value + 1);
+    } catch (error) {
+      appToast.error(error instanceof Error ? error.message : "Não foi possível guardar o lembrete.");
+    } finally {
+      if (mounted.current) setSending(false);
+    }
+  }
+
   async function discard(message: InboxMessage) {
     if (!canDelete || deleting !== null || !window.confirm("Eliminar esta mensagem do histórico? Esta ação não pode ser desfeita.")) return;
     setDeleting(message.id);
@@ -409,6 +458,7 @@ export default function ComunicacaoInbox({
         </header>
 
         <OpenWaConnection onStatusChange={setOpenWa} />
+        <AndroidContactSync />
 
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3" aria-label="Resumo do histórico carregado">
           {[
@@ -494,13 +544,21 @@ export default function ComunicacaoInbox({
                     <div className="flex gap-1" aria-label="Canal de envio">{CHANNELS.map((channel) => <button type="button" key={channel} aria-pressed={draft.channel === channel} onClick={() => updateDraft({ channel })} className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold focus-visible:ring-2 focus-visible:ring-indigo-500 ${draft.channel === channel ? "border-indigo-200 bg-indigo-50 text-indigo-700" : "border-transparent text-slate-500 hover:bg-slate-50"}`}>{channelIcon(channel, 13)}{LABELS[channel]}</button>)}</div>
                     <select aria-label="Aplicar modelo de mensagem" value="" className="min-h-9 max-w-full rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-600 focus-visible:ring-2 focus-visible:ring-indigo-500" onChange={(e) => { const template = TEMPLATES.find((t) => t.key === e.target.value); if (template && confirmReplace()) updateDraft({ body: template.body, subject: "" }); }}><option value="" disabled>Inserir modelo…</option>{TEMPLATES.map((template) => <option key={template.key} value={template.key}>{template.label}</option>)}</select>
                   </div>
-                  <div className={`grid gap-2 ${draft.channel === "EMAIL" ? "sm:grid-cols-2" : ""}`}>
+                   <div className={`grid gap-2 ${draft.channel === "EMAIL" ? "sm:grid-cols-2" : ""}`}>
                     <label className="space-y-1 text-[11px] font-semibold text-slate-500"><span>Destinatário</span><input type={draft.channel === "EMAIL" ? "email" : "tel"} autoComplete="off" required aria-describedby="send-guidance" value={draft.recipient} onChange={(e) => updateDraft({ recipient: e.target.value })} placeholder={draft.channel === "EMAIL" ? "email@exemplo.pt" : "+351 912 345 678"} className={fieldClass} /></label>
                     {draft.channel === "EMAIL" && <EmailSenderSelect value={senderAccount} onChange={setSenderAccount} accounts={connection?.email?.accounts} />}
                     {draft.channel === "EMAIL" && <label className="space-y-1 text-[11px] font-semibold text-slate-500"><span>Assunto</span><input value={draft.subject} onChange={(e) => updateDraft({ subject: e.target.value })} placeholder="Assunto do email" className={fieldClass} /></label>}
-                  </div>
-                  <label className="block"><span className="sr-only">Mensagem</span><textarea required rows={4} value={draft.body} onChange={(e) => updateDraft({ body: e.target.value })} placeholder="Escreva a sua mensagem…" className={`${fieldClass} min-h-24 resize-y leading-relaxed`} /></label>
-                  {draft.channel === "EMAIL" && <LocalOutlookCompose key={draftKey} recipient={draft.recipient} subject={draft.subject} body={draft.body} senderAccount={senderAccount} onSenderChange={setSenderAccount} />}
+                   </div>
+                   {draft.channel !== "EMAIL" && <NativePhoneActions phone={draft.recipient} message={draft.body} />}
+                   <label className="block"><span className="sr-only">Mensagem</span><textarea required rows={4} value={draft.body} onChange={(e) => updateDraft({ body: e.target.value })} placeholder="Escreva a sua mensagem…" className={`${fieldClass} min-h-24 resize-y leading-relaxed`} /></label>
+                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                     <p className="font-bold text-slate-700">Pré-visualização</p>
+                     <div className={`mt-2 rounded-lg border p-3 leading-5 ${draft.channel === "WHATSAPP" ? "ml-auto max-w-md border-emerald-100 bg-emerald-50" : "border-slate-200 bg-white"}`}>
+                       {draft.channel === "EMAIL" && <p className="mb-2 font-bold text-slate-800">{draft.subject || "Assunto do e-mail"}</p>}
+                       <p className="whitespace-pre-wrap">{draft.body || "O conteúdo da mensagem será apresentado aqui."}</p>
+                     </div>
+                   </div>
+                   {draft.channel === "EMAIL" && <LocalOutlookCompose key={draftKey} recipient={draft.recipient} subject={draft.subject} body={draft.body} senderAccount={senderAccount} onSenderChange={setSenderAccount} />}
                   {draft.channel === "WHATSAPP" && <WhatsAppPdfSend key={draftKey} recipient={draft.recipient} ready={whatsappReady && connection?.allowed === true} onComplete={() => setRefresh(value => value + 1)} />}
                   {draft.channel === "WHATSAPP" && <div className="rounded-lg border border-indigo-100 bg-indigo-50/50 p-3 text-xs leading-5 text-slate-600">
                     <label className="flex min-h-9 items-center gap-2 font-semibold text-indigo-800"><input type="checkbox" checked={asAudio} disabled={connection?.allowed !== true || connection?.audio?.speechConfigured !== true} onChange={(event) => updateDraft({ asAudio: event.target.checked })} className="h-4 w-4 accent-indigo-600" />Enviar como áudio automático</label>
@@ -519,7 +577,7 @@ export default function ComunicacaoInbox({
                      </div>}
                   </div>}
                    {audioBlockReasons.length > 0 && <div id="audio-send-guidance" role="status" className="text-xs leading-5 text-amber-800"><p className="font-semibold">Envio de audio bloqueado:</p><ul className="list-disc pl-4">{audioBlockReasons.map((reason) => <li key={String(reason)}>{reason}</li>)}</ul></div>}
-                    <div className="flex flex-wrap items-center justify-between gap-3"><span className="text-[10px] text-slate-400">{draft.body.length} caracteres · Rascunho só em memória · Ctrl/⌘ + Enter</span><button type="submit" aria-describedby={asAudio ? "audio-send-guidance send-guidance" : "send-guidance"} disabled={!valid || sending} className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-lg px-4 text-xs font-bold text-white transition focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${activeColor}`}>{sending ? <Loader2 size={15} className="animate-spin" /> : asAudio ? <Volume2 size={15} /> : <Send size={15} />}{sending ? "A processar…" : asAudio ? "Enviar áudio confirmado" : draft.channel === "EMAIL" ? "Enviar email" : draft.channel === "SMS" ? "Enviar SMS" : "Enviar WhatsApp"}</button></div>
+                    <div className="flex flex-wrap items-end justify-between gap-3"><span className="text-[10px] text-slate-400">{draft.body.length} caracteres · Rascunho só em memória · Ctrl/⌘ + Enter</span><div className="flex flex-wrap items-end gap-2"><label className="space-y-1 text-[11px] font-semibold text-slate-500"><span>Agendar para aprovação</span><input type="datetime-local" min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)} value={approvalDate} onChange={(event) => setApprovalDate(event.target.value)} className="block min-h-10 rounded-lg border border-slate-200 bg-white px-2 text-xs" /></label><button type="button" disabled={!valid || sending || !approvalDate} onClick={() => void saveForApproval()} className={buttonClass}>Guardar lembrete</button><button type="submit" aria-describedby={asAudio ? "audio-send-guidance send-guidance" : "send-guidance"} disabled={!valid || sending} className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-lg px-4 text-xs font-bold text-white transition focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${activeColor}`}>{sending ? <Loader2 size={15} className="animate-spin" /> : asAudio ? <Volume2 size={15} /> : <Send size={15} />}{sending ? "A processar…" : asAudio ? "Enviar áudio confirmado" : draft.channel === "EMAIL" ? "Enviar email" : draft.channel === "SMS" ? "Enviar SMS" : "Enviar WhatsApp"}</button></div></div>
                 </fieldset>
                 {whatsappLink?.key === draftKey && <div role="status" className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">Envio não confirmado. Termine na aplicação WhatsApp. Se o separador não abriu, <a href={whatsappLink.url} target="_blank" rel="noopener noreferrer" className="font-bold underline focus-visible:ring-2 focus-visible:ring-indigo-500">abrir o link preparado</a>, sem repetir o pedido de envio.</div>}
                 <p id="send-guidance" className={`mt-3 text-[11px] leading-5 ${configured === false && draft.channel !== "WHATSAPP" ? "text-amber-700" : "text-slate-500"}`}>
