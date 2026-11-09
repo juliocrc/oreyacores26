@@ -2,6 +2,7 @@ import { sendSms } from "./sms-provider";
 import { sendEmail } from "./email-sender";
 import { normalizeE164 } from "./textbee-sms";
 import { sendWhatsAppApi, whatsappApiConfigurado, type WhatsAppProviderResult } from "./whatsapp-provider";
+import { buildCommunicationEmailHtml } from "./communication-layout";
 import prisma from "./prisma";
 import { isOpenwaSelected, OPENWA_CLOSED, OPENWA_UNCERTAIN } from "./openwa";
 import { openwaBusinessHours } from "./business-hours";
@@ -232,7 +233,13 @@ export async function enviarComunicacao(input: EnvioComunicacaoInput, options?: 
     } else status = "pendente";
   } else if (input.tipo === "EMAIL") {
     try {
-      const result = await sendEmail({ to: destinatario, subject: assunto!, text: mensagem, ...(input.senderAccount !== undefined ? { senderAccount: input.senderAccount } : {}) });
+      const result = await sendEmail({
+        to: destinatario,
+        subject: assunto!,
+        text: mensagem,
+        html: buildCommunicationEmailHtml(mensagem, assunto!),
+        ...(input.senderAccount !== undefined ? { senderAccount: input.senderAccount } : {}),
+      });
       if (!result.ok) {
         status = "falhou";
         erro = result.error || "Falha ao enviar email.";

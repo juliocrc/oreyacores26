@@ -33,10 +33,10 @@ const STATUS: Record<string, string> = {
   falhou: "Falhou", recebido: "Recebido", rascunho: "Rascunho",
 };
 const TEMPLATES = [
-  { key: "vistoria", label: "Agendar vistoria", body: "Olá,\n\nRelembramos que está na altura de agendar a vistoria técnica da sua jangada salva-vidas. Confirme, por favor, a sua disponibilidade.\n\nCom os melhores cumprimentos,\nOrey Tecnica- Serviços Navais, Lda" },
-  { key: "certificado", label: "Certificado disponível", body: "Olá,\n\nO certificado da vistoria da sua jangada salva-vidas já está disponível. Estamos à sua disposição para qualquer esclarecimento.\n\nCom os melhores cumprimentos,\nOrey Tecnica- Serviços Navais, Lda" },
-  { key: "fatura-oficial", label: "Fatura oficial — WhatsApp", body: "Exmos. Senhores,\n\nInformamos que a fatura oficial [número da fatura] está disponível para consulta na sua área de cliente.\n\nPara qualquer esclarecimento, contacte-nos.\n\nCom os melhores cumprimentos,\nOrey Tecnica- Serviços Navais, Lda" },
-  { key: "pagamento", label: "Recordação de pagamento", body: "Olá,\n\nRecordamos que existem faturas por regularizar. Agradecemos o seu contacto.\n\nCom os melhores cumprimentos,\nOrey Tecnica- Serviços Navais, Lda" },
+  { key: "vistoria", label: "Agendar vistoria", body: "Olá,\n\n*OREY TÉCNICA | SERVIÇOS NAVAIS*\n\n📌 *Agendamento de vistoria*\nEstá na altura de agendar a vistoria técnica da sua jangada salva-vidas.\n\n✅ *Próximo passo*\nConfirme, por favor, a sua disponibilidade para marcarmos a intervenção.\n\nSe necessitar de apoio, estamos ao dispor.\n\n—\nOrey Técnica — Serviços Navais, Lda" },
+  { key: "certificado", label: "Certificado disponível", body: "Olá,\n\n*OREY TÉCNICA | SERVIÇOS NAVAIS*\n\n📄 *Certificado disponível*\nO certificado da vistoria da sua jangada salva-vidas já se encontra disponível.\n\n✅ *Próximo passo*\nConsulte-o na sua área de cliente ou responda a esta mensagem caso necessite de apoio.\n\n—\nOrey Técnica — Serviços Navais, Lda" },
+  { key: "fatura-oficial", label: "Fatura oficial", body: "Exmos. Senhores,\n\n*OREY TÉCNICA | SERVIÇOS NAVAIS*\n\n🧾 *Fatura oficial disponível*\nA fatura [número da fatura] já pode ser consultada na sua área de cliente.\n\n✅ *Próximo passo*\nAceda à área de cliente para consultar ou descarregar o documento.\n\nPara qualquer esclarecimento, estamos ao dispor.\n\n—\nOrey Técnica — Serviços Navais, Lda" },
+  { key: "pagamento", label: "Recordação de pagamento", body: "Olá,\n\n*OREY TÉCNICA | SERVIÇOS NAVAIS*\n\n🔔 *Recordação de pagamento*\nIdentificámos faturas que se encontram por regularizar.\n\n✅ *Próximo passo*\nAgradecemos que verifique a sua situação ou nos contacte para qualquer esclarecimento.\n\n—\nOrey Técnica — Serviços Navais, Lda" },
 ];
 const TABS: { key: InboxFilter; label: string }[] = [
   { key: "all", label: "Todas" }, { key: "unanswered", label: "Sem resposta" },
