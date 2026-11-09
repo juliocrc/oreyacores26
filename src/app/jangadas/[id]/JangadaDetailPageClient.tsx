@@ -3625,10 +3625,26 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
               </div>
             )}
 
+            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Ficha técnica</p>
+                  <p className="text-sm text-slate-600">Informação organizada por sistemas e equipamentos.</p>
+                </div>
+                <nav className="flex flex-wrap gap-2" aria-label="Secções da ficha técnica">
+                  <a href="#ficha-geral" className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-700">Geral</a>
+                  <a href="#ficha-cilindro" className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-700">Cilindro</a>
+                  <a href="#ficha-seguranca" className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-700">Segurança</a>
+                  <a href="#ficha-iluminacao" className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-700">Iluminação</a>
+                  <a href="#ficha-disparo" className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-700">Válvulas</a>
+                </nav>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
             
             {/* Bloco 1: IdentificaÃ§Ã£o Geral */}
-            <div className="xl:col-span-2 bg-white rounded-3xl border border-slate-200/60 p-6 lg:p-8 shadow-sm space-y-6">
+            <div id="ficha-geral" className="xl:col-span-2 scroll-mt-24 bg-white rounded-3xl border border-slate-200/60 p-6 lg:p-8 shadow-sm space-y-6">
               <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2 pb-3 border-b border-slate-100">
                 <ClipboardList className="text-indigo-600" />
                 CaracterÃ­sticas Gerais
@@ -3918,7 +3934,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
             </div>
 
             {/* Bloco 2: Cilindro de InsuflaÃ§Ã£o */}
-            <div className="bg-white rounded-3xl border border-slate-200/60 p-6 shadow-sm space-y-6">
+            <div id="ficha-cilindro" className="scroll-mt-24 bg-white rounded-3xl border border-slate-200/60 p-6 shadow-sm space-y-6">
               <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2 pb-3 border-b border-slate-100">
                 <Cylinder className="text-indigo-600" />
                 Cilindro de GÃ¡s
@@ -4132,7 +4148,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
             </div>
 
             {/* Bloco 3: HRU & Radar Reflector */}
-            <div className="bg-white rounded-3xl border border-slate-200/60 p-6 shadow-sm space-y-6">
+            <div id="ficha-seguranca" className="scroll-mt-24 bg-white rounded-3xl border border-slate-200/60 p-6 shadow-sm space-y-6">
               <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2 pb-3 border-b border-slate-100">
                 <FileCheck className="text-indigo-600" />
                 HRU & Refletor Radar
@@ -4210,7 +4226,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
               </div>
             </div>
 
-            <div className="bg-white rounded-3xl border border-slate-200/60 p-6 shadow-sm space-y-6">
+            <div id="ficha-iluminacao" className="scroll-mt-24 bg-white rounded-3xl border border-slate-200/60 p-6 shadow-sm space-y-6">
               <h2 className="text-lg font-bold text-slate-800 pb-3 border-b border-slate-100">IluminaÃ§Ã£o & Baterias</h2>
               {JANGADA_LIGHT_EQUIPMENT.map(equipment => {
                 const source = isEditing ? editForm : data;
@@ -4377,7 +4393,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
             </div>
 
             {/* Bloco 5: VÃ¡lvulas & Disparo */}
-            <div className="bg-white rounded-3xl border border-slate-200/60 p-6 shadow-sm space-y-6">
+            <div id="ficha-disparo" className="scroll-mt-24 bg-white rounded-3xl border border-slate-200/60 p-6 shadow-sm space-y-6">
               <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2 pb-3 border-b border-slate-100">
                 <Wrench className="text-indigo-600" />
                 VÃ¡lvulas & Disparo
