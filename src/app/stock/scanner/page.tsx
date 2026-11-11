@@ -1,10 +1,30 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { Barcode, QrCode, Search, CheckCircle2, AlertTriangle, Loader2, ArrowLeft } from "lucide-react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  ArrowRight,
+  Barcode,
+  Box,
+  Camera,
+  CheckCircle2,
+  Clock,
+  Loader2,
+  Plus,
+  QrCode,
+  RefreshCw,
+  ScanLine,
+  Search,
+  Trash2,
+  X,
+} from "lucide-react";
 import Link from "next/link";
-import QrReaderModal from "@/components/shared/QrReaderModal";
+import { useRouter } from "next/navigation";
+import { appToast } from "@/lib/app-toast";
+import AdvancedBarcodeScanner from "@/components/shared/AdvancedBarcodeScanner";
 import StockMovementHistory from "@/components/stock/StockMovementHistory";
+import StockArticleThumbnail from "@/components/shared/StockArticleThumbnail";
 
 type StockItem = {
   id: number;
@@ -16,9 +36,11 @@ type StockItem = {
   lote?: string | null;
   validade?: string | null;
   precoVenda?: number | null;
+  codigoBarras?: string | null;
 };
 
 export default function StockScannerPage() {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [item, setItem] = useState<StockItem | null>(null);
@@ -26,15 +48,31 @@ export default function StockScannerPage() {
   const [successMsg, setSuccessMsg] = useState("");
   const [adjustQty, setAdjustQty] = useState(1);
   const [adjustType, setAdjustType] = useState<"add" | "sub">("sub");
-  const [cameraOpen, setCameraOpen] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+  const [continuous, setContinuous] = useState(false);
   const busyRef = useRef(false);
   const [historyRevision, setHistoryRevision] = useState(0);
+  const [recentScans, setRecentScans] = useState<Array<{ code: string; item: StockItem | null; at: string }>>([]);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  const handleArticleFound = useCallback((item: StockItem) => {
+    setItem(item);
+    setError("");
+    setShowScanner(false);
+    const already = recentScans.find((s) => s.code === item.codigoBarras || s.code === item.referencia);
+    if (!already) {
+      setRecentScans((prev) => [
+        { code: item.codigoBarras || item.referencia, item, at: new Date().toISOString() },
+        ...prev.slice(0, 9),
+      ]);
+    }
+    appToast.success(`Artigo encontrado: ${item.descricao}`);
+  }, [recentScans]);
 
   const handleSearch = async (code = query) => {
     if (!code.trim() || busyRef.current) return;
@@ -46,10 +84,13 @@ export default function StockScannerPage() {
     setItem(null);
 
     try {
-      const res = await fetch(`/api/stock/by-barcode?code=${encodeURIComponent(code.trim())}`, { cache: "no-store" });
+      const res = await fetch(`/api/stock/by-barcode?code=${encodeURIComponent(code.trim())}`, {
+        cache: "no-store",
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Artigo não encontrado no stock.");
       setItem(data);
+      handleArticleFound(data);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Artigo não encontrado.");
     } finally {
@@ -78,11 +119,16 @@ export default function StockScannerPage() {
       if (!res.ok) throw new Error(data.error || "Erro ao atualizar stock.");
       setItem(data);
       setSuccessMsg(`Movimento registado: ${data.quantidade} unidades em stock.`);
-      setHistoryRevision(value => value + 1);
+      setHistoryRevision((value) => value + 1);
       setQuery("");
       inputRef.current?.focus();
+      // Atualizar recent scans
+      setRecentScans((prev) =>
+        prev.map((s) =>
+          s.item?.id === item.id ? { ...s, item: data } : s
+        )
+      );
     } catch (err: unknown) {
-      // An uncertain write must be looked up again, never replayed automatically.
       setItem(null);
       setError(err instanceof Error ? err.message : "Erro ao atualizar stock.");
     } finally {
@@ -91,24 +137,109 @@ export default function StockScannerPage() {
     }
   };
 
+  const clearItem = () => {
+    setItem(null);
+    setError("");
+    setSuccessMsg("");
+    setQuery("");
+    inputRef.current?.focus();
+  };
+
+  const openScanner = () => {
+    setShowScanner(true);
+    setError("");
+  };
+
+  const closeScanner = () => {
+    setShowScanner(false);
+  };
+
+  const toggleContinuous = () => {
+    setContinuous((prev) => !prev);
+    appToast.info(continuous ? "Leitura única ativada" : "Leitura contínua ativada");
+  };
+
+  const openArticlePage = () => {
+    if (!item) return;
+    router.push(`/stock/${item.id}`);
+  };
+
   return (
-    <div className="space-y-8 p-6 lg:p-10 animate-in fade-in duration-300 max-w-3xl mx-auto">
+    <div className="space-y-8 p-6 lg:p-10 animate-in fade-in duration-300 max-w-4xl mx-auto">
       <div className="flex items-center justify-between">
         <div>
           <Link href="/stock" className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700 mb-2">
             <ArrowLeft className="h-4 w-4" /> Voltar ao Stock
           </Link>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-            <Barcode className="h-6 w-6 text-indigo-600" /> Leitor Rápido de Código de Barras / QR
+            <Barcode className="h-6 w-6 text-indigo-600" />
+            Leitor de Código de Barras / QR
           </h1>
-          <p className="text-sm text-slate-500">Leia ou pesquise o código do artigo para consulta e baixa rápida de stock na oficina.</p>
+          <p className="text-sm text-slate-500">
+            Leia o código de barras de um artigo para abrir a ficha, consultar o stock e registar movimentos rapidamente.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={openScanner}
+            disabled={loading}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 shadow-sm disabled:opacity-50 transition-colors"
+          >
+            <QrCode className="h-4 w-4" />
+            {showScanner ? "Fechar Leitor" : "Ler com Câmara"}
+          </button>
+          <button
+            type="button"
+            onClick={toggleContinuous}
+            className={`inline-flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition-colors ${
+              continuous
+                ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
+                : "bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200"
+            }`}
+          >
+            <RefreshCw className="h-3 w-3" />
+            {continuous ? "Único" : "Contínuo"}
+          </button>
         </div>
       </div>
 
-      <QrReaderModal open={cameraOpen} onClose={() => setCameraOpen(false)} onScan={(code) => {
-        setQuery(code);
-        void handleSearch(code);
-      }} />
+      {showScanner && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-lg">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold text-slate-800 flex items-center gap-2">
+              <ScanLine size={16} className="text-indigo-600" />
+              Leitura de Código
+            </h3>
+            <button
+              type="button"
+              onClick={closeScanner}
+              className="p-2 hover:bg-slate-100 rounded-xl transition-colors"
+            >
+              <X size={18} />
+            </button>
+          </div>
+          <AdvancedBarcodeScanner
+            continuous={continuous}
+            autoOpenArticle={false}
+            onArticleFound={handleArticleFound}
+            articleRouteBase="/stock"
+          />
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={() => {
+                setShowScanner(false);
+                if (item) openArticlePage();
+              }}
+              className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+            >
+              {item ? `Abrir Ficha: ${item.descricao}` : "Voltar ao Início"}
+            </button>
+          </div>
+        </div>
+      )}
+
       <form onSubmit={(e) => { e.preventDefault(); void handleSearch(); }} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
         <div className="flex gap-3">
           <div className="relative flex-1">
@@ -120,21 +251,26 @@ export default function StockScannerPage() {
               disabled={loading}
               value={query}
               onChange={(e) => { setQuery(e.target.value); setItem(null); setSuccessMsg(""); }}
-              placeholder="Insira ou bipe o código de barras / referência..."
+              placeholder="Insira ou bipe o código de barras / referência…"
               className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 py-3 text-sm font-medium text-slate-900 focus:border-indigo-500 focus:bg-white focus:outline-none"
             />
           </div>
           <button
             type="submit"
-            disabled={loading}
-            className="rounded-xl bg-indigo-600 px-6 py-3 text-xs font-bold text-white hover:bg-indigo-700 shadow-sm flex items-center gap-2"
+            disabled={loading || !query.trim()}
+            className="rounded-xl bg-indigo-600 px-6 py-3 text-xs font-bold text-white hover:bg-indigo-700 shadow-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {loading && <Loader2 className="h-4 w-4 animate-spin" />}
             Pesquisar
           </button>
         </div>
-        <button type="button" disabled={loading} onClick={() => setCameraOpen(true)} className="inline-flex items-center gap-2 text-sm font-bold text-indigo-600">
-          <QrCode className="h-4 w-4" /> Ler com câmara
+        <button
+          type="button"
+          disabled={loading}
+          onClick={openScanner}
+          className="inline-flex items-center gap-2 text-sm font-bold text-indigo-600 hover:text-indigo-700 transition-colors"
+        >
+          <Camera className="h-4 w-4" /> Ler com Câmara
         </button>
       </form>
 
@@ -160,12 +296,16 @@ export default function StockScannerPage() {
                 {item.categoria || "Artigo de Stock"}
               </span>
               <h2 className="text-lg font-black text-slate-900 mt-2">{item.descricao}</h2>
-              <p className="text-xs font-mono text-slate-500 mt-0.5">Ref: {item.referencia}</p>
+              <p className="text-xs font-mono text-slate-500 mt-0.5">
+                Ref: {item.referencia}{item.codigoBarras ? ` · Código de Barras: ${item.codigoBarras}` : ""}
+              </p>
             </div>
             <div className="text-right">
               <p className="text-xs font-bold uppercase text-slate-400">Stock Atual</p>
               <p className="text-3xl font-black text-indigo-600 mt-0.5">{item.quantidade}</p>
-              <p className="text-xs text-slate-500">Disponível: {Math.max(0, item.quantidade - item.quantidadeReservada)}</p>
+              <p className="text-xs text-slate-500">
+                Disponível: {Math.max(0, item.quantidade - (item.quantidadeReservada || 0))}
+              </p>
             </div>
           </div>
 
@@ -180,7 +320,9 @@ export default function StockScannerPage() {
             </div>
             <div className="rounded-xl bg-slate-50 p-3 border border-slate-100">
               <p className="text-slate-400 font-bold">Preço Venda</p>
-              <p className="font-semibold text-slate-800 mt-1">{item.precoVenda ? `${item.precoVenda.toFixed(2)} €` : "—"}</p>
+              <p className="font-semibold text-slate-800 mt-1">
+                {item.precoVenda ? `${item.precoVenda.toFixed(2)} €` : "—"}
+              </p>
             </div>
           </div>
 
@@ -192,7 +334,7 @@ export default function StockScannerPage() {
             if (!response.ok) { setItem(null); throw new Error("Estorno registado. Pesquise o artigo novamente."); }
             setItem(await response.json());
           }} />
-          {/* Quick Adjustment */}
+
           <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4 space-y-3">
             <h3 className="text-xs font-bold text-indigo-900 uppercase tracking-wider">Registar Movimento Rápido</h3>
             <div className="flex flex-wrap items-center gap-3">
@@ -227,6 +369,67 @@ export default function StockScannerPage() {
                 Aplicar Movimento
               </button>
             </div>
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={openArticlePage}
+              className="flex-1 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-indigo-700 shadow-sm transition-colors"
+            >
+              <ArrowRight className="h-4 w-4 mr-1.5" />
+              Abrir Ficha Completa
+            </button>
+            <button
+              type="button"
+              onClick={clearItem}
+              className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+            >
+              <Trash2 className="h-4 w-4 mr-1.5" />
+              Limpar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {recentScans.length > 0 && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold text-slate-800 flex items-center gap-2">
+              <Clock size={16} className="text-indigo-600" />
+              Leituras Recentes
+            </h3>
+            <button
+              type="button"
+              onClick={() => setRecentScans([])}
+              className="text-xs text-slate-400 hover:text-red-600 transition-colors"
+            >
+              Limpar
+            </button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {recentScans.map((scan, i) => (
+              <div
+                key={i}
+                onClick={() => {
+                  setItem(scan.item || null);
+                  setError("");
+                  setSuccessMsg("");
+                  setShowScanner(false);
+                }}
+                className="rounded-xl border border-slate-100 bg-slate-50 p-3 cursor-pointer hover:bg-indigo-50 hover:border-indigo-100 transition-colors group"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-mono text-xs text-slate-600 truncate">{scan.code}</span>
+                  <span className="text-[10px] font-bold text-emerald-600">Artigo</span>
+                </div>
+                <p className="text-sm font-semibold text-slate-800 truncate">{scan.item?.descricao}</p>
+                <p className="text-xs text-slate-500 mt-1">
+                  Stock: {scan.item?.quantidade} ·
+                  Ref: {scan.item?.referencia}
+                </p>
+              </div>
+            ))}
           </div>
         </div>
       )}
