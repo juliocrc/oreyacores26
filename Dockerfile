@@ -14,7 +14,10 @@ COPY scripts/sync_schema_sqlite.js ./scripts/sync_schema_sqlite.js
 RUN npm ci --ignore-scripts && \
     npx prisma generate --schema prisma/schema.postgresql.prisma && \
     node scripts/patch-prisma-types.cjs && \
-    node scripts/sync_schema_sqlite.js
+    node scripts/sync_schema_sqlite.js && \
+    if [ "$DATABASE_URL" != "postgresql://dummy:dummy@localhost:5432/dummy" ]; then \
+      npx prisma db push --schema prisma/schema.postgresql.prisma --skip-generate; \
+    fi
 
 # ── Stage 2: Build ───────────────────────────────────────────
 FROM node:20-alpine AS builder
