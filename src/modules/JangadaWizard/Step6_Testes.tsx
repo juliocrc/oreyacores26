@@ -1,5 +1,5 @@
 ﻿"use client";
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useJangadaWizardStore } from './store/useJangadaWizardStore';
 import { getTestRecommendations, getGiDateContext, type TestRecommendation } from '@/modules/rafts/testRules';
 import { getDlLoadReference } from '@/modules/rafts/dlLoadReference';
@@ -8,7 +8,7 @@ import { parseFlexibleDateValue } from '@/lib/date-display';
 import { missingTestEvidence } from './testEvidence';
 import { calibrationEvidence } from './calibrationEvidence';
 import ManualReferenceNotice from './ManualReferenceNotice';
-import { Activity, Gauge, ArrowDownToLine, Droplet, Clock, Timer, Play, Pause, RotateCcw, AlertTriangle, Info, CheckCircle2, XCircle, HelpCircle, ShieldAlert, CalendarClock } from 'lucide-react';
+import { Activity, Gauge, ArrowDownToLine, Droplet, Clock, Timer, Play, Pause, RotateCcw, AlertTriangle, Info, CheckCircle2, XCircle, HelpCircle, ShieldAlert, CalendarClock, Bell } from 'lucide-react';
 
 const TEST_ICONS: Record<string, React.ElementType> = {
   testeWP: Gauge,
@@ -63,24 +63,289 @@ export default function Step6_Testes() {
   const evidenceWarnings = missingTestEvidence(testes);
   const [equipments, setEquipments] = useState<any[]>([]);
 
+  const raftSerial = String(inspectionData.jangadaSerial || inspectionData.serial || '').trim();
+  const WP_TIMER_STORAGE_KEY = raftSerial ? `wp-timer-${raftSerial}` : 'wp-timer-default';
+
+  type WPTimerState = {
+    timerSec: number;
+    timerRunning: boolean;
+    timerEndTime: number | null;
+    stabilizationMinutes: number;
+    stabilizationSec: number;
+    stabilizationRunning: boolean;
+    stabilizationEndTime: number | null;
+    phase: 'idle' | 'stabilizing' | 'ready-for-initial' | 'measuring-final' | 'completed';
+    finalSec: number;
+    finalRunning: boolean;
+    finalEndTime: number | null;
+    alertAcked: boolean;
+  };
+
+  const loadWPTimerState = (): WPTimerState | null => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const raw = window.localStorage.getItem(WP_TIMER_STORAGE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as WPTimerState;
+      if (!parsed || typeof parsed !== 'object') return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  };
+
+  const saveWPTimerState = (state: WPTimerState) => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(WP_TIMER_STORAGE_KEY, JSON.stringify(state));
+    } catch {
+      // localStorage indisponível ou excedido; ignora silenciosamente
+    }
+  };
+
+  const clearWPTimerState = () => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.removeItem(WP_TIMER_STORAGE_KEY);
+    } catch {
+      // ignora
+    }
+  };
+
   const [timerSec, setTimerSec] = useState(0);
   const [timerRunning, setTimerRunning] = useState(false);
+  const [timerEndTime, setTimerEndTime] = useState<number | null>(null);
+  const [stabilizationMinutes, setStabilizationMinutes] = useState(30);
+  const [stabilizationSec, setStabilizationSec] = useState(0);
+  const [stabilizationRunning, setStabilizationRunning] = useState(false);
+  const [stabilizationEndTime, setStabilizationEndTime] = useState<number | null>(null);
+  const [phase, setPhase] = useState<'idle' | 'stabilizing' | 'ready-for-initial' | 'measuring-final' | 'completed'>('idle');
+  const [finalSec, setFinalSec] = useState(0);
+  const [finalRunning, setFinalRunning] = useState(false);
+  const [finalEndTime, setFinalEndTime] = useState<number | null>(null);
+  const [alertAcked, setAlertAcked] = useState(false);
+  const [audioInitialized, setAudioInitialized] = useState(false);
 
-  const [realNow, setRealNow] = useState(() => new Date());
+  const timerRef = useRef<number | null>(null);
+  const stabilizationRef = useRef<number | null>(null);
+  const finalRef = useRef<number | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const hydratedRef = useRef(false);
+
+  // Hidrata o estado do temporizador a partir do localStorage (sobrevive a refresh)
   useEffect(() => {
-    const id = window.setInterval(() => setRealNow(new Date()), 1000);
+    if (hydratedRef.current) return;
+    const saved = loadWPTimerState();
+    if (!saved) return;
+
+    // Ajusta os endTimes com base no tempo decorrido desde que foram guardados.
+    // Se o endTime já passou, o temporizador está expirado; mantém o valor
+    // para que o useEffect do temporizador detete o fim e dispare o alerta.
+    const now = Date.now();
+    setTimerSec(saved.timerSec);
+    setTimerRunning(saved.timerRunning);
+    setTimerEndTime(saved.timerEndTime);
+    setStabilizationMinutes(saved.stabilizationMinutes);
+    setStabilizationSec(saved.stabilizationSec);
+    setStabilizationRunning(saved.stabilizationRunning);
+    setStabilizationEndTime(saved.stabilizationEndTime);
+    setPhase(saved.phase);
+    setFinalSec(saved.finalSec);
+    setFinalRunning(saved.finalRunning);
+    setFinalEndTime(saved.finalEndTime);
+    setAlertAcked(saved.alertAcked);
+    hydratedRef.current = true;
+  }, []);
+
+  // Persiste o estado do temporizador sempre que muda
+  useEffect(() => {
+    if (!hydratedRef.current) return;
+    const state: WPTimerState = {
+      timerSec,
+      timerRunning,
+      timerEndTime,
+      stabilizationMinutes,
+      stabilizationSec,
+      stabilizationRunning,
+      stabilizationEndTime,
+      phase,
+      finalSec,
+      finalRunning,
+      finalEndTime,
+      alertAcked,
+    };
+    saveWPTimerState(state);
+  }, [
+    timerSec,
+    timerRunning,
+    timerEndTime,
+    stabilizationMinutes,
+    stabilizationSec,
+    stabilizationRunning,
+    stabilizationEndTime,
+    phase,
+    finalSec,
+    finalRunning,
+    finalEndTime,
+    alertAcked,
+    hydratedRef.current,
+  ]);
+
+  // Limpa o estado guardado quando o teste WP é reposto ou concluído com confirmação
+  useEffect(() => {
+    if (phase === 'completed' && alertAcked) {
+      // Mantém o estado para o utilizador ver "Novo Teste"; limpa apenas quando
+      // o utilizador clica "Novo Teste" (handleResetStabilization).
+    }
+  }, [phase, alertAcked]);
+
+  // Inicialização de áudio apenas por gesto do utilizador
+  const ensureAudio = useCallback(() => {
+    if (audioInitialized) return audioCtxRef.current;
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      audioCtxRef.current = ctx;
+      setAudioInitialized(true);
+      return ctx;
+    } catch {
+      return null;
+    }
+  }, [audioInitialized]);
+
+  const playAlertTone = useCallback(() => {
+    try {
+      const ctx = ensureAudio();
+      if (!ctx) return;
+
+      // Se o contexto foi suspenso (ex: iOS/WebView bloqueado), tenta retomar
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+      }
+
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+
+      // Tom grave descendente (A2 → A1) para alerta sonoro grave
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(110, now); // A2
+      osc.frequency.exponentialRampToValueAtTime(55, now + 1.5); // desce para A1
+
+      // Controlo correto do ganho através de gainNode.gain
+      gainNode.gain.setValueAtTime(0.5, now);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, now + 2);
+
+      osc.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 2);
+    } catch {
+      // Áudio bloqueado pelo navegador; ignora silenciosamente
+    }
+  }, [ensureAudio, audioInitialized]);
+
+  // Tick do relógio real para calcular prazos
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => setTick((t) => t + 1), 1000);
     return () => window.clearInterval(id);
   }, []);
 
   const nowHHMMSS = () => {
-    return `${String(realNow.getHours()).padStart(2, '0')}:${String(realNow.getMinutes()).padStart(2, '0')}:${String(realNow.getSeconds()).padStart(2, '0')}`;
+    const d = new Date();
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+  };
+
+  // Calcula segundos restantes baseado em timestamp de fim real
+  const useRemaining = (endTime: number | null) => {
+    if (!endTime) return 0;
+    const remaining = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
+    return remaining;
   };
 
   useEffect(() => {
-    if (!timerRunning) return;
-    const id = window.setInterval(() => setTimerSec((s) => s + 1), 1000);
-    return () => window.clearInterval(id);
-  }, [timerRunning]);
+    if (!timerRunning || !timerEndTime) {
+      if (timerRef.current) {
+        window.clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      return;
+    }
+    const update = () => {
+      const remaining = useRemaining(timerEndTime);
+      setTimerSec(remaining);
+      if (remaining <= 0) {
+        setTimerRunning(false);
+        timerRef.current = null;
+      }
+    };
+    update();
+    timerRef.current = window.setInterval(update, 1000);
+    return () => {
+      if (timerRef.current) {
+        window.clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [timerRunning, timerEndTime, tick]);
+
+  useEffect(() => {
+    if (!stabilizationRunning || !stabilizationEndTime) {
+      if (stabilizationRef.current) {
+        window.clearInterval(stabilizationRef.current);
+        stabilizationRef.current = null;
+      }
+      return;
+    }
+    const update = () => {
+      const remaining = useRemaining(stabilizationEndTime);
+      setStabilizationSec(remaining);
+      if (remaining <= 0) {
+        setStabilizationRunning(false);
+        setPhase('ready-for-initial');
+        setAlertAcked(false);
+        stabilizationRef.current = null;
+        playAlertTone();
+      }
+    };
+    update();
+    stabilizationRef.current = window.setInterval(update, 1000);
+    return () => {
+      if (stabilizationRef.current) {
+        window.clearInterval(stabilizationRef.current);
+        stabilizationRef.current = null;
+      }
+    };
+  }, [stabilizationRunning, stabilizationEndTime, tick, playAlertTone]);
+
+  useEffect(() => {
+    if (!finalRunning || !finalEndTime) {
+      if (finalRef.current) {
+        window.clearInterval(finalRef.current);
+        finalRef.current = null;
+      }
+      return;
+    }
+    const update = () => {
+      const remaining = useRemaining(finalEndTime);
+      setFinalSec(remaining);
+      if (remaining <= 0) {
+        setFinalRunning(false);
+        setPhase('completed');
+        setAlertAcked(false);
+        finalRef.current = null;
+        playAlertTone();
+      }
+    };
+    update();
+    finalRef.current = window.setInterval(update, 1000);
+    return () => {
+      if (finalRef.current) {
+        window.clearInterval(finalRef.current);
+        finalRef.current = null;
+      }
+    };
+  }, [finalRunning, finalEndTime, tick, playAlertTone]);
 
   const nowHHMM = () => {
     const d = new Date();
@@ -95,18 +360,72 @@ export default function Step6_Testes() {
   };
 
   const handleStartTimer = () => {
+    const end = Date.now() + timerSec * 1000;
+    setTimerEndTime(end);
     setTimerRunning(true);
     if (!testes.wpHoraInicio) handleTestChange('wpHoraInicio', nowHHMM());
   };
 
   const handleStopTimer = () => {
     setTimerRunning(false);
+    setTimerEndTime(null);
     if (timerSec > 0) handleTestChange('wpHoraFim', nowHHMM());
   };
 
   const handleResetTimer = () => {
     setTimerRunning(false);
+    setTimerEndTime(null);
     setTimerSec(0);
+  };
+
+  const stabilizationLimit = stabilizationMinutes * 60;
+
+  const handleStartStabilization = () => {
+    const end = Date.now() + stabilizationMinutes * 60 * 1000;
+    setStabilizationEndTime(end);
+    setStabilizationSec(stabilizationMinutes * 60);
+    setStabilizationRunning(true);
+    setPhase('stabilizing');
+    setAlertAcked(false);
+    if (!testes.wpHoraInicio) handleTestChange('wpHoraInicio', nowHHMM());
+  };
+
+  const handleStopStabilization = () => {
+    setStabilizationRunning(false);
+    setStabilizationEndTime(null);
+  };
+
+  const handleResetStabilization = () => {
+    setStabilizationRunning(false);
+    setStabilizationEndTime(null);
+    setStabilizationSec(0);
+    setPhase('idle');
+    setAlertAcked(false);
+    clearWPTimerState();
+    hydratedRef.current = false;
+  };
+
+  const handleMarkInitialPressure = () => {
+    const end = Date.now() + 60 * 60 * 1000;
+    setFinalEndTime(end);
+    setFinalSec(60 * 60);
+    setPhase('measuring-final');
+    setFinalRunning(true);
+    setAlertAcked(false);
+    handleTestChange('wpHoraInicio', nowHHMM());
+  };
+
+  const handleMarkFinalPressure = () => {
+    setFinalRunning(false);
+    setFinalEndTime(null);
+    setPhase('completed');
+    setAlertAcked(false);
+    handleTestChange('wpHoraFim', nowHHMM());
+  };
+
+  const handleAckAlert = () => {
+    ensureAudio();
+    setAlertAcked(true);
   };
 
   const recommendations = useMemo(() => getTestRecommendations({
@@ -555,24 +874,59 @@ export default function Step6_Testes() {
                       </div>
                     </div>
 
-<div className="col-span-full bg-sky-50 rounded-xl p-4 border border-sky-300 flex flex-wrap items-center gap-x-4 gap-y-3 shadow-sm">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-indigo-100 shrink-0">
-                          <Timer size={20} className="text-indigo-700" />
+<div className="col-span-full bg-amber-50 rounded-xl p-4 border border-amber-200 flex flex-wrap items-center gap-x-4 gap-y-3 shadow-sm">
+                      {/* Seletor de duração de estabilização */}
+                      <div className="flex items-center gap-2">
+                        <label className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Estabilização válvulas:</label>
+                        <select
+                          value={stabilizationMinutes}
+                          onChange={(e) => setStabilizationMinutes(Number(e.target.value))}
+                          disabled={stabilizationRunning || finalRunning || phase === 'completed'}
+                          className="border-slate-200 rounded-xl px-2 py-1 text-xs font-bold bg-white focus:ring-2 focus:ring-amber-100"
+                        >
+                          <option value={30}>30 min</option>
+                          <option value={60}>60 min</option>
+                        </select>
+                        <span className="text-[10px] text-slate-400">antes da pressão inicial</span>
+                      </div>
+
+                      {/* Temporizador de estabilização */}
+                      <div className="flex items-center gap-3 min-w-[200px]">
+                        <div className={`p-2 rounded-lg shrink-0 ${phase === 'stabilizing' ? 'bg-orange-100' : phase === 'ready-for-initial' ? 'bg-yellow-100' : phase === 'measuring-final' ? 'bg-blue-100' : phase === 'completed' ? 'bg-emerald-100' : 'bg-slate-100'}`}>
+                          {phase === 'stabilizing' ? <Clock size={20} className="text-orange-700 animate-spin" /> : phase === 'ready-for-initial' ? <AlertTriangle size={20} className="text-yellow-700" /> : phase === 'measuring-final' ? <Clock size={20} className="text-blue-700" /> : phase === 'completed' ? <CheckCircle2 size={20} className="text-emerald-700" /> : <Timer size={20} className="text-slate-600" />}
                         </div>
-                        <div>
-                          <p className="text-[10px] uppercase tracking-wider text-slate-600 font-bold">Cronómetro de Teste WP</p>
-                          <p className="text-3xl font-black tabular-nums font-mono text-slate-900 leading-none mt-0.5">{formatTimer(timerSec)}</p>
-                          {timerRunning && (
+                        <div className="min-w-0">
+                          <p className="text-[10px] uppercase tracking-wider text-slate-600 font-bold">Temporizador WP</p>
+                          <p className="text-2xl font-black tabular-nums font-mono text-slate-900 leading-none mt-0.5">{phase === 'stabilizing' ? formatTimer(stabilizationSec) : phase === 'measuring-final' ? formatTimer(finalSec) : formatTimer(timerSec)}</p>
+                          {stabilizationRunning && (
+                            <p className="text-[10px] text-orange-700 font-bold mt-1 flex items-center gap-1">
+                              <span className="inline-block w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse"></span>
+                              Estabilização em curso…
+                            </p>
+                          )}
+                          {finalRunning && (
+                            <p className="text-[10px] text-blue-700 font-bold mt-1 flex items-center gap-1">
+                              <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                              Aguardando pressão final…
+                            </p>
+                          )}
+                          {phase === 'ready-for-initial' && !alertAcked && (
+                            <p className="text-[10px] text-yellow-700 font-bold mt-1 flex items-center gap-1">
+                              <AlertTriangle size={14} className="shrink-0" />
+                              Tempo de estabilização esgotado — leia a <strong>pressão inicial das câmaras</strong>.
+                            </p>
+                          )}
+                          {phase === 'completed' && !alertAcked && (
                             <p className="text-[10px] text-emerald-700 font-bold mt-1 flex items-center gap-1">
-                              <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                              Teste em curso...
+                              <CheckCircle2 size={14} className="shrink-0" />
+                              Tempo final esgotado — registe a <strong>pressão final das câmaras</strong>.
                             </p>
                           )}
                         </div>
                       </div>
+
                       <div className="flex items-center gap-2 ml-auto flex-wrap">
-                        <div className="flex flex-col items-end mr-2">
+                        <div className="flex flex-col items-end mr-2 hidden md:flex">
                           <p className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Hora atual (real)</p>
                           <p className="text-2xl font-black tabular-nums font-mono text-slate-900 leading-none mt-0.5">{nowHHMMSS()}</p>
                           {testes.wpHoraInicio && (
@@ -580,33 +934,124 @@ export default function Step6_Testes() {
                               Início registado: {testes.wpHoraInicio}
                             </p>
                           )}
+                          {testes.wpHoraFim && (
+                            <p className="text-[10px] text-indigo-600 font-bold mt-1">
+                              Fim registado: {testes.wpHoraFim}
+                            </p>
+                          )}
                         </div>
-                        <button
-                          type="button"
-                          onClick={handleStartTimer}
-                          disabled={timerRunning}
-                          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 transition"
-                        >
-                          <Play size={14} />
-                          {testes.wpHoraInicio ? 'Retomar t.' : 'Iniciar Teste (Agora)'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleStopTimer}
-                          disabled={!timerRunning && timerSec === 0}
-                          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 transition"
-                        >
-                          <Pause size={14} />
-                          Terminar (Agora)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleResetTimer}
-                          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 transition"
-                        >
-                          <RotateCcw size={14} />
-                          Repor
-                        </button>
+                        {phase === 'idle' && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={handleStartStabilization}
+                              disabled={stabilizationRunning}
+                              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-40 transition"
+                            >
+                              <Play size={14} />
+                              Iniciar Estabilização
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleResetStabilization}
+                              disabled={!stabilizationRunning && stabilizationSec === 0 && phase === 'idle'}
+                              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 transition"
+                            >
+                              <RotateCcw size={14} />
+                              Repor
+                            </button>
+                          </>
+                        )}
+                        {phase === 'stabilizing' && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={handleStopStabilization}
+                              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 transition"
+                            >
+                              <Pause size={14} />
+                              Pausar Estab.
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleResetStabilization}
+                              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-red-600 bg-white border border-red-200 hover:bg-red-50 transition"
+                            >
+                              <RotateCcw size={14} />
+                              Repor
+                            </button>
+                          </>
+                        )}
+                        {phase === 'ready-for-initial' && !alertAcked && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={handleAckAlert}
+                              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-yellow-700 bg-white border border-yellow-200 hover:bg-yellow-50 transition"
+                            >
+                              <Bell size={14} />
+                              Li a Pressão Inicial
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleMarkInitialPressure}
+                              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-40 transition"
+                            >
+                              <Clock size={14} />
+                              Iniciar Pressão Final (60 min)
+                            </button>
+                          </>
+                        )}
+                        {phase === 'ready-for-initial' && alertAcked && (
+                          <button
+                            type="button"
+                            onClick={handleMarkInitialPressure}
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition"
+                          >
+                            <Clock size={14} />
+                            Iniciar Pressão Final (60 min)
+                          </button>
+                        )}
+                        {phase === 'measuring-final' && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => setFinalRunning(!finalRunning)}
+                              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold ${finalRunning ? 'text-white bg-indigo-600 hover:bg-indigo-700' : 'text-white bg-blue-600 hover:bg-blue-700'} disabled:opacity-40 transition`}
+                            >
+                              {finalRunning ? <Pause size={14} /> : <Play size={14} />}
+                              {finalRunning ? 'Pausar Pressão Final' : 'Retomar Pressão Final'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleMarkFinalPressure}
+                              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-emerald-600 bg-white border border-emerald-200 hover:bg-emerald-50 transition"
+                            >
+                              <CheckCircle2 size={14} />
+                              Registar Pressão Final
+                            </button>
+                          </>
+                        )}
+                        {phase === 'completed' && !alertAcked && (
+                          <button
+                            type="button"
+                            onClick={handleAckAlert}
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-emerald-700 bg-white border border-emerald-200 hover:bg-emerald-50 transition"
+                          >
+                            <CheckCircle2 size={14} />
+                            Pressão Final Registada
+                          </button>
+                        )}
+                        {phase === 'completed' && alertAcked && (
+                          <button
+                            type="button"
+                            onClick={handleResetStabilization}
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 transition"
+                          >
+                            <RotateCcw size={14} />
+                            Novo Teste
+                          </button>
+                        )}
                       </div>
                     </div>
 

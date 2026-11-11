@@ -38,11 +38,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     const itens = raft.artigos.map(item => {
       const validade = item.validade ? toDateKey(item.validade) : null;
       const estado = getValidityCoverageStatus(validade, proxima);
-      const stockAllowed = item.stock && (access.isAdmin || access.allowedStationIds.includes(Number(item.stock.serviceStationId || 0)));
+      const stockAllowed = item.stock && guard.raft!.serviceStationId != null && item.stock.serviceStationId === guard.raft!.serviceStationId &&
+        (access.isAdmin || access.allowedStationIds.includes(Number(item.stock.serviceStationId || 0)));
       const price = stockAllowed ? Number(item.stock!.precoVenda) : 0;
       const unitario = Number.isFinite(price) && price > 0 ? price : null;
-      return { id: item.id, nome: item.name, referencia: item.referencia, quantidade: Math.max(0, item.quantidade), validade, estado, unitario,
-        total: estado === 'replace' && unitario !== null ? Math.round(item.quantidade * unitario * 100) / 100 : null };
+      const quantidade = Math.max(0, item.quantidade);
+      return { id: item.id, nome: item.name, referencia: item.referencia, quantidade, validade, estado, unitario,
+        total: estado === 'replace' && unitario !== null ? Math.round(quantidade * unitario * 100) / 100 : null };
     });
     const substituir = itens.filter(item => item.estado === 'replace');
     const pendentes = itens.filter(item => item.estado === 'pending');
@@ -99,11 +101,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       return { ...item, unitario, total: unitario === null ? null : Math.round(unitario * item.quantidade * 100) / 100 };
     });
     const fechoConhecido = fecho.filter(item => item.kind === 'cinta').reduce((sum, item) => sum + (item.total ?? 0), 0);
+    const artigosConhecidos = Math.round(substituir.reduce((sum, item) => sum + (item.total ?? 0), 0) * 100) / 100;
     return NextResponse.json({ serial: raft.serial, proximaInspecao: proxima, itens: substituir, pendentes,
       testes, ultimoGi: ultimoGi && giContext?.origem === 'registada' ? { inspecaoId: ultimoGi.id,
         dataInspecao: giContext.ultimaGiDate, proximaEstimativa: giContext.proximaGiDate } : null,
       fecho, notasFecho: closureManualNotes(raft), aplicabilidade: getRaftManualApplicability(raft), cintaIdentificada: fecho.some(item => item.kind === 'cinta'),
-      subtotalConhecido: Math.round((substituir.reduce((sum, item) => sum + (item.total ?? 0), 0) + fechoConhecido) * 100) / 100,
+      artigosConhecidos, fechoConhecido,
+      subtotalConhecido: Math.round((artigosConhecidos + fechoConhecido) * 100) / 100,
       semPreco: substituir.filter(item => item.total === null).length + fecho.filter(item => item.total === null).length,
     }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {

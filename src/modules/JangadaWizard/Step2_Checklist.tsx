@@ -33,6 +33,8 @@ import { isChecklistUnassessed, markUnassessedChecklistOk } from './checklistVal
 import { ReplacementStockPicker, ReplacementStockSelect } from '@/components/shared/ReplacementStockPicker';
 import { filterStockItems, isLightStockItem } from '@/lib/stock-picker';
 import StockArticleThumbnail from '@/components/shared/StockArticleThumbnail';
+import InspectionLabels from '@/components/jangadas/InspectionLabels';
+import LeafieldGuidance from '@/components/jangadas/LeafieldGuidance';
 
 const CHECKLIST_GROUPS = [
   {
@@ -126,7 +128,7 @@ function ExpandGroupsButton({ onClick, icon, label }: { onClick: () => void; ico
 }
 
 export default function Step2_Checklist() {
-  const { inspectionData, setInspectionData, hideOrcamento } = useJangadaWizardStore();
+  const { inspectionData, setInspectionData, hideOrcamento, jangadaId } = useJangadaWizardStore();
   const stepNo = getStepNumberByKey(inspectionData, 'checklist', { hideOrcamento });
 
   const [tecnicos, setTecnicos] = useState<any[]>([]);
@@ -462,6 +464,9 @@ export default function Step2_Checklist() {
           </div>
         </div>
       </div>
+
+      <LeafieldGuidance sistema={inspectionData.cylinder?.sistema} />
+      <InspectionLabels jangadaId={jangadaId} />
 
       {/* Toolbar única — controlos globais */}
       <div className="z-20 bg-white/95 backdrop-blur border border-slate-200 rounded-2xl shadow-sm p-3 sm:p-4 space-y-3 2xl:sticky 2xl:top-0">

@@ -33,8 +33,22 @@ it('uses the inspection date, recorded expiry and six-euro straps without invent
   expect(body.itens).toHaveLength(2);
   expect(body.fecho.find((item: { kind: string }) => item.kind === 'cinta')).toMatchObject({ quantidade: 6, unitario: 6, total: 36 });
   expect(body.subtotalConhecido).toBe(46);
+  expect(body.artigosConhecidos).toBe(10);
+  expect(body.fechoConhecido).toBe(36);
   expect(body.semPreco).toBeGreaterThan(0);
   expect(body.testes.length).toBeGreaterThan(0);
+});
+
+it('does not use an article price from another station and never totals a negative quantity', async () => {
+  const raft = await prisma.jangada.findUnique({ where: { id: 1 } });
+  jest.mocked(prisma.jangada.findUnique).mockResolvedValue({ ...raft, artigos: [
+    { id: 1, name: 'Outra estação', referencia: 'A', quantidade: 2, validade: '2027-05-01', stock: { precoVenda: 5, serviceStationId: 3 } },
+    { id: 2, name: 'Quantidade inválida', referencia: 'B', quantidade: -2, validade: '2027-05-01', stock: { precoVenda: 5, serviceStationId: 2 } },
+  ] } as never);
+  const body = await (await GET(request, context)).json();
+  expect(body.itens[0]).toMatchObject({ unitario: null, total: null });
+  expect(body.itens[1]).toMatchObject({ quantidade: 0, total: 0 });
+  expect(body.artigosConhecidos).toBe(0);
 });
 
 it('stops before querying data when access is denied', async () => {

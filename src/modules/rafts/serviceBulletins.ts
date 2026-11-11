@@ -20,6 +20,8 @@ const RFD_DYMO_TAPE_DATA_LABELS_FILE = "Marine liferafts - Container _ Introduct
 const SURVITEC_26900_PRESSURE_CONVERSIONS_FILE = "Marine Service Manual_ Correction of pressure conversions in Manual 269-00.pdf";
 const SURVITEC_LIFERAFT_CONDEMNATION_FILE = "Liferaft condemnation.pdf";
 const SURVITEC_ADHESIVE_SEAMS_FILE = "Marine Liferafts_ Enhanced inspection of adhesive seams.pdf";
+const RFD_RL6_INCORRECTLY_MOUNTED_FILE = "SB 58-13 Ver.1  -  MK IV RL6 LIGHTING SYSTEM INCORRECTLY MOUTED.pdf";
+const RFD_GIST_INLET_VALVE_SEAL_FILE = "SB 35-15 VER.1 - Replace the Leafield GIST inlet valve seal during next service.pdf";
 
 function normalizeToken(value: unknown): string {
   return String(value ?? "")
@@ -268,6 +270,48 @@ export function formatTechnicalBulletinShortLabel(bulletin: {
 
 export const technicalBulletins: TechnicalBulletin[] = [
   {
+    id: 'rfd-ferryman-inflation-foam-65-13',
+    title: 'Ferryman — proteção do sistema de insuflação',
+    bulletinNumber: 'SB 65/13 Ver.1',
+    shortDescription: 'Confirmar proteção de espuma',
+    issueDate: 'Dec/14',
+    fileName: 'SB 65-13 Ver.1  -  Marine Ferryman - Inflation System_ Introduction of additional foam protection.pdf',
+    manufacturer: 'RFD / SURVITEC',
+    description: 'Consultar a proteção de espuma nas válvulas de insuflação e na cabeça para Ferryman 50/65 e 100/130. Confirmar a configuração e o histórico antes de intervir.',
+    appliesToBrands: ['RFD'],
+    servicePeriodicity: 'O boletim prevê aplicação no próximo serviço.',
+    notes: ['SB 65/13 Ver.1, p. 1–3: verificar peças, montagem e registo no documento original.', 'Alerta consultivo: confirme a revisão vigente, o modelo e se a intervenção já foi realizada.'],
+    rules: [{ label: 'Ferryman 50/65 ou 100/130', aliases: ['FERRYMAN'], capacities: [50, 65, 100, 130], reasonSuffix: 'confirmar a configuração e o histórico de aplicação' }],
+  },
+  {
+    id: 'rfd-pyrotechnics-08-13-serials',
+    title: 'RFD Surviva MkIV — pirotécnicos identificados por série',
+    bulletinNumber: 'SB 08/13 Ver.1',
+    shortDescription: 'Verificar histórico dos pirotécnicos',
+    issueDate: 'Feb/13',
+    fileName: 'SB 08-13 Ver.1  -  EXCHANGE OF PYROTECHNICS.pdf',
+    manufacturer: 'RFD / SURVITEC',
+    description: 'Série incluída na tabela do boletim; confirmar local e histórico do primeiro serviço e a revisão aplicável antes de determinar qualquer intervenção.',
+    appliesToBrands: ['RFD'],
+    servicePeriodicity: 'O boletim descreve intervenção no primeiro serviço fora da China; verificar evidência histórica.',
+    notes: ['SB 08/13 Ver.1, p. 1–2: não exige intervenção nas estações aprovadas localizadas na China. A lista de séries RFD-Toyo requer identificação separada.', 'Alerta consultivo: a presença da série não comprova que os artigos ainda estão instalados ou que a intervenção está pendente.'],
+    rules: [{ label: 'Série Surviva listada no SB 08/13', aliases: [], raftSerials: ['5085710208558', '5085710208732', '5086210205725', '5086210206212', '5086310210052', '5086310210232', '5086610201307', '5086710203484', '5086710203510'], reasonSuffix: 'confirmar local de serviço e histórico dos pirotécnicos' }],
+  },
+  {
+    id: 'rfd-leafield-gist-head-105-16',
+    title: 'Marine — Install and check Leafield GIST operating head',
+    bulletinNumber: 'SB 105/16 Ver.3',
+    shortDescription: 'Verificação de montagem da cabeça Leafield GIST',
+    issueDate: 'Dec/19',
+    fileName: 'SB 105-16 Ver.3 - Install and check Leafield GIST operating head.pdf',
+    manufacturer: 'SURVITEC / RFD',
+    description: 'Verificar o procedimento do boletim quando a cabeça Leafield GIST identificada é instalada na válvula do cilindro.',
+    appliesToBrands: ['RFD'],
+    servicePeriodicity: 'Cada vez que a cabeça abrangida é instalada na válvula.',
+    notes: ['Fonte: SB 105/16 Ver.3, p. 3. A verificação aplica-se após a instalação; o boletim não exige esta verificação na cabeça recebida já instalada.', 'Confirmar a referência instalada e a revisão atual antes de executar. O alerta não regista a aplicação do boletim.'],
+    rules: [{ label: 'Cabeça Leafield GIST identificada', aliases: [], installedHeadReferences: ['08211009', '08426009'], reasonSuffix: 'referência registada abrangida; verificar apenas ao instalar na válvula' }],
+  },
+  {
     id: "ev-prv-vsp-ev-08",
     title: "EV Leisure rafts – Replacement of PRV valve type VSP-EV_08",
     bulletinNumber: "EV AT 20-01 Version 1",
@@ -386,7 +430,7 @@ export const technicalBulletins: TechnicalBulletin[] = [
     issueDate: "Apr/21",
     fileName: SURVITEC_RL6_INTERNAL_LAMP_FILE,
     manufacturer: "SURVITEC / RFD",
-    description: "Aplicar uma folha de polietileno 600 × 300 mm sobre a RL6 interna nas jangadas afetadas para impedir que a hauling-in ladder encrave entre a luz e o arch tube, evitando insuflação incompleta do arco.",
+    description: "Verificar a aplicabilidade do SB 76/15: a intervenção depende do modelo, da lotação e da posição da fixação da luz interna RL6; confirmar a configuração no manual antes de qualquer ação.",
     appliesToBrands: ["SURVITEC", "RFD"],
     servicePeriodicity: "Aplicar na próxima revisão programada das jangadas afetadas.",
     notes: [
@@ -395,6 +439,7 @@ export const technicalBulletins: TechnicalBulletin[] = [
       "A correção do boletim instala folha de polietileno 01999084 (600 × 300 mm) e fita preta 04834009 sobre a RL6 interna; no registo de serviço deve constar 'SB 76/15 Ver.2 APPLIED'.",
       "Como a ficha atual não guarda a posição do mounting patch da RL6, o sistema usa modelo + lotação 4/6/8 como proxy operacional para assinalar as jangadas que devem ser verificadas na próxima revisão.",
       "O próprio boletim indica que a incorporação já consta nos manuais M269-00 / M269-02; o alerta mantém-se útil para unidades em serviço sem evidência documental de embodiment.",
+      "A versão 2 também identifica Mk IV Extended Service (6/8 TO) e Coastal Service (4/6/8 TO). Estas designações podem não ser reconhecidas pelas regras atuais; a ausência de alerta não exclui a necessidade de consultar o boletim.",
     ],
     rules: [
       {
@@ -403,7 +448,7 @@ export const technicalBulletins: TechnicalBulletin[] = [
         aliases: ["SURVIVA MKIV", "SURVIVA MK IV", "MKIV", "MK IV", "MK4"],
         technicalModels: ["SURVIVA MKIV TO"],
         capacities: [4, 6, 8],
-        reasonSuffix: "lotação 4/6/8 abrangida; verificar/embodir proteção da RL6 interna na próxima revisão",
+        reasonSuffix: "lotação 4/6/8; confirmar RL6 e posição da fixação antes de determinar a aplicabilidade",
       },
       {
         label: "ISO 9650 4-8 persons (excluding SeaSava Plus)",
@@ -411,26 +456,28 @@ export const technicalBulletins: TechnicalBulletin[] = [
         aliases: ["SEASAVA PRO-ISO", "ISO 9650", "ISO9650", "ISO 9650 PU"],
         technicalModels: ["SEASAVA PRO-ISO"],
         capacities: [4, 6, 8],
-        reasonSuffix: "lotação 4/6/8 abrangida; verificar/embodir proteção da RL6 interna na próxima revisão",
+        reasonSuffix: "lotação 4/6/8; confirmar RL6 e posição da fixação antes de determinar a aplicabilidade",
       },
     ],
   },
   {
     id: "survitec-mk16-drain-holes-84-16",
     title: "Marine: Make drain holes in Mk 16 flat-pack containers",
-    bulletinNumber: "SB 84/16",
+    bulletinNumber: "SB 84/16 Ver.1",
     shortDescription: "Furos de drenagem em contentores MK16",
-    issueDate: "2016",
+    issueDate: "Feb/17",
     fileName: SURVITEC_MK16_DRAIN_HOLES_FILE,
     manufacturer: "SURVITEC / RFD / DSB",
-    description: "Aplicar o boletim SB 84/16 nos contentores flat-pack MK16, criando/verificando os furos de drenagem previstos pelo fabricante durante a próxima revisão programada.",
+    description: "Verificar o SB 84/16 para contentores MK16 abrangidos: os furos são previstos apenas para montagem horizontal; não executar em contentores montados de lado.",
     appliesToBrands: ["SURVITEC", "RFD", "DSB"],
-    servicePeriodicity: "Aplicar na próxima revisão programada das jangadas com contentor MK16; confirmar embodiment documental nas revisões seguintes.",
+    servicePeriodicity: "Na próxima revisão, confirmar tamanho, referência, orientação e registo da intervenção antes de aplicar.",
     notes: [
       "Boletim registado a pedido do utilizador a partir do ficheiro '84_16 Marine Make drain holes in Mk 16 flat-pack containers (1).pdf'.",
       "A lógica operacional cruza a família técnica da jangada com o modelo de contentor MK16; quando a ficha da jangada já tem `containerModel`, esse valor prevalece sobre o catálogo técnico para reduzir falsos positivos.",
       "As famílias técnicas atualmente mapeadas com contentor MK16 no catálogo são SURVIVA MKIV TO e DSB LR07.",
-      "Como o projeto não guarda ainda um estado específico de embodiment por contentor, o alerta permanece ativo até o boletim ser marcado como aplicado na ficha da jangada.",
+      "A identificação por modelo ou catálogo não comprova o contentor instalado, a sua orientação nem a execução anterior; confirmar estes dados e o histórico antes de qualquer intervenção.",
+      "SB 84/16 Ver.1, p. 3–4: apenas montagem horizontal; não furar contentores montados de lado. Confirmar tamanho 2, 3 ou 4 e referências abrangidas. A ficha não comprova a orientação.",
+      "O boletim também referencia o manual Ferryman M310. As regras atuais não abrangem explicitamente Ferryman; a ausência de alerta não exclui a aplicabilidade a um contentor abrangido.",
     ],
     rules: [
       {
@@ -439,7 +486,7 @@ export const technicalBulletins: TechnicalBulletin[] = [
         aliases: ["SURVIVA MKIV", "SURVIVA MK IV", "MKIV", "MK IV", "MK4", "LR07"],
         technicalModels: ["SURVIVA MKIV TO", "LR07"],
         containerAliases: ["MK16", "MK 16", "MK-16", "FLAT PACK MK16"],
-        reasonSuffix: "contentor MK16 abrangido; executar/verificar os furos de drenagem do SB 84/16 na próxima revisão",
+        reasonSuffix: "possível contentor MK16; confirmar referência, tamanho e orientação: o boletim exclui montagem lateral",
       },
     ],
   },
@@ -547,7 +594,9 @@ export const technicalBulletins: TechnicalBulletin[] = [
     appliesToBrands: ["SURVITEC", "RFD", "RFDB", "SSPI", "SSS", "EUROVINIL", "EV", "DSB", "DBC", "ZODIAC"],
     servicePeriodicity: "Desde 01/10/2021: 6.D em cada revisão programada; 6.E e 6.F na próxima revisão programada; 6.G quando necessário.",
     notes: [
-      "Boletim analisado do PDF SB 43/21 Ver.4 (Apr/26), que atualiza a Ver.3 (Oct/24) e rescinde as emissões por marca 27/21 a 37/21.",
+      "ATENÇÃO: o ficheiro SB 43/21 Ver.4 NÃO existe na pasta local de boletins. O ficheiro disponível é SB 27/21 Ver.1 (Jun/21, 22 páginas), um boletim anterior com o mesmo tema. O número de boletim e a revisão referenciados não podem ser confirmados contra o documento original.",
+      "O ficheiro SB 27/21 Ver.1 define: todos os Marine Mk IV com drop height ≤ 36 m; 6.D thru 6.G na próxima revisão programada; 6.E em cada revisão programada; 6.H quando necessário.",
+      "SB 43/21 Ver.4, segundo as notas do alerta, atualiza a Ver.3 (Oct/24) e rescinde as emissões por marca 27/21 a 37/21. Até confirmar o ficheiro original, tratar este alerta com cautela.",
       "Equipamento afetado no boletim: Surviva Mk IV e Surviva Mk IV Extended Service liferafts com drop height de 36 metros ou menos (manuais M269-00/M269-02/M271).",
       "A referência 05606009 (IFS 7001008) mantém-se, mas o gasket seal usa adesivo revisto e deve ser substituído em cada revisão; o stock antigo continua utilizável.",
       "As novas valises 53769001 / 53770001 / 53771001 (IFS 7001001/7001002/7001003) e 53793001 (IFS 7001004) reduzem desperdício e tempo de inspeção; para bellows tipo pump (45201001/45201002) o uso da bellows valise é obrigatório e pillowflex/bubblewrap deixa de ser permitido; bellows tipo beehive (51784001) não precisa de packing adicional.",
@@ -804,7 +853,7 @@ export const technicalBulletins: TechnicalBulletin[] = [
       "Após inspeção, as zonas com cola em bom estado são reparadas conforme o service manual e marcadas com patch de tecido RFD 1015/1 de 50 mm de diâmetro (têxtil para fora); numa segunda reinspesão a separação aumenta para 100 mm e marca-se com um segundo patch de 50 mm.",
       "Registo obrigatório: anotar 'SB18/08 Ver 2' no cartão da jangada, no certificado de reinspesão (se aplicável) e no cartão 'Liferaft Service Record' (dentro do contentor).",
       "Reporting: jangadas com juntas adesivas degradadas devem ser condenadas no formulário online de condenação (secção 28, com a menção exata 'Liferaft condemned in accordance with SB18/08 Ver 2').",
-      "Como o sistema usa `dataFabrico` como proxy do DOM, a regra aplica-se às famílias acima com ano de fabrico < 2002; sem ano de fabrico registado o alerta mantém-se para confirmação do técnico.",
+      "O sistema usa `dataFabrico` como proxy do DOM e apenas apresenta o alerta quando há ano registado anterior a 2002; a ausência do alerta por data desconhecida não comprova que o boletim seja inaplicável.",
     ],
     rules: [
       {
@@ -819,6 +868,65 @@ export const technicalBulletins: TechnicalBulletin[] = [
         technicalModels: ["SURVIVA MKII", "SURVIVA MKIII", "SURVIVA MKIV TO", "SEASAVA PLUS", "SEASAVA PRO-ISO"],
         yearTo: 2001,
         reasonSuffix: "SB 18/08 Ver.2: realizar a inspeção reforçada das juntas adesivas floor/buoyancy (e lifting strap nas davit-launch); cola degradada (castanho-escuro, quebradiça) => condenar",
+      },
+    ],
+  },
+  {
+    id: "rfd-rl6-lighting-incorrectly-mounted-58-13",
+    title: "Marine MkIV liferafts – Lighting: RL6 internal lighting patch incorrectly mounted",
+    bulletinNumber: "SB 58/13 Ver.1",
+    shortDescription: "RL6 interno montado incorretamente",
+    issueDate: "Sep/13",
+    fileName: RFD_RL6_INCORRECTLY_MOUNTED_FILE,
+    manufacturer: "SURVITEC / RFD",
+    description: "Verificar se o patch de iluminação interna RL6 está montado corretamente. Patchs mal montados podem impedir a insuflação total do arco. A correção depende da lotação: 4–16 pessoas requerem rotação da unidade 180°; 20–25 pessoas requerem ajuste das fitas de velcro. Consultar SB 20/13 para as peças e procedimento.",
+    appliesToBrands: ["RFD", "SURVITEC"],
+    servicePeriodicity: "Completar durante o próximo serviço das jangadas afetadas.",
+    notes: [
+      "Boletim analisado do PDF SB 58/13 Ver.1 (Sep/13), p. 1–4.",
+      "Equipamento afetado: Surviva MkIV 4–25 pessoas Throw-Over e Davit-Launch.",
+      "A correção refere SB 20/13 para peças necessárias (lâmpada externa 11788009, lâmpada interna 11785009, fitas, cordão).",
+      "O registo de serviço deve mencionar 'SB 58/13 Ver.1 APPLIED'.",
+      "O sistema usa modelo + lotação como proxy; a posição real do patch deve ser confirmada visualmente pelo técnico.",
+    ],
+    rules: [
+      {
+        label: "Surviva MkIV 4-25 pax RL6 patch",
+        canonicalModel: "SURVIVA MKIV TO",
+        aliases: ["SURVIVA MKIV", "SURVIVA MK IV", "MKIV", "MK IV", "MK4"],
+        technicalModels: ["SURVIVA MKIV TO"],
+        capacities: [4, 6, 8, 10, 12, 16, 20, 25],
+        reasonSuffix: "confirmar posição do patch RL6 interno; 4–16 pax: rotacionar unidade 180° se montado incorretamente; 20–25 pax: ajustar fitas de velcro",
+      },
+    ],
+  },
+  {
+    id: "rfd-gist-inlet-valve-seal-35-15",
+    title: "Marine liferafts – Replace Leafield GIST inlet valve seal during next service",
+    bulletinNumber: "SB 35/15 Ver.1",
+    shortDescription: "Substituir selo da válvula de entrada GIST",
+    issueDate: "Nov/15",
+    fileName: RFD_GIST_INLET_VALVE_SEAL_FILE,
+    manufacturer: "SURVITEC / RFD",
+    description: "Substituir o selo (Ball Seat Moulding) da válvula de entrada Leafield GIST durante o próximo serviço em jangadas com data de fabrico entre setembro de 2013 e outubro de 2015. O selo antigo pode reter gás durante o teste de explosão, aumentando o tempo de insuflação.",
+    appliesToBrands: ["SURVITEC", "RFD", "EUROVINIL", "EV", "DSB", "ZODIAC"],
+    servicePeriodicity: "Aplicar na próxima revisão programada das jangadas afetadas com DOM entre 09/2013 e 10/2015.",
+    notes: [
+      "Boletim analisado do PDF SB 35/15 Ver.1 (Nov/15), p. 1–4. Existe também SB 35/15 Ver.2; confirmar a revisão vigente com o fabricante.",
+      "Equipamento afetado: todas as jangadas Marine com sistema de insuflação Leafield e DOM entre setembro de 2013 e outubro de 2015 inclusive.",
+      "Modelos afetados incluem: Seafarer, Endura R, Seasava Pro ISO, Seasava Plus R, Ferryman, Surviva, Seasava Plus X, Crewsaver, Clipper.",
+      "Peças: 12211009 (Ball seal moulding, 2 unidades) e 12237009 (Seal service kit).",
+      "O sistema usa `dataFabrico` como proxy do DOM. Quando o ano não está registado, o alerta não é apresentado; a ausência de alerta não comprova que o boletim não se aplica.",
+    ],
+    rules: [
+      {
+        label: "Sistema Leafield GIST, DOM 09/2013–10/2015",
+        aliases: [],
+        technicalModels: ["SURVIVA MKIV TO", "SEASAVA PLUS", "FERRYMAN", "ENDURA R", "SEASAVA PRO-ISO", "SEASAVA PLUS R", "SEASAVA PLUS X"],
+        inflationSystemAliases: ["LEAFIELD", "LEAFIELD GIST", "GIST"],
+        yearFrom: 2013,
+        yearTo: 2015,
+        reasonSuffix: "substituir selo da válvula de entrada GIST (12211009) no próximo serviço; DOM entre setembro de 2013 e outubro de 2015",
       },
     ],
   },
@@ -848,6 +956,7 @@ function getInstalledConfigurationCandidates(raft: {
   brand?: unknown;
   model?: unknown;
   cylinderSistema?: unknown;
+  cylinderCabecaDisparoRef?: unknown;
   valvulasAlivio?: unknown;
 }) {
   const technicalModel = findRaftTechnicalModel(String(raft.brand ?? ""), String(raft.model ?? ""));
@@ -985,11 +1094,13 @@ export function getMatchingBulletinRulesForModel(brand: unknown, model: unknown)
 export function getApplicableServiceBulletinsForRaft(raft: {
   brand?: unknown;
   model?: unknown;
+  serial?: unknown;
   containerModel?: unknown;
   capacity?: unknown;
   maxStowageHeight?: unknown;
   dataFabrico?: unknown;
   cylinderSistema?: unknown;
+  cylinderCabecaDisparoRef?: unknown;
   valvulasAlivio?: unknown;
 }): ApplicableTechnicalBulletin[] {
   const matchedBrand = canonicalizeBrand(raft.brand);
@@ -1005,7 +1116,11 @@ export function getApplicableServiceBulletinsForRaft(raft: {
 
   const rawMatches = getTechnicalBulletinsForBrand(raft.brand).flatMap((bulletin) =>
     bulletin.rules.flatMap((rule) => {
+      if (bulletin.id === 'rfd-ferryman-inflation-foam-65-13' &&
+          (!/\bFERRYMAN\b/.test(normalizeToken(raft.model)) || ![50, 65, 100, 130].includes(Number(raft.capacity)))) return [];
       if (!ruleMatchesModel(rule, matchedModelCandidates)) return [];
+      if (rule.raftSerials?.length && !rule.raftSerials.includes(String(raft.serial || '').trim().toUpperCase())) return [];
+      if (rule.installedHeadReferences?.length && !rule.installedHeadReferences.includes(String(raft.cylinderCabecaDisparoRef || '').trim().toUpperCase())) return [];
       if (rule.capacities?.length) {
         if (matchedCapacity === null || !rule.capacities.includes(matchedCapacity)) return [];
       }

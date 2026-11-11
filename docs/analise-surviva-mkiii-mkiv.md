@@ -100,3 +100,37 @@ Para concluir uma análise exaustiva ainda é necessário validar visualmente as
 tabelas e figuras de todos os capítulos e apêndices aplicáveis, comparar as
 revisões com o portal do fabricante e produzir uma matriz de rastreabilidade
 revista por técnico habilitado. Não afirmar conformidade normativa sem isso.
+
+## Autocolantes — limitações por modelo
+
+### Surviva MK III
+- Apenas o contentor MK10, tamanhos 3 e 4, lançamento TO têm autocolantes
+  identificados (figura 1110 e página 1129 do manual 251): etiqueta de dados
+  (04819001), altura máxima/retenida (21196001), DO NOT ROLL (41144001),
+  logótipo SURVIVA (20765001), inspeção visual (05656001), marca RFD
+  (06231001).
+- Outros tamanhos, contentores ou lançamentos do MK III não têm autocolantes
+  atribuídos automaticamente; confirmar no manual aplicável.
+
+### Marine MK IV
+- TO: etiquetas universais páginas 1152–1153 (04819001, 41144001, 43869001,
+  21196001, 43973001, 05656001).
+- DL: etiquetas páginas 1168–1169 para MK10, MK14 e MK20 nos tamanhos listados;
+  referências distintas para MK20.
+- Outros tamanhos ou contentores não listados não têm autocolantes atribuídos
+  automaticamente.
+
+### SeaSava Plus e SeaSava Plus R
+- Não há manuais locais para estes modelos; não atribuir referências de
+  autocolantes por aproximação ao MK III ou MK IV.
+- Todas as RFD SeaSava são associadas ao manual MK III na matriz de
+  aplicabilidade por indicação do utilizador, mas a identificação dos
+  autocolantes deve ser confirmada individualmente (variante, aprovação, edição
+  e compatibilidade dos componentes).
+- A aplicação retorna `supported: false` para SeaSava Plus e Plus R até que
+  haja evidência documental confirmada.
+
+## Estado
+Os autocolantes são apresentados como apoio consultivo na ficha da jangada e
+na checklist de inspeção; não criam passos independentes nem descontam stock
+automaticamente.

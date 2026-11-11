@@ -62,6 +62,20 @@ export function canonicalizeRaftBrand(value: unknown) {
   return upper;
 }
 
+/** Remove a whole leading brand only when a model remains. */
+export function raftModelWithoutBrand(model: unknown, brand: unknown): string {
+  const value = String(model ?? '').trim().replace(/\s+/g, ' ');
+  const brandValue = String(brand ?? '').trim().replace(/\s+/g, ' ');
+  if (!value || !brandValue) return value;
+  const words = value.split(/\s+/);
+  for (let count = 1; count < words.length; count++) {
+    if (normalizeToken(words.slice(0, count).join(' ')) === normalizeToken(brandValue)) {
+      return words.slice(count).join(' ').replace(/^[-–—:]+\s*/, '') || value;
+    }
+  }
+  return value;
+}
+
 function isSeasavaPlusRPackType(value: unknown) {
   const normalized = stripDiacritics(normalizeUpperText(value)).replace(/[^A-Z0-9]/g, "");
   if (!normalized) return false;
@@ -107,7 +121,7 @@ export function canonicalizeRaftModel(value: unknown, brand?: unknown, packType?
   }
 
   if (upperBrand.includes("LALIZAS") && signature.includes("OCEANO")) {
-    return "Lalizas Oceano";
+    return "OCEANO";
   }
 
   if (!upper) return "";
@@ -170,7 +184,7 @@ export function canonicalizeRaftModel(value: unknown, brand?: unknown, packType?
     return "COASTAL PT";
   }
 
-  return upper;
+  return raftModelWithoutBrand(upper, canonicalizeRaftBrand(brand));
 }
 
 const LEAFIELD_SIGNATURES = ["leafield", "leafeld", "leafild", "leaffield"];
@@ -183,6 +197,12 @@ export function canonicalizeCylinderSistema(value: unknown) {
   if (!raw) return "";
 
   const token = normalizeToken(raw);
+  // Preserve explicitly chosen Leafield variants; generic/legacy names do not
+  // establish which mechanism is installed.
+  if (token === 'leafieldgisttorsional') return 'LEAFIELD GIST TORSIONAL';
+  if (token === 'leafieldcutter') return 'LEAFIELD CUTTER';
+  if (token === 'leafieldcommanometro') return 'LEAFIELD COM MANÓMETRO';
+  if (token === 'leafieldporconfirmar') return 'LEAFIELD POR CONFIRMAR';
   if (LEAFIELD_SIGNATURES.some((alias) => token.includes(alias))) {
     return "LEAFIELD";
   }

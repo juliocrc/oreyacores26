@@ -55,6 +55,8 @@ import SavedInspectionView from '@/modules/JangadaWizard/SavedInspectionView';
 import { classifyLocalDraft, draftTime } from '@/modules/JangadaWizard/localDraftStatus';
 import InspectionCostForecast from '@/components/jangadas/InspectionCostForecast';
 import ContainerLabels from '@/components/jangadas/ContainerLabels';
+import ContainerDrawingReference from '@/components/jangadas/ContainerDrawingReference';
+import LeafieldGuidance from '@/components/jangadas/LeafieldGuidance';
 import InflationHoseGuidance from '@/components/jangadas/InflationHoseGuidance';
 import WizardRouter from '@/modules/JangadaWizard/WizardRouter';
 import { EditarArtigoDialog } from '@/components/jangadas/EditarArtigoDialog';
@@ -351,6 +353,7 @@ interface Recall {
 
 interface StockItem {
   id: number;
+  serviceStationId?: number | null;
   descricao: string;
   referencia?: string;
   codigoFabricante?: string;
@@ -809,7 +812,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
   const [strapStockId, setStrapStockId] = useState('');
   const [strapQty, setStrapQty] = useState('1');
   const [inspecaoFormDirty, setInspecaoFormDirty] = useState(false);
-  const [activeTab, setActiveTab] = useState<'dados' | 'artigos' | 'pack' | 'contentor' | 'historico' | 'testeWP' | 'boletins' | 'checklist' | 'dgrm' | 'previsao'>('dados');
+  const [activeTab, setActiveTab] = useState<'dados' | 'artigos' | 'pack' | 'contentor' | 'autocolantes' | 'historico' | 'testeWP' | 'boletins' | 'checklist' | 'dgrm' | 'previsao'>('dados');
   const [data, setData] = useState<JangadaFormData>(initialData || {});
   const [editForm, setEditForm] = useState<JangadaFormData>(initialData ? { ...initialData } : {});
   const isEditingRef = useRef(isEditing);
@@ -1326,6 +1329,8 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
   const [vacuumBagStockId, setVacuumBagStockId] = useState<string>('');
   const [vacuumBagQty, setVacuumBagQty] = useState<string>('1');
   const [closureSaving, setClosureSaving] = useState(false);
+  const [labelStockId, setLabelStockId] = useState('');
+  const [labelQuantity, setLabelQuantity] = useState('1');
 
   useEffect(() => {
     fetchStockItems();
@@ -1333,7 +1338,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
 
   async function fetchStockItems() {
     try {
-      const res = await fetch('/api/stock');
+      const res = await fetch('/api/stock?includeFoto=true');
       if (res.ok) {
         const json = await res.json();
         if (!Array.isArray(json)) throw new Error('Resposta de stock inválida');
@@ -3550,6 +3555,10 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
             <Box size={16} />
             Contentor
           </button>
+          <button type="button" onClick={() => setActiveTab('autocolantes')}
+            className={`flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold transition-all w-full sm:w-auto justify-center ${activeTab === 'autocolantes' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
+            <Box size={16} /> Autocolantes
+          </button>
           <button
             onClick={() => setActiveTab('historico')}
             className={`flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold transition-all w-full sm:w-auto justify-center ${
@@ -3602,6 +3611,36 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
         </div>
 
         {/* Tab Contents */}
+        {activeTab === 'autocolantes' && <div className="space-y-4">
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
+            <h2 className="text-xl font-bold text-slate-800">Autocolantes associados à jangada</h2>
+            <p className="text-sm text-slate-600">Selecione um artigo do stock e indique a quantidade instalada. A associação não desconta stock; os artigos fazem parte dos registos de fecho da jangada.</p>
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="flex-1 min-w-[220px] text-sm font-semibold text-slate-700">Artigo do stock
+                <select value={labelStockId} onChange={e => setLabelStockId(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 p-2">
+                  <option value="">Selecionar artigo…</option>
+                  {stockItems.filter(item => item.serviceStationId == null || (data.serviceStationId != null && item.serviceStationId === data.serviceStationId)).map(item => <option key={item.id} value={item.id}>{item.descricao} · {item.referencia || item.codigoFabricante || `#${item.id}`} · {item.quantidade ?? 0} un.</option>)}
+                </select>
+              </label>
+              <label className="text-sm font-semibold text-slate-700">Quantidade<input type="number" min="1" step="1" value={labelQuantity} onChange={e => setLabelQuantity(e.target.value)} className="mt-1 block w-24 rounded-xl border border-slate-300 p-2" /></label>
+              <button type="button" disabled={closureSaving || !labelStockId} onClick={() => {
+                const stock = stockItems.find(item => item.id === Number(labelStockId) && (item.serviceStationId == null || (data.serviceStationId != null && item.serviceStationId === data.serviceStationId)));
+                const quantidade = Number(labelQuantity);
+                if (!stock || !Number.isSafeInteger(quantidade) || quantidade < 1) { alert('Selecione um artigo e uma quantidade inteira superior a zero.'); return; }
+                const current = parseClosureStraps(data.closureStrapsJson);
+                if (current.some(item => item.kind === 'autocolante' && item.stockId === stock.id)) { alert('Este artigo já está associado à jangada.'); return; }
+                void persistClosureItems([...current, { kind: 'autocolante', stockId: stock.id, referencia: stock.referencia || null, descricao: stock.descricao, quantidade, partNumber: stock.codigoFabricante || null }]);
+              }} className="rounded-xl bg-indigo-600 px-4 py-2 font-bold text-white disabled:opacity-50">Associar</button>
+            </div>
+            {stockLookupStatus === 'error' && <p role="alert" className="text-sm text-red-700">Não foi possível consultar o stock.</p>}
+            {parseClosureStraps(data.closureStrapsJson).map((item, index) => ({ item, index })).filter(({ item }) => item.kind === 'autocolante').map(({ item, index }) => <div key={`${item.stockId}-${index}`} className="flex items-center gap-3 rounded-xl border border-slate-200 p-3">
+              {articleThumbnail({ ...item, codigoFabricante: item.partNumber, name: item.descricao }, item.descricao || 'Autocolante')}
+              <div className="flex-1 text-sm"><strong>{item.descricao || 'Autocolante'}</strong><p className="text-slate-500">{item.referencia || 'Sem referência'} · {item.quantidade} un.</p></div>
+              <button type="button" disabled={closureSaving} onClick={() => { void removeClosureItem(index); }} className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-red-700">Desassociar</button>
+            </div>)}
+          </section>
+          <ContainerLabels raft={{ brand: data.brand, model: data.model, launchType: data.launchType, containerModel: data.containerModel, containerSize: typeof data.containerSize === 'string' ? data.containerSize : null }} stock={stockItems.filter(item => item.serviceStationId == null || (data.serviceStationId != null && item.serviceStationId === data.serviceStationId))} stockStatus={stockLookupStatus} />
+        </div>}
         {activeTab === 'previsao' && <InspectionCostForecast jangadaId={jangadaId} />}
         {activeTab === 'dados' && (
           <div className="space-y-6">
@@ -3991,6 +4030,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Sistema Insuflação</span>
                   {isEditing ? (
                     <input 
+                      list="sistemas-insuflacao-leafield"
                       className="w-full border-slate-200 rounded-xl px-4 py-2 bg-slate-50 text-sm"
                       value={editForm.cylinderSistema || ''} 
                       onChange={(e) => handleCylinderChange('cylinderSistema', e.target.value)} 
@@ -3998,6 +4038,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
                   ) : (
                     <p className="font-semibold text-slate-800">{data.cylinderSistema || '—'}</p>
                   )}
+                  {isEditing && <datalist id="sistemas-insuflacao-leafield"><option value="LEAFIELD GIST TORSIONAL" /><option value="LEAFIELD CUTTER" /><option value="LEAFIELD COM MANÓMETRO" /><option value="LEAFIELD POR CONFIRMAR" /></datalist>}
                 </div>
 
                 <div className="space-y-1">
@@ -4402,6 +4443,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
               </h2>
 
               <div className="space-y-5">
+                <LeafieldGuidance sistema={(isEditing ? editForm : data).cylinderSistema} />
                 <InflationHoseGuidance upper={(isEditing ? editForm : data).cylinderTuboCamaraSuperiorRef} lower={(isEditing ? editForm : data).cylinderTuboCamaraInferiorRef} relief={(isEditing ? editForm : data).valvulasAlivio} topUp={(isEditing ? editForm : data).valvulasAtestar} stock={stockItems} />
                 <div className="space-y-1">
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Cabeça Disparo</span>
@@ -4987,6 +5029,7 @@ export default function JangadaDetailPageClient({ jangadaId, initialData, ships 
         });
         return (
           <div className="space-y-4">
+            <ContainerDrawingReference raft={{ brand: data.brand, model: data.model, capacity: data.capacity, containerModel: data.containerModel, containerSize: typeof data.containerSize === 'string' ? data.containerSize : null }} />
             <div className="rounded-2xl bg-white border border-slate-200 shadow-sm p-5">
               <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
                 <Box size={18} className="text-indigo-500" />

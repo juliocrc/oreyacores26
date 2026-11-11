@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { formatDate } from '@/lib/date-utils';
 
 type Item = { id: number; nome: string; referencia: string | null; quantidade: number; validade: string | null; unitario: number | null; total: number | null };
-type Forecast = { proximaInspecao: string | null; itens: Item[]; pendentes: Item[]; subtotalConhecido: number; semPreco: number;
+type Forecast = { proximaInspecao: string | null; itens: Item[]; pendentes: Item[]; artigosConhecidos: number; fechoConhecido: number; subtotalConhecido: number; semPreco: number;
   cintaIdentificada: boolean; fecho: Array<{ key: string; kind: string; descricao: string; quantidade: number; unitario: number | null; total: number | null; certainty?: string }>;
   testes: Array<{ testId: string; label: string; status: string; reason: string }>; notasFecho: string[];
   ultimoGi: { inspecaoId: number; dataInspecao: string; proximaEstimativa: string } | null;
@@ -34,10 +34,17 @@ export default function InspectionCostForecast({ jangadaId }: { jangadaId: numbe
     </div>
     <p className="text-sm text-slate-600">Próxima inspeção: {data.proximaInspecao ? formatDate(data.proximaInspecao) : 'data por definir'}. Estimativa indicativa, não é orçamento: não inclui mão de obra, IVA, custo dos testes, reparações ou artigos ainda não registados. Confirme as sugestões de fecho e os testes aplicáveis.</p>
     {!data.proximaInspecao && <p role="status" className="text-amber-700">Defina a data da próxima inspeção para calcular os vencimentos.</p>}
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+      <h3 className="font-bold text-slate-900">Resumo dos materiais conhecidos, sem IVA</h3>
+      <dl className="mt-2 space-y-1"><div className="flex justify-between gap-4"><dt>Artigos a substituir</dt><dd>{euro(data.artigosConhecidos)}</dd></div><div className="flex justify-between gap-4"><dt>Cintas previstas</dt><dd>{euro(data.fechoConhecido)}</dd></div><div className="flex justify-between gap-4 border-t border-slate-200 pt-2 font-bold"><dt>Subtotal parcial</dt><dd>{euro(data.subtotalConhecido)}</dd></div></dl>
+      <p className="mt-2">Não inclui preços em falta nem outras sugestões de fecho; o custo final poderá ser superior.</p>
+    </div>
+    <h3 className="font-bold text-slate-800">Artigos com substituição prevista</h3>
     <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="border-b text-slate-500"><th className="p-2">Artigo</th><th className="p-2">Validade</th><th className="p-2">Qtd.</th><th className="p-2">Preço unitário</th><th className="p-2">Estimativa</th></tr></thead><tbody>
       {data.itens.map(item => <tr key={item.id} className="border-b border-slate-100"><td className="p-2">{item.nome}{item.referencia && <span className="block text-xs text-slate-500">{item.referencia}</span>}</td><td className="p-2">{item.validade || '—'}</td><td className="p-2">{item.quantidade}</td><td className="p-2">{item.unitario === null ? 'Por definir' : euro(item.unitario)}</td><td className="p-2">{item.total === null ? 'Por definir' : euro(item.total)}</td></tr>)}
     </tbody></table></div>
-    {data.itens.length === 0 && <p className="text-sm text-slate-500">Nenhum artigo registado com substituição prevista por validade.</p>}
+    {data.itens.length === 0 && <p className="text-sm text-slate-500">{data.proximaInspecao ? 'Nenhum artigo registado com substituição prevista por validade.' : 'A previsão de substituições depende da data da inspeção.'}</p>}
+    {data.pendentes.length > 0 && <div className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900"><h3 className="font-bold">Artigos por confirmar</h3><p className="mt-1">Não incluídos no subtotal: confirme a validade e a data da inspeção.</p><ul className="mt-2 list-disc space-y-1 pl-5">{data.pendentes.map(item => <li key={item.id}>{item.nome}{item.referencia ? ` (${item.referencia})` : ''} — validade: {item.validade || 'por confirmar'}; quantidade: {item.quantidade}</li>)}</ul></div>}
     <h3 className="font-bold text-slate-800">Testes previstos para a data</h3>
     <p className="text-sm text-slate-600">{data.ultimoGi
       ? `Último GI com resultado “passou” numa inspeção concluída: ${formatDate(data.ultimoGi.dataInspecao)} (inspeção #${data.ultimoGi.inspecaoId}). Data estimada cinco anos depois: ${formatDate(data.ultimoGi.proximaEstimativa)}. Confirme a data real e a periodicidade aplicável.`
@@ -48,7 +55,6 @@ export default function InspectionCostForecast({ jangadaId }: { jangadaId: numbe
     {!data.cintaIdentificada && <p className="text-sm text-amber-700">Quantidade de cintas não identificada para este modelo; confirmar manualmente.</p>}
     <ul className="space-y-1 text-sm text-slate-700">{data.fecho.map(item => <li key={item.key}>{item.descricao} — {item.quantidade} × {item.unitario === null ? 'preço por definir' : euro(item.unitario)} = {item.total === null ? 'por definir' : euro(item.total)} {item.certainty && item.certainty !== 'exact' ? '(confirmar correspondência)' : ''}</li>)}</ul>
     {data.notasFecho.length > 0 && <div className="rounded-xl bg-indigo-50 p-3 text-sm text-indigo-900"><p className="font-bold">Verificações no manual</p><ul className="mt-2 list-disc space-y-1 pl-5">{data.notasFecho.map(note => <li key={note}>{note}</li>)}</ul></div>}
-    <p className="font-bold text-slate-800">Subtotal conhecido de materiais, sem IVA: {euro(data.subtotalConhecido)}</p>
     {(data.semPreco > 0 || data.pendentes.length > 0) && <p role="status" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">{data.semPreco} artigo(s) previsto(s) sem preço; {data.pendentes.length} artigo(s) com validade ou data de inspeção por confirmar. O subtotal é incompleto.</p>}
   </section>;
 }

@@ -4,6 +4,7 @@ import { findRaftTechnicalModel, raftModelData } from "@/modules/rafts/raftModel
 import { findMatchingArticleForPackItem, getMandatoryPackItemsForRaft } from "@/modules/rafts/mandatoryPack";
 import type { Jangada, PausedInspectionDraftMeta, JangadaListColumnKey } from "@/types/jangadas-page";
 import { JANGADA_LIST_COLUMNS } from "@/types/jangadas-page";
+import { raftModelWithoutBrand } from '@/lib/text-normalization';
 
 export function normalizeTechnicalSearchValue(value?: string | null) {
   return String(value || "")
@@ -429,7 +430,7 @@ export function normalizeModelMatchKey(value: unknown): string {
 }
 
 export function canonicalizeRaftModelLabel(brand: unknown, model: unknown): string | null {
-  const key = normalizeModelMatchKey(model);
+  const key = normalizeModelMatchKey(raftModelWithoutBrand(model, brand));
   if (!key) return null;
   const brandKey = normalizeModelFilterKey(brand);
 
@@ -448,11 +449,11 @@ export function canonicalizeRaftModelLabel(brand: unknown, model: unknown): stri
     .flatMap(([, entries]) => entries);
 
   const match = models.find((entry) => {
-    if (normalizeModelMatchKey(entry.name) === key) return true;
-    return (entry.aliases || []).some((alias) => normalizeModelMatchKey(alias) === key);
+    if (normalizeModelMatchKey(raftModelWithoutBrand(entry.name, brand)) === key) return true;
+    return (entry.aliases || []).some((alias) => normalizeModelMatchKey(raftModelWithoutBrand(alias, brand)) === key);
   });
 
-  return match ? match.name : null;
+  return match ? raftModelWithoutBrand(match.name, brand) : null;
 }
 
 export function uniqueNormalizedLabels(values: Array<string | null | undefined>): string[] {

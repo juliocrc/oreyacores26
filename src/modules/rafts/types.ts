@@ -53,6 +53,8 @@ export type TechnicalBulletinRule = {
   excludeValveAliases?: string[];
   equipmentAliases?: string[];
   referenceAliases?: string[];
+  installedHeadReferences?: string[];
+  raftSerials?: string[];
   yearFrom?: number;
   yearTo?: number;
   lifeLimitYears?: number;
