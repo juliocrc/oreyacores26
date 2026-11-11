@@ -22,7 +22,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { appToast } from "@/lib/app-toast";
 
 type Html5Qrcode = {
   isScanning: boolean;
@@ -88,7 +87,6 @@ export default function AdvancedBarcodeScanner({
   const [history, setHistory] = useState<Array<{ code: string; found: boolean; at: string }>>([]);
   const [cameraError, setCameraError] = useState("");
   const [facingMode, setFacingMode] = useState<"user" | "environment">("environment");
-  const [flashOn, setFlashOn] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const processedCodesRef = useRef<Set<string>>(new Set());
@@ -121,7 +119,7 @@ export default function AdvancedBarcodeScanner({
   };
 
   const startCamera = useCallback(async () => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || scannerRef.current) return;
 
     // Verificar se o browser suporta acesso à câmara
     if (
@@ -153,7 +151,7 @@ export default function AdvancedBarcodeScanner({
           processedCodesRef.current.add(code);
           setLastScan(code);
           setScanning(false);
-          void lookupAndHandle(code);
+          void stopScanner().then(() => lookupAndHandle(code));
         },
         (scanError) => {
           // Erro durante a leitura (não no arranque) - não bloquear, apenas registar
@@ -180,11 +178,6 @@ export default function AdvancedBarcodeScanner({
 
   const switchCamera = () => {
     setFacingMode((prev) => (prev === "environment" ? "user" : "environment"));
-  };
-
-  const toggleFlash = () => {
-    setFlashOn((prev) => !prev);
-    appToast.info(flashOn ? "Lanterna desligada" : "Lanterna ligada (suportada apenas nativamente)");
   };
 
   const lookupAndHandle = async (code: string) => {
@@ -215,17 +208,7 @@ export default function AdvancedBarcodeScanner({
       recordScan(code, true);
       setError("");
 
-      if (onArticleFound) {
-        onArticleFound(item);
-      }
-
-      if (autoOpenArticle) {
-        appToast.success(`Artigo encontrado: ${item.descricao}`);
-        router.push(`${articleRouteBase}/${item.id}`);
-      } else {
-        setScanning(false);
-        if (!continuous) setScanning(false);
-      }
+      setScanning(false);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Erro ao consultar o código lido.");
       recordScan(code, false);
@@ -258,7 +241,7 @@ export default function AdvancedBarcodeScanner({
 
   return (
     <div className="fixed inset-0 z-[60] flex flex-col">
-      {lastResult && !continuous ? (
+      {lastResult ? (
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-[61] flex items-center justify-center p-4 sm:p-8">
           <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
@@ -317,6 +300,15 @@ export default function AdvancedBarcodeScanner({
             </div>
 
             <div className="space-y-2">
+              {(onArticleFound || autoOpenArticle) && <button
+                type="button"
+                onClick={() => {
+                  if (onArticleFound) onArticleFound(lastResult);
+                  if (autoOpenArticle) router.push(`${articleRouteBase}/${lastResult.id}`);
+                  setLastResult(null);
+                }}
+                className="w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white hover:bg-emerald-700"
+              >Confirmar artigo e lote</button>}
               <Link
                 href={`${articleRouteBase}/${lastResult.id}`}
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-indigo-600 text-white font-bold text-sm hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-600/25"
@@ -399,25 +391,24 @@ export default function AdvancedBarcodeScanner({
             <div
               ref={containerRef}
               className="w-full aspect-video bg-black rounded-2xl overflow-hidden flex items-center justify-center"
-            >
+            />
               {scanning && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-white">
                   <div className="flex items-center gap-2 mb-2 animate-pulse">
                     <Activity className="h-5 w-5 text-yellow-400" />
                     <span className="text-xs font-medium">A Ler…</span>
                   </div>
                   <div className="flex items-center gap-1 text-xs text-slate-200">
-                    {facingMode === "environment" ? "Traseira" : "Frontal"} · {flashOn ? "Lanterna" : ""}
+                    {facingMode === "environment" ? "Traseira" : "Frontal"}
                   </div>
                 </div>
               )}
               {!scanning && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400">
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-slate-400">
                   <Camera className="h-12 w-12 mb-2 opacity-50" />
                   <span className="text-sm">Pronta para ler</span>
                 </div>
               )}
-            </div>
 
             <div className="mt-3 flex flex-wrap gap-2">
               <button
@@ -438,14 +429,6 @@ export default function AdvancedBarcodeScanner({
                   Ler Outro
                 </button>
               )}
-              <button
-                type="button"
-                onClick={toggleFlash}
-                className="flex-1 px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-              >
-                <Activity className={`h-4 w-4 mr-1.5 ${flashOn ? "text-yellow-500 animate-pulse" : "text-slate-400"}`} />
-                Lanterna {flashOn ? "ON" : "OFF"}
-              </button>
             </div>
           </div>
         ) : (
